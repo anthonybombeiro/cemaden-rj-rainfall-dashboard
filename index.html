@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Pluviométrico CEMADEN-RJ 2019-2026</title>
+    <title>Dashboard Pluviométrico CEMADEN-RJ</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -19,176 +19,144 @@
         body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
         header { background: linear-gradient(135deg, var(--primary), var(--light)); color: white; padding: 2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         header h1 { font-size: 2rem; margin-bottom: 0.5rem; }
-        header p { font-size: 0.95rem; opacity: 0.9; }
         .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
-        nav { background: var(--bg-light); padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border: 1px solid var(--border); }
+        nav { background: var(--bg-light); padding: 1rem; border-radius: 8px; margin-bottom: 2rem; }
         .tabs { display: flex; gap: 0.5rem; overflow-x: auto; flex-wrap: wrap; }
-        .tab-btn { padding: 0.75rem 1.5rem; border: none; background: transparent; color: var(--text); cursor: pointer; border-radius: 6px; font-size: 0.95rem; white-space: nowrap; transition: all 0.3s; }
+        .tab-btn { padding: 0.75rem 1.5rem; border: none; background: transparent; color: var(--text); cursor: pointer; border-radius: 6px; transition: all 0.3s; }
         .tab-btn:hover { background: var(--bg); color: var(--primary); }
         .tab-btn.active { background: var(--primary); color: white; }
         .content { display: none; }
-        .content.active { display: block; animation: fade 0.3s; }
-        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-        .card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .content.active { display: block; }
+        .card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
         .card h2 { color: var(--primary); margin-bottom: 1rem; font-size: 1.4rem; }
-        .card h3 { color: var(--accent); margin-top: 1.5rem; margin-bottom: 0.75rem; font-size: 1.1rem; }
-        .btn-group { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; transition: all 0.3s; background: var(--primary); color: white; }
-        .btn:hover { background: var(--light); transform: translateY(-2px); }
-
-        /* Heatmap */
-        .heatmap { margin: 2rem 0; overflow-x: auto; }
-        .heatmap-table { border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1rem; }
+        .card h3 { color: var(--accent); margin-top: 1.5rem; margin-bottom: 0.75rem; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; background: var(--primary); color: white; margin-right: 0.5rem; margin-bottom: 0.5rem; }
+        .btn:hover { background: var(--light); }
+        .heatmap { overflow-x: auto; margin: 2rem 0; }
+        .heatmap-table { border-collapse: collapse; font-size: 0.85rem; }
         .heatmap-table th, .heatmap-table td { padding: 0.5rem; border: 1px solid var(--border); text-align: center; }
-        .cell { height: 40px; width: 50px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; }
-        .cell:hover { transform: scale(1.1); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-
-        /* Charts */
-        .chart-container { position: relative; height: 400px; margin: 2rem 0; }
-        .chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 2rem; margin: 2rem 0; }
-
-        /* Analysis */
-        .analysis { background: var(--bg-light); border-left: 4px solid var(--primary); padding: 1.5rem; margin: 2rem 0; border-radius: 6px; }
-        .analysis h4 { color: var(--primary); margin-bottom: 0.5rem; }
-        .analysis p { margin-bottom: 0.5rem; color: var(--text-light); }
-        .analysis strong { color: var(--text); }
-
-        /* Table */
-        table { width: 100%; border-collapse: collapse; background: var(--bg); margin: 1rem 0; }
-        th { background: var(--bg-light); color: var(--text); padding: 0.75rem; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); }
+        .cell { height: 40px; width: 50px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: white; font-weight: 600; font-size: 0.75rem; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th { background: var(--bg-light); padding: 0.75rem; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); }
         td { padding: 0.75rem; border-bottom: 1px solid var(--border); }
-        tr:hover { background: var(--bg-light); }
-
-        select { padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95rem; }
-        @media (max-width: 768px) { .container { padding: 1rem; } header h1 { font-size: 1.5rem; } .chart-row { grid-template-columns: 1fr; } }
+        .chart-container { position: relative; height: 400px; margin: 2rem 0; }
+        .analysis { background: var(--bg-light); border-left: 4px solid var(--primary); padding: 1.5rem; margin: 2rem 0; border-radius: 4px; }
+        .loading { text-align: center; padding: 2rem; }
+        .spinner { display: inline-block; width: 40px; height: 40px; border: 4px solid var(--bg-light); border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        select { padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; }
+        .error { color: #dc3545; background: #fff5f5; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
     </style>
 </head>
 <body>
     <header>
         <h1>📊 Dashboard Pluviométrico CEMADEN-RJ SRAAS</h1>
-        <p>Análise de precipitação por estação pluviométrica (2019-2026) | 14 municípios | 86 estações</p>
+        <p>Análise de precipitação por estação pluviométrica (2019-2026)</p>
     </header>
 
     <div class="container">
-        <nav>
-            <div class="tabs">
-                <button class="tab-btn active" data-tab="visao-geral">Visão Geral</button>
-                <button class="tab-btn" data-tab="comparativo">Comparativo</button>
-                <button class="tab-btn" data-tab="municipios">Municípios</button>
-                <button class="tab-btn" data-tab="sobre">Sobre</button>
-            </div>
-        </nav>
+        <div id="loadingScreen" class="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 1rem;">Carregando dados...</p>
+        </div>
 
-        <!-- VISÃO GERAL -->
-        <div id="visao-geral" class="content active">
-            <div class="card">
-                <h2>📈 Visão Geral - Precipitação Anual Máxima por Município</h2>
-                <div class="btn-group">
+        <div id="mainContent" style="display:none;">
+            <nav>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="visao-geral">📈 Visão Geral</button>
+                    <button class="tab-btn" data-tab="comparativo">📊 Gráficos</button>
+                    <button class="tab-btn" data-tab="municipios">🏙️ Municípios</button>
+                    <button class="tab-btn" data-tab="sobre">ℹ️ Sobre</button>
+                </div>
+            </nav>
+
+            <!-- VISÃO GERAL -->
+            <div id="visao-geral" class="content active">
+                <div class="card">
+                    <h2>📈 Visão Geral - Precipitação Anual Máxima</h2>
                     <button class="btn" onclick="downloadCSV()">📥 Baixar CSV</button>
                     <button class="btn" onclick="window.print()">🖨️ Imprimir</button>
-                </div>
 
-                <h3>Heatmap: Precipitação Anual Máxima (mm) - Máximo entre estações</h3>
-                <div class="heatmap" id="heatmapContainer"></div>
+                    <h3>Heatmap: Precipitação Anual Máxima (mm)</h3>
+                    <div class="heatmap" id="heatmapContainer"></div>
 
-                <div class="analysis">
-                    <h4>📊 Análise do Heatmap</h4>
-                    <p><strong>O que você está vendo:</strong> Para cada município (linhas) e ano (colunas), é mostrado o valor MÁXIMO de precipitação encontrado entre todas suas estações pluviométricas. Cores mais quentes (roxo) indicam maior precipitação, mais verdes indicam menor.</p>
-                    <p><strong>Interpretação:</strong></p>
-                    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                        <li>🟢 Verde (#28A745): Até 20% do máximo - baixa precipitação</li>
-                        <li>🟡 Amarelo (#FFE510): 20-40% do máximo</li>
-                        <li>🟠 Laranja (#FD7E14): 40-60% do máximo</li>
-                        <li>🔴 Vermelho (#DC3545): 60-80% do máximo - alto risco</li>
-                        <li>🟣 Roxo (#6F42C1): Acima de 80% do máximo - crítico</li>
-                    </ul>
-                </div>
+                    <div class="analysis">
+                        <h4>📊 Análise do Heatmap</h4>
+                        <p><strong>Interpretação:</strong> Cada célula mostra o máximo de precipitação encontrado entre todas as estações do município naquele ano.</p>
+                        <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                            <li>🟢 Verde: até 20% do máximo</li>
+                            <li>🟡 Amarelo: 20-40%</li>
+                            <li>🟠 Laranja: 40-60%</li>
+                            <li>🔴 Vermelho: 60-80%</li>
+                            <li>🟣 Roxo: acima de 80% (crítico)</li>
+                        </ul>
+                    </div>
 
-                <h3>Top 40 Maiores Eventos Diários (por estação individual)</h3>
-                <div style="overflow-x: auto;">
+                    <h3>Top 40 Maiores Eventos Diários</h3>
                     <table>
-                        <thead>
-                            <tr><th>#</th><th>Município</th><th>Estação</th><th>Data</th><th>Chuva (mm)</th></tr>
-                        </thead>
+                        <thead><tr><th>#</th><th>Município</th><th>Estação</th><th>Data</th><th>Chuva (mm)</th></tr></thead>
                         <tbody id="topEventsBody"></tbody>
                     </table>
-                </div>
 
-                <div class="analysis">
-                    <h4>📍 Sobre os Eventos Extremos</h4>
-                    <p><strong>Contexto:</strong> A tabela acima lista os 40 maiores eventos de precipitação registrados em um único dia, em qualquer estação. Estes eventos representam picos extremos que podem indicar risco de enchentes, deslizamentos e desastres naturais.</p>
-                    <p><strong>Destaque:</strong> Petrópolis registrou o maior evento (1394.4mm em um dia em março/2024), caracterizando-se como zona de alto risco pluviométrico. Este valor mostra por que é uma das regiões mais críticas para monitoramento.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- ANÁLISE COMPARATIVA -->
-        <div id="comparativo" class="content">
-            <div class="card">
-                <h2>📊 Análise Comparativa - Precipitação por Município</h2>
-
-                <h3>Precipitação Anual Comparada (2019-2026)</h3>
-                <div class="chart-container">
-                    <canvas id="chartAnnual"></canvas>
-                </div>
-
-                <div class="analysis">
-                    <h4>📈 Padrões Observados</h4>
-                    <p><strong>Municípios mais chuvosos:</strong> Petrópolis, Magé e Barra do Piraí aparecem consistentemente com os maiores volumes. Petrópolis destaca-se com picos acima de 8000mm em anos específicos (2022-2023).</p>
-                    <p><strong>Variação temporal:</strong> Há clara sazonalidade. Verão (dez-fev) e outono (mar-mai) concentram a maior parte da precipitação em quase todos os municípios.</p>
-                </div>
-
-                <h3>Comparação: Município com Maior vs. Menor Precipitação</h3>
-                <div class="chart-row">
-                    <div class="chart-container"><canvas id="chartHighVsLow"></canvas></div>
-                    <div class="chart-container"><canvas id="chartMonthlyPattern"></canvas></div>
-                </div>
-
-                <div class="analysis">
-                    <h4>🔍 Análise de Variabilidade</h4>
-                    <p><strong>Diferenças significativas:</strong> Há forte contraste entre regiões. Petrópolis (serrana) recebe 10-15x mais chuva que Areal (interior), indicando influência da topografia.</p>
-                    <p><strong>Implicações:</strong> Cada município requer estratégia diferente de drenagem, alerta e resposta a desastres.</p>
+                    <div class="analysis">
+                        <h4>📍 Eventos Extremos</h4>
+                        <p><strong>Contexto:</strong> Estes são os 40 maiores eventos de precipitação em 24 horas. Petrópolis lidera com 1394mm em um dia (março/2024) - evento extremo que causou desastres.</p>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- MUNICÍPIOS -->
-        <div id="municipios" class="content">
-            <div class="card">
-                <h2>🏙️ Análise Detalhada por Município</h2>
+            <!-- GRÁFICOS -->
+            <div id="comparativo" class="content">
+                <div class="card">
+                    <h2>📊 Análise Comparativa</h2>
 
-                <label>Selecione um município:
-                    <select id="munSelect" onchange="showMunicipality(this.value)">
-                        <option value="">-- Escolha --</option>
-                    </select>
-                </label>
+                    <h3>Tendência Anual por Município</h3>
+                    <div class="chart-container">
+                        <canvas id="chartAnnual"></canvas>
+                    </div>
 
-                <div id="munDetail" style="margin-top: 2rem;"></div>
+                    <h3>Comparação: Maior vs Menor Precipitação</h3>
+                    <div class="chart-container">
+                        <canvas id="chartHighVsLow"></canvas>
+                    </div>
+
+                    <h3>Padrão Mensal</h3>
+                    <div class="chart-container">
+                        <canvas id="chartMonthly"></canvas>
+                    </div>
+
+                    <div class="analysis">
+                        <h4>📈 Padrões Observados</h4>
+                        <p><strong>Variação espacial:</strong> Petrópolis recebe 10-15x mais chuva que Areal, mostrando forte influência da topografia.</p>
+                        <p><strong>Sazonalidade:</strong> Verão (dez-fev) e outono (mar-mai) concentram 60-70% da chuva anual.</p>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <!-- SOBRE -->
-        <div id="sobre" class="content">
-            <div class="card">
-                <h2>ℹ️ Sobre os Dados</h2>
-                <h3>Metodologia</h3>
-                <p>✅ <strong>Cálculo por estação individual:</strong> Cada uma das 86 estações tem seus dados processados independentemente.</p>
-                <p>✅ <strong>Soma de tempo15m:</strong> A coluna "tempo15m" contém precipitação a cada 15 minutos. Somamos estes valores por dia (total diário) e depois por mês (total mensal) <strong>para cada estação</strong>.</p>
-                <p>✅ <strong>Agregação municipal:</strong> Para representar um município, usamos o valor MÁXIMO entre todas suas estações em cada mês. Isso reflete o local mais chuvoso da cidade.</p>
+            <!-- MUNICÍPIOS -->
+            <div id="municipios" class="content">
+                <div class="card">
+                    <h2>🏙️ Análise por Município</h2>
+                    <label>Selecione: <select id="munSelect" onchange="showMunicipality(this.value)"><option>-- Escolha --</option></select></label>
+                    <div id="munDetail" style="margin-top: 2rem;"></div>
+                </div>
+            </div>
 
-                <h3>Dados Disponíveis</h3>
-                <ul style="margin-left: 1.5rem;">
-                    <li><strong>Período:</strong> 2019 a 2026</li>
-                    <li><strong>Municípios:</strong> 14 (todo RJ SRAAS)</li>
-                    <li><strong>Estações:</strong> 86 pluviômetros</li>
-                    <li><strong>Total de registros:</strong> Milhões de leituras de 15 minutos</li>
-                </ul>
+            <!-- SOBRE -->
+            <div id="sobre" class="content">
+                <div class="card">
+                    <h2>ℹ️ Sobre</h2>
+                    <h3>Metodologia</h3>
+                    <p>✅ Cálculo por estação: cada uma das 86 estações tem seus dados processados independentemente.</p>
+                    <p>✅ Coluna tempo15m: precipitação a cada 15 min, somada por dia, depois por mês POR ESTAÇÃO.</p>
+                    <p>✅ Agregação municipal: usa o MÁXIMO entre todas as estações (reflete o local mais chuvoso).</p>
 
-                <h3>Municípios Cobertos</h3>
-                <p>Angra dos Reis • Areal • Barra Mansa • Barra do Piraí • Bom Jardim • Cachoeiras de Macacu • Duque de Caxias • Magé • Nova Friburgo • Petrópolis • Queimados • São Gonçalo • São João de Meriti • Teresópolis</p>
+                    <h3>Dados</h3>
+                    <p><strong>Período:</strong> 2019-2026 | <strong>Municípios:</strong> 14 | <strong>Estações:</strong> 86 | <strong>Fonte:</strong> CEMADEN-RJ SRAAS</p>
 
-                <h3>Fonte</h3>
-                <p><strong>CEMADEN-RJ SRAAS</strong> (Sistema Remoto de Alerta e Alarme de Seca)</p>
+                    <h3>Municípios</h3>
+                    <p>Angra dos Reis • Areal • Barra Mansa • Barra do Piraí • Bom Jardim • Cachoeiras de Macacu • Duque de Caxias • Magé • Nova Friburgo • Petrópolis • Queimados • São Gonçalo • São João de Meriti • Teresópolis</p>
+                </div>
             </div>
         </div>
     </div>
@@ -196,21 +164,24 @@
     <script>
         let appData = null;
 
-        // Embutir dados aqui (será substituído pelo Python)
-        const dataString = $json;
-
-        function initApp() {
+        async function loadData() {
             try {
-                appData = JSON.parse(dataString);
-                console.log('Dados carregados:', appData.municipalities.length, 'municípios');
+                const response = await fetch('https://raw.githubusercontent.com/anthonybombeiro/cemaden-rj-rainfall-dashboard/main/data.json');
+                if (!response.ok) throw new Error('Erro ao carregar dados: ' + response.status);
+                appData = await response.json();
+                console.log('✅ Dados carregados:', appData.municipalities.length, 'municípios');
 
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+
+                setupTabs();
                 renderHeatmap();
                 renderTopEvents();
                 renderMunicipalities();
                 renderCharts();
-            } catch (e) {
-                console.error('Erro ao carregar dados:', e);
-                document.body.innerHTML = '<div style="padding: 2rem;"><h2>❌ Erro ao carregar dados</h2><p>' + e.message + '</p></div>';
+            } catch (error) {
+                console.error('Erro:', error);
+                document.getElementById('loadingScreen').innerHTML = '<div class="error"><h3>❌ Erro ao carregar dados</h3><p>' + error.message + '</p><p>Verifique se o arquivo data.json existe em: <a href="https://github.com/anthonybombeiro/cemaden-rj-rainfall-dashboard" target="_blank">GitHub</a></p></div>';
             }
         }
 
@@ -326,14 +297,13 @@
         }
 
         function renderCharts() {
-            // Preparar dados
             const data = appData.by_municipality_year_month;
             const munis = Object.keys(data).sort();
             const yearsSet = new Set();
             Object.values(data).forEach(y => Object.keys(y).forEach(yr => yearsSet.add(yr)));
             const years = Array.from(yearsSet).sort((a, b) => parseInt(a) - parseInt(b));
 
-            // Chart 1: Precipitação Anual
+            // Chart 1
             const annualData = {};
             munis.forEach(m => {
                 annualData[m] = years.map(y => {
@@ -355,23 +325,20 @@
                         fill: false
                     }))
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'right' } },
-                    scales: { y: { title: { display: true, text: 'Precipitação Máxima (mm)' } } }
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
             });
 
-            // Chart 2: Alto vs Baixo
-            const maxMun = munis.reduce((a, b) =>
-                Math.max(...Object.values(data[a]).flatMap(y => Object.values(y).map(m => m.total_mm || 0))) >
-                Math.max(...Object.values(data[b]).flatMap(y => Object.values(y).map(m => m.total_mm || 0))) ? a : b
-            );
-            const minMun = munis.reduce((a, b) =>
-                Math.max(...Object.values(data[a]).flatMap(y => Object.values(y).map(m => m.total_mm || 0))) <
-                Math.max(...Object.values(data[b]).flatMap(y => Object.values(y).map(m => m.total_mm || 0))) ? a : b
-            );
+            // Chart 2
+            const maxMun = munis.reduce((a, b) => {
+                const amax = Math.max(...Object.values(data[a]).flatMap(y => Object.values(y).map(m => m.total_mm || 0)));
+                const bmax = Math.max(...Object.values(data[b]).flatMap(y => Object.values(y).map(m => m.total_mm || 0)));
+                return amax > bmax ? a : b;
+            });
+            const minMun = munis.reduce((a, b) => {
+                const amax = Math.max(...Object.values(data[a]).flatMap(y => Object.values(y).map(m => m.total_mm || 0)));
+                const bmax = Math.max(...Object.values(data[b]).flatMap(y => Object.values(y).map(m => m.total_mm || 0)));
+                return amax < bmax ? a : b;
+            });
 
             const highData = years.map(y => Math.max(...Object.values(data[maxMun][y] || {}).map(m => m.total_mm || 0), 0));
             const lowData = years.map(y => Math.max(...Object.values(data[minMun][y] || {}).map(m => m.total_mm || 0), 0));
@@ -382,31 +349,30 @@
                 data: {
                     labels: years,
                     datasets: [
-                        { label: maxMun + ' (Máx)', data: highData, backgroundColor: '#DC3545' },
-                        { label: minMun + ' (Mín)', data: lowData, backgroundColor: '#28A745' }
+                        { label: maxMun, data: highData, backgroundColor: '#DC3545' },
+                        { label: minMun, data: lowData, backgroundColor: '#28A745' }
                     ]
                 },
                 options: { responsive: true, maintainAspectRatio: false }
             });
 
-            // Chart 3: Padrão Mensal
+            // Chart 3
             const monthlyMax = Array(12).fill(0);
             munis.forEach(m => {
                 years.forEach(y => {
                     const months = data[m][y] || {};
                     Object.keys(months).forEach(mo => {
-                        const idx = parseInt(mo) - 1;
-                        monthlyMax[idx] = Math.max(monthlyMax[idx], months[mo].total_mm || 0);
+                        monthlyMax[parseInt(mo) - 1] = Math.max(monthlyMax[parseInt(mo) - 1], months[mo].total_mm || 0);
                     });
                 });
             });
 
-            const ctx3 = document.getElementById('chartMonthlyPattern').getContext('2d');
+            const ctx3 = document.getElementById('chartMonthly').getContext('2d');
             new Chart(ctx3, {
                 type: 'bar',
                 data: {
                     labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
-                    datasets: [{ label: 'Precipitação Máxima por Mês', data: monthlyMax, backgroundColor: '#FD7E14' }]
+                    datasets: [{ label: 'Máximo por Mês', data: monthlyMax, backgroundColor: '#FD7E14' }]
                 },
                 options: { responsive: true, maintainAspectRatio: false }
             });
@@ -428,11 +394,8 @@
             link.click();
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            setupTabs();
-            initApp();
-        });
+        // Carregar dados ao iniciar
+        document.addEventListener('DOMContentLoaded', loadData);
     </script>
 </body>
 </html>
-
