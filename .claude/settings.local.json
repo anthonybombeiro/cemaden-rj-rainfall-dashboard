@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(pip install pandas numpy --quiet)",
+      "Bash(python -c \"import pandas, numpy\")",
+      "Bash(python process_rainfall_correct.py)",
+      "Bash(python gen_dashboard_final.py)"
+    ]
+  }
+}
