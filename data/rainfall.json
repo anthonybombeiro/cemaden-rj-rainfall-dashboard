@@ -1,0 +1,165 @@
+{
+  "by_municipality_year": {
+    "Angra dos Reis": {
+      "2019": {
+        "total_rainfall": 12407.2,
+        "rainy_days": 10332,
+        "max_daily": 34.8,
+        "avg_daily": 0.030837140172886024,
+        "records_count": 402346
+      },
+      "2021": {
+        "total_rainfall": 87641.8,
+        "rainy_days": 108123,
+        "max_daily": 281.2,
+        "avg_daily": 0.03867545893067465,
+        "records_count": 2266083
+      },
+      "2022": {
+        "total_rainfall": 131186.0,
+        "rainy_days": 153526,
+        "max_daily": 52.8,
+        "avg_daily": 0.04936245276295555,
+        "records_count": 2657607
+      },
+      "2023": {
+        "total_rainfall": 132018.0,
+        "rainy_days": 142795,
+        "max_daily": 102.0,
+        "avg_daily": 0.04870625059491,
+        "records_count": 2710494
+      },
+      "2024": {
+        "total_rainfall": 146927.80000000002,
+        "rainy_days": 149796,
+        "max_daily": 40.4,
+        "avg_daily": 0.05281680672993899,
+        "records_count": 2781838
+      },
+      "2025": {
+        "total_rainfall": 107202.4,
+        "rainy_days": 112014,
+        "max_daily": 38.0,
+        "avg_daily": 0.03899979409151795,
+        "records_count": 2748794
+      },
+      "2026": {
+        "total_rainfall": 116852.79999999999,
+        "rainy_days": 116221,
+        "max_daily": 57.6,
+        "avg_daily": 0.06685248752803331,
+        "records_count": 1747920
+      },
+      "2020": {
+        "total_rainfall": 67812.0,
+        "rainy_days": 82526,
+        "max_daily": 383.0,
+        "avg_daily": 0.03733063807579751,
+        "records_count": 1816524
+      }
+    },
+    "Areal": {
+      "2020": {
+        "total_rainfall": 12681.6,
+        "rainy_days": 10960,
+        "max_daily": 44.8,
+        "avg_daily": 0.06883494724043597,
+        "records_count": 184232
+      },
+      "2019": {
+        "total_rainfall": 14123.800000000001,
+        "rainy_days": 19228,
+        "max_daily": 30.4,
+        "avg_daily": 0.026109010915880252,
+        "records_count": 540955
+      }
+    }
+  },
+  "by_municipality": {
+    "Angra dos Reis": {
+      "max_rainfall_year": 2024,
+      "max_rainfall_value": 146927.80000000002,
+      "years_available": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ]
+    },
+    "Areal": {
+      "max_rainfall_year": 2019,
+      "max_rainfall_value": 14123.800000000001,
+      "years_available": [
+        2019,
+        2020
+      ]
+    }
+  },
+  "daily_maxima": [
+    {
+      "municipality": "Angra dos Reis",
+      "year": 2024,
+      "date": "2024-03-22",
+      "rainfall": 12178.8
+    },
+    {
+      "municipality": "Angra dos Reis",
+      "year": 2025,
+      "date": "2025-04-05",
+      "rainfall": 7962.2
+    },
+    {
+      "municipality": "Angra dos Reis",
+      "year": 2026,
+      "date": "2026-01-20",
+      "rainfall": 6090.4
+    },
+    {
+      "municipality": "Angra dos Reis",
+      "year": 2023,
+      "date": "2023-12-09",
+      "rainfall": 4307.4
+    },
+    {
+      "municipality": "Angra dos Reis",
+      "year": 2022,
+      "date": "2022-03-20",
+      "rainfall": 4008.8
+    },
+    {
+      "municipality": "Angra dos Reis",
+      "year": 2021,
+      "date": "2021-11-01",
+      "rainfall": 3549.2
+    },
+    {
+      "municipality": "Angra dos Reis",
+      "year": 2020,
+      "date": "2020-03-01",
+      "rainfall": 3030.4
+    },
+    {
+      "municipality": "Areal",
+      "year": 2020,
+      "date": "2020-01-17",
+      "rainfall": 2001.6
+    },
+    {
+      "municipality": "Areal",
+      "year": 2019,
+      "date": "2019-10-09",
+      "rainfall": 850.6
+    },
+    {
+      "municipality": "Angra dos Reis",
+      "year": 2019,
+      "date": "2019-04-09",
+      "rainfall": 838.8
+    }
+  ],
+  "top_events": []
+}

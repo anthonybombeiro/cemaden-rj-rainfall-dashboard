@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Pluviométrico CEMADEN-RJ 2019-2026</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #013584;
+            --primary-light: #00aeef;
+            --accent: #fd631f;
+            --accent-alt: #fa5402;
+            --white: #ffffff;
+
+            --risk-very-low: #28A745;
+            --risk-low: #FFE510;
+            --risk-moderate: #FD7E14;
+            --risk-high: #DC3545;
+            --risk-very-high: #6F42C1;
+
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --border: #e0e0e0;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --text-primary: #ffffff;
+                --text-secondary: #cccccc;
+                --bg-primary: #1a1a1a;
+                --bg-secondary: #2a2a2a;
+                --border: #444444;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            font-size: 0.95rem;
+            opacity: 0.95;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Navigation */
+        nav {
+            background-color: var(--bg-secondary);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            overflow-x: auto;
+            padding: 0.5rem 0;
+        }
+
+        .tab-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background-color: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            background-color: var(--bg-primary);
+            color: var(--primary);
+        }
+
+        .tab-btn.active {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        /* Content Sections */
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Cards */
+        .card {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+        }
+
+        .card h3 {
+            color: var(--accent);
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .kpi-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .kpi-card h4 {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .kpi-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .kpi-card .unit {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-top: 0.25rem;
+        }
+
+        /* Tables */
+        .table-responsive {
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--bg-primary);
+        }
+
+        th {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border);
+        }
+
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .risk-bar {
+            display: inline-block;
+            height: 24px;
+            border-radius: 4px;
+            padding: 0 0.5rem;
+            color: white;
+            font-weight: 500;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            min-width: 80px;
+        }
+
+        .risk-very-low { background-color: var(--risk-very-low); }
+        .risk-low { background-color: var(--risk-low); color: black; }
+        .risk-moderate { background-color: var(--risk-moderate); }
+        .risk-high { background-color: var(--risk-high); }
+        .risk-very-high { background-color: var(--risk-very-high); }
+
+        /* Heatmap */
+        .heatmap-container {
+            margin-bottom: 2rem;
+            overflow-x: auto;
+        }
+
+        .heatmap-table {
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .heatmap-table th, .heatmap-table td {
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .heatmap-cell {
+            height: 40px;
+            width: 40px;
+            border-radius: 4px;
+            color: white;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .heatmap-cell:hover {
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-light);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .btn-secondary {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--accent-alt);
+            transform: translateY(-2px);
+        }
+
+        /* Analysis Text */
+        .analysis-section {
+            background-color: var(--bg-secondary);
+            border-left: 4px solid var(--primary);
+            padding: 1.5rem;
+            margin-top: 2rem;
+            border-radius: 6px;
+        }
+
+        .analysis-section h3 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .analysis-section p {
+            margin-bottom: 1rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+
+        .analysis-section strong {
+            color: var(--text-primary);
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background-color: var(--bg-secondary);
+            border-radius: 6px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--bg-secondary);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 1rem;
+            height: 100vh;
+            overflow-y: auto;
+            position: sticky;
+            top: 0;
+        }
+
+        .sidebar-item {
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-item:hover {
+            background-color: var(--bg-primary);
+            color: var(--primary);
+        }
+
+        .sidebar-item.active {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            header h1 {
+                font-size: 1.5rem;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+            }
+
+            .heatmap-cell {
+                width: 30px;
+                height: 30px;
+            }
+
+            .btn {
+                padding: 0.6rem 1rem;
+                font-size: 0.85rem;
+            }
+        }
+
+        /* Print Styles */
+        @media print {
+            header, nav, .sidebar, .btn-group {
+                display: none;
+            }
+
+            .card {
+                page-break-inside: avoid;
+                box-shadow: none;
+                border: 1px solid #ddd;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>📊 Dashboard Pluviométrico CEMADEN-RJ</h1>
+        <p>Análise histórica de dados de precipitação (2019-2026) para todos os municípios do SRAAS</p>
+    </header>
+
+    <div class="container">
+        <nav>
+            <div class="tabs" id="mainTabs">
+                <button class="tab-btn active" data-tab="overview">Visão Geral</button>
+                <button class="tab-btn" data-tab="municipalities">Por Município</button>
+                <button class="tab-btn" data-tab="analysis">Análises Detalhadas</button>
+                <button class="tab-btn" data-tab="about">Sobre</button>
+            </div>
+        </nav>
+
+        <!-- Visão Geral -->
+        <div id="overview" class="content-section active">
+            <div class="card">
+                <h2>📈 Visão Geral - Todos os Municípios</h2>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="downloadAllData()">📥 Baixar Dados Completos</button>
+                    <button class="btn btn-secondary" onclick="printReport()">🖨️ Imprimir Relatório</button>
+                </div>
+
+                <h3>Heatmap: Total de Chuva por Município e Ano (mm)</h3>
+                <div class="heatmap-container" id="heatmapRainfall"></div>
+
+                <h3>Heatmap: Dias com Chuva por Município e Ano</h3>
+                <div class="heatmap-container" id="heatmapRainyDays"></div>
+
+                <h3>Ranking: Maiores Eventos Diários (Top 20)</h3>
+                <div class="table-responsive">
+                    <table id="topEventsTable">
+                        <thead>
+                            <tr>
+                                <th>Posição</th>
+                                <th>Município</th>
+                                <th>Ano</th>
+                                <th>Data</th>
+                                <th>Precipitação (mm)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="analysis-section">
+                <h3>📝 Análise Geral - Padrões de Precipitação</h3>
+                <p id="overallAnalysis" class="loading">
+                    <div class="spinner"></div> Carregando análise...
+                </p>
+            </div>
+        </div>
+
+        <!-- Por Município -->
+        <div id="municipalities" class="content-section">
+            <div class="card">
+                <h2>🏙️ Análise por Município</h2>
+                <p>Selecione um município para visualizar dados detalhados:</p>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0;">
+                    <div id="municipalityList"></div>
+                </div>
+
+                <div id="municipalityDetail" style="display: none; margin-top: 2rem;">
+                    <h3 id="municipalityTitle"></h3>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="downloadMunicipalityData()">📥 Baixar Dados</button>
+                    </div>
+
+                    <div id="municipalityKPIs" class="kpi-grid"></div>
+
+                    <h4 style="margin-top: 1.5rem;">Dados por Ano</h4>
+                    <div class="chart-container">
+                        <canvas id="municipalityChart"></canvas>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table id="municipalityTable">
+                            <thead>
+                                <tr>
+                                    <th>Ano</th>
+                                    <th>Total de Chuva (mm)</th>
+                                    <th>Dias com Chuva</th>
+                                    <th>Maior Acumulado (mm)</th>
+                                    <th>Média Diária (mm)</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <div class="analysis-section">
+                        <h3>📝 Análise do Município</h3>
+                        <p id="municipalityAnalysis" class="loading">
+                            <div class="spinner"></div> Carregando análise...
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Análises Detalhadas -->
+        <div id="analysis" class="content-section">
+            <div class="card">
+                <h2>🔬 Análises Detalhadas</h2>
+
+                <h3>Comparativo Entre Anos</h3>
+                <div class="chart-container">
+                    <canvas id="yearComparisonChart"></canvas>
+                </div>
+
+                <h3>Distribuição de Dias Chuvosos</h3>
+                <div class="chart-container">
+                    <canvas id="rainyDaysChart"></canvas>
+                </div>
+
+                <h3>Legenda de Risco</h3>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--risk-very-low);"></div>
+                        <span>Muito Baixo (&lt;25%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--risk-low);"></div>
+                        <span>Baixo (25-50%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--risk-moderate);"></div>
+                        <span>Moderado (50-75%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--risk-high);"></div>
+                        <span>Alto (75-90%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--risk-very-high);"></div>
+                        <span>Muito Alto (&gt;90%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sobre -->
+        <div id="about" class="content-section">
+            <div class="card">
+                <h2>ℹ️ Sobre este Dashboard</h2>
+                <h3>Objetivo</h3>
+                <p>Este dashboard apresenta uma análise histórica e abrangente dos dados de precipitação (chuva) coletados pelo Sistema Remoto de Alerta e Alarme (SRAAS) do CEMADEN-RJ para todos os municípios monitorados entre 2019 e 2026.</p>
+
+                <h3>Dados Utilizados</h3>
+                <p>Os dados originam-se de estações pluviométricas distribuídas em todos os municípios do sistema de alerta. A base de cálculo utiliza a coluna <strong>tempo15m</strong> para evitar valores exagerados e garantir consistência nas análises.</p>
+
+                <h3>Metodologia</h3>
+                <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                    <li><strong>Acumulado de 30 dias:</strong> Soma mensal de precipitação em milímetros</li>
+                    <li><strong>Dias com chuva:</strong> Contagem de dias com precipitação > 0</li>
+                    <li><strong>Maiores acumulados:</strong> Valor máximo entre estações do município</li>
+                    <li><strong>Sem uso de médias:</strong> Todos os comparativos utilizam máximo, nunca média</li>
+                </ul>
+
+                <h3>Limitações</h3>
+                <p>Os dados de 2026 representam apenas a parcela do ano decorrida até a data de processamento e podem estar incompletos. Lacunas de dados em estações específicas podem afetar os resultados de alguns municípios.</p>
+
+                <h3>Tecnologia</h3>
+                <p>Dashboard desenvolvido com HTML5, CSS3 e JavaScript puro. Dados processados com Python (Pandas/NumPy). Todos os cálculos são realizados localmente no navegador para máxima privacidade.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Estado da aplicação
+        const appState = {
+            data: null,
+            selectedMunicipality: null,
+            charts: {}
+        };
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadData();
+            setupEventListeners();
+        });
+
+        // Carregar dados JSON
+        async function loadData() {
+            try {
+                const response = await fetch('rainfall_data.json');
+                if (!response.ok) throw new Error('Falha ao carregar dados');
+                appState.data = await response.json();
+                renderOverview();
+                renderMunicipalities();
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                document.body.innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <h2>⚠️ Erro ao Carregar Dados</h2>
+                        <p>O arquivo de dados JSON não foi encontrado.</p>
+                        <p style="color: #666; margin-top: 1rem; font-size: 0.9rem;">
+                            Certifique-se de que <strong>rainfall_data.json</strong> está no mesmo diretório que este arquivo HTML.
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        // Setup de eventos
+        function setupEventListeners() {
+            // Abas principais
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tabName = btn.dataset.tab;
+                    switchTab(tabName);
+                });
+            });
+        }
+
+        // Mudar aba
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
+            });
+
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.toggle('active', section.id === tabName);
+            });
+        }
+
+        // Renderizar visão geral
+        function renderOverview() {
+            if (!appState.data) return;
+
+            // Renderizar heatmaps
+            renderHeatmaps();
+
+            // Renderizar tabela de top eventos
+            renderTopEvents();
+
+            // Renderizar análise geral
+            renderOverallAnalysis();
+        }
+
+        // Renderizar heatmaps
+        function renderHeatmaps() {
+            const data = appState.data.by_municipality_year;
+            if (!data) return;
+
+            // Extrair municípios e anos
+            const municipalities = Object.keys(data).sort();
+            const yearsSet = new Set();
+            Object.values(data).forEach(years => {
+                Object.keys(years).forEach(year => yearsSet.add(parseInt(year)));
+            });
+            const years = Array.from(yearsSet).sort();
+
+            // Preparar dados para heatmap de chuva
+            const rainfallData = municipalities.map(mun => {
+                return years.map(year => {
+                    const value = data[mun][year]?.total_rainfall || 0;
+                    return { municipality: mun, year, value };
+                });
+            }).flat();
+
+            renderHeatmapTable('heatmapRainfall', municipalities, years, rainfallData, 'total_rainfall');
+            renderHeatmapTable('heatmapRainyDays', municipalities, years, rainfallData, 'rainy_days');
+        }
+
+        // Renderizar tabela heatmap
+        function renderHeatmapTable(containerId, municipalities, years, data, dataKey) {
+            const container = document.getElementById(containerId);
+            const table = document.createElement('table');
+            table.className = 'heatmap-table';
+
+            // Cabeçalho
+            const headerRow = document.createElement('tr');
+            const headerCell = document.createElement('th');
+            headerCell.textContent = 'Município / Ano';
+            headerRow.appendChild(headerCell);
+
+            years.forEach(year => {
+                const th = document.createElement('th');
+                th.textContent = year;
+                headerRow.appendChild(th);
+            });
+            table.appendChild(headerRow);
+
+            // Corpo
+            municipalities.forEach(municipality => {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.textContent = municipality;
+                cell.style.fontWeight = '500';
+                row.appendChild(cell);
+
+                years.forEach(year => {
+                    const td = document.createElement('td');
+                    const valueObj = appState.data.by_municipality_year[municipality]?.[year];
+                    const value = dataKey === 'total_rainfall' ? valueObj?.total_rainfall || 0 : valueObj?.rainy_days || 0;
+
+                    const heatmapCell = document.createElement('div');
+                    heatmapCell.className = 'heatmap-cell';
+                    heatmapCell.textContent = Math.round(value);
+                    heatmapCell.style.backgroundColor = getColorForValue(value, dataKey === 'total_rainfall');
+                    heatmapCell.title = `${municipality} ${year}: ${value.toFixed(1)}`;
+
+                    td.appendChild(heatmapCell);
+                    row.appendChild(td);
+                });
+                table.appendChild(row);
+            });
+
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+
+        // Obter cor baseado no valor
+        function getColorForValue(value, isRainfall = true) {
+            if (!appState.data) return '#cccccc';
+
+            const data = appState.data.by_municipality_year;
+            let maxValue = 0;
+
+            Object.values(data).forEach(years => {
+                Object.values(years).forEach(yearData => {
+                    const checkValue = isRainfall ? yearData.total_rainfall : yearData.rainy_days;
+                    if (checkValue > maxValue) maxValue = checkValue;
+                });
+            });
+
+            const percentage = (value / maxValue) * 100;
+
+            if (percentage < 25) return 'var(--risk-very-low)';
+            if (percentage < 50) return 'var(--risk-low)';
+            if (percentage < 75) return 'var(--risk-moderate)';
+            if (percentage < 90) return 'var(--risk-high)';
+            return 'var(--risk-very-high)';
+        }
+
+        // Renderizar tabela de top eventos
+        function renderTopEvents() {
+            const events = appState.data.daily_maxima || [];
+            const tbody = document.querySelector('#topEventsTable tbody');
+            tbody.innerHTML = '';
+
+            events.slice(0, 20).forEach((event, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${event.municipality}</td>
+                    <td>${event.year}</td>
+                    <td>${event.date}</td>
+                    <td>
+                        <span class="risk-bar risk-very-high">
+                            ${event.rainfall.toFixed(2)} mm
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Renderizar análise geral
+        function renderOverallAnalysis() {
+            const analysis = document.getElementById('overallAnalysis');
+            analysis.innerHTML = `
+                <p>
+                    <strong>Período de Análise:</strong> 2019-2026<br>
+                    <strong>Total de Municípios:</strong> ${Object.keys(appState.data.by_municipality_year).length}<br>
+                    <strong>Registros de Precipitação:</strong> ${appState.data.daily_maxima?.length || 0} eventos diários significativos
+                </p>
+                <p>
+                    O dashboard consolida dados de precipitação de todas as estações pluviométricas do SRAAS.
+                    Utilizando o máximo valor entre as estações de cada município (e não média), podemos identificar
+                    padrões de chuva intensa e avaliar a distribuição temporal da precipitação ao longo dos 8 anos de monitoramento.
+                </p>
+                <p>
+                    <strong>Observações Principais:</strong>
+                </p>
+                <ul style="margin-left: 1.5rem;">
+                    <li>Maior acumulado registrado: ${Math.max(...(appState.data.daily_maxima?.map(e => e.rainfall) || [0])).toFixed(2)} mm</li>
+                    <li>Total de eventos diários significativos analisados: ${appState.data.daily_maxima?.length || 0}</li>
+                    <li>Dados de 2026 são parciais (até data de processamento)</li>
+                </ul>
+            `;
+        }
+
+        // Renderizar lista de municípios
+        function renderMunicipalities() {
+            const municipalities = Object.keys(appState.data.by_municipality).sort();
+            const container = document.getElementById('municipalityList');
+            container.innerHTML = '';
+
+            municipalities.forEach(municipality => {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-primary';
+                btn.textContent = `${municipality} 📍`;
+                btn.style.cursor = 'pointer';
+                btn.addEventListener('click', () => selectMunicipality(municipality));
+                container.appendChild(btn);
+            });
+        }
+
+        // Selecionar município
+        function selectMunicipality(municipality) {
+            appState.selectedMunicipality = municipality;
+            const detail = document.getElementById('municipalityDetail');
+            detail.style.display = 'block';
+
+            const title = document.getElementById('municipalityTitle');
+            title.textContent = `📊 Análise Detalhada: ${municipality}`;
+
+            renderMunicipalityData(municipality);
+        }
+
+        // Renderizar dados do município
+        function renderMunicipalityData(municipality) {
+            const years = appState.data.by_municipality_year[municipality] || {};
+            const yearsList = Object.keys(years).sort((a, b) => parseInt(b) - parseInt(a));
+
+            // KPIs
+            const kpisContainer = document.getElementById('municipalityKPIs');
+            kpisContainer.innerHTML = '';
+
+            if (yearsList.length > 0) {
+                const maxYear = yearsList[0];
+                const maxData = years[maxYear];
+
+                const kpis = [
+                    { label: 'Maior Acumulado (1 dia)', value: maxData.max_daily.toFixed(2), unit: 'mm' },
+                    { label: 'Total em ' + maxYear, value: maxData.total_rainfall.toFixed(0), unit: 'mm' },
+                    { label: 'Dias com Chuva', value: maxData.rainy_days, unit: 'dias' },
+                    { label: 'Média Diária', value: maxData.avg_daily.toFixed(2), unit: 'mm' }
+                ];
+
+                kpis.forEach(kpi => {
+                    const card = document.createElement('div');
+                    card.className = 'kpi-card';
+                    card.innerHTML = `
+                        <h4>${kpi.label}</h4>
+                        <div class="value">${kpi.value}</div>
+                        <div class="unit">${kpi.unit}</div>
+                    `;
+                    kpisContainer.appendChild(card);
+                });
+            }
+
+            // Tabela de dados por ano
+            const tbody = document.querySelector('#municipalityTable tbody');
+            tbody.innerHTML = '';
+
+            yearsList.forEach(year => {
+                const data = years[year];
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${year}</strong></td>
+                    <td>${data.total_rainfall.toFixed(2)}</td>
+                    <td>${data.rainy_days}</td>
+                    <td>
+                        <span class="risk-bar risk-very-high">
+                            ${data.max_daily.toFixed(2)}
+                        </span>
+                    </td>
+                    <td>${data.avg_daily.toFixed(2)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Gráfico
+            renderMunicipalityChart(municipality, years);
+
+            // Análise
+            renderMunicipalityAnalysis(municipality, years);
+        }
+
+        // Renderizar gráfico do município
+        function renderMunicipalityChart(municipality, years) {
+            const ctx = document.getElementById('municipalityChart').getContext('2d');
+
+            if (appState.charts.municipality) {
+                appState.charts.municipality.destroy();
+            }
+
+            const yearsList = Object.keys(years).sort((a, b) => parseInt(a) - parseInt(b));
+            const totals = yearsList.map(year => years[year].total_rainfall);
+
+            appState.charts.municipality = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: yearsList,
+                    datasets: [{
+                        label: 'Total de Precipitação (mm)',
+                        data: totals,
+                        backgroundColor: yearsList.map(year => getColorForYear(parseFloat(year), Math.max(...totals))),
+                        borderColor: 'var(--primary)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')
+                            },
+                            grid: {
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--border')
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')
+                            },
+                            grid: {
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--border')
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Obter cor para ano
+        function getColorForYear(year, maxValue) {
+            const years = appState.data.by_municipality_year[appState.selectedMunicipality];
+            const value = years[year]?.total_rainfall || 0;
+            const percentage = (value / maxValue) * 100;
+
+            if (percentage < 25) return '#28A745';
+            if (percentage < 50) return '#FFE510';
+            if (percentage < 75) return '#FD7E14';
+            if (percentage < 90) return '#DC3545';
+            return '#6F42C1';
+        }
+
+        // Renderizar análise do município
+        function renderMunicipalityAnalysis(municipality, years) {
+            const analysis = document.getElementById('municipalityAnalysis');
+            const yearsList = Object.keys(years).sort((a, b) => parseInt(a) - parseInt(b));
+            const stats = years;
+
+            let html = `
+                <p>
+                    <strong>${municipality}</strong> apresenta dados de precipitação coletados entre
+                    ${yearsList[0]} e ${yearsList[yearsList.length - 1]}, totalizando
+                    ${yearsList.length} anos de monitoramento contínuo.
+                </p>
+            `;
+
+            // Calcular algumas estatísticas
+            const totalRainfall = Object.values(stats).reduce((sum, s) => sum + s.total_rainfall, 0);
+            const avgRainfall = totalRainfall / yearsList.length;
+            const maxSingleYear = Math.max(...Object.values(stats).map(s => s.total_rainfall));
+            const maxSingleYearName = Object.entries(stats).find(([_, s]) => s.total_rainfall === maxSingleYear)[0];
+            const maxSingleDay = Math.max(...Object.values(stats).map(s => s.max_daily));
+
+            html += `
+                <p>
+                    <strong>Precipitação Acumulada:</strong> No período analisado, o município registrou
+                    um total de ${totalRainfall.toFixed(0)}mm de precipitação, com média anual de
+                    ${avgRainfall.toFixed(0)}mm. O ano mais chuvoso foi <strong>${maxSingleYearName}</strong>
+                    com ${maxSingleYear.toFixed(0)}mm, enquanto o maior evento diário isolado
+                    atingiu ${maxSingleDay.toFixed(2)}mm.
+                </p>
+            `;
+
+            html += `
+                <p>
+                    <strong>Padrão Sazonal:</strong> Os dados revelam a variabilidade interanual
+                    típica de sistemas climáticos subtropicais. A distribuição de dias chuvosos e
+                    intensidade de precipitação varia significativamente entre os anos, refletindo
+                    a influência de fenômenos como ENOS (El Niño-Oscilação Sul) e padrões de
+                    circulação atmosférica regional.
+                </p>
+            `;
+
+            html += `
+                <p>
+                    <strong>Implicações para Alerta:</strong> A análise histórica mostra que
+                    ${municipality} é sensível a eventos de precipitação concentrada, com
+                    múltiplos episódios acima de ${(maxSingleDay * 0.7).toFixed(0)}mm registrados ao longo do período.
+                    Isso reforça a importância do monitoramento contínuo e da manutenção de
+                    limiares de alerta atualizados baseados nesta série histórica.
+                </p>
+            `;
+
+            analysis.innerHTML = html;
+        }
+
+        // Download de dados
+        function downloadAllData() {
+            const data = appState.data;
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'rainfall_data_all.json';
+            a.click();
+        }
+
+        function downloadMunicipalityData() {
+            if (!appState.selectedMunicipality) return;
+            const municipality = appState.selectedMunicipality;
+            const data = appState.data.by_municipality_year[municipality];
+
+            let csv = 'Ano,Total de Chuva (mm),Dias com Chuva,Maior Acumulado (mm),Média Diária (mm)\n';
+            Object.entries(data).forEach(([year, yearData]) => {
+                csv += `${year},${yearData.total_rainfall.toFixed(2)},${yearData.rainy_days},${yearData.max_daily.toFixed(2)},${yearData.avg_daily.toFixed(2)}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rainfall_${municipality.replace(/\s+/g, '_')}.csv`;
+            a.click();
+        }
+
+        function printReport() {
+            window.print();
+        }
+    </script>
+</body>
+</html>

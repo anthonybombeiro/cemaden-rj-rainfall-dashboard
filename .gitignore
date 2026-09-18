@@ -1,0 +1,29 @@
+# Arquivos temporários
+*.pyc
+__pycache__/
+*.log
+*.tmp
+*.bak
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Node
+node_modules/
+package-lock.json
+
+# Dados sensíveis
+.env
+*.env
+
+# OS
+Thumbs.db
+*.exe
+
+# Backups
+*.backup
+*.old
