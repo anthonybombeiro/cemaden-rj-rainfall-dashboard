@@ -10,7 +10,7 @@
         :root {
             --primary: #013584; --accent: #fd631f; --light: #00aeef; --white: #ffffff; --dark-orange: #fa5402;
             --very-low: #28A745; --low: #FFE510; --moderate: #FD7E14; --high: #DC3545; --very-high: #6F42C1;
-            --warn: #FD7E14; --text: #1a1a1a; --text-light: #666; --bg: #fff; --bg-light: #f5f5f5; --border: #e0e0e0;
+            --text: #1a1a1a; --text-light: #666; --bg: #fff; --bg-light: #f5f5f5; --border: #e0e0e0;
         }
         @media (prefers-color-scheme: dark) {
             :root { --text: #fff; --text-light: #ccc; --bg: #1a1a1a; --bg-light: #2a2a2a; --border: #444; }
@@ -85,6 +85,7 @@
                         <div class="unit" id="maxDailyMun">--</div>
                     </div>
                 </div>
+
                 <h3>Heatmap: Total Mensal Maximo (mm)</h3>
                 <div class="legend">
                     <div class="legend-item"><div class="legend-color cell very-low"></div> Muito Baixo</div>
@@ -94,6 +95,10 @@
                     <div class="legend-item"><div class="legend-color cell very-high"></div> Muito Alto</div>
                 </div>
                 <div class="heatmap" id="heatmapRainfall"></div>
+
+                <h3>Heatmap: Dias Chuvosos</h3>
+                <div class="heatmap" id="heatmapRainyDays"></div>
+
                 <h3>Top 40 Maiores Eventos</h3>
                 <table>
                     <thead><tr><th>#</th><th>Municipio</th><th>Estacao</th><th>Data</th><th>Chuva (mm)</th></tr></thead>
@@ -197,17 +202,21 @@ function renderHeatmap() {
     Object.values(data).forEach(y => Object.keys(y).forEach(yr => yearsSet.add(parseInt(yr))));
     const years = Array.from(yearsSet).sort();
 
-    let maxVal = 0;
+    let maxVal = 0, maxRainy = 0;
     munis.forEach(m => {
         years.forEach(y => {
             const months = data[m][y];
-            if (months) Object.values(months).forEach(mo => { if (mo.total_mm > maxVal) maxVal = mo.total_mm; });
+            if (months) Object.values(months).forEach(mo => {
+                if (mo.total_mm > maxVal) maxVal = mo.total_mm;
+                if (mo.rainy_days > maxRainy) maxRainy = mo.rainy_days;
+            });
         });
     });
 
-    const container = document.getElementById('heatmapRainfall');
-    const table = document.createElement('table');
-    table.className = 'heatmap-table';
+    // Heatmap Total Mensal
+    const container1 = document.getElementById('heatmapRainfall');
+    const table1 = document.createElement('table');
+    table1.className = 'heatmap-table';
 
     const headerRow = document.createElement('tr');
     const hh = document.createElement('th');
@@ -218,7 +227,7 @@ function renderHeatmap() {
         th.textContent = y;
         headerRow.appendChild(th);
     });
-    table.appendChild(headerRow);
+    table1.appendChild(headerRow);
 
     munis.forEach(muni => {
         const row = document.createElement('tr');
@@ -236,11 +245,49 @@ function renderHeatmap() {
             td.appendChild(div);
             row.appendChild(td);
         });
-        table.appendChild(row);
+        table1.appendChild(row);
     });
 
-    container.innerHTML = '';
-    container.appendChild(table);
+    container1.innerHTML = '';
+    container1.appendChild(table1);
+
+    // Heatmap Dias Chuvosos
+    const container2 = document.getElementById('heatmapRainyDays');
+    const table2 = document.createElement('table');
+    table2.className = 'heatmap-table';
+
+    const headerRow2 = document.createElement('tr');
+    const hh2 = document.createElement('th');
+    hh2.textContent = 'Municipio';
+    headerRow2.appendChild(hh2);
+    years.forEach(y => {
+        const th = document.createElement('th');
+        th.textContent = y;
+        headerRow2.appendChild(th);
+    });
+    table2.appendChild(headerRow2);
+
+    munis.forEach(muni => {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.textContent = muni;
+        row.appendChild(cell);
+
+        years.forEach(year => {
+            const months = data[muni][year] || {};
+            const val = Math.max(...Object.values(months).map(m => m.rainy_days || 0), 0);
+            const td = document.createElement('td');
+            const div = document.createElement('div');
+            div.className = 'cell ' + getRiskClass(val, maxRainy);
+            div.textContent = val;
+            td.appendChild(div);
+            row.appendChild(td);
+        });
+        table2.appendChild(row);
+    });
+
+    container2.innerHTML = '';
+    container2.appendChild(table2);
 }
 
 function renderTopEvents() {
