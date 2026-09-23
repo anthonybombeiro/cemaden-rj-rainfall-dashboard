@@ -8,15 +8,18 @@ import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable"
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import RiscosOverviewPanel from "@/components/RiscosOverviewPanel";
+import SirenesTable from "@/components/SirenesTable";
 import {
   AlertEvent,
   fetchActiveAlertEvents,
   fetchMunicipioRedecMap,
   fetchPrecipitacao,
+  fetchSirenes,
   fetchStations,
   normalizeMunicipioName,
   PrecipitacaoStation,
   REDECS,
+  SireneStation,
   SOURCE_LABELS,
   STATION_TYPE_LABELS,
   Station,
@@ -29,12 +32,13 @@ const MapView = dynamic(() => import("@/components/MapView"), {
   ),
 });
 
-type ViewMode = "mapa" | "precipitacao" | "meteorologico" | "alertas" | "riscos";
+type ViewMode = "mapa" | "precipitacao" | "meteorologico" | "sirenes" | "alertas" | "riscos";
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "mapa", label: "Mapa" },
   { key: "precipitacao", label: "Precipitação" },
   { key: "meteorologico", label: "Dados Meteorológicos" },
+  { key: "sirenes", label: "Sirenes" },
   { key: "alertas", label: "Alertas Ativos" },
   { key: "riscos", label: "Riscos" },
 ];
@@ -78,6 +82,19 @@ export default function HomePage() {
   const [precipitacaoLoading, setPrecipitacaoLoading] = useState(false);
   const [precipitacaoError, setPrecipitacaoError] = useState<string | null>(null);
   const [precipitacaoLoaded, setPrecipitacaoLoaded] = useState(false);
+
+  // Aba dedicada só das sirenes (pedido do usuário, 2026-09-23: "consulta
+  // por estações" igual ao portal do CBMERJ) — filtros próprios (Município/
+  // REDEC vêm direto do cadastro da sirene, não da tabela de risco
+  // geológico; Status/Acionamento não existem em mais nenhuma outra aba).
+  const [sirenes, setSirenes] = useState<SireneStation[]>([]);
+  const [sirenesLoading, setSirenesLoading] = useState(false);
+  const [sirenesError, setSirenesError] = useState<string | null>(null);
+  const [sirenesLoaded, setSirenesLoaded] = useState(false);
+  const [sirenesMunicipioFilter, setSirenesMunicipioFilter] = useState<string[]>([]);
+  const [sirenesRedecFilter, setSirenesRedecFilter] = useState<string[]>([]);
+  const [sirenesStatusFilter, setSirenesStatusFilter] = useState<string[]>([]);
+  const [sirenesAcionamentoFilter, setSirenesAcionamentoFilter] = useState<string[]>([]);
 
   const [activeAlertEvents, setActiveAlertEvents] = useState<AlertEvent[]>([]);
 
@@ -148,6 +165,40 @@ export default function HomePage() {
     };
   }, [viewMode, precipitacaoLoaded]);
 
+  // Igual à Precipitação: busca sob demanda na 1ª vez que a aba é aberta.
+  // Diferente dela, também refaz a cada 1min ENQUANTO a aba estiver aberta
+  // (mesma cadência do banner de sirene tocando no topo) — status de
+  // acionamento é dado de segurança em tempo real, não faz sentido essa
+  // tela específica ficar parada até o operador trocar de aba e voltar.
+  useEffect(() => {
+    if (viewMode !== "sirenes") return;
+    let cancelled = false;
+    const carregar = (primeiraVez: boolean) => {
+      if (primeiraVez) setSirenesLoading(true);
+      fetchSirenes()
+        .then((data) => {
+          if (!cancelled) {
+            setSirenes(data);
+            setSirenesLoaded(true);
+            setSirenesError(null);
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) setSirenesError(err instanceof Error ? err.message : "Erro desconhecido");
+        })
+        .finally(() => {
+          if (!cancelled && primeiraVez) setSirenesLoading(false);
+        });
+    };
+    carregar(!sirenesLoaded);
+    const intervalo = setInterval(() => carregar(false), 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalo);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
+
   const municipalities = useMemo(
     () => Array.from(new Set(stations.map((s) => s.municipality).filter(Boolean))).sort(),
     [stations],
@@ -188,6 +239,72 @@ export default function HomePage() {
       filteredStations.filter((s) => s.latest_readings.some((r) => meteorologicalTypeSet.has(r.reading_type))),
     [filteredStations, meteorologicalTypeSet],
   );
+
+  // Município/REDEC das sirenes vêm do PRÓPRIO cadastro delas (raw_metadata
+  // no backend), não do municipioRedecMap (que é baseado nos avisos
+  // geológicos) — evita depender de duas fontes de verdade diferentes pra
+  // essa aba, e a grafia bate exatamente com o que o portal de sirenes usa.
+  const sirenesMunicipalities = useMemo(
+    () => Array.from(new Set(sirenes.map((s) => s.municipality).filter(Boolean))).sort(),
+    [sirenes],
+  );
+  const sirenesRedecs = useMemo(
+    () => Array.from(new Set(sirenes.map((s) => s.redec).filter(Boolean))).sort(),
+    [sirenes],
+  );
+
+  const filteredSirenes = useMemo(
+    () =>
+      sirenes.filter(
+        (s) =>
+          (sirenesMunicipioFilter.length === 0 || sirenesMunicipioFilter.includes(s.municipality)) &&
+          (sirenesRedecFilter.length === 0 || sirenesRedecFilter.includes(s.redec)) &&
+          (sirenesStatusFilter.length === 0 || sirenesStatusFilter.includes(s.status_estacao)) &&
+          (sirenesAcionamentoFilter.length === 0 ||
+            sirenesAcionamentoFilter.includes(s.tocando ? "tocando" : "normal")),
+      ),
+    [sirenes, sirenesMunicipioFilter, sirenesRedecFilter, sirenesStatusFilter, sirenesAcionamentoFilter],
+  );
+
+  const sirenesFilterControls = (
+    <>
+      <MultiSelectFilter
+        label="Município"
+        options={sirenesMunicipalities.map((m) => ({ value: m, label: m }))}
+        selected={sirenesMunicipioFilter}
+        onChange={setSirenesMunicipioFilter}
+      />
+      <MultiSelectFilter
+        label="REDEC"
+        options={sirenesRedecs.map((r) => ({ value: r, label: r }))}
+        selected={sirenesRedecFilter}
+        onChange={setSirenesRedecFilter}
+      />
+      <MultiSelectFilter
+        label="Status"
+        options={[
+          { value: "ativa", label: "Online" },
+          { value: "inativa", label: "Offline" },
+          { value: "desconhecido", label: "Desconhecido" },
+        ]}
+        selected={sirenesStatusFilter}
+        onChange={setSirenesStatusFilter}
+      />
+      <MultiSelectFilter
+        label="Acionamento"
+        options={[
+          { value: "tocando", label: "Tocando agora" },
+          { value: "normal", label: "Normal" },
+        ]}
+        selected={sirenesAcionamentoFilter}
+        onChange={setSirenesAcionamentoFilter}
+      />
+    </>
+  );
+
+  const sirenesFilterStatusText = sirenesLoading
+    ? "Carregando sirenes…"
+    : `${filteredSirenes.length} de ${sirenes.length} sirenes`;
 
   // Controles de filtro reusados nos dois layouts (barra acima da tabela nas
   // abas Precipitação/Dados Meteorológicos; painel flutuante sobre o mapa na
@@ -276,7 +393,7 @@ export default function HomePage() {
             pedido do usuário, 2026-09-23) — exceto no Mapa, onde vira painel
             flutuante logo abaixo, e nas abas Alertas/Riscos, que não filtram
             por essas 4 dimensões. */}
-        {viewMode !== "alertas" && viewMode !== "riscos" && viewMode !== "mapa" && (
+        {viewMode !== "alertas" && viewMode !== "riscos" && viewMode !== "mapa" && viewMode !== "sirenes" && (
           <div className="flex flex-wrap items-end gap-3 border-b border-gray-200 bg-white p-3">
             {filterControls}
             <div className="text-xs text-gray-500">{filterStatusText}</div>
@@ -288,6 +405,20 @@ export default function HomePage() {
             {precipitacaoError && (
               <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
                 Não foi possível carregar precipitação ({precipitacaoError}).
+              </div>
+            )}
+          </div>
+        )}
+        {/* Filtros próprios da aba Sirenes (Município/REDEC/Status/
+            Acionamento não existem nas outras abas) — mesmo padrão "sempre
+            acima do conteúdo". */}
+        {viewMode === "sirenes" && (
+          <div className="flex flex-wrap items-end gap-3 border-b border-gray-200 bg-white p-3">
+            {sirenesFilterControls}
+            <div className="text-xs text-gray-500">{sirenesFilterStatusText}</div>
+            {sirenesError && (
+              <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                Não foi possível carregar as sirenes ({sirenesError}).
               </div>
             )}
           </div>
@@ -331,6 +462,7 @@ export default function HomePage() {
               municipioRedecMap={municipioRedecMap}
             />
           )}
+          {viewMode === "sirenes" && <SirenesTable stations={filteredSirenes} />}
           {viewMode === "alertas" && <AlertsPanel />}
           {viewMode === "riscos" && <RiscosOverviewPanel />}
         </main>

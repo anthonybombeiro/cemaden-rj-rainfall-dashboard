@@ -146,6 +146,38 @@ export async function fetchPrecipitacao(): Promise<PrecipitacaoStation[]> {
   return getJson<PrecipitacaoStation[]>("/stations/precipitacao/");
 }
 
+/** "Consulta por estações" só das sirenes (pedido do usuário, 2026-09-23:
+ * mesma ideia da tela de mesmo nome do portal do CBMERJ) — ver
+ * `StationViewSet.sirenes` no backend. `status_estacao` vem direto de
+ * `Station.status` ("ativa"=online / "inativa"=offline /
+ * "desconhecido"); `tocando`/`tocando_desde` refletem o AlertEvent ativo
+ * da regra "Sirene de alarme tocando", não um campo da própria estação. */
+export type SireneStation = {
+  id: number;
+  external_id: string;
+  name: string;
+  municipality: string;
+  bairro: string;
+  rua: string;
+  numero: string;
+  redec: string;
+  grupo: string;
+  descricao: string;
+  tem_pluviometro: boolean;
+  latitude: number;
+  longitude: number;
+  status_estacao: string;
+  tocando: boolean;
+  tocando_desde: string | null;
+  ultima_chuva_mm: number | null;
+  ultima_chuva_em: string | null;
+  updated_at: string | null;
+};
+
+export async function fetchSirenes(): Promise<SireneStation[]> {
+  return getJson<SireneStation[]>("/stations/sirenes/");
+}
+
 export type RiskAlertTipo = "hidrologico" | "geologico" | "meteorologico" | "incendio";
 export type RiskLevel = "muito_baixo" | "baixo" | "moderado" | "alto" | "muito_alto";
 

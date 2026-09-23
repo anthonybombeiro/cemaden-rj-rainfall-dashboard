@@ -96,6 +96,79 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(data)
 
     @action(detail=False, methods=["get"])
+    def sirenes(self, request):
+        """"Consulta por estações" só das sirenes — pedido do usuário
+        (2026-09-23): uma tela dedicada mostrando status de cada uma das
+        ~225 sirenes (online/offline, tocando agora ou não), no mesmo
+        espírito da tela de mesmo nome do próprio portal do CBMERJ (ver
+        ingestion/connectors/cemaden_rj_sirenes.py).
+
+        "Offline"/"online" vem de `Station.status` (derivado de
+        `fk_idStatusEstacao` no sync). "Tocando agora" NÃO fica guardado
+        na Station — o sync só materializa isso como um AlertEvent ativo
+        (resolved_at NULL) da regra "Sirene de alarme tocando", então é
+        isso que consultamos aqui pra saber o estado atual de acionamento
+        e desde quando está tocando.
+        """
+        stations = list(self._filtered_stations().filter(station_type=Station.StationType.SIRENE))
+        station_ids = [s.id for s in stations]
+
+        tocando_desde = {
+            ev.station_id: ev.triggered_at
+            for ev in AlertEvent.objects.filter(
+                rule__name="Sirene de alarme tocando", station_id__in=station_ids, resolved_at__isnull=True
+            )
+        }
+
+        # Última leitura de chuva (só existe pras ~85 sirenes com
+        # pluviômetro acoplado) — pega em Python a 1ª ocorrência por
+        # estação de uma lista já ordenada (station_id, -timestamp),
+        # mesma técnica de StationListSerializer.get_latest_readings (evita
+        # N+1 e evita `.distinct("campo")`, que o MySQL não suporta).
+        leituras_recentes = Reading.objects.filter(
+            station_id__in=station_ids,
+            reading_type=Reading.ReadingType.CHUVA_MM,
+            timestamp__gte=timezone.now() - datetime.timedelta(hours=24),
+        ).order_by("station_id", "-timestamp").values("station_id", "value", "timestamp")
+        ultima_chuva = {}
+        for r in leituras_recentes:
+            ultima_chuva.setdefault(r["station_id"], r)
+
+        data = []
+        for station in stations:
+            meta = station.raw_metadata or {}
+            chuva = ultima_chuva.get(station.id)
+            triggered_at = tocando_desde.get(station.id)
+            data.append(
+                {
+                    "id": station.id,
+                    "external_id": station.external_id,
+                    "name": station.name,
+                    "municipality": station.municipality,
+                    "bairro": meta.get("bairro") or "",
+                    "rua": meta.get("rua") or "",
+                    "numero": meta.get("numero") or "",
+                    "redec": meta.get("redec") or "",
+                    "grupo": meta.get("grupo") or "",
+                    "descricao": meta.get("descricao") or "",
+                    "tem_pluviometro": bool(meta.get("tem_pluviometro")),
+                    "latitude": station.latitude,
+                    "longitude": station.longitude,
+                    "status_estacao": station.status,
+                    "tocando": triggered_at is not None,
+                    "tocando_desde": triggered_at,
+                    "ultima_chuva_mm": chuva["value"] if chuva else None,
+                    "ultima_chuva_em": chuva["timestamp"] if chuva else None,
+                    "updated_at": station.updated_at,
+                }
+            )
+
+        # Prioriza o que precisa de atenção: tocando agora primeiro, depois
+        # offline, depois o resto em ordem alfabética.
+        data.sort(key=lambda e: (not e["tocando"], e["status_estacao"] != Station.Status.INATIVA, e["name"]))
+        return Response(data)
+
+    @action(detail=False, methods=["get"])
     def precipitacao(self, request):
         """Estações pluviométricas com chuva acumulada em várias janelas —
         inspirado no formato do Alerta Rio (websempre.rio.rj.gov.br/estacoes/)

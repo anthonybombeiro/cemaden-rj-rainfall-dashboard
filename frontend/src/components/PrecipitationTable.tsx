@@ -170,21 +170,6 @@ export default function PrecipitationTable({
           ⬇ Exportar CSV
         </button>
       </div>
-      <div className="sticky top-9 z-40 flex flex-wrap items-center gap-2 border-b border-gray-100 bg-white px-3 py-1.5 text-[10px] text-gray-500 sm:text-[11px]">
-        <span>Fundo da linha por chuva na última 1h:</span>
-        {[
-          { bg: "#BEBEBE", label: "Atrasada" },
-          { bg: "#63B8FF", label: "Fraca" },
-          { bg: "#FFFF66", label: "Moderada" },
-          { bg: "#FFA600", label: "Forte" },
-          { bg: "#CC0000", label: "Muito Forte" },
-        ].map((f) => (
-          <span key={f.label} className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded-sm border border-black/10" style={{ backgroundColor: f.bg }} />
-            {f.label}
-          </span>
-        ))}
-      </div>
       <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
         <colgroup>
           <col style={{ width: W_ESTACAO }} />
@@ -199,7 +184,7 @@ export default function PrecipitationTable({
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-[4.5rem] z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              className="sticky top-9 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
               style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
               onClick={() => toggleSort("name")}
             >
@@ -222,7 +207,7 @@ export default function PrecipitationTable({
             {JANELAS.map((j) => (
               <th
                 key={j.key}
-                className="sticky top-[4.5rem] z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
+                className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
                 style={{ width: W_JANELA, maxWidth: W_JANELA, minWidth: W_JANELA }}
                 onClick={() => toggleSort(j.key)}
                 title={j.titulo}
@@ -232,14 +217,14 @@ export default function PrecipitationTable({
               </th>
             ))}
             <th
-              className="sticky top-[4.5rem] z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_FONTE, maxWidth: W_FONTE, minWidth: W_FONTE }}
               onClick={() => toggleSort("source")}
             >
               Fonte{arrow("source")}
             </th>
             <th
-              className="sticky top-[4.5rem] z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-9 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO }}
               onClick={() => toggleSort("updated")}
             >
@@ -350,6 +335,25 @@ export default function PrecipitationTable({
       {sorted.length === 0 && (
         <div className="p-6 text-center text-sm text-gray-400">Nenhuma estação pluviométrica encontrada.</div>
       )}
+      {/* Legenda de cor movida pro FINAL da tabela (pedido do usuário,
+          2026-09-23) — antes ficava fixa no topo, junto com o botão de
+          exportar; em telas menores ocupava espaço logo de cara antes de
+          qualquer dado aparecer. */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 bg-white px-3 py-2 text-[10px] text-gray-500 sm:text-[11px]">
+        <span>Fundo da linha por chuva na última 1h:</span>
+        {[
+          { bg: "#BEBEBE", label: "Atrasada" },
+          { bg: "#63B8FF", label: "Fraca" },
+          { bg: "#FFFF66", label: "Moderada" },
+          { bg: "#FFA600", label: "Forte" },
+          { bg: "#CC0000", label: "Muito Forte" },
+        ].map((f) => (
+          <span key={f.label} className="flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded-sm border border-black/10" style={{ backgroundColor: f.bg }} />
+            {f.label}
+          </span>
+        ))}
+      </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
         &ldquo;1 Mês&rdquo; é janela CORRIDA de 30 dias; &ldquo;Hoje&rdquo; e &ldquo;No Mês&rdquo; (lado a lado) são
         acumulado CALENDÁRIO — desde 00h de hoje e desde o dia 1 do mês corrente, respectivamente — coisas
