@@ -40,7 +40,24 @@ from dataclasses import dataclass, field
 logger = logging.getLogger("ingestion")
 
 
-def bucket_from_running_daily(source_slug: str, external_id: str, valor_atual_hoje: float) -> float:
+# Teto de plausibilidade pra um único balde (diferença entre duas
+# leituras consecutivas). Achado em produção (2026-09-23, pedido do
+# usuário: "dados do Wundermap continuam muito errados"): estações PWS
+# residenciais (Wunderground é rede CROWD-SOURCED, hardware sem
+# calibração nenhuma) têm um problema conhecido e comum — o sensor de
+# báscula (tipping bucket) trava/entope e o contador "total corrido do
+# dia" não reseta à meia-noite, ou o firmware tem bug e nunca zera;
+# confirmado ao vivo: um device mandou precipTotal=254.76mm num dia
+# comum (rate instantâneo de só 9.14mm/h, incompatível com um total tão
+# alto — sinal claro de contador não resetado, não de chuva real). Um
+# balde de 150mm+ NUM SÓ INTERVALO é fisicamente implausível pra
+# qualquer estação de verdade (equivaleria a uma taxa sustentada acima
+# de qualquer eventos catalogados no RJ); tratamos como sensor com
+# defeito, não uma medição real, e simplesmente não guardamos.
+TETO_PLAUSIVEL_BALDE_MM = 150.0
+
+
+def bucket_from_running_daily(source_slug: str, external_id: str, valor_atual_hoje: float) -> float | None:
     """Deriva um valor tipo "balde" (chuva NESSE intervalo) a partir de um
     total corrido desde a meia-noite local (ex: Wunderground `precipTotal`,
     Plugfield `rainDay`) — `valor_atual_hoje` é esse total como a fonte
@@ -81,9 +98,19 @@ def bucket_from_running_daily(source_slug: str, external_id: str, valor_atual_ho
         timestamp__gte=inicio_hoje_local,
     )
     if not leituras_hoje.exists():
-        return valor_atual_hoje
-    ja_registrado_hoje = leituras_hoje.aggregate(total=Sum("value"))["total"] or 0.0
-    return max(valor_atual_hoje - ja_registrado_hoje, 0.0)
+        balde = valor_atual_hoje
+    else:
+        ja_registrado_hoje = leituras_hoje.aggregate(total=Sum("value"))["total"] or 0.0
+        balde = max(valor_atual_hoje - ja_registrado_hoje, 0.0)
+
+    if balde > TETO_PLAUSIVEL_BALDE_MM:
+        logger.warning(
+            "%s/%s: balde de %.1fmm num só intervalo passou do teto de plausibilidade (%.0fmm) — "
+            "provável sensor com defeito (comum em PWS residenciais tipo Wunderground), leitura descartada.",
+            source_slug, external_id, balde, TETO_PLAUSIVEL_BALDE_MM,
+        )
+        return None
+    return balde
 
 
 @dataclass

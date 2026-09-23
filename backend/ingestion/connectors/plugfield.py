@@ -109,10 +109,13 @@ class PlugfieldConnector(BaseConnector):
         # (ver fetch_stations) — nenhuma chamada extra à API é necessária aqui.
         readings: list[dict] = []
         for station in stations:
-            dashboard = (station.get("raw_metadata") or {}).get("dashboard")
+            raw = station.get("raw_metadata") or {}
+            dashboard = raw.get("dashboard")
             if not dashboard:
                 continue
-            readings.extend(self._readings_from_dashboard(station["external_id"], dashboard))
+            readings.extend(
+                self._readings_from_dashboard(station["external_id"], dashboard, raw.get("lastUpdateTimestamp"))
+            )
         return readings
 
     def _login(self, api_key: str, username: str, password: str) -> str | None:
@@ -164,8 +167,28 @@ class PlugfieldConnector(BaseConnector):
             "raw_metadata": item,
         }
 
-    def _readings_from_dashboard(self, external_id: str, dashboard: dict) -> list[dict]:
-        timestamp = _parse_timestamp(dashboard.get("updateDateTime"))
+    def _readings_from_dashboard(
+        self, external_id: str, dashboard: dict, last_update_timestamp_ms: int | None
+    ) -> list[dict]:
+        # Achado em 2026-09-23 (pedido do usuário: "dados da plugfield estão
+        # constantemente atrasados"): o campo `dashboard.updateDateTime` da
+        # API deles é BUGADO — vem com sufixo "Z" (UTC) mas o valor é na
+        # verdade hora LOCAL de Brasília (UTC-3). Confirmado comparando com
+        # `lastUpdateTimestamp` (epoch em ms, no nível do device, sem
+        # ambiguidade nenhuma): as duas fontes têm o MESMO horário de
+        # relógio (ex: "12:54:44"), mas `lastUpdateTimestamp` convertido
+        # corretamente dá 15:54:44 UTC — exatamente 3h à frente, o
+        # deslocamento de Brasília. Usar `updateDateTime` fazia toda
+        # estação Plugfield parecer atrasada em ~3h (era só a leitura de
+        # fuso horário errada, o dado em si estava fresco). Por isso
+        # usamos `lastUpdateTimestamp` aqui, não `updateDateTime`.
+        if last_update_timestamp_ms is None:
+            timestamp = _parse_timestamp(dashboard.get("updateDateTime"))
+        else:
+            try:
+                timestamp = dt.datetime.fromtimestamp(last_update_timestamp_ms / 1000, tz=dt.timezone.utc)
+            except (TypeError, ValueError, OSError):
+                timestamp = _parse_timestamp(dashboard.get("updateDateTime"))
         if timestamp is None:
             return []
 
