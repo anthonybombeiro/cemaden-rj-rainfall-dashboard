@@ -34,12 +34,18 @@ function formatMm(value: number | null | undefined): string {
  * (pedido: "o horas pode ser resumido pelo h apenas no texto"). `key`
  * bate exatamente com o campo de `PrecipitacaoStation`. */
 const JANELAS: { key: keyof PrecipitacaoStation; label: string; titulo: string }[] = [
-  { key: "chuva_agora_mm", label: "Agora", titulo: "Última leitura bruta" },
+  {
+    key: "chuva_agora_mm",
+    label: "Últ.",
+    titulo:
+      'Última leitura recebida da fonte, como ela mesma reporta — NÃO é uma janela fixa: cada fonte tem sua ' +
+      'própria cadência (de 5min a 1h dependendo da rede; passe o mouse sobre "Fonte" na linha pra ver a rede). ' +
+      'Serve pra saber "o que essa estação relatou por último", não pra comparar entre fontes diferentes.',
+  },
   { key: "acumulado_5min_mm", label: "5min", titulo: "Acumulado nos últimos 5 minutos" },
   { key: "acumulado_10min_mm", label: "10min", titulo: "Acumulado nos últimos 10 minutos" },
   { key: "acumulado_15min_mm", label: "15min", titulo: "Acumulado nos últimos 15 minutos" },
   { key: "acumulado_30min_mm", label: "30min", titulo: "Acumulado nos últimos 30 minutos" },
-  { key: "acumulado_hoje_mm", label: "Hoje", titulo: "Acumulado desde a meia-noite local" },
   { key: "acumulado_1h_mm", label: "1h", titulo: "Acumulado na última 1 hora" },
   { key: "acumulado_2h_mm", label: "2h", titulo: "Acumulado nas últimas 2 horas" },
   { key: "acumulado_3h_mm", label: "3h", titulo: "Acumulado nas últimas 3 horas" },
@@ -52,21 +58,31 @@ const JANELAS: { key: keyof PrecipitacaoStation; label: string; titulo: string }
   { key: "acumulado_72h_mm", label: "72h", titulo: "Acumulado nas últimas 72 horas" },
   { key: "acumulado_96h_mm", label: "96h", titulo: "Acumulado nas últimas 96 horas" },
   { key: "acumulado_168h_mm", label: "168h", titulo: "Acumulado nas últimas 168 horas (7 dias)" },
-  { key: "acumulado_1mes_mm", label: "1 Mês", titulo: "Acumulado nos últimos 30 dias corridos" },
-  { key: "acumulado_mes_mm", label: "No Mês", titulo: "Acumulado desde o dia 1 do mês corrente" },
+  { key: "acumulado_1mes_mm", label: "1 Mês", titulo: "Acumulado nos últimos 30 dias corridos (janela móvel)" },
+  {
+    key: "acumulado_hoje_mm",
+    label: "Hoje",
+    titulo: 'Acumulado calendário: desde 00h (hora local) até agora. Ao lado de "No Mês" por serem o mesmo tipo de acumulado (calendário, não janela móvel).',
+  },
+  {
+    key: "acumulado_mes_mm",
+    label: "No Mês",
+    titulo: 'Acumulado calendário: desde o dia 1 do mês corrente até agora. Ao lado de "Hoje" por serem o mesmo tipo de acumulado (calendário, não janela móvel).',
+  },
   { key: "pico_mm", label: "Pico", titulo: "Maior leitura individual nas últimas 24h (equivalente ao \"TX-15\" do Alerta Rio)" },
 ];
 
 const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "source", "updated"]);
 
-// Larguras das 3 colunas fixas (sticky) à esquerda — Redec/Município/
-// Estação continuam visíveis rolando horizontalmente pelas ~20 colunas
-// de dados (essencial em celular: sem isso, some o contexto de qual
-// linha é qual assim que rola a tabela). Valores em px pra poder somar
-// e calcular o `left` de cada uma.
-const W_REDEC = 76;
-const W_MUNICIPIO = 92;
-const W_ESTACAO = 112;
+// Só a coluna Estação fica fixa (sticky) rolando a tabela pro lado —
+// pedido do usuário (2026-09-23): REDEC+Município+Estação sticky ao
+// mesmo tempo ficou ilegível (colunas espremidas pra caber), e em
+// celular era ruim demais. Estação sozinha ainda dá o contexto mínimo
+// de "qual linha é qual" rolando ~20 colunas de dado; REDEC/Município
+// agora rolam junto com o resto e podem ser mais largas/legíveis.
+const W_REDEC = 100;
+const W_MUNICIPIO = 140;
+const W_ESTACAO = 140;
 const W_JANELA = 44;
 const W_FONTE = 80;
 const W_ATUALIZADO = 96;
@@ -171,9 +187,9 @@ export default function PrecipitationTable({
       </div>
       <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
         <colgroup>
+          <col style={{ width: W_ESTACAO }} />
           <col style={{ width: W_REDEC }} />
           <col style={{ width: W_MUNICIPIO }} />
-          <col style={{ width: W_ESTACAO }} />
           {JANELAS.map((j) => (
             <col key={j.key} style={{ width: W_JANELA }} />
           ))}
@@ -183,25 +199,25 @@ export default function PrecipitationTable({
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-[4.5rem] z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ left: 0, width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
+              className="sticky top-[4.5rem] z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
+              onClick={() => toggleSort("name")}
+            >
+              Estação{arrow("name")}
+            </th>
+            <th
+              className="cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
               onClick={() => toggleSort("redec")}
             >
               REDEC{arrow("redec")}
             </th>
             <th
-              className="sticky top-[4.5rem] z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ left: W_REDEC, width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
+              className="cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
               onClick={() => toggleSort("municipality")}
             >
               Município{arrow("municipality")}
-            </th>
-            <th
-              className="sticky top-[4.5rem] z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-              style={{ left: W_REDEC + W_MUNICIPIO, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
-              onClick={() => toggleSort("name")}
-            >
-              Estação{arrow("name")}
             </th>
             {JANELAS.map((j) => (
               <th
@@ -247,9 +263,22 @@ export default function PrecipitationTable({
             return (
               <tr key={`${s.source}-${s.id}`} className="border-b border-gray-100" title={faixa1h?.label}>
                 <td
-                  className="sticky overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1"
+                  className="sticky overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 font-medium shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
                   style={{
                     left: 0,
+                    width: W_ESTACAO,
+                    maxWidth: W_ESTACAO,
+                    minWidth: W_ESTACAO,
+                    backgroundColor: bgFundo,
+                    color: corTexto ?? "#111827",
+                  }}
+                  title={s.name}
+                >
+                  {s.name}
+                </td>
+                <td
+                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1"
+                  style={{
                     width: W_REDEC,
                     maxWidth: W_REDEC,
                     minWidth: W_REDEC,
@@ -260,9 +289,8 @@ export default function PrecipitationTable({
                   {redecOf(s.municipality) || "—"}
                 </td>
                 <td
-                  className="sticky overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1"
+                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1"
                   style={{
-                    left: W_REDEC,
                     width: W_MUNICIPIO,
                     maxWidth: W_MUNICIPIO,
                     minWidth: W_MUNICIPIO,
@@ -271,20 +299,6 @@ export default function PrecipitationTable({
                   }}
                 >
                   {s.municipality || "—"}
-                </td>
-                <td
-                  className="sticky overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 font-medium shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-                  style={{
-                    left: W_REDEC + W_MUNICIPIO,
-                    width: W_ESTACAO,
-                    maxWidth: W_ESTACAO,
-                    minWidth: W_ESTACAO,
-                    backgroundColor: bgFundo,
-                    color: corTexto ?? "#111827",
-                  }}
-                  title={s.name}
-                >
-                  {s.name}
                 </td>
                 {JANELAS.map((j) =>
                   j.key === "acumulado_hoje_mm" ? (
@@ -337,11 +351,14 @@ export default function PrecipitationTable({
         <div className="p-6 text-center text-sm text-gray-400">Nenhuma estação pluviométrica encontrada.</div>
       )}
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
-        &ldquo;1 Mês&rdquo; é janela CORRIDA de 30 dias; &ldquo;No Mês&rdquo; é desde o dia 1 do mês corrente
-        (calendário) — são coisas diferentes. Colunas de janela menor que a cadência real de uma fonte (ex: uma
-        fonte que só atualiza de hora em hora) saem iguais a &ldquo;Agora&rdquo;, não é erro. REDEC/Município/Estação
-        ficam fixas rolando a tabela pro lado — em celular, arraste a tabela horizontalmente pra ver todas as
-        janelas. Clique em qualquer cabeçalho pra ordenar.
+        &ldquo;1 Mês&rdquo; é janela CORRIDA de 30 dias; &ldquo;Hoje&rdquo; e &ldquo;No Mês&rdquo; (lado a lado) são
+        acumulado CALENDÁRIO — desde 00h de hoje e desde o dia 1 do mês corrente, respectivamente — coisas
+        diferentes de uma janela móvel. &ldquo;Últ.&rdquo; é a leitura mais recente tal como a fonte reporta: o
+        intervalo de tempo que ela representa varia por fonte (5min a 1h) — não dá pra comparar esse valor entre
+        fontes diferentes, só entre leituras da mesma estação ao longo do tempo. Colunas de janela menor que a
+        cadência real de uma fonte saem iguais a &ldquo;Últ.&rdquo;, não é erro. Só a coluna Estação fica fixa
+        rolando a tabela pro lado — em celular, arraste horizontalmente pra ver todas as janelas. Clique em
+        qualquer cabeçalho pra ordenar.
       </div>
     </div>
   );
