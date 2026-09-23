@@ -34,6 +34,14 @@ Deliberadamente uma lista BRANCA fixa de ações (nunca comando arbitrário):
     leituras de HOJE gravadas antes da mudança ficam contaminando a soma
     como se fossem baldes, gerando acumulado absurdo). Exige source +
     reading_type + since (formato "YYYY-MM-DDTHH:MM:SS", sempre UTC).
+  - "create_user": cria (ou reseta a senha/papel de) uma conta de login do
+    painel — necessário porque o painel inteiro passou a exigir login
+    (2026-09-23) e o HostGator não dá shell pra rodar
+    `createsuperuser`/`changepassword`. Exige username + password + role
+    ("admin" ou "operador"); "admin" vira `is_superuser=True` (também
+    entra no /admin/ do Django, que exige `is_staff`) e "operador" vira
+    usuário comum (só entra no painel, não no /admin/). Rodar de novo com
+    o mesmo username ATUALIZA a senha/papel em vez de duplicar conta.
 """
 
 from __future__ import annotations
@@ -58,6 +66,7 @@ ACOES_PERMITIDAS = {
     "sync_sirenes",
     "delete_stations",
     "purge_readings",
+    "create_user",
 }
 
 
@@ -175,6 +184,26 @@ class AdminOpsView(APIView):
                     station__source__slug=source, reading_type=reading_type, timestamp__gte=since
                 ).delete()
                 saida.write(f"leituras apagadas: {apagadas}")
+            elif action == "create_user":
+                from django.contrib.auth import get_user_model
+
+                username = (request.data or {}).get("username")
+                password = (request.data or {}).get("password")
+                role = (request.data or {}).get("role")
+                if not username or not password or role not in ("admin", "operador"):
+                    return Response(
+                        {"detail": "create_user exige 'username', 'password' e 'role' ('admin' ou 'operador')."},
+                        status=400,
+                    )
+                User = get_user_model()
+                is_admin = role == "admin"
+                user, criado = User.objects.get_or_create(username=username)
+                user.set_password(password)
+                user.is_superuser = is_admin
+                user.is_staff = is_admin
+                user.is_active = True
+                user.save()
+                saida.write(f"usuário {'criado' if criado else 'atualizado'}: {username} (role={role})")
         except Exception as exc:  # noqa: BLE001
             logger.exception("Falha ao executar ação administrativa %r", action)
             return Response({"detail": f"Erro: {exc}", "saida": saida.getvalue()}, status=500)

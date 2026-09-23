@@ -1,6 +1,53 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000/api";
 
+/** Painel inteiro exige login (pedido do usuário, 2026-09-23) — sessão via
+ * cookie do Django, não token em localStorage (ver backend/api/auth_views.py
+ * pro porquê). `credentials: "include"` é o que faz esse cookie viajar em
+ * toda chamada; sem isso, toda a API responde 403 mesmo já logado. */
+export type AuthUser = { username: string; role: "admin" | "operador" };
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** Chamado 1x antes de mostrar a tela de login, só pra garantir que o
+ * cookie `csrftoken` existe (necessário mais tarde pro logout). */
+export async function ensureCsrfCookie(): Promise<void> {
+  await fetch(`${API_BASE_URL}/auth/csrf/`, { credentials: "include", cache: "no-store" });
+}
+
+export async function fetchMe(): Promise<AuthUser> {
+  const res = await fetch(`${API_BASE_URL}/auth/me/`, { credentials: "include", cache: "no-store" });
+  if (!res.ok) throw new Error("Não autenticado");
+  return res.json();
+}
+
+export async function login(username: string, password: string): Promise<AuthUser> {
+  await ensureCsrfCookie();
+  const res = await fetch(`${API_BASE_URL}/auth/login/`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}) as { detail?: string });
+    throw new Error(data.detail || "Usuário ou senha inválidos.");
+  }
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  const csrftoken = getCookie("csrftoken");
+  await fetch(`${API_BASE_URL}/auth/logout/`, {
+    method: "POST",
+    credentials: "include",
+    headers: csrftoken ? { "X-CSRFToken": csrftoken } : {},
+  });
+}
+
 export type LatestReading = {
   reading_type: string;
   value: number;
@@ -59,7 +106,7 @@ async function getJson<T>(pathOuUrlAbsoluta: string): Promise<T> {
   // `next`/`previous` da paginação do DRF já vêm como URL absoluta —
   // aceitar os dois formatos evita ter que recortar API_BASE_URL de volta.
   const url = /^https?:\/\//.test(pathOuUrlAbsoluta) ? pathOuUrlAbsoluta : `${API_BASE_URL}${pathOuUrlAbsoluta}`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", credentials: "include" });
   if (!res.ok) {
     throw new Error(`Falha ao buscar ${pathOuUrlAbsoluta}: HTTP ${res.status}`);
   }

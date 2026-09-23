@@ -113,15 +113,35 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Painel inteiro exige login (pedido do usuário, 2026-09-23: "acesso
+# restrito" — é ferramenta interna da Defesa Civil, não pro público em
+# geral). `IsAuthenticated` é o padrão global; os únicos endpoints
+# abertos são os que já tinham seu PRÓPRIO mecanismo de segurança (login/
+# csrf, e os dois de automação protegidos por segredo compartilhado —
+# `AdminOpsView`/`RemoteReadingsIngestView` — que declaram
+# `permission_classes`/`authentication_classes` próprios e por isso não
+# são afetados por essa troca).
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "api.pagination.SafeLimitOffsetPagination",
     "PAGE_SIZE": 200,
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }
 
 CORS_ALLOWED_ORIGINS = [
     o.strip() for o in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()
 ]
+# Necessário pro cookie de sessão (login) viajar em requisições cross-origin
+# do frontend em dev local (localhost:3000 → localhost:8000) — em produção
+# frontend e backend são o MESMO domínio (cemadenrj.preserve.rio.br), então
+# nem chega a ser CORS de verdade lá, isso só importa pro dev local.
+CORS_ALLOW_CREDENTIALS = True
+
+# HTTPS em produção (HostGator serve com certificado válido) — cookie de
+# sessão/CSRF só viaja em requisição segura. Em dev local (HTTP puro) isso
+# teria que ficar False, daí o default seguir o mesmo DEBUG usado acima.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
 # --- Ingestão de dados de fontes externas -----------------------------------
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
