@@ -260,8 +260,11 @@ def _fetch_municipio(url: str) -> dict[str, dict]:
 
     _stream_rows(url, on_row)
 
+    from core.municipios import canonico_ou_original
+
     resultado = {}
-    for municipio, (_num, _upd, cells) in melhor.items():
+    for municipio_bruto, (_num, _upd, cells) in melhor.items():
+        municipio = canonico_ou_original(municipio_bruto)
         (
             _aviso, redec, _municipio, mensagem, _atualizacao, risco,
             data_c, hora_c, _ano_c, resp_c,
@@ -332,9 +335,14 @@ def _fetch_redec_bulletin(action: int) -> dict[str, dict]:
 
 
 def sync() -> AlertSyncResult:
-    from core.models import RiskAlert
+    from core.models import AlertRule, RiskAlert, Station
+    from core.municipios_fix import corrigir_municipios
 
     result = AlertSyncResult()
+    try:
+        corrigir_municipios(Station, AlertRule, RiskAlert)
+    except Exception as exc:  # não bloqueia o sync por causa da limpeza
+        result.errors.append(f"normaliza_municipios: {exc}")
 
     fetchers = [
         (RiskAlert.Tipo.HIDROLOGICO, lambda: _fetch_redec_log("hidrologico", f"{BASE_URL}/atualizacao_hidro.php")),

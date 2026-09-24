@@ -8,6 +8,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.municipios import canonico_ou_original
 from core.models import AlertEvent, Reading, RiskAlert, Source, Station
 
 from .serializers import (
@@ -220,7 +221,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                     "id": station.id,
                     "external_id": station.external_id,
                     "name": station.name,
-                    "municipality": station.municipality,
+                    "municipality": canonico_ou_original(station.municipality),
                     "bairro": meta.get("bairro") or "",
                     "rua": meta.get("rua") or "",
                     "numero": meta.get("numero") or "",
@@ -353,7 +354,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 "station_type": station.station_type,
                 "external_id": station.external_id,
                 "name": station.name,
-                "municipality": station.municipality,
+                "municipality": canonico_ou_original(station.municipality),
                 "latitude": station.latitude,
                 "longitude": station.longitude,
                 "updated_at": latest["timestamp"] if latest else None,
@@ -447,7 +448,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 "station_type": station.station_type,
                 "external_id": station.external_id,
                 "name": station.name,
-                "municipality": station.municipality,
+                "municipality": canonico_ou_original(station.municipality),
                 "latitude": station.latitude,
                 "longitude": station.longitude,
                 "nivel_atual_m": latest["value"] if latest else None,

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from core.municipios import canonico_ou_original
 from core.models import AlertEvent, Reading, RiskAlert, Source, Station
 
 
@@ -34,6 +35,11 @@ class StationListSerializer(serializers.ModelSerializer):
             "altitude_m",
             "latest_readings",
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["municipality"] = canonico_ou_original(data.get("municipality") or "")
+        return data
 
     def get_latest_readings(self, obj: Station):
         # IMPORTANTE: usar obj.readings.all() (não .order_by(...)) — chamar
@@ -73,6 +79,11 @@ class RiskAlertSerializer(serializers.ModelSerializer):
             "atualizado_em",
             "fonte",
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["municipio"] = canonico_ou_original(data.get("municipio") or "")
+        return data
 
 
 class AlertEventSerializer(serializers.ModelSerializer):

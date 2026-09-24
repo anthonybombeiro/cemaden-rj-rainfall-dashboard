@@ -1,3 +1,5 @@
+import { canonicoOuOriginal, normalizarParaMunicipioCanonico } from "@/lib/municipios-canonical";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000/api";
 
@@ -172,7 +174,8 @@ async function fetchAllPages<T>(path: string): Promise<T[]> {
 }
 
 export async function fetchStations(): Promise<Station[]> {
-  return fetchAllPages<Station>("/stations/?limit=300");
+  const r = await fetchAllPages<Station>("/stations/?limit=300");
+  return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
 export async function fetchStationReadings(stationId: number): Promise<Reading[]> {
@@ -229,7 +232,8 @@ export type PrecipitacaoStation = {
 };
 
 export async function fetchPrecipitacao(): Promise<PrecipitacaoStation[]> {
-  return getJson<PrecipitacaoStation[]>("/stations/precipitacao/");
+  const r = await getJson<PrecipitacaoStation[]>("/stations/precipitacao/");
+  return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
 /** Estação HIDROLÓGICA (nível de rio) — pedido do usuário (2026-09-23):
@@ -245,7 +249,8 @@ export type HidrologicaStation = PrecipitacaoStation & {
 };
 
 export async function fetchHidrologicas(): Promise<HidrologicaStation[]> {
-  return getJson<HidrologicaStation[]>("/stations/hidrologicas/");
+  const r = await getJson<HidrologicaStation[]>("/stations/hidrologicas/");
+  return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
 /** "Consulta por estações" só das sirenes (pedido do usuário, 2026-09-23:
@@ -277,7 +282,8 @@ export type SireneStation = {
 };
 
 export async function fetchSirenes(): Promise<SireneStation[]> {
-  return getJson<SireneStation[]>("/stations/sirenes/");
+  const r = await getJson<SireneStation[]>("/stations/sirenes/");
+  return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
 export type RiskAlertTipo = "hidrologico" | "geologico" | "meteorologico" | "incendio";
@@ -347,20 +353,23 @@ export async function fetchRiskAlerts(
   return Array.isArray(data) ? data : data.results;
 }
 
-/** Mesma normalização usada pra gerar `rj_municipios.geojson` (maiúsculas,
- * sem acento, espaços colapsados) — precisa bater dos dois lados pra casar
- * o nome que vem da Defesa Civil-RJ com o nome oficial do IBGE no polígono.
- * Só um nome diverge entre as duas fontes (achado comparando as 92 de cada
- * lado): "Armação de Búzios" (Defesa Civil) vs "Armação dos Búzios" (IBGE). */
+/** Chave de comparação com o GeoJSON (maiúsculas, sem acento) já sobre o
+ * nome canônico dos 92 municípios — "Capital", "RIO DE JANEIRO", "Armação
+ * de Búzios" etc. caem todos na mesma chave. */
+const CHAVE_GEOJSON: Record<string, string> = {
+  "CACHOEIRA DE MACACU": "CACHOEIRAS DE MACACU",
+  "LAJE DE MURIAE": "LAJE DO MURIAE",
+};
+
 export function normalizeMunicipioName(nome: string): string {
-  const normalizado = nome
+  const base = normalizarParaMunicipioCanonico(nome) ?? nome;
+  const chave = base
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toUpperCase()
     .replace(/\s+/g, " ")
     .trim();
-  if (normalizado === "ARMACAO DE BUZIOS") return "ARMACAO DOS BUZIOS";
-  return normalizado;
+  return CHAVE_GEOJSON[chave] ?? chave;
 }
 
 export const READING_TYPE_LABELS: Record<string, string> = {

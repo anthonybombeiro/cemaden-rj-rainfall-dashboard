@@ -54,6 +54,12 @@ class Station(models.Model):
         indexes = [models.Index(fields=["latitude", "longitude"])]
         ordering = ["name"]
 
+    def save(self, *args, **kwargs):
+        from core.municipios import canonico_ou_original
+
+        self.municipality = canonico_ou_original(self.municipality)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.name} ({self.source.slug}/{self.external_id})"
 
@@ -113,6 +119,12 @@ class AlertRule(models.Model):
     class Meta:
         ordering = ["-severity", "name"]
 
+    def save(self, *args, **kwargs):
+        from core.municipios import canonico_ou_original
+
+        self.municipality = canonico_ou_original(self.municipality)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         alvo = self.station.name if self.station else (self.municipality or "todas as estações")
         return f"{self.name} ({alvo})"
@@ -171,6 +183,12 @@ class RiskAlert(models.Model):
             models.UniqueConstraint(fields=["tipo", "redec", "municipio"], name="unique_risk_alert_scope")
         ]
         ordering = ["tipo", "redec", "municipio"]
+
+    def save(self, *args, **kwargs):
+        from core.municipios import canonico_ou_original
+
+        self.municipio = canonico_ou_original(self.municipio)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         alvo = self.municipio or self.redec

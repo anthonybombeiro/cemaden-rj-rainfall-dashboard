@@ -73,6 +73,7 @@ ACOES_PERMITIDAS = {
     "delete_stations",
     "purge_readings",
     "create_user",
+    "normalize_municipios",
 }
 
 
@@ -123,6 +124,8 @@ class AdminOpsView(APIView):
 
                 resultado = cemaden_rj_alertas.sync()
                 saida.write(resultado.summary())
+            elif action == "normalize_municipios":
+                call_command("normalize_municipios", stdout=saida, stderr=saida)
             elif action == "sync_sirenes":
                 from ingestion.connectors import cemaden_rj_sirenes
 
