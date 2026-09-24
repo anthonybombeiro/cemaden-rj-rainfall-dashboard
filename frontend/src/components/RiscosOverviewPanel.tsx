@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   fetchRiskAlerts,
@@ -12,11 +13,14 @@ import {
   RiskAlertTipo,
   RiskLevel,
 } from "@/lib/api";
-import RiskChoroplethMap from "@/components/RiskChoroplethMap";
+import ExportMapButton from "@/components/ExportMapButton";
+import RiskChoroplethMap, { RiskMapHandle } from "@/components/RiskChoroplethMap";
 
 const TIPOS: RiskAlertTipo[] = ["hidrologico", "geologico", "meteorologico", "incendio"];
 const NIVEIS: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
 const COM_GRANULARIDADE_MUNICIPAL: RiskAlertTipo[] = ["geologico", "hidrologico"];
+
+const LEGENDA_ITENS = NIVEIS.map((n) => ({ cor: RISK_LEVEL_COLORS[n], rotulo: RISK_LEVEL_LABELS[n] }));
 
 type DadosPorTipo = {
   redec: RiskAlert[];
@@ -55,46 +59,73 @@ export default function RiscosOverviewPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+  const [atualizandoManual, setAtualizandoManual] = useState(false);
+
+  // Um ref de mapa por tipo — pra poder exportar CADA mapa como imagem
+  // separadamente (pedido do usuário, 2026-09-24), sem precisar de um
+  // componente novo por tipo.
+  const mapRefs = useRef<Record<RiskAlertTipo, RiskMapHandle | null>>({
+    hidrologico: null,
+    geologico: null,
+    meteorologico: null,
+    incendio: null,
+  });
+
+  const desmontadoRef = useRef(false);
+
+  // useCallback (não só efeito) pra dar pra chamar tanto sozinho quanto
+  // sob demanda no botão "Atualizar agora" de cada mapa — mesmo padrão do
+  // AlertsPanel. IMPORTANTE: `desmontadoRef` é resetado dentro do próprio
+  // efeito de busca (ver useEffect abaixo), não só declarado 1x — sem
+  // isso, o StrictMode do React em dev deixa isso preso em `true` pra
+  // sempre e a tela trava em "Carregando mapas…" (só em `next dev`).
+  const carregar = useCallback((mostrarLoading: boolean) => {
+    if (mostrarLoading) setLoading(true);
+    setError(null);
+
+    return Promise.all(
+      TIPOS.map((tipo) =>
+        Promise.all([
+          fetchRiskAlerts(tipo, "redec"),
+          COM_GRANULARIDADE_MUNICIPAL.includes(tipo) ? fetchRiskAlerts(tipo, "municipio") : Promise.resolve([]),
+        ]).then(([redec, municipio]) => [tipo, { redec, municipio }] as const),
+      ),
+    )
+      .then((entradas) => {
+        if (desmontadoRef.current) return;
+        const proximo = Object.fromEntries(entradas) as Record<RiskAlertTipo, DadosPorTipo>;
+        setDados(proximo);
+        const mapa: Record<string, string> = {};
+        for (const a of proximo.geologico.municipio) mapa[normalizeMunicipioName(a.municipio)] = a.redec;
+        setMunicipioRedecMap(mapa);
+        setAtualizadoEm(new Date());
+      })
+      .catch((err) => {
+        if (!desmontadoRef.current) setError(err instanceof Error ? err.message : "Erro desconhecido");
+      })
+      .finally(() => {
+        if (!desmontadoRef.current && mostrarLoading) setLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const carregar = (mostrarLoading: boolean) => {
-      if (mostrarLoading) setLoading(true);
-      setError(null);
-
-      Promise.all(
-        TIPOS.map((tipo) =>
-          Promise.all([
-            fetchRiskAlerts(tipo, "redec"),
-            COM_GRANULARIDADE_MUNICIPAL.includes(tipo) ? fetchRiskAlerts(tipo, "municipio") : Promise.resolve([]),
-          ]).then(([redec, municipio]) => [tipo, { redec, municipio }] as const),
-        ),
-      )
-        .then((entradas) => {
-          if (cancelled) return;
-          const proximo = Object.fromEntries(entradas) as Record<RiskAlertTipo, DadosPorTipo>;
-          setDados(proximo);
-          const mapa: Record<string, string> = {};
-          for (const a of proximo.geologico.municipio) mapa[normalizeMunicipioName(a.municipio)] = a.redec;
-          setMunicipioRedecMap(mapa);
-          setAtualizadoEm(new Date());
-        })
-        .catch((err) => {
-          if (!cancelled) setError(err instanceof Error ? err.message : "Erro desconhecido");
-        })
-        .finally(() => {
-          if (!cancelled && mostrarLoading) setLoading(false);
-        });
-    };
-
+    desmontadoRef.current = false;
     carregar(true);
     const intervalo = setInterval(() => carregar(false), INTERVALO_ATUALIZACAO_MS);
     return () => {
-      cancelled = true;
+      desmontadoRef.current = true;
       clearInterval(intervalo);
     };
-  }, []);
+  }, [carregar]);
+
+  const atualizarAgora = () => {
+    setAtualizandoManual(true);
+    carregar(false).finally(() => setAtualizandoManual(false));
+  };
+
+  const horaAtualizacao = atualizadoEm
+    ? atualizadoEm.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })
+    : "—";
 
   return (
     // Meta: em paisagem (PC, TV, tablet deitado) as 4 câmaras cabem inteiras
@@ -108,11 +139,7 @@ export default function RiscosOverviewPanel() {
           direita; título renomeado. */}
       <div className="mb-2 flex items-center justify-between landscape:hidden">
         <h2 className="text-sm font-semibold text-gray-900">Mapas de Riscos - Visão Geral</h2>
-        {atualizadoEm && (
-          <span className="text-xs text-gray-500">
-            Atualizado às {atualizadoEm.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-          </span>
-        )}
+        {atualizadoEm && <span className="text-xs text-gray-500">Atualizado às {horaAtualizacao}</span>}
       </div>
 
       {error && (
@@ -131,10 +158,39 @@ export default function RiscosOverviewPanel() {
                 key={tipo}
                 className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 p-1.5 landscape:p-1"
               >
-                <h3 className="shrink-0 truncate text-[11px] font-semibold text-gray-800 landscape:text-[10px]">
-                  {RISK_ALERT_TIPO_LABELS[tipo]}
-                </h3>
+                <div className="flex shrink-0 items-center justify-between gap-1">
+                  <h3 className="truncate text-[11px] font-semibold text-gray-800 landscape:text-[10px]">
+                    {RISK_ALERT_TIPO_LABELS[tipo]}
+                  </h3>
+                  {/* Pedido do usuário (2026-09-24): entre "atualizado" e
+                      "atualizar agora", um botão pra exportar ESSE mapa
+                      como imagem (baixar PNG ou copiar) — cada um dos 4
+                      mapas gera sua própria imagem, com cabeçalho/legenda/
+                      fonte/logo da Defesa Civil e horário embutidos (ver
+                      ExportMapButton.tsx). */}
+                  <div className="flex shrink-0 items-center gap-1 text-[10px] text-gray-400">
+                    <span className="hidden sm:inline">{horaAtualizacao}</span>
+                    <ExportMapButton
+                      getSvgElement={() => mapRefs.current[tipo]?.getSvgElement() ?? null}
+                      titulo={RISK_ALERT_TIPO_LABELS[tipo]}
+                      legendaItens={LEGENDA_ITENS}
+                      atualizadoTexto={`Atualizado em ${new Date().toLocaleDateString("pt-BR")} às ${horaAtualizacao}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={atualizarAgora}
+                      disabled={atualizandoManual}
+                      title="Buscar os 4 mapas de novo agora"
+                      className="rounded border border-gray-300 p-0.5 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <RefreshCw size={11} className={atualizandoManual ? "animate-spin" : ""} />
+                    </button>
+                  </div>
+                </div>
                 <RiskChoroplethMap
+                  ref={(handle) => {
+                    mapRefs.current[tipo] = handle;
+                  }}
                   tipo={tipo}
                   redecAlerts={dados[tipo].redec}
                   municipioAlerts={dados[tipo].municipio}

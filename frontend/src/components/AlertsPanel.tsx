@@ -17,18 +17,18 @@ import RiskChoroplethMap, { Selecao } from "@/components/RiskChoroplethMap";
 const TIPOS: RiskAlertTipo[] = ["hidrologico", "geologico", "meteorologico", "incendio"];
 const NIVEIS: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
 
-/** A partir de qual nível um card PRÓPRIO (separado) precisa existir pra
- * essa REDEC — pedido do usuário (2026-09-24): antes a gente "empurrava"
- * o card inteiro da REDEC pro MAIOR risco visto entre os municípios,
- * escondendo que outros municípios da mesma REDEC estavam num nível mais
- * baixo (mas ainda relevante) — ex: card mostrava "SERRANA I: Alto" com
- * "Petrópolis, São José do Vale do Rio Preto, Teresópolis" juntos, quando
- * na verdade só Petrópolis estava em Alto e os outros dois em Moderado.
- * Agora cada nível qualificante vira um card SEPARADO pra aquela REDEC. */
-const DESTAQUE_MUNICIPIO_A_PARTIR_DE: Partial<Record<RiskAlertTipo, RiskLevel[]>> = {
-  hidrologico: ["alto", "muito_alto"],
-  geologico: ["moderado", "alto", "muito_alto"],
-};
+/** V2 do fix anterior (2026-09-24) — a 1ª tentativa só separava card pra
+ * níveis "qualificantes" (moderado+/alto+), mas isso trocou um bug por
+ * outro: uma REDEC com 1 município em Alto e 7 em Moderado só mostrava o
+ * card de Alto, e os 7 em Moderado sumiam (Moderado não era
+ * "qualificante" pra hidrológico); e REDECs calmas mostravam o nível do
+ * BOLETIM da própria REDEC (que pode divergir do dado por município mais
+ * granular/atual) em vez do nível real dos municípios. Fix definitivo:
+ * pra tipo com granularidade municipal, os cards vêm 100% do detalhamento
+ * por município — UM CARD POR NÍVEL REALMENTE PRESENTE ali (não só os
+ * "qualificantes"), cobrindo o espectro inteiro. O boletim por REDEC só é
+ * usado como fallback pra tipos SEM granularidade municipal
+ * (meteorológico/incêndio), que não têm outro dado pra usar.
 
 /** Preto ou branco conforme o fundo, pra manter o texto legível em qualquer
  * cor da escala (BAIXO é amarelo puro — texto branco fica ilegível nele). */
@@ -71,57 +71,61 @@ function RedecGrid({
   selecao: Selecao;
 }) {
   const temGranularidadeMunicipal = tipo === "geologico" || tipo === "hidrologico";
-  const niveisDestaque = DESTAQUE_MUNICIPIO_A_PARTIR_DE[tipo];
 
-  // Município exatamente em cada nível, agrupado por REDEC — só pros tipos
-  // com granularidade municipal (geológico/hidrológico).
-  const municipiosPorRedecNivel = useMemo(() => {
-    const mapa = new Map<string, Map<RiskLevel, string[]>>();
+  // Município agrupado por REDEC e por NÍVEL (+ timestamp mais recente de
+  // cada grupo) — cobre TODO o espectro (muito_baixo→muito_alto), não só
+  // os níveis "altos". Essa é a fonte de verdade pros cards agora, não o
+  // boletim por REDEC.
+  const gruposPorRedecNivel = useMemo(() => {
+    const mapa = new Map<string, Map<RiskLevel, { municipios: string[]; atualizado: string | null }>>();
     if (!temGranularidadeMunicipal) return mapa;
     for (const m of municipioAlerts) {
       if (!mapa.has(m.redec)) mapa.set(m.redec, new Map());
       const porNivel = mapa.get(m.redec)!;
-      const lista = porNivel.get(m.risco) ?? [];
-      lista.push(m.municipio);
-      porNivel.set(m.risco, lista);
+      const grupo = porNivel.get(m.risco) ?? { municipios: [], atualizado: null };
+      grupo.municipios.push(m.municipio);
+      const ts = m.atualizado_em ?? m.criado_em;
+      if (ts && (!grupo.atualizado || ts > grupo.atualizado)) grupo.atualizado = ts;
+      porNivel.set(m.risco, grupo);
     }
     for (const porNivel of mapa.values()) {
-      for (const lista of porNivel.values()) lista.sort((a, b) => a.localeCompare(b));
+      for (const grupo of porNivel.values()) grupo.municipios.sort((a, b) => a.localeCompare(b));
     }
     return mapa;
   }, [municipioAlerts, temGranularidadeMunicipal]);
 
-  // Um card por REDEC normalmente — MAS um card POR NÍVEL qualificante
-  // (moderado+ geológico / alto+ hidrológico) sempre que 1+ município
-  // daquela REDEC atingir esse nível, em vez de só "empurrar" pro maior.
+  // Um card por REDEC normalmente (tipos sem granularidade municipal) —
+  // MAS um card por CADA NÍVEL realmente presente entre os municípios da
+  // REDEC, pros tipos que têm esse detalhamento (geológico/hidrológico).
   const cards = useMemo<CardRedec[]>(() => {
     const resultado: CardRedec[] = [];
     for (const a of alerts) {
-      const atualizado = a.atualizado_em ?? a.criado_em;
-      const porNivel = municipiosPorRedecNivel.get(a.redec);
-      const niveisQualificantes = new Set<RiskLevel>();
-      if (niveisDestaque?.includes(a.risco)) niveisQualificantes.add(a.risco);
-      if (porNivel) {
-        for (const nivel of porNivel.keys()) {
-          if (niveisDestaque?.includes(nivel)) niveisQualificantes.add(nivel);
-        }
-      }
-      if (niveisQualificantes.size === 0) {
-        resultado.push({ id: `${a.id}`, redec: a.redec, risco: a.risco, municipios: [], atualizado });
-      } else {
-        for (const nivel of niveisQualificantes) {
+      const porNivel = gruposPorRedecNivel.get(a.redec);
+      if (porNivel && porNivel.size > 0) {
+        for (const [nivel, grupo] of porNivel) {
           resultado.push({
             id: `${a.id}-${nivel}`,
             redec: a.redec,
             risco: nivel,
-            municipios: porNivel?.get(nivel) ?? [],
-            atualizado,
+            municipios: grupo.municipios,
+            atualizado: grupo.atualizado,
           });
         }
+      } else {
+        // Sem dado municipal pra essa REDEC (tipo sem granularidade — ou,
+        // por segurança, geológico/hidrológico se algum dia faltar dado
+        // de município) — cai pro boletim da própria REDEC.
+        resultado.push({
+          id: `${a.id}`,
+          redec: a.redec,
+          risco: a.risco,
+          municipios: [],
+          atualizado: a.atualizado_em ?? a.criado_em,
+        });
       }
     }
     return resultado;
-  }, [alerts, municipiosPorRedecNivel, niveisDestaque]);
+  }, [alerts, gruposPorRedecNivel]);
 
   // Filtro pela busca compartilhada (pedido do usuário) — REDEC selecionada
   // mostra só os cards dela; município selecionado mostra só o(s) card(s)

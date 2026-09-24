@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import {
   normalizeMunicipioName,
@@ -28,39 +28,54 @@ let geoCache: GeoJsonFeatureCollection | null = null;
 
 export type Selecao = { tipo: "municipio" | "redec"; valor: string } | null;
 
-export default function RiskChoroplethMap({
-  tipo,
-  redecAlerts,
-  municipioAlerts,
-  municipioRedecMap,
-  compact = false,
-  // Busca/seleção CONTROLADA pelo componente pai (pedido do usuário,
-  // 2026-09-24: "integrar as buscas" — a mesma seleção também filtra os
-  // cards e a tabela em AlertsPanel, não só o mapa). Quando não vierem
-  // (ex: uso "compact" nos 4 mapas da aba Riscos, que não tem busca
-  // nenhuma), o componente cai pro próprio estado interno — modo
-  // desacoplado, como antes.
-  selecao: selecaoControlada,
-  onSelecaoChange,
-  busca: buscaControlada,
-  onBuscaChange,
-  // Esconde o <h3>/campo de busca internos — usado por AlertsPanel, que
-  // agora tem UMA busca só, renderizada por fora, acima dos cards.
-  hideSearchUI = false,
-}: {
-  tipo: RiskAlertTipo;
-  redecAlerts: RiskAlert[];
-  municipioAlerts: RiskAlert[];
-  municipioRedecMap: Record<string, string>;
-  /** Sem título interno nem busca — usado na aba "Riscos", onde os 4 mapas
-   * aparecem lado a lado com um título próprio por fora. */
-  compact?: boolean;
-  selecao?: Selecao;
-  onSelecaoChange?: (s: Selecao) => void;
-  busca?: string;
-  onBuscaChange?: (s: string) => void;
-  hideSearchUI?: boolean;
-}) {
+/** Exposto via ref pra permitir exportar o mapa como imagem (pedido do
+ * usuário, 2026-09-24) — ver ExportMapButton.tsx/exportMapImage.ts. Só o
+ * elemento `<svg>` já renderizado (com zoom/seleção aplicados de
+ * verdade), sem duplicar a lógica de desenho dos municípios. */
+export type RiskMapHandle = { getSvgElement: () => SVGSVGElement | null };
+
+const RiskChoroplethMap = forwardRef<
+  RiskMapHandle,
+  {
+    tipo: RiskAlertTipo;
+    redecAlerts: RiskAlert[];
+    municipioAlerts: RiskAlert[];
+    municipioRedecMap: Record<string, string>;
+    /** Sem título interno nem busca — usado na aba "Riscos", onde os 4 mapas
+     * aparecem lado a lado com um título próprio por fora. */
+    compact?: boolean;
+    selecao?: Selecao;
+    onSelecaoChange?: (s: Selecao) => void;
+    busca?: string;
+    onBuscaChange?: (s: string) => void;
+    hideSearchUI?: boolean;
+  }
+>(function RiskChoroplethMap(
+  {
+    tipo,
+    redecAlerts,
+    municipioAlerts,
+    municipioRedecMap,
+    compact = false,
+    // Busca/seleção CONTROLADA pelo componente pai (pedido do usuário,
+    // 2026-09-24: "integrar as buscas" — a mesma seleção também filtra os
+    // cards e a tabela em AlertsPanel, não só o mapa). Quando não vierem
+    // (ex: uso "compact" nos 4 mapas da aba Riscos, que não tem busca
+    // nenhuma), o componente cai pro próprio estado interno — modo
+    // desacoplado, como antes.
+    selecao: selecaoControlada,
+    onSelecaoChange,
+    busca: buscaControlada,
+    onBuscaChange,
+    // Esconde o <h3>/campo de busca internos — usado por AlertsPanel, que
+    // agora tem UMA busca só, renderizada por fora, acima dos cards.
+    hideSearchUI = false,
+  },
+  ref,
+) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  useImperativeHandle(ref, () => ({ getSvgElement: () => svgRef.current }));
+
   const [geo, setGeo] = useState<GeoJsonFeatureCollection | null>(geoCache);
   const [buscaInterna, setBuscaInterna] = useState("");
   const [selecaoInterna, setSelecaoInterna] = useState<Selecao>(null);
@@ -208,6 +223,7 @@ export default function RiskChoroplethMap({
       )}
 
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="xMidYMid meet"
         className={
@@ -242,4 +258,6 @@ export default function RiskChoroplethMap({
       </svg>
     </div>
   );
-}
+});
+
+export default RiskChoroplethMap;
