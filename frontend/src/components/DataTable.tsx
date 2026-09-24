@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
+import { TableExportHandle } from "@/components/tableExportHandle";
 import {
   getDelayStatus,
   normalizeMunicipioName,
@@ -70,23 +71,21 @@ const W_TIPO = 110;
 const W_COLUNA = 76;
 const W_ATUALIZADO = 150;
 
-export default function DataTable({
-  stations,
-  readingTypes,
-  defaultSortKey = "municipality",
-  municipioRedecMap = {},
-}: {
-  stations: Station[];
-  /** Restringe colunas e estações exibidas a esses tipos de leitura (default: todos). */
-  readingTypes?: string[];
-  /** Coluna usada pra ordenar de cara — "name"/"municipality"/"source"/"updated"
-   * ou um tipo de leitura (ex: "temperatura_c"). Colunas de valor começam
-   * ordenadas do maior pro menor; as demais, A→Z. */
-  defaultSortKey?: string;
-  /** Município (normalizado) → REDEC — pra mostrar/exportar a coluna REDEC.
-   * Sem isso a coluna fica em branco, não quebra nada (ver page.tsx). */
-  municipioRedecMap?: Record<string, string>;
-}) {
+const DataTable = forwardRef<
+  TableExportHandle,
+  {
+    stations: Station[];
+    /** Restringe colunas e estações exibidas a esses tipos de leitura (default: todos). */
+    readingTypes?: string[];
+    /** Coluna usada pra ordenar de cara — "name"/"municipality"/"source"/"updated"
+     * ou um tipo de leitura (ex: "temperatura_c"). Colunas de valor começam
+     * ordenadas do maior pro menor; as demais, A→Z. */
+    defaultSortKey?: string;
+    /** Município (normalizado) → REDEC — pra mostrar/exportar a coluna REDEC.
+     * Sem isso a coluna fica em branco, não quebra nada (ver page.tsx). */
+    municipioRedecMap?: Record<string, string>;
+  }
+>(function DataTable({ stations, readingTypes, defaultSortKey = "municipality", municipioRedecMap = {} }, ref) {
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
   const [sortKey, setSortKey] = useState<string>(defaultSortKey);
   const [sortAsc, setSortAsc] = useState(!FIXED_SORT_KEYS.has(defaultSortKey) ? false : true);
@@ -170,17 +169,13 @@ export default function DataTable({
     downloadCsv(`cemaden-rj-estacoes-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
+  // Botão "Exportar CSV" vive na barra de filtro flutuante fora desta
+  // tabela (ver FilterToggleBar.tsx/Dashboard.tsx, pedido do usuário
+  // 2026-09-23: economizar altura).
+  useImperativeHandle(ref, () => ({ exportar }));
+
   return (
     <div className="h-full w-full overflow-auto bg-white">
-      <div className="sticky top-0 z-40 flex justify-end border-b border-gray-100 bg-white px-3 py-1.5">
-        <button
-          onClick={exportar}
-          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-          title="Exportar a tabela (com o filtro e a ordenação atuais) em CSV"
-        >
-          ⬇ Exportar CSV
-        </button>
-      </div>
       <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
         <colgroup>
           <col style={{ width: W_ESTACAO }} />
@@ -196,34 +191,34 @@ export default function DataTable({
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-9 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              className="sticky top-0 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
               style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
               onClick={() => toggleSort("name")}
             >
               Estação{arrow("name")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
               onClick={() => toggleSort("municipality")}
             >
               Município{arrow("municipality")}
             </th>
             <th
-              className="sticky top-9 z-20 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
             >
               REDEC
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_FONTE, maxWidth: W_FONTE, minWidth: W_FONTE }}
               onClick={() => toggleSort("source")}
             >
               Fonte{arrow("source")}
             </th>
             <th
-              className="sticky top-9 z-20 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_TIPO, maxWidth: W_TIPO, minWidth: W_TIPO }}
             >
               Tipo
@@ -231,7 +226,7 @@ export default function DataTable({
             {columns.map((c) => (
               <th
                 key={c}
-                className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
+                className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
                 style={{ width: W_COLUNA, maxWidth: W_COLUNA, minWidth: W_COLUNA }}
                 onClick={() => toggleSort(c)}
                 title={READING_TYPE_LABELS[c] ?? c}
@@ -241,7 +236,7 @@ export default function DataTable({
               </th>
             ))}
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO }}
               onClick={() => toggleSort("updated")}
             >
@@ -314,4 +309,6 @@ export default function DataTable({
       )}
     </div>
   );
-}
+});
+
+export default DataTable;

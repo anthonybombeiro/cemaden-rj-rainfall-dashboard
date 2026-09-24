@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
+import { TableExportHandle } from "@/components/tableExportHandle";
 import {
   getChuva1hFaixa,
   getDelayStatus,
@@ -85,13 +86,13 @@ const W_JANELA = 44;
 const W_FONTE = 80;
 const W_ATUALIZADO = 96;
 
-export default function HidrologicaTable({
-  stations,
-  municipioRedecMap = {},
-}: {
-  stations: HidrologicaStation[];
-  municipioRedecMap?: Record<string, string>;
-}) {
+const HidrologicaTable = forwardRef<
+  TableExportHandle,
+  {
+    stations: HidrologicaStation[];
+    municipioRedecMap?: Record<string, string>;
+  }
+>(function HidrologicaTable({ stations, municipioRedecMap = {} }, ref) {
   // Padrão: maior nível ATUAL primeiro — é o que mais importa pra decisão
   // operacional imediata numa tabela de monitoramento de cheias.
   const [sortKey, setSortKey] = useState<string>("nivel_atual_m");
@@ -153,17 +154,13 @@ export default function HidrologicaTable({
     downloadCsv(`cemaden-rj-hidrologicas-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
+  // Botão "Exportar CSV" vive na barra de filtro flutuante fora desta
+  // tabela (ver FilterToggleBar.tsx/Dashboard.tsx, pedido do usuário
+  // 2026-09-23: economizar altura).
+  useImperativeHandle(ref, () => ({ exportar }));
+
   return (
     <div className="h-full w-full overflow-auto bg-white">
-      <div className="sticky top-0 z-40 flex justify-end border-b border-gray-100 bg-white px-3 py-1.5">
-        <button
-          onClick={exportar}
-          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-          title="Exportar a tabela (com o filtro e a ordenação atuais) em CSV"
-        >
-          ⬇ Exportar CSV
-        </button>
-      </div>
       <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
         <colgroup>
           <col style={{ width: W_ESTACAO }} />
@@ -181,21 +178,21 @@ export default function HidrologicaTable({
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-9 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              className="sticky top-0 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
               style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
               onClick={() => toggleSort("name")}
             >
               Estação{arrow("name")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
               onClick={() => toggleSort("redec")}
             >
               REDEC{arrow("redec")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
               onClick={() => toggleSort("municipality")}
             >
@@ -204,7 +201,7 @@ export default function HidrologicaTable({
             {COLUNAS_NIVEL.map((c) => (
               <th
                 key={c.key}
-                className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-sedec-50 px-1 py-2 text-right"
+                className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-sedec-50 px-1 py-2 text-right"
                 style={{ width: W_NIVEL, maxWidth: W_NIVEL, minWidth: W_NIVEL }}
                 onClick={() => toggleSort(c.key)}
                 title={c.titulo}
@@ -216,7 +213,7 @@ export default function HidrologicaTable({
             {JANELAS_CHUVA.map((j) => (
               <th
                 key={j.key}
-                className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
+                className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
                 style={{ width: W_JANELA, maxWidth: W_JANELA, minWidth: W_JANELA }}
                 onClick={() => toggleSort(j.key)}
                 title={j.titulo}
@@ -226,14 +223,14 @@ export default function HidrologicaTable({
               </th>
             ))}
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_FONTE, maxWidth: W_FONTE, minWidth: W_FONTE }}
               onClick={() => toggleSort("source")}
             >
               Fonte{arrow("source")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO }}
               onClick={() => toggleSort("updated")}
             >
@@ -351,4 +348,6 @@ export default function HidrologicaTable({
       </div>
     </div>
   );
-}
+});
+
+export default HidrologicaTable;

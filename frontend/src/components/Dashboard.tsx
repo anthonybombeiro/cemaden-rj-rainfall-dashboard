@@ -6,14 +6,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import AlertsPanel from "@/components/AlertsPanel";
 import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable";
+import FilterToggleBar from "@/components/FilterToggleBar";
 import Footer from "@/components/Footer";
 import HidrologicaTable from "@/components/HidrologicaTable";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
-import RefreshNowButton from "@/components/RefreshNowButton";
 import RiscosOverviewPanel from "@/components/RiscosOverviewPanel";
 import SirenesTable from "@/components/SirenesTable";
+import { TableExportHandle } from "@/components/tableExportHandle";
 import {
   AlertEvent,
   AuthUser,
@@ -67,6 +68,15 @@ export default function Dashboard({
 }) {
   const [showProfile, setShowProfile] = useState(false);
   const [showManual, setShowManual] = useState(false);
+
+  // Refs pra chamar "exportar()" de dentro de cada tabela a partir do
+  // botão único que agora vive na barra de filtro flutuante (pedido do
+  // usuário, 2026-09-23: "Exportar CSV" saiu de dentro de cada tabela pra
+  // economizar altura — ver FilterToggleBar.tsx/tableExportHandle.ts).
+  const precipitacaoTableRef = useRef<TableExportHandle>(null);
+  const meteorologicoTableRef = useRef<TableExportHandle>(null);
+  const hidrologicoTableRef = useRef<TableExportHandle>(null);
+  const sirenesTableRef = useRef<TableExportHandle>(null);
 
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
@@ -368,6 +378,19 @@ export default function Dashboard({
     [sirenes, sirenesMunicipioFilter, sirenesRedecFilter, sirenesStatusFilter, sirenesAcionamentoFilter],
   );
 
+  // Resumo online/offline/tocando (mesma conta de antes, só que agora
+  // calculada aqui pra alimentar o `extraSummary` da barra de filtro
+  // flutuante em vez de morar dentro de SirenesTable).
+  const sirenesOnline = useMemo(
+    () => filteredSirenes.filter((s) => s.status_estacao === "ativa").length,
+    [filteredSirenes],
+  );
+  const sirenesOffline = useMemo(
+    () => filteredSirenes.filter((s) => s.status_estacao === "inativa").length,
+    [filteredSirenes],
+  );
+  const sirenesTocando = useMemo(() => filteredSirenes.filter((s) => s.tocando).length, [filteredSirenes]);
+
   const sirenesFilterControls = (
     <>
       <MultiSelectFilter
@@ -558,59 +581,78 @@ export default function Dashboard({
       </header>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Cartão de filtros SEMPRE acima do conteúdo (nunca mais ao lado —
-            pedido do usuário, 2026-09-23) — exceto no Mapa, onde vira painel
-            flutuante logo abaixo, e nas abas Alertas/Riscos, que não filtram
-            por essas 4 dimensões. Ícone de funil + rótulo "Filtros" no mesmo
-            esquema do SIGPLAN-SEDEC. */}
+        {/* Barra de filtro flutuante (pedido do usuário, 2026-09-23: a barra
+            antiga com os 4 filtros sempre abertos + Exportar CSV numa linha
+            separada tomava quase metade da tela no celular — escolhida a
+            opção "painel flutuante, igual ao Mapa": barra fina sempre
+            visível com Filtros/Atualizar/contagem/Exportar, e só o GRUPO de
+            filtros vira um painel que aparece por cima da tabela ao clicar
+            em "Filtros"). Não aparece no Mapa (tem o próprio painel
+            flutuante) nem em Alertas/Riscos (não filtram por essas
+            dimensões). */}
         {viewMode !== "alertas" && viewMode !== "riscos" && viewMode !== "mapa" && viewMode !== "sirenes" && (
-          <div className="border-b border-gray-200 bg-white p-3">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-500">
-              <Filter size={13} /> Filtros
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              {filterControls}
-              {(viewMode === "precipitacao" || viewMode === "meteorologico" || viewMode === "hidrologico") && (
-                <RefreshNowButton onDone={handleRefreshDone} />
-              )}
-              <div className="text-xs text-gray-500">{filterStatusText}</div>
-              {error && (
-                <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
-                  Não foi possível carregar dados da API ({error}). Verifique se o backend está rodando.
-                </div>
-              )}
-              {precipitacaoError && (
-                <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
-                  Não foi possível carregar precipitação ({precipitacaoError}).
-                </div>
-              )}
-              {hidrologicasError && (
-                <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
-                  Não foi possível carregar estações hidrológicas ({hidrologicasError}).
-                </div>
-              )}
-            </div>
-          </div>
+          <FilterToggleBar
+            filterControls={filterControls}
+            statusText={filterStatusText}
+            onRefreshDone={handleRefreshDone}
+            onExport={() => {
+              if (viewMode === "precipitacao") precipitacaoTableRef.current?.exportar();
+              else if (viewMode === "meteorologico") meteorologicoTableRef.current?.exportar();
+              else if (viewMode === "hidrologico") hidrologicoTableRef.current?.exportar();
+            }}
+            errors={
+              <>
+                {error && (
+                  <div className="mt-2 w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                    Não foi possível carregar dados da API ({error}). Verifique se o backend está rodando.
+                  </div>
+                )}
+                {precipitacaoError && (
+                  <div className="mt-2 w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                    Não foi possível carregar precipitação ({precipitacaoError}).
+                  </div>
+                )}
+                {hidrologicasError && (
+                  <div className="mt-2 w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                    Não foi possível carregar estações hidrológicas ({hidrologicasError}).
+                  </div>
+                )}
+              </>
+            }
+          />
         )}
         {/* Filtros próprios da aba Sirenes (Município/REDEC/Status/
-            Acionamento não existem nas outras abas) — mesmo padrão "sempre
-            acima do conteúdo". */}
+            Acionamento não existem nas outras abas) — mesmo padrão. */}
         {viewMode === "sirenes" && (
-          <div className="border-b border-gray-200 bg-white p-3">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-500">
-              <Filter size={13} /> Filtros
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              {sirenesFilterControls}
-              <RefreshNowButton onDone={handleRefreshDone} />
-              <div className="text-xs text-gray-500">{sirenesFilterStatusText}</div>
-              {sirenesError && (
-                <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
+          <FilterToggleBar
+            filterControls={sirenesFilterControls}
+            statusText={sirenesFilterStatusText}
+            onRefreshDone={handleRefreshDone}
+            onExport={() => sirenesTableRef.current?.exportar()}
+            extraSummary={
+              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                  {sirenesOnline} online
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-gray-400" />
+                  {sirenesOffline} offline
+                </span>
+                <span className="flex items-center gap-1 font-semibold text-red-600">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" />
+                  {sirenesTocando} tocando agora
+                </span>
+              </div>
+            }
+            errors={
+              sirenesError && (
+                <div className="mt-2 w-full rounded bg-red-50 p-2 text-xs text-red-600">
                   Não foi possível carregar as sirenes ({sirenesError}).
                 </div>
-              )}
-            </div>
-          </div>
+              )
+            }
+          />
         )}
 
         <main className="relative flex-1 overflow-hidden">
@@ -642,10 +684,15 @@ export default function Dashboard({
             </>
           )}
           {viewMode === "precipitacao" && (
-            <PrecipitationTable stations={filteredPrecipitacao} municipioRedecMap={municipioRedecMap} />
+            <PrecipitationTable
+              ref={precipitacaoTableRef}
+              stations={filteredPrecipitacao}
+              municipioRedecMap={municipioRedecMap}
+            />
           )}
           {viewMode === "meteorologico" && (
             <DataTable
+              ref={meteorologicoTableRef}
               stations={filteredStations}
               readingTypes={METEOROLOGICAL_READING_TYPES}
               defaultSortKey="temperatura_c"
@@ -653,9 +700,13 @@ export default function Dashboard({
             />
           )}
           {viewMode === "hidrologico" && (
-            <HidrologicaTable stations={filteredHidrologicas} municipioRedecMap={municipioRedecMap} />
+            <HidrologicaTable
+              ref={hidrologicoTableRef}
+              stations={filteredHidrologicas}
+              municipioRedecMap={municipioRedecMap}
+            />
           )}
-          {viewMode === "sirenes" && <SirenesTable stations={filteredSirenes} />}
+          {viewMode === "sirenes" && <SirenesTable ref={sirenesTableRef} stations={filteredSirenes} />}
           {viewMode === "alertas" && <AlertsPanel />}
           {viewMode === "riscos" && <RiscosOverviewPanel />}
         </main>

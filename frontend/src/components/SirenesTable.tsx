@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
+import { TableExportHandle } from "@/components/tableExportHandle";
 import { SireneStation } from "@/lib/api";
 import { downloadCsv } from "@/lib/csvExport";
 
@@ -45,7 +46,10 @@ const W_ACIONAMENTO = 130;
 const W_CHUVA = 80;
 const W_ATUALIZADO = 150;
 
-export default function SirenesTable({ stations }: { stations: SireneStation[] }) {
+const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }>(function SirenesTable(
+  { stations },
+  ref,
+) {
   const [sortKey, setSortKey] = useState<string>("prioridade");
   const [sortAsc, setSortAsc] = useState(false);
 
@@ -109,36 +113,15 @@ export default function SirenesTable({ stations }: { stations: SireneStation[] }
     downloadCsv(`cemaden-rj-sirenes-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
-  const nOnline = stations.filter((s) => s.status_estacao === "ativa").length;
-  const nOffline = stations.filter((s) => s.status_estacao === "inativa").length;
-  const nTocando = stations.filter((s) => s.tocando).length;
+  // Botão "Exportar CSV" e o resumo online/offline/tocando saíram daqui —
+  // agora vivem na barra de filtro flutuante fora desta tabela (ver
+  // FilterToggleBar.tsx/Dashboard.tsx, pedido do usuário 2026-09-23:
+  // economizar altura — essa era a única das 4 tabelas que ainda tinha
+  // uma barra interna própria).
+  useImperativeHandle(ref, () => ({ exportar }));
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-white px-3 py-1.5">
-        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
-          <span className="font-semibold text-gray-800">{stations.length} sirenes</span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-600" />
-            {nOnline} online
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-gray-400" />
-            {nOffline} offline
-          </span>
-          <span className="flex items-center gap-1 font-semibold text-red-600">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" />
-            {nTocando} tocando agora
-          </span>
-        </div>
-        <button
-          onClick={exportar}
-          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-          title="Exportar a tabela (com a ordenação atual) em CSV"
-        >
-          ⬇ Exportar CSV
-        </button>
-      </div>
       <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
         <colgroup>
           <col style={{ width: W_ESTACAO }} />
@@ -153,56 +136,56 @@ export default function SirenesTable({ stations }: { stations: SireneStation[] }
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-9 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              className="sticky top-0 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
               style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
               onClick={() => toggleSort("name")}
             >
               Estação{arrow("name")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
               onClick={() => toggleSort("municipality")}
             >
               Município{arrow("municipality")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
               onClick={() => toggleSort("redec")}
             >
               REDEC{arrow("redec")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_BAIRRO, maxWidth: W_BAIRRO, minWidth: W_BAIRRO }}
               onClick={() => toggleSort("bairro")}
             >
               Bairro / Endereço{arrow("bairro")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_STATUS, maxWidth: W_STATUS, minWidth: W_STATUS }}
               onClick={() => toggleSort("status")}
             >
               Status{arrow("status")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_ACIONAMENTO, maxWidth: W_ACIONAMENTO, minWidth: W_ACIONAMENTO }}
               onClick={() => toggleSort("prioridade")}
             >
               Acionamento{arrow("prioridade")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
+              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
               style={{ width: W_CHUVA, maxWidth: W_CHUVA, minWidth: W_CHUVA }}
               onClick={() => toggleSort("ultima_chuva_mm")}
             >
               Últ. chuva{arrow("ultima_chuva_mm")}
             </th>
             <th
-              className="sticky top-9 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
+              className="sticky top-0 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
               style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO }}
               onClick={() => toggleSort("updated")}
             >
@@ -300,4 +283,6 @@ export default function SirenesTable({ stations }: { stations: SireneStation[] }
       </div>
     </div>
   );
-}
+});
+
+export default SirenesTable;
