@@ -7,6 +7,7 @@ import {
   fetchRiskAlerts,
   normalizeMunicipioName,
   RISK_ALERT_TIPO_LABELS,
+  RISK_LEGEND_ITEMS,
   RISK_LEVEL_COLORS,
   RISK_LEVEL_LABELS,
   RiskAlert,
@@ -19,8 +20,6 @@ import RiskChoroplethMap, { RiskMapHandle } from "@/components/RiskChoroplethMap
 const TIPOS: RiskAlertTipo[] = ["hidrologico", "geologico", "meteorologico", "incendio"];
 const NIVEIS: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
 const COM_GRANULARIDADE_MUNICIPAL: RiskAlertTipo[] = ["geologico", "hidrologico"];
-
-const LEGENDA_ITENS = NIVEIS.map((n) => ({ cor: RISK_LEVEL_COLORS[n], rotulo: RISK_LEVEL_LABELS[n] }));
 
 type DadosPorTipo = {
   redec: RiskAlert[];
@@ -173,7 +172,8 @@ export default function RiscosOverviewPanel() {
                     <ExportMapButton
                       getSvgElement={() => mapRefs.current[tipo]?.getSvgElement() ?? null}
                       titulo={RISK_ALERT_TIPO_LABELS[tipo]}
-                      legendaItens={LEGENDA_ITENS}
+                      tipo={tipo}
+                      legendaItens={RISK_LEGEND_ITEMS}
                       atualizadoTexto={`Atualizado em ${new Date().toLocaleDateString("pt-BR")} às ${horaAtualizacao}`}
                     />
                     <button

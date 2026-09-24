@@ -12,7 +12,6 @@ import HidrologicaTable from "@/components/HidrologicaTable";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
-import RiscosOverviewPanel from "@/components/RiscosOverviewPanel";
 import SirenesTable from "@/components/SirenesTable";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import {
@@ -41,7 +40,10 @@ const MapView = dynamic(() => import("@/components/MapView"), {
   ),
 });
 
-type ViewMode = "mapa" | "precipitacao" | "meteorologico" | "hidrologico" | "sirenes" | "alertas" | "riscos";
+// "Riscos" deixou de ser aba própria (pedido do usuário, 2026-09-24: a
+// "Visão Geral" dos 4 mapas agora mora DENTRO de "Alertas Ativos", como a
+// 1ª das 5 sub-abas — ver AlertsPanel.tsx).
+type ViewMode = "mapa" | "precipitacao" | "meteorologico" | "hidrologico" | "sirenes" | "alertas";
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "mapa", label: "Mapa" },
@@ -50,7 +52,6 @@ const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "hidrologico", label: "Hidrológico" },
   { key: "sirenes", label: "Sirenes" },
   { key: "alertas", label: "Alertas Ativos" },
-  { key: "riscos", label: "Riscos" },
 ];
 
 const TITULO_TOOLTIP =
@@ -588,9 +589,9 @@ export default function Dashboard({
             visível com Filtros/Atualizar/contagem/Exportar, e só o GRUPO de
             filtros vira um painel que aparece por cima da tabela ao clicar
             em "Filtros"). Não aparece no Mapa (tem o próprio painel
-            flutuante) nem em Alertas/Riscos (não filtram por essas
-            dimensões). */}
-        {viewMode !== "alertas" && viewMode !== "riscos" && viewMode !== "mapa" && viewMode !== "sirenes" && (
+            flutuante) nem em Alertas Ativos (não filtra por essas
+            dimensões — tem os próprios filtros de REDEC/município). */}
+        {viewMode !== "alertas" && viewMode !== "mapa" && viewMode !== "sirenes" && (
           <FilterToggleBar
             filterControls={filterControls}
             statusText={filterStatusText}
@@ -708,7 +709,6 @@ export default function Dashboard({
           )}
           {viewMode === "sirenes" && <SirenesTable ref={sirenesTableRef} stations={filteredSirenes} />}
           {viewMode === "alertas" && <AlertsPanel />}
-          {viewMode === "riscos" && <RiscosOverviewPanel />}
         </main>
       </div>
 

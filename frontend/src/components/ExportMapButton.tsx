@@ -3,19 +3,29 @@
 import { Camera } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { RISK_ALERT_TIPO_FILE_CODE, RiskAlertTipo } from "@/lib/api";
 import { buildRiskMapExportSvg, loadImageAsDataUrl, svgStringToPngBlob } from "@/lib/exportMapImage";
 
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 /** Botão "Exportar" com dropdown (Baixar PNG / Copiar imagem) — pedido do
- * usuário (2026-09-24), pros 4 mapas da aba Riscos. Gera a imagem só na
- * hora do clique (não fica recalculando à toa a cada render). */
+ * usuário (2026-09-24), reusado em todas as abas que têm um mapa de risco
+ * (não só a "Visão Geral"): com uma REDEC/município selecionado, exporta o
+ * mapa já com o zoom/seleção aplicados. Gera a imagem só na hora do clique
+ * (não fica recalculando à toa a cada render). */
 export default function ExportMapButton({
   getSvgElement,
   titulo,
+  tipo,
   legendaItens,
   atualizadoTexto,
 }: {
   getSvgElement: () => SVGSVGElement | null;
   titulo: string;
+  /** Usado só pro nome do arquivo baixado (código curto: hidro/geo/meteoro/fogo). */
+  tipo: RiskAlertTipo;
   legendaItens: { cor: string; rotulo: string }[];
   atualizadoTexto: string;
 }) {
@@ -54,8 +64,19 @@ export default function ExportMapButton({
     return svgStringToPngBlob(svgString);
   };
 
-  const nomeArquivo = () =>
-    `cemaden-rj-${titulo.toLowerCase().normalize("NFKD").replace(/[^\w]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.png`;
+  // Formato pedido pelo usuário: cemaden-rj-tipo-ano-mes-dia-hora-min
+  // (tipo = hidro/geo/meteoro/fogo, não o rótulo completo).
+  const nomeArquivo = () => {
+    const agora = new Date();
+    const data = [
+      agora.getFullYear(),
+      pad2(agora.getMonth() + 1),
+      pad2(agora.getDate()),
+      pad2(agora.getHours()),
+      pad2(agora.getMinutes()),
+    ].join("-");
+    return `cemaden-rj-${RISK_ALERT_TIPO_FILE_CODE[tipo]}-${data}.png`;
+  };
 
   const baixar = async () => {
     setBusy(true);

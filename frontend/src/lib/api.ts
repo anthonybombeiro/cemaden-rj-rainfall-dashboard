@@ -322,6 +322,21 @@ export const RISK_ALERT_TIPO_LABELS: Record<RiskAlertTipo, string> = {
   incendio: "Risco de Incêndio Florestal",
 };
 
+/** Código curto por tipo, usado só no nome do arquivo exportado como imagem
+ * (pedido do usuário, 2026-09-24: "cemaden-rj-tipo-ano-mes-dia-hora-min"). */
+export const RISK_ALERT_TIPO_FILE_CODE: Record<RiskAlertTipo, string> = {
+  hidrologico: "hidro",
+  geologico: "geo",
+  meteorologico: "meteoro",
+  incendio: "fogo",
+};
+
+const RISK_LEVEL_ORDER: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
+export const RISK_LEGEND_ITEMS = RISK_LEVEL_ORDER.map((n) => ({
+  cor: RISK_LEVEL_COLORS[n],
+  rotulo: RISK_LEVEL_LABELS[n],
+}));
+
 export async function fetchRiskAlerts(
   tipo: RiskAlertTipo,
   escopo?: "redec" | "municipio",

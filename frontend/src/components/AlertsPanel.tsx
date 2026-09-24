@@ -6,16 +6,27 @@ import {
   fetchRiskAlerts,
   normalizeMunicipioName,
   RISK_ALERT_TIPO_LABELS,
+  RISK_LEGEND_ITEMS,
   RISK_LEVEL_COLORS,
   RISK_LEVEL_LABELS,
   RiskAlert,
   RiskAlertTipo,
   RiskLevel,
 } from "@/lib/api";
-import RiskChoroplethMap, { Selecao } from "@/components/RiskChoroplethMap";
+import ExportMapButton from "@/components/ExportMapButton";
+import RiscosOverviewPanel from "@/components/RiscosOverviewPanel";
+import RiskChoroplethMap, { RiskMapHandle, Selecao } from "@/components/RiskChoroplethMap";
 
 const TIPOS: RiskAlertTipo[] = ["hidrologico", "geologico", "meteorologico", "incendio"];
 const NIVEIS: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
+
+/** Aba "Visão Geral" (ex-aba "Riscos" do topo, movida pra dentro de Alertas
+ * Ativos — pedido do usuário, 2026-09-24: "1º a aparecer" dentre as 5). */
+type AbaAlertas = "geral" | RiskAlertTipo;
+const ABAS: { key: AbaAlertas; label: string }[] = [
+  { key: "geral", label: "Visão Geral" },
+  ...TIPOS.map((t) => ({ key: t as AbaAlertas, label: RISK_ALERT_TIPO_LABELS[t] })),
+];
 
 /** V2 do fix anterior (2026-09-24) — a 1ª tentativa só separava card pra
  * níveis "qualificantes" (moderado+/alto+), mas isso trocou um bug por
@@ -245,7 +256,7 @@ function MunicipioTable({ alerts, emptyMessage }: { alerts: RiskAlert[]; emptyMe
 const INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
 
 export default function AlertsPanel() {
-  const [tipo, setTipo] = useState<RiskAlertTipo>("geologico");
+  const [tipo, setTipo] = useState<AbaAlertas>("geral");
   const [redecAlerts, setRedecAlerts] = useState<RiskAlert[]>([]);
   const [municipioAlerts, setMunicipioAlerts] = useState<RiskAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -296,11 +307,19 @@ export default function AlertsPanel() {
   // e a página trava em "Carregando alertas…" (visto só em `next dev`,
   // não acontece no build de produção).
   const desmontadoRef = useRef(false);
+  // Exposto pra poder exportar o mapa desta aba como imagem (mesmo recurso
+  // da "Visão Geral", pedido do usuário 2026-09-24: "coloque o mesmo
+  // método usado na aba riscos nas demais abas") — a busca/seleção já
+  // aplicada no mapa (zoom numa REDEC/município) vai junto na exportação.
+  const mapRef = useRef<RiskMapHandle>(null);
 
   // useCallback pra poder chamar isso tanto sozinho (efeito abaixo) quanto
   // sob demanda (botão "Atualizar agora") sem duplicar a lógica de busca.
+  // Não busca nada quando a aba é "geral" — quem busca os 4 tipos nesse
+  // caso é o <RiscosOverviewPanel/> por baixo, sozinho.
   const carregar = useCallback(
     (mostrarLoading: boolean) => {
+      if (tipo === "geral") return Promise.resolve();
       if (mostrarLoading) setLoading(true);
       setError(null);
       return Promise.all([
@@ -324,6 +343,10 @@ export default function AlertsPanel() {
   );
 
   useEffect(() => {
+    if (tipo === "geral") {
+      setLoading(false);
+      return;
+    }
     desmontadoRef.current = false;
     carregar(true);
     const intervalo = setInterval(() => carregar(false), INTERVALO_ATUALIZACAO_MS);
@@ -331,7 +354,7 @@ export default function AlertsPanel() {
       desmontadoRef.current = true;
       clearInterval(intervalo);
     };
-  }, [carregar]);
+  }, [tipo, carregar]);
 
   const atualizarAgora = () => {
     setAtualizandoManual(true);
@@ -349,108 +372,134 @@ export default function AlertsPanel() {
   return (
     <div className="h-full w-full overflow-auto bg-white p-4">
       <div className="mb-4 flex flex-wrap gap-2">
-        {TIPOS.map((t) => (
+        {/* "Visão Geral" (ex-aba "Riscos" do topo) vem sempre 1ª — pedido do
+            usuário (2026-09-24). */}
+        {ABAS.map(({ key, label }) => (
           <button
-            key={t}
+            key={key}
             type="button"
-            onClick={() => setTipo(t)}
+            onClick={() => setTipo(key)}
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-              tipo === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              tipo === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            {RISK_ALERT_TIPO_LABELS[t]}
+            {label}
           </button>
         ))}
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
-        {/* Busca única, acima de cards/mapa/tabela — pedido do usuário
-            (2026-09-24): renomeada de "Mapa por Município", filtra os três
-            juntos até clicar em Limpar. Autocomplete próprio (não reusa o
-            de dentro de RiskChoroplethMap, que agora fica com hideSearchUI). */}
-        <BuscaUnificada
-          busca={busca}
-          setBusca={setBusca}
-          selecao={selecao}
-          setSelecao={setSelecao}
-          onLimpar={limparBusca}
-          redecs={Array.from(new Set(redecAlerts.map((a) => a.redec))).sort((a, b) => a.localeCompare(b))}
-          municipios={Array.from(new Set(municipioAlerts.map((a) => a.municipio))).sort((a, b) => a.localeCompare(b))}
-        />
-        <div className="flex items-center gap-2">
-          {atualizadoEm && (
-            <span title="A página busca de novo sozinha a cada 5 minutos">
-              Painel atualizado às {atualizadoEm.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={atualizarAgora}
-            disabled={atualizandoManual}
-            className="rounded border border-gray-300 px-2 py-1 font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            title="Buscar os alertas de novo agora, sem esperar os 5 minutos"
-          >
-            {atualizandoManual ? "Atualizando…" : "↻ Atualizar agora"}
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-3 rounded bg-red-50 p-2 text-xs text-red-600">
-          Não foi possível carregar alertas ({error}).
-        </div>
-      )}
-
-      {loading ? (
-        <div className="p-6 text-center text-sm text-gray-400">Carregando alertas…</div>
+      {tipo === "geral" ? (
+        <RiscosOverviewPanel />
       ) : (
         <>
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">Por REDEC (regional de Defesa Civil)</h3>
-          <RedecGrid alerts={redecAlerts} municipioAlerts={municipioAlerts} tipo={tipo} selecao={selecao} />
-          <RiskChoroplethMap
-            tipo={tipo}
-            redecAlerts={redecAlerts}
-            municipioAlerts={municipioAlerts}
-            municipioRedecMap={municipioRedecMap}
-            selecao={selecao}
-            onSelecaoChange={setSelecao}
-            busca={busca}
-            onBuscaChange={setBusca}
-            hideSearchUI
-          />
-          {/* Legenda saiu do topo da página (pedido do usuário, 2026-09-24)
-              e foi pro meio, entre o mapa e a tabela de município — texto
-              "(padrão Defesa Civil-RJ)" suprimido. */}
-          <div className="my-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
-            <span>Legenda:</span>
-            {NIVEIS.map((n) => (
-              <span key={n} className="flex items-center gap-1">
-                <span
-                  className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                  style={{ backgroundColor: RISK_LEVEL_COLORS[n] }}
-                />
-                {RISK_LEVEL_LABELS[n]}
-              </span>
-            ))}
-          </div>
-          {temGranularidadeMunicipal && (
-            <MunicipioTable
-              alerts={municipioAlertsFiltrados}
-              emptyMessage={
-                tipo === "hidrologico"
-                  ? "Sem dado de município no momento — a fonte oficial desse dado específico é instável e às vezes não responde. Tente recarregar em alguns minutos."
-                  : undefined
-              }
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
+            {/* Busca única, acima de cards/mapa/tabela — pedido do usuário
+                (2026-09-24): renomeada de "Mapa por Município", filtra os três
+                juntos até clicar em Limpar. Autocomplete próprio (não reusa o
+                de dentro de RiskChoroplethMap, que agora fica com hideSearchUI). */}
+            <BuscaUnificada
+              busca={busca}
+              setBusca={setBusca}
+              selecao={selecao}
+              setSelecao={setSelecao}
+              onLimpar={limparBusca}
+              redecs={Array.from(new Set(redecAlerts.map((a) => a.redec))).sort((a, b) => a.localeCompare(b))}
+              municipios={Array.from(new Set(municipioAlerts.map((a) => a.municipio))).sort((a, b) =>
+                a.localeCompare(b),
+              )}
             />
+            <div className="flex items-center gap-2">
+              {atualizadoEm && (
+                <span title="A página busca de novo sozinha a cada 5 minutos">
+                  Painel atualizado às {atualizadoEm.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+                </span>
+              )}
+              {/* Exportar o mapa desta aba como imagem — mesmo recurso da
+                  "Visão Geral" (pedido do usuário, 2026-09-24), agora em
+                  todas as abas: com uma REDEC/município buscado, exporta só
+                  o "mapa menor" já filtrado/com zoom aplicado. */}
+              <ExportMapButton
+                getSvgElement={() => mapRef.current?.getSvgElement() ?? null}
+                titulo={RISK_ALERT_TIPO_LABELS[tipo]}
+                tipo={tipo}
+                legendaItens={RISK_LEGEND_ITEMS}
+                atualizadoTexto={
+                  atualizadoEm
+                    ? `Atualizado em ${atualizadoEm.toLocaleDateString("pt-BR")} às ${atualizadoEm.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
+                    : "Atualizado agora há pouco"
+                }
+              />
+              <button
+                type="button"
+                onClick={atualizarAgora}
+                disabled={atualizandoManual}
+                className="rounded border border-gray-300 px-2 py-1 font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                title="Buscar os alertas de novo agora, sem esperar os 5 minutos"
+              >
+                {atualizandoManual ? "Atualizando…" : "↻ Atualizar agora"}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mb-3 rounded bg-red-50 p-2 text-xs text-red-600">
+              Não foi possível carregar alertas ({error}).
+            </div>
           )}
+
+          {loading ? (
+            <div className="p-6 text-center text-sm text-gray-400">Carregando alertas…</div>
+          ) : (
+            <>
+              <h3 className="mb-2 text-sm font-semibold text-gray-700">Por REDEC (regional de Defesa Civil)</h3>
+              <RedecGrid alerts={redecAlerts} municipioAlerts={municipioAlerts} tipo={tipo} selecao={selecao} />
+              <RiskChoroplethMap
+                ref={mapRef}
+                tipo={tipo}
+                redecAlerts={redecAlerts}
+                municipioAlerts={municipioAlerts}
+                municipioRedecMap={municipioRedecMap}
+                selecao={selecao}
+                onSelecaoChange={setSelecao}
+                busca={busca}
+                onBuscaChange={setBusca}
+                hideSearchUI
+              />
+              {/* Legenda saiu do topo da página (pedido do usuário, 2026-09-24)
+                  e foi pro meio, entre o mapa e a tabela de município — texto
+                  "(padrão Defesa Civil-RJ)" suprimido. */}
+              <div className="my-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                <span>Legenda:</span>
+                {NIVEIS.map((n) => (
+                  <span key={n} className="flex items-center gap-1">
+                    <span
+                      className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                      style={{ backgroundColor: RISK_LEVEL_COLORS[n] }}
+                    />
+                    {RISK_LEVEL_LABELS[n]}
+                  </span>
+                ))}
+              </div>
+              {temGranularidadeMunicipal && (
+                <MunicipioTable
+                  alerts={municipioAlertsFiltrados}
+                  emptyMessage={
+                    tipo === "hidrologico"
+                      ? "Sem dado de município no momento — a fonte oficial desse dado específico é instável e às vezes não responde. Tente recarregar em alguns minutos."
+                      : undefined
+                  }
+                />
+              )}
+            </>
+          )}
+
+          <p className="mt-4 border-t border-gray-100 pt-2 text-xs text-gray-400">
+            Fonte: Defesa Civil-RJ (CEMADEN-RJ/SEDEC), via API de integração do painel oficial. Classificação de
+            risco emitida pela própria Defesa Civil — este painel só espelha o dado, não substitui os canais oficiais
+            de alerta.
+          </p>
         </>
       )}
-
-      <p className="mt-4 border-t border-gray-100 pt-2 text-xs text-gray-400">
-        Fonte: Defesa Civil-RJ (CEMADEN-RJ/SEDEC), via API de integração do painel oficial. Classificação de risco
-        emitida pela própria Defesa Civil — este painel só espelha o dado, não substitui os canais oficiais de
-        alerta.
-      </p>
     </div>
   );
 }
@@ -487,29 +536,32 @@ function BuscaUnificada({
   }, [busca, redecs, municipios]);
 
   return (
-    <div className="relative flex-1">
-      <label className="mb-1 block text-xs font-medium text-gray-500">Mapa por Região/Município</label>
-      <div className="flex max-w-xs gap-2">
-        <input
-          type="text"
-          value={busca}
-          onChange={(e) => {
-            setBusca(e.target.value);
-            if (selecao) setSelecao(null);
-          }}
-          placeholder="Buscar município ou regional…"
-          className="w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-900"
-        />
-        {(selecao || busca) && (
-          <button
-            type="button"
-            onClick={onLimpar}
-            className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
-          >
-            Limpar
-          </button>
-        )}
-      </div>
+    <div className="relative flex flex-1 items-center gap-2">
+      {/* Rótulo + campo na MESMA linha (pedido do usuário, 2026-09-24: antes
+          o rótulo ficava numa linha própria acima do campo, gastando uma
+          linha inteira à toa). */}
+      <label className="shrink-0 whitespace-nowrap text-xs font-medium text-gray-500">
+        Mapa por Região/Município:
+      </label>
+      <input
+        type="text"
+        value={busca}
+        onChange={(e) => {
+          setBusca(e.target.value);
+          if (selecao) setSelecao(null);
+        }}
+        placeholder="Buscar município ou regional…"
+        className="w-full max-w-xs rounded border border-gray-300 px-2 py-1 text-xs text-gray-900"
+      />
+      {(selecao || busca) && (
+        <button
+          type="button"
+          onClick={onLimpar}
+          className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+        >
+          Limpar
+        </button>
+      )}
       {busca && !selecao && opcoes.length > 0 && (
         <ul className="absolute z-10 mt-1 max-w-xs overflow-auto rounded border border-gray-200 bg-white text-xs shadow-md" style={{ width: "20rem", maxHeight: "14rem" }}>
           {opcoes.map((op) => (
