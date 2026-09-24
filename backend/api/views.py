@@ -1,4 +1,5 @@
 import datetime
+import time
 from collections import defaultdict
 
 from django.db.models import Max, Prefetch, Sum
@@ -69,21 +70,96 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         # Prefetch com queryset PRÓPRIO (filtrado + ordenado) em vez de
         # `.prefetch_related("readings")` cru — dois motivos:
-        #   1. Sem isso, 670+ estações cada uma acumulando semanas de
-        #      leitura a cada ~15min vira um prefetch gigante (todo o
-        #      histórico de todas as estações numa passada só) — já bateu
-        #      timeout/erro 500 em produção (processo CGI do HostGator,
-        #      sem os recursos de um servidor dedicado). Cortar pras
-        #      leituras dos últimos 7 dias é mais que suficiente pra achar
-        #      a "última leitura de cada tipo" de qualquer estação viva.
+        #   1. Sem isso, 900+ estações cada uma acumulando semanas de
+        #      leitura vira um prefetch gigante (todo o histórico de todas
+        #      as estações numa passada só) — já bateu timeout/erro 500 em
+        #      produção (processo CGI do HostGator, sem os recursos de um
+        #      servidor dedicado).
         #   2. Já vem ordenado por (reading_type, -timestamp) — o
         #      serializer só precisa pegar a primeira ocorrência de cada
         #      tipo, sem precisar ordenar de novo em Python nem (pior)
         #      chamar `.order_by()` no related manager, que dispararia uma
         #      query nova POR ESTAÇÃO (N+1) — ver StationListSerializer.
-        cutoff = timezone.now() - datetime.timedelta(days=7)
+        #
+        # Cutoff de 7 DIAS (usado até 2026-09-24) causou uma 2ª rodada do
+        # MESMO incidente: com Wunderground/Plugfield reportando a cada
+        # poucos minutos, um cutoff de 7 dias prefetcha ~50-70 MIL leituras
+        # POR PÁGINA de 300 estações (medido em produção via
+        # `StationViewSet.diagnostico`) — e pelo menos uma página bateu
+        # ~150k+ linhas e estourou o limite de tempo/memória do processo
+        # CGI (>10s, sem nem chegar a gerar uma resposta de erro do
+        # Django — o processo morria antes). 2 dias já é MUITO mais que
+        # suficiente pra achar "a última leitura de cada tipo" de
+        # qualquer estação viva (a mais lenta reporta de hora em hora) e
+        # mantém a pior página medida em ~57 mil leituras / ~3,4s — ver
+        # [[investigacao-500-stations-pagina]] na memória do projeto pros
+        # números completos. Se o nº de estações ou a frequência de algum
+        # conector crescer muito mais, terá que cair de novo (ou trocar a
+        # estratégia pra buscar só o "último valor por tipo" via query
+        # agregada em vez de prefetch cru — MySQL 5.7 não tem window
+        # function pra fazer isso numa passada só).
+        cutoff = timezone.now() - datetime.timedelta(days=2)
         leituras_recentes = Reading.objects.filter(timestamp__gte=cutoff).order_by("reading_type", "-timestamp")
         return self._filtered_stations().prefetch_related(Prefetch("readings", queryset=leituras_recentes))
+
+    @action(detail=False, methods=["get"])
+    def diagnostico(self, request):
+        """Diagnóstico READ-ONLY (só `is_superuser`) — reproduz a MESMA
+        query/prefetch de `get_queryset()` (mesmo `cutoff`, mesma fatia
+        limit/offset) mas devolve só CONTAGENS agregadas em vez de servir
+        os dados crus, pra medir o custo real de uma página sem ter o
+        MESMO custo que está sendo medido. Existe porque o HostGator não
+        dá shell pra investigar isso via `manage.py shell` na hora
+        (2026-09-24: `GET /api/stations/?limit=300&offset=300` dando 500
+        — ver `[[investigacao-500-stations-pagina]]` na memória do
+        projeto). Fica atrás de `is_superuser` (não do
+        `X-Admin-Secret` do AdminOpsView) de propósito: é só leitura,
+        então a sessão de admin já logada no painel basta, sem precisar
+        materializar o segredo de produção pra rodar uma consulta.
+        """
+        if not request.user.is_superuser:
+            return Response({"detail": "Requer admin."}, status=403)
+
+        limit = int(request.query_params.get("limit", 300))
+        offset = int(request.query_params.get("offset", 0))
+        dias = int(request.query_params.get("days", 7))
+
+        cutoff = timezone.now() - datetime.timedelta(days=dias)
+        leituras_recentes = Reading.objects.filter(timestamp__gte=cutoff).order_by("reading_type", "-timestamp")
+        qs = self._filtered_stations().prefetch_related(Prefetch("readings", queryset=leituras_recentes))
+
+        t0 = time.monotonic()
+        pagina = list(qs[offset : offset + limit])
+        tempo_query = time.monotonic() - t0
+
+        t0 = time.monotonic()
+        total_leituras = 0
+        por_fonte: dict[str, int] = {}
+        por_tipo: dict[str, int] = {}
+        for estacao in pagina:
+            leituras = estacao.readings.all()
+            n = len(leituras)
+            total_leituras += n
+            fonte = estacao.source.slug if estacao.source_id else "?"
+            por_fonte[fonte] = por_fonte.get(fonte, 0) + n
+            for leitura in leituras:
+                por_tipo[leitura.reading_type] = por_tipo.get(leitura.reading_type, 0) + 1
+        tempo_iteracao = time.monotonic() - t0
+
+        return Response(
+            {
+                "limit": limit,
+                "offset": offset,
+                "days": dias,
+                "estacoes_na_pagina": len(pagina),
+                "tempo_query_prefetch_s": round(tempo_query, 3),
+                "tempo_iteracao_s": round(tempo_iteracao, 3),
+                "total_leituras_prefetchadas": total_leituras,
+                "media_leituras_por_estacao": round(total_leituras / max(1, len(pagina)), 1),
+                "por_fonte": por_fonte,
+                "por_tipo": por_tipo,
+            }
+        )
 
     @action(detail=True, methods=["get"])
     def readings(self, request, pk=None):

@@ -42,6 +42,12 @@ Deliberadamente uma lista BRANCA fixa de ações (nunca comando arbitrário):
     entra no /admin/ do Django, que exige `is_staff`) e "operador" vira
     usuário comum (só entra no painel, não no /admin/). Rodar de novo com
     o mesmo username ATUALIZA a senha/papel em vez de duplicar conta.
+
+Diagnósticos READ-ONLY (ex: custo de paginação de /api/stations/) NÃO
+entram aqui — ficam em endpoints protegidos por sessão/`is_superuser`
+normal (ver `StationViewSet.diagnostico` em `views.py`), não pelo segredo
+compartilhado: evita precisar materializar o `ADMIN_TRIGGER_SECRET` de
+produção (que só existe no `.env` do servidor) só pra rodar uma consulta.
 """
 
 from __future__ import annotations
