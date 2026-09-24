@@ -5,11 +5,50 @@ export const API_BASE_URL =
  * cookie do Django, não token em localStorage (ver backend/api/auth_views.py
  * pro porquê). `credentials: "include"` é o que faz esse cookie viajar em
  * toda chamada; sem isso, toda a API responde 403 mesmo já logado. */
-export type AuthUser = { username: string; role: "admin" | "operador" };
+export type AuthUser = { username: string; role: "admin" | "operador"; first_name: string; email: string };
 
 function getCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** POST com o cookie `csrftoken` já lido e mandado de volta no header —
+ * toda chamada autenticada que muda estado (fora login, que não tem
+ * sessão ainda) precisa disso, senão o Django recusa com "CSRF Failed". */
+async function postComCsrf<T>(path: string, body: unknown, method: "POST" | "PATCH" = "POST"): Promise<T> {
+  const csrftoken = getCookie("csrftoken");
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrftoken ? { "X-CSRFToken": csrftoken } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}) as { detail?: string });
+  if (!res.ok) throw new Error((data as { detail?: string }).detail || `Falha na requisição: HTTP ${res.status}`);
+  return data as T;
+}
+
+export async function updateProfile(firstName: string): Promise<AuthUser> {
+  return postComCsrf<AuthUser>("/auth/profile/", { first_name: firstName }, "PATCH");
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await postComCsrf<{ detail: string }>("/auth/change-password/", {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+}
+
+/** Botão "atualizar agora" (Precipitação/Dados Meteorológicos/Sirenes,
+ * pedido do usuário 2026-09-23) — roda de verdade a ingestão de todas as
+ * fontes no servidor (ver RefreshNowView, ~15-45s, várias chamadas HTTP
+ * externas em paralelo). Devolve um resumo por fonte só pra eventual
+ * depuração; o chamador normalmente só recarrega os dados depois. */
+export async function refreshNow(): Promise<{ ok: boolean; resultados: Record<string, string> }> {
+  return postComCsrf("/refresh/", {});
 }
 
 /** Chamado 1x antes de mostrar a tela de login, só pra garantir que o
@@ -191,6 +230,22 @@ export type PrecipitacaoStation = {
 
 export async function fetchPrecipitacao(): Promise<PrecipitacaoStation[]> {
   return getJson<PrecipitacaoStation[]>("/stations/precipitacao/");
+}
+
+/** Estação HIDROLÓGICA (nível de rio) — pedido do usuário (2026-09-23):
+ * tabela dedicada, nível primeiro, chuva depois. Tem TODAS as mesmas
+ * janelas de chuva de `PrecipitacaoStation` (reaproveitadas do backend,
+ * ver StationViewSet.hidrologicas) mais os 3 campos de nível abaixo — por
+ * isso estende o mesmo tipo em vez de duplicar os ~20 campos de janela. */
+export type HidrologicaStation = PrecipitacaoStation & {
+  nivel_atual_m: number | null;
+  nivel_max_24h_m: number | null;
+  nivel_min_24h_m: number | null;
+  nivel_atualizado_em: string | null;
+};
+
+export async function fetchHidrologicas(): Promise<HidrologicaStation[]> {
+  return getJson<HidrologicaStation[]>("/stations/hidrologicas/");
 }
 
 /** "Consulta por estações" só das sirenes (pedido do usuário, 2026-09-23:

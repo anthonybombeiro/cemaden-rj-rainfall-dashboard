@@ -60,6 +60,7 @@ export default function HomePage() {
         setUser(null);
         setAuthState("anon");
       }}
+      onUserUpdated={setUser}
     />
   );
 }

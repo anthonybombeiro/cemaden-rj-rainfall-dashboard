@@ -49,27 +49,30 @@ export default function MultiSelectFilter({
   return (
     <div className="relative flex-1 md:flex-none" ref={ref}>
       <label className="block text-xs font-medium text-gray-500">{label}</label>
+      {/* Cor de texto SEMPRE explícita (text-gray-900) — nunca herdar do
+          body: foi exatamente essa herança que deixava o texto invisível
+          quando o SO estava em modo escuro (ver globals.css). */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="mt-1 flex w-full min-w-[8.5rem] items-center justify-between gap-2 rounded border border-gray-300 bg-white p-1.5 text-left text-sm"
+        className="mt-1 flex w-full min-w-[8.5rem] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white p-1.5 text-left text-sm text-gray-900 focus:border-sedec-400 focus:outline-none focus:ring-1 focus:ring-sedec-400"
       >
         <span className="truncate">{summary}</span>
         <span className="text-gray-400">{open ? "▴" : "▾"}</span>
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 max-h-64 w-56 overflow-auto rounded border border-gray-200 bg-white p-1 shadow-lg">
+        <div className="absolute z-50 mt-1 max-h-64 w-56 overflow-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
           <button
             type="button"
             onClick={() => onChange([])}
-            className="mb-1 w-full rounded px-2 py-1 text-left text-xs font-medium text-blue-600 hover:bg-blue-50"
+            className="mb-1 w-full rounded px-2 py-1 text-left text-xs font-medium text-sedec-600 hover:bg-sedec-50"
           >
             Limpar (mostrar todos)
           </button>
           {options.map((opt) => (
             <label
               key={opt.value}
-              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50"
+              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-gray-700 hover:bg-gray-50"
             >
               <input
                 type="checkbox"

@@ -25,7 +25,7 @@ documentado do próprio DRF pra SessionAuthentication + cliente JS.
 
 from __future__ import annotations
 
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.middleware.csrf import get_token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -33,7 +33,12 @@ from rest_framework.views import APIView
 
 
 def _user_payload(user) -> dict:
-    return {"username": user.username, "role": "admin" if user.is_superuser else "operador"}
+    return {
+        "username": user.username,
+        "role": "admin" if user.is_superuser else "operador",
+        "first_name": user.first_name,
+        "email": user.email,
+    }
 
 
 class CsrfView(APIView):
@@ -78,3 +83,46 @@ class MeView(APIView):
 
     def get(self, request):
         return Response(_user_payload(request.user))
+
+
+class ProfileUpdateView(APIView):
+    """PATCH /api/auth/profile/  {"first_name": ...} — "Meu Perfil" (pedido
+    do usuário, 2026-09-23, modelo copiado do SIGPLAN-SEDEC): só o nome é
+    editável pelo próprio usuário; e-mail fica de fora de propósito (nem
+    tem campo pra isso aqui — quem precisar trocar e-mail de um usuário
+    troca direto no /admin/, igual ao aviso "só pode ser alterado por um
+    administrador" da referência)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        first_name = (request.data or {}).get("first_name")
+        if first_name is not None:
+            request.user.first_name = str(first_name).strip()
+            request.user.save(update_fields=["first_name"])
+        return Response(_user_payload(request.user))
+
+
+class ChangePasswordView(APIView):
+    """POST /api/auth/change-password/  {"current_password", "new_password"}
+    Exige a senha ATUAL (não basta estar logado) — mesmo padrão da tela
+    "Meu Perfil" do SIGPLAN-SEDEC. `update_session_auth_hash` evita que
+    trocar a própria senha derrube a sessão atual (Django invalida sessões
+    cujo hash de senha não bate mais — sem isso o usuário seria deslogado
+    no mesmo instante em que troca a senha)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        current_password = (request.data or {}).get("current_password", "")
+        new_password = (request.data or {}).get("new_password", "")
+        if not current_password or not new_password:
+            return Response({"detail": "Informe a senha atual e a nova senha."}, status=400)
+        if not request.user.check_password(current_password):
+            return Response({"detail": "Senha atual incorreta."}, status=400)
+        if len(new_password) < 8:
+            return Response({"detail": "A nova senha precisa ter pelo menos 8 caracteres."}, status=400)
+        request.user.set_password(new_password)
+        request.user.save(update_fields=["password"])
+        update_session_auth_hash(request, request.user)
+        return Response({"detail": "ok"})

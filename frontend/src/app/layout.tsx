@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Painel CEMADEN-RJ",
+  title: "Painel Integrado de Monitoramento - CEMADEN-RJ / SEDEC",
   description: "Agregador de dados meteorológicos e hidrológicos do estado do Rio de Janeiro",
 };
 

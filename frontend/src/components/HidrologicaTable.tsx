@@ -4,10 +4,9 @@ import { useMemo, useState } from "react";
 
 import {
   getChuva1hFaixa,
-  getChuva24hNivel,
   getDelayStatus,
+  HidrologicaStation,
   normalizeMunicipioName,
-  PrecipitacaoStation,
   SOURCE_COLORS,
   SOURCE_LABELS,
 } from "@/lib/api";
@@ -27,20 +26,31 @@ function formatMm(value: number | null | undefined): string {
   return `${(Math.round(value * 10) / 10).toFixed(1)}`;
 }
 
-/** Uma coluna por janela de acumulado — pedido explícito do usuário
- * (2026-09-23), na mesma ordem, comparando com o Alerta Rio
- * (websempre.rio.rj.gov.br/estacoes/) e o portal de sirenes do
- * CEMADEN-RJ. "h"/"min" no lugar de "Horas"/"Minutos" por extenso
- * (pedido: "o horas pode ser resumido pelo h apenas no texto"). `key`
- * bate exatamente com o campo de `PrecipitacaoStation`. */
-const JANELAS: { key: keyof PrecipitacaoStation; label: string; titulo: string }[] = [
+function formatMetros(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return value.toFixed(2);
+}
+
+/** Colunas de NÍVEL primeiro, chuva depois (pedido do usuário, 2026-09-23:
+ * "apresente os dados de leitura de níveis de rio e depois as leituras
+ * pluviométricas"). Nível não "acumula" como chuva — é uma leitura de
+ * estado, por isso é atual/máximo/mínimo em vez de soma por janela. */
+const COLUNAS_NIVEL: { key: keyof HidrologicaStation; label: string; titulo: string }[] = [
+  { key: "nivel_atual_m", label: "Nível Atual", titulo: "Última leitura de nível do rio (m)" },
+  { key: "nivel_max_24h_m", label: "Nível Máx 24h", titulo: "Maior nível registrado nas últimas 24h (m)" },
+  { key: "nivel_min_24h_m", label: "Nível Mín 24h", titulo: "Menor nível registrado nas últimas 24h (m)" },
+];
+
+/** Mesmas ~20 janelas de chuva da tabela de Precipitação (pedido do
+ * usuário: "para os demais campos e colunas usar o que já foi
+ * pré-estabelecido na tabela precipitação") — ver PrecipitationTable.tsx. */
+const JANELAS_CHUVA: { key: keyof HidrologicaStation; label: string; titulo: string }[] = [
   {
     key: "chuva_agora_mm",
     label: "Últ.",
     titulo:
       'Última leitura recebida da fonte, como ela mesma reporta — NÃO é uma janela fixa: cada fonte tem sua ' +
-      'própria cadência (de 5min a 1h dependendo da rede; passe o mouse sobre "Fonte" na linha pra ver a rede). ' +
-      'Serve pra saber "o que essa estação relatou por último", não pra comparar entre fontes diferentes.',
+      'própria cadência (de 5min a 1h dependendo da rede).',
   },
   { key: "acumulado_5min_mm", label: "5min", titulo: "Acumulado nos últimos 5 minutos" },
   { key: "acumulado_10min_mm", label: "10min", titulo: "Acumulado nos últimos 10 minutos" },
@@ -59,46 +69,32 @@ const JANELAS: { key: keyof PrecipitacaoStation; label: string; titulo: string }
   { key: "acumulado_96h_mm", label: "96h", titulo: "Acumulado nas últimas 96 horas" },
   { key: "acumulado_168h_mm", label: "168h", titulo: "Acumulado nas últimas 168 horas (7 dias)" },
   { key: "acumulado_1mes_mm", label: "1 Mês", titulo: "Acumulado nos últimos 30 dias corridos (janela móvel)" },
-  {
-    key: "acumulado_hoje_mm",
-    label: "Hoje",
-    titulo: 'Acumulado calendário: desde 00h (hora local) até agora. Ao lado de "No Mês" por serem o mesmo tipo de acumulado (calendário, não janela móvel).',
-  },
-  {
-    key: "acumulado_mes_mm",
-    label: "No Mês",
-    titulo: 'Acumulado calendário: desde o dia 1 do mês corrente até agora. Ao lado de "Hoje" por serem o mesmo tipo de acumulado (calendário, não janela móvel).',
-  },
-  { key: "pico_mm", label: "Pico", titulo: "Maior leitura individual nas últimas 24h (equivalente ao \"TX-15\" do Alerta Rio)" },
+  { key: "acumulado_hoje_mm", label: "Hoje", titulo: 'Acumulado calendário: desde 00h (hora local) até agora.' },
+  { key: "acumulado_mes_mm", label: "No Mês", titulo: "Acumulado calendário: desde o dia 1 do mês corrente." },
+  { key: "pico_mm", label: "Pico", titulo: "Maior leitura individual de chuva nas últimas 24h" },
 ];
 
 const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "source", "updated"]);
 
-// Só a coluna Estação fica fixa (sticky) rolando a tabela pro lado —
-// pedido do usuário (2026-09-23): REDEC+Município+Estação sticky ao
-// mesmo tempo ficou ilegível (colunas espremidas pra caber), e em
-// celular era ruim demais. Estação sozinha ainda dá o contexto mínimo
-// de "qual linha é qual" rolando ~20 colunas de dado; REDEC/Município
-// agora rolam junto com o resto e podem ser mais largas/legíveis.
+// Mesma decisão de sticky da tabela de Precipitação: só Estação fixa.
 const W_REDEC = 100;
 const W_MUNICIPIO = 140;
 const W_ESTACAO = 140;
+const W_NIVEL = 90;
 const W_JANELA = 44;
 const W_FONTE = 80;
 const W_ATUALIZADO = 96;
 
-export default function PrecipitationTable({
+export default function HidrologicaTable({
   stations,
   municipioRedecMap = {},
 }: {
-  stations: PrecipitacaoStation[];
-  /** Município (normalizado) → REDEC — ver DataTable.tsx/page.tsx. */
+  stations: HidrologicaStation[];
   municipioRedecMap?: Record<string, string>;
 }) {
-  // Pedido do usuário: por padrão, ordenar pelos MAIORES valores de 15min
-  // (é o que mais importa pra decisão operacional imediata) — o usuário
-  // troca depois clicando em qualquer outro cabeçalho.
-  const [sortKey, setSortKey] = useState<string>("acumulado_15min_mm");
+  // Padrão: maior nível ATUAL primeiro — é o que mais importa pra decisão
+  // operacional imediata numa tabela de monitoramento de cheias.
+  const [sortKey, setSortKey] = useState<string>("nivel_atual_m");
   const [sortAsc, setSortAsc] = useState(false);
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
 
@@ -112,10 +108,8 @@ export default function PrecipitationTable({
       else if (sortKey === "source") cmp = a.source.localeCompare(b.source);
       else if (sortKey === "updated") cmp = (a.updated_at ?? "").localeCompare(b.updated_at ?? "");
       else {
-        // Coluna numérica de janela — quem não tem valor pra essa janela
-        // vai sempre pro fim, não importa a direção.
-        const va = a[sortKey as keyof PrecipitacaoStation] as number | null;
-        const vb = b[sortKey as keyof PrecipitacaoStation] as number | null;
+        const va = a[sortKey as keyof HidrologicaStation] as number | null;
+        const vb = b[sortKey as keyof HidrologicaStation] as number | null;
         if (va == null && vb == null) return 0;
         if (va == null) return 1;
         if (vb == null) return -1;
@@ -131,8 +125,6 @@ export default function PrecipitationTable({
       setSortAsc((v) => !v);
     } else {
       setSortKey(key);
-      // Texto começa A→Z; coluna numérica começa do maior pro menor
-      // (mais útil operacionalmente: quem está chovendo mais primeiro).
       setSortAsc(COLUNAS_TEXTO.has(key));
     }
   };
@@ -144,7 +136,8 @@ export default function PrecipitationTable({
       "REDEC",
       "Município",
       "Estação",
-      ...JANELAS.map((j) => `${j.label} (mm)`),
+      ...COLUNAS_NIVEL.map((c) => `${c.label} (m)`),
+      ...JANELAS_CHUVA.map((j) => `${j.label} (mm)`),
       "Fonte",
       "Atualizado em",
     ];
@@ -152,11 +145,12 @@ export default function PrecipitationTable({
       redecOf(s.municipality),
       s.municipality || "",
       s.name,
-      ...JANELAS.map((j) => (s[j.key] as number | null) ?? ""),
+      ...COLUNAS_NIVEL.map((c) => (s[c.key] as number | null) ?? ""),
+      ...JANELAS_CHUVA.map((j) => (s[j.key] as number | null) ?? ""),
       SOURCE_LABELS[s.source] ?? s.source,
       formatTimestamp(s.updated_at),
     ]);
-    downloadCsv(`cemaden-rj-precipitacao-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+    downloadCsv(`cemaden-rj-hidrologicas-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
   return (
@@ -175,7 +169,10 @@ export default function PrecipitationTable({
           <col style={{ width: W_ESTACAO }} />
           <col style={{ width: W_REDEC }} />
           <col style={{ width: W_MUNICIPIO }} />
-          {JANELAS.map((j) => (
+          {COLUNAS_NIVEL.map((c) => (
+            <col key={c.key} style={{ width: W_NIVEL }} />
+          ))}
+          {JANELAS_CHUVA.map((j) => (
             <col key={j.key} style={{ width: W_JANELA }} />
           ))}
           <col style={{ width: W_FONTE }} />
@@ -204,7 +201,19 @@ export default function PrecipitationTable({
             >
               Município{arrow("municipality")}
             </th>
-            {JANELAS.map((j) => (
+            {COLUNAS_NIVEL.map((c) => (
+              <th
+                key={c.key}
+                className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-sedec-50 px-1 py-2 text-right"
+                style={{ width: W_NIVEL, maxWidth: W_NIVEL, minWidth: W_NIVEL }}
+                onClick={() => toggleSort(c.key)}
+                title={c.titulo}
+              >
+                {c.label}
+                {arrow(c.key)}
+              </th>
+            ))}
+            {JANELAS_CHUVA.map((j) => (
               <th
                 key={j.key}
                 className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
@@ -235,13 +244,6 @@ export default function PrecipitationTable({
         <tbody>
           {sorted.map((s) => {
             const atraso = getDelayStatus(s.updated_at);
-            // Nível de chuva em 24h — se a fonte só tem "hoje" (total corrido
-            // do dia, ver rodapé), usa esse como aproximação do nível.
-            const nivel = getChuva24hNivel(s.acumulado_24h_mm ?? s.acumulado_hoje_mm);
-            // Fundo da linha inteira pela chuva na última 1h — mesma
-            // legenda exata do portal de sirenes do CEMADEN-RJ (ver
-            // getChuva1hFaixa). "Atrasada" usa o mesmo corte de >1h sem
-            // atualizar que já usamos pra colorir a coluna "Atualizado em".
             const faixa1h = getChuva1hFaixa(s.acumulado_1h_mm, atraso.atrasado);
             const bgFundo = faixa1h?.bg ?? "#ffffff";
             const corTexto = faixa1h?.text;
@@ -285,34 +287,24 @@ export default function PrecipitationTable({
                 >
                   {s.municipality || "—"}
                 </td>
-                {JANELAS.map((j) =>
-                  j.key === "acumulado_hoje_mm" ? (
-                    <td
-                      key={j.key}
-                      className="whitespace-nowrap px-1.5 py-1 text-right font-medium"
-                      style={{ backgroundColor: bgFundo, color: corTexto ?? "#111827" }}
-                    >
-                      <span className="inline-flex items-center justify-end gap-1">
-                        {nivel && (
-                          <span
-                            className="inline-block h-2 w-2 rounded-full"
-                            style={{ backgroundColor: nivel.color }}
-                            title={nivel.label}
-                          />
-                        )}
-                        {formatMm(s[j.key] as number | null)}
-                      </span>
-                    </td>
-                  ) : (
-                    <td
-                      key={j.key}
-                      className="whitespace-nowrap px-1.5 py-1 text-right"
-                      style={{ backgroundColor: bgFundo, color: corTexto ?? "#1f2937" }}
-                    >
-                      {formatMm(s[j.key] as number | null)}
-                    </td>
-                  ),
-                )}
+                {COLUNAS_NIVEL.map((c) => (
+                  <td
+                    key={c.key}
+                    className="whitespace-nowrap bg-sedec-50/40 px-1.5 py-1 text-right font-medium"
+                    style={{ color: corTexto ?? "#1f3864" }}
+                  >
+                    {formatMetros(s[c.key] as number | null)}
+                  </td>
+                ))}
+                {JANELAS_CHUVA.map((j) => (
+                  <td
+                    key={j.key}
+                    className="whitespace-nowrap px-1.5 py-1 text-right"
+                    style={{ backgroundColor: bgFundo, color: corTexto ?? "#1f2937" }}
+                  >
+                    {formatMm(s[j.key] as number | null)}
+                  </td>
+                ))}
                 <td
                   className="whitespace-nowrap px-2 py-1 font-semibold"
                   style={{ backgroundColor: bgFundo, color: faixa1h ? faixa1h.text : (SOURCE_COLORS[s.source] ?? "#374151") }}
@@ -333,12 +325,8 @@ export default function PrecipitationTable({
         </tbody>
       </table>
       {sorted.length === 0 && (
-        <div className="p-6 text-center text-sm text-gray-400">Nenhuma estação pluviométrica encontrada.</div>
+        <div className="p-6 text-center text-sm text-gray-400">Nenhuma estação hidrológica encontrada.</div>
       )}
-      {/* Legenda de cor movida pro FINAL da tabela (pedido do usuário,
-          2026-09-23) — antes ficava fixa no topo, junto com o botão de
-          exportar; em telas menores ocupava espaço logo de cara antes de
-          qualquer dado aparecer. */}
       <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 bg-white px-3 py-2 text-[10px] text-gray-500 sm:text-[11px]">
         <span>Fundo da linha por chuva na última 1h:</span>
         {[
@@ -355,14 +343,11 @@ export default function PrecipitationTable({
         ))}
       </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
-        &ldquo;1 Mês&rdquo; é janela CORRIDA de 30 dias; &ldquo;Hoje&rdquo; e &ldquo;No Mês&rdquo; (lado a lado) são
-        acumulado CALENDÁRIO — desde 00h de hoje e desde o dia 1 do mês corrente, respectivamente — coisas
-        diferentes de uma janela móvel. &ldquo;Últ.&rdquo; é a leitura mais recente tal como a fonte reporta: o
-        intervalo de tempo que ela representa varia por fonte (5min a 1h) — não dá pra comparar esse valor entre
-        fontes diferentes, só entre leituras da mesma estação ao longo do tempo. Colunas de janela menor que a
-        cadência real de uma fonte saem iguais a &ldquo;Últ.&rdquo;, não é erro. Só a coluna Estação fica fixa
-        rolando a tabela pro lado — em celular, arraste horizontalmente pra ver todas as janelas. Clique em
-        qualquer cabeçalho pra ordenar.
+        Nível de rio é uma leitura de ESTADO (metros), não uma taxa acumulável — por isso mostra Atual/Máx 24h/Mín
+        24h em vez de somar janelas. As colunas de chuva à direita seguem exatamente a mesma lógica da tabela de
+        Precipitação (ver lá pra detalhes de &ldquo;Últ.&rdquo;/&ldquo;Hoje&rdquo;/&ldquo;No Mês&rdquo;) — só
+        aparecem preenchidas pras estações que também têm pluviômetro colocado. Só a coluna Estação fica fixa
+        rolando a tabela pro lado. Clique em qualquer cabeçalho pra ordenar.
       </div>
     </div>
   );

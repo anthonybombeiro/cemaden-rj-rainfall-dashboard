@@ -1,22 +1,29 @@
 "use client";
 
+import { Bell, BellOff, BookOpen, Filter, LogOut, User } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import AlertsPanel from "@/components/AlertsPanel";
 import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable";
+import Footer from "@/components/Footer";
+import HidrologicaTable from "@/components/HidrologicaTable";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import PrecipitationTable from "@/components/PrecipitationTable";
+import Profile from "@/components/Profile";
+import RefreshNowButton from "@/components/RefreshNowButton";
 import RiscosOverviewPanel from "@/components/RiscosOverviewPanel";
 import SirenesTable from "@/components/SirenesTable";
 import {
   AlertEvent,
   AuthUser,
   fetchActiveAlertEvents,
+  fetchHidrologicas,
   fetchMunicipioRedecMap,
   fetchPrecipitacao,
   fetchSirenes,
   fetchStations,
+  HidrologicaStation,
   normalizeMunicipioName,
   PrecipitacaoStation,
   REDECS,
@@ -33,18 +40,34 @@ const MapView = dynamic(() => import("@/components/MapView"), {
   ),
 });
 
-type ViewMode = "mapa" | "precipitacao" | "meteorologico" | "sirenes" | "alertas" | "riscos";
+type ViewMode = "mapa" | "precipitacao" | "meteorologico" | "hidrologico" | "sirenes" | "alertas" | "riscos";
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "mapa", label: "Mapa" },
   { key: "precipitacao", label: "Precipitação" },
   { key: "meteorologico", label: "Dados Meteorológicos" },
+  { key: "hidrologico", label: "Hidrológico" },
   { key: "sirenes", label: "Sirenes" },
   { key: "alertas", label: "Alertas Ativos" },
   { key: "riscos", label: "Riscos" },
 ];
 
-export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+const TITULO_TOOLTIP =
+  "Agregação de estações públicas (INMET, CEMADEN nacional, Alerta Rio/GeoRio, Wunderground, COR/Escritório de " +
+  "Dados Rio) para apoio à decisão. Não substitui os canais oficiais de emissão de alerta da Defesa Civil.";
+
+export default function Dashboard({
+  user,
+  onLogout,
+  onUserUpdated,
+}: {
+  user: AuthUser;
+  onLogout: () => void;
+  onUserUpdated: (user: AuthUser) => void;
+}) {
+  const [showProfile, setShowProfile] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +107,14 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
   const [precipitacaoError, setPrecipitacaoError] = useState<string | null>(null);
   const [precipitacaoLoaded, setPrecipitacaoLoaded] = useState(false);
 
+  // Aba dedicada de estações HIDROLÓGICAS (nível de rio) — pedido do
+  // usuário (2026-09-23): nível primeiro, chuva depois, mesmos filtros
+  // globais das outras abas (Município/Tipo/Fonte/REDEC).
+  const [hidrologicas, setHidrologicas] = useState<HidrologicaStation[]>([]);
+  const [hidrologicasLoading, setHidrologicasLoading] = useState(false);
+  const [hidrologicasError, setHidrologicasError] = useState<string | null>(null);
+  const [hidrologicasLoaded, setHidrologicasLoaded] = useState(false);
+
   // Aba dedicada só das sirenes (pedido do usuário, 2026-09-23: "consulta
   // por estações" igual ao portal do CBMERJ) — filtros próprios (Município/
   // REDEC vêm direto do cadastro da sirene, não da tabela de risco
@@ -99,6 +130,29 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
 
   const [activeAlertEvents, setActiveAlertEvents] = useState<AlertEvent[]>([]);
 
+  // "Ativar push" (pedido do usuário, 2026-09-23, mesmo botão do header do
+  // SIGPLAN-SEDEC) — implementação real com a Notification API do próprio
+  // navegador (sem infraestrutura de push server): pede permissão 1x, e a
+  // partir daí toda vez que uma sirene NOVA aparece tocando (comparando com
+  // a leitura anterior do polling de 1min abaixo) dispara uma notificação
+  // desktop, mesmo com o painel em outra aba/minimizado.
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const idsTocandoAnteriores = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPushEnabled(Notification.permission === "granted");
+    }
+  }, []);
+  const handleTogglePush = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "granted") {
+      setPushEnabled((v) => !v);
+      return;
+    }
+    const permissao = await Notification.requestPermission();
+    setPushEnabled(permissao === "granted");
+  };
+
   // Sirene tocando é dado de segurança em tempo real, não meteorológico
   // passivo — busca de novo sozinho a cada 1 minuto (bem mais frequente
   // que o resto do painel, que hoje só busca 1x ao carregar), em
@@ -109,7 +163,18 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
     const carregar = () => {
       fetchActiveAlertEvents()
         .then((data) => {
-          if (!cancelled) setActiveAlertEvents(data);
+          if (cancelled) return;
+          setActiveAlertEvents(data);
+          if (pushEnabled && typeof window !== "undefined" && "Notification" in window) {
+            const idsAtuais = new Set(data.map((e) => e.id));
+            const novos = data.filter((e) => !idsTocandoAnteriores.current.has(e.id));
+            if (novos.length > 0 && idsTocandoAnteriores.current.size > 0) {
+              new Notification("🔊 Sirene tocando — CEMADEN-RJ", {
+                body: novos.map((e) => e.station_name).join(", "),
+              });
+            }
+            idsTocandoAnteriores.current = idsAtuais;
+          }
         })
         .catch(() => {
           // Falha aqui não deve quebrar o resto do painel — só fica sem
@@ -122,7 +187,9 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
       cancelled = true;
       clearInterval(intervalo);
     };
-  }, []);
+  }, [pushEnabled]);
+
+  const reloadStations = () => fetchStations().then(setStations).catch(() => {});
 
   useEffect(() => {
     let cancelled = false;
@@ -165,6 +232,28 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
       cancelled = true;
     };
   }, [viewMode, precipitacaoLoaded]);
+
+  useEffect(() => {
+    if (viewMode !== "hidrologico" || hidrologicasLoaded) return;
+    let cancelled = false;
+    setHidrologicasLoading(true);
+    fetchHidrologicas()
+      .then((data) => {
+        if (!cancelled) {
+          setHidrologicas(data);
+          setHidrologicasLoaded(true);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setHidrologicasError(err instanceof Error ? err.message : "Erro desconhecido");
+      })
+      .finally(() => {
+        if (!cancelled) setHidrologicasLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, hidrologicasLoaded]);
 
   // Igual à Precipitação: busca sob demanda na 1ª vez que a aba é aberta.
   // Diferente dela, também refaz a cada 1min ENQUANTO a aba estiver aberta
@@ -232,6 +321,18 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
           (redecFilter.length === 0 || redecFilter.includes(redecOf(s.municipality))),
       ),
     [precipitacao, municipalityFilter, typeFilter, sourceFilter, redecFilter, municipioRedecMap],
+  );
+
+  const filteredHidrologicas = useMemo(
+    () =>
+      hidrologicas.filter(
+        (s) =>
+          (municipalityFilter.length === 0 || municipalityFilter.includes(s.municipality)) &&
+          (typeFilter.length === 0 || typeFilter.includes(s.station_type)) &&
+          (sourceFilter.length === 0 || sourceFilter.includes(s.source)) &&
+          (redecFilter.length === 0 || redecFilter.includes(redecOf(s.municipality))),
+      ),
+    [hidrologicas, municipalityFilter, typeFilter, sourceFilter, redecFilter, municipioRedecMap],
   );
 
   const meteorologicalTypeSet = useMemo(() => new Set(METEOROLOGICAL_READING_TYPES), []);
@@ -308,9 +409,9 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
     : `${filteredSirenes.length} de ${sirenes.length} sirenes`;
 
   // Controles de filtro reusados nos dois layouts (barra acima da tabela nas
-  // abas Precipitação/Dados Meteorológicos; painel flutuante sobre o mapa na
-  // aba Mapa) — pedido do usuário (2026-09-23): filtro nunca mais ao lado da
-  // tabela, e escolha múltipla em vez de único valor.
+  // abas Precipitação/Dados Meteorológicos/Hidrológico; painel flutuante
+  // sobre o mapa na aba Mapa) — pedido do usuário (2026-09-23): filtro
+  // nunca mais ao lado da tabela, e escolha múltipla em vez de único valor.
   const filterControls = (
     <>
       <MultiSelectFilter
@@ -345,100 +446,170 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
       ? precipitacaoLoading
         ? "Carregando precipitação…"
         : `${filteredPrecipitacao.length} estações pluviométricas`
-      : viewMode === "meteorologico"
-        ? loading
-          ? "Carregando estações…"
-          : `${meteorologicalStations.length} estações meteorológicas`
-        : loading
-          ? "Carregando estações…"
-          : `${filteredStations.length} de ${stations.length} estações`;
+      : viewMode === "hidrologico"
+        ? hidrologicasLoading
+          ? "Carregando estações hidrológicas…"
+          : `${filteredHidrologicas.length} estações hidrológicas`
+        : viewMode === "meteorologico"
+          ? loading
+            ? "Carregando estações…"
+            : `${meteorologicalStations.length} estações meteorológicas`
+          : loading
+            ? "Carregando estações…"
+            : `${filteredStations.length} de ${stations.length} estações`;
+
+  // "Atualizar agora" (item 10, pedido do usuário) — depois que o backend
+  // termina de rodar TODAS as fontes, recarrega os dados da aba atual (as
+  // outras abas recarregam sozinhas na próxima vez que forem abertas,
+  // igual ao comportamento normal de "buscar sob demanda").
+  const handleRefreshDone = () => {
+    if (viewMode === "precipitacao") fetchPrecipitacao().then(setPrecipitacao).catch(() => {});
+    else if (viewMode === "meteorologico") reloadStations();
+    else if (viewMode === "hidrologico") fetchHidrologicas().then(setHidrologicas).catch(() => {});
+    else if (viewMode === "sirenes") fetchSirenes().then(setSirenes).catch(() => {});
+  };
+
+  if (showProfile) {
+    return (
+      <Profile
+        user={user}
+        onBack={() => setShowProfile(false)}
+        onUserUpdated={(updated) => {
+          onUserUpdated(updated);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col">
-      <header className="flex flex-col gap-3 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+      {/* Cabeçalho no mesmo esquema visual do SIGPLAN-SEDEC (pedido do
+          usuário, 2026-09-23, inspecionado ao vivo em
+          sigplan-sedec.vercel.app/dashboard): barra escura (gray-900),
+          logo, título com tooltip (o texto de apoio que antes era um
+          parágrafo visível vira `title` — aparece no hover depois de
+          alguns segundos, comportamento nativo do navegador), botões de
+          ação à direita (push/manual/perfil/sair) e uma 2ª fileira com as
+          abas do painel. */}
+      <header className="shrink-0 bg-gray-900 text-white shadow-lg">
+        <div className="flex items-center justify-between gap-3 px-4 py-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <img src="/logo-cemadenrj.png" alt="CEMADEN-RJ" className="h-8 w-auto shrink-0" />
+            <div className="min-w-0" title={TITULO_TOOLTIP}>
+              <h1 className="truncate text-sm font-bold sm:text-base">Painel Integrado de Monitoramento</h1>
+              <p className="truncate text-[11px] text-gray-400">CEMADEN-RJ / SEDEC</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={handleTogglePush}
+              title="Ativar notificações do navegador quando uma sirene tocar"
+              className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white"
+            >
+              {pushEnabled ? <Bell size={16} /> : <BellOff size={16} />}
+              <span className="hidden sm:inline">{pushEnabled ? "Push ativo" : "Ativar push"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowManual(true)}
+              title="Manual de utilização"
+              className="text-gray-300 hover:text-white"
+            >
+              <BookOpen size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowProfile(true)}
+              title="Meu Perfil"
+              className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white"
+            >
+              <User size={16} />
+              <span className="hidden sm:inline">{user.first_name || user.username}</span>
+              <span className="rounded-full bg-orange-600 px-1.5 py-0.5 text-[10px] capitalize text-white">
+                {user.role}
+              </span>
+            </button>
+            <button type="button" onClick={onLogout} title="Sair" className="text-gray-300 hover:text-white">
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
         {activeAlertEvents.length > 0 && (
-          <div className="animate-pulse rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white shadow">
+          <div className="animate-pulse bg-red-600 px-4 py-1.5 text-sm font-bold text-white">
             🔊 {activeAlertEvents.length === 1 ? "1 sirene tocando agora" : `${activeAlertEvents.length} sirenes tocando agora`}
             : {activeAlertEvents.map((e) => e.station_name).join(", ")}
           </div>
         )}
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold text-gray-900">Painel Meteorológico/Hidrológico — CEMADEN-RJ</h1>
-            <p className="text-xs text-gray-500">
-              Agregação de estações públicas (INMET, CEMADEN nacional, Alerta Rio/GeoRio, Wunderground, COR/Escritório
-              de Dados Rio) para apoio à
-              decisão. <strong>Não substitui os canais oficiais de emissão de alerta da Defesa Civil.</strong>
-            </p>
-          </div>
-          {/* Identidade + saída — pedido do usuário (2026-09-23): painel
-              inteiro exige login, então precisa ficar claro quem está
-              logado e como sair. */}
-          <div className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
-            <span>
-              {user.username} <span className="text-gray-400">({user.role})</span>
-            </span>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded border border-gray-300 px-2 py-1 font-medium text-gray-600 hover:bg-gray-50"
-            >
-              Sair
-            </button>
-          </div>
-        </div>
-        {/* Pílulas com quebra de linha (igual à Alertas Ativos) em vez de uma
-            fileira única de botões unidos — a fileira única não cabia em
-            telas de celular e empurrava a página inteira para o lado. */}
-        <div className="flex flex-wrap gap-2">
+        <nav className="flex flex-wrap gap-1 border-t border-gray-800 px-3 py-1.5">
           {VIEW_MODES.map(({ key, label }) => (
             <button
               key={key}
               type="button"
               onClick={() => setViewMode(key)}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-                viewMode === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === key ? "bg-sedec-600 text-white" : "text-gray-300 hover:bg-white/10 hover:text-white"
               }`}
             >
               {label}
             </button>
           ))}
-        </div>
+        </nav>
       </header>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Barra de filtros SEMPRE acima do conteúdo (nunca mais ao lado —
+        {/* Cartão de filtros SEMPRE acima do conteúdo (nunca mais ao lado —
             pedido do usuário, 2026-09-23) — exceto no Mapa, onde vira painel
             flutuante logo abaixo, e nas abas Alertas/Riscos, que não filtram
-            por essas 4 dimensões. */}
+            por essas 4 dimensões. Ícone de funil + rótulo "Filtros" no mesmo
+            esquema do SIGPLAN-SEDEC. */}
         {viewMode !== "alertas" && viewMode !== "riscos" && viewMode !== "mapa" && viewMode !== "sirenes" && (
-          <div className="flex flex-wrap items-end gap-3 border-b border-gray-200 bg-white p-3">
-            {filterControls}
-            <div className="text-xs text-gray-500">{filterStatusText}</div>
-            {error && (
-              <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
-                Não foi possível carregar dados da API ({error}). Verifique se o backend está rodando.
-              </div>
-            )}
-            {precipitacaoError && (
-              <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
-                Não foi possível carregar precipitação ({precipitacaoError}).
-              </div>
-            )}
+          <div className="border-b border-gray-200 bg-white p-3">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-500">
+              <Filter size={13} /> Filtros
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              {filterControls}
+              {(viewMode === "precipitacao" || viewMode === "meteorologico" || viewMode === "hidrologico") && (
+                <RefreshNowButton onDone={handleRefreshDone} />
+              )}
+              <div className="text-xs text-gray-500">{filterStatusText}</div>
+              {error && (
+                <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                  Não foi possível carregar dados da API ({error}). Verifique se o backend está rodando.
+                </div>
+              )}
+              {precipitacaoError && (
+                <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                  Não foi possível carregar precipitação ({precipitacaoError}).
+                </div>
+              )}
+              {hidrologicasError && (
+                <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                  Não foi possível carregar estações hidrológicas ({hidrologicasError}).
+                </div>
+              )}
+            </div>
           </div>
         )}
         {/* Filtros próprios da aba Sirenes (Município/REDEC/Status/
             Acionamento não existem nas outras abas) — mesmo padrão "sempre
             acima do conteúdo". */}
         {viewMode === "sirenes" && (
-          <div className="flex flex-wrap items-end gap-3 border-b border-gray-200 bg-white p-3">
-            {sirenesFilterControls}
-            <div className="text-xs text-gray-500">{sirenesFilterStatusText}</div>
-            {sirenesError && (
-              <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
-                Não foi possível carregar as sirenes ({sirenesError}).
-              </div>
-            )}
+          <div className="border-b border-gray-200 bg-white p-3">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-500">
+              <Filter size={13} /> Filtros
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              {sirenesFilterControls}
+              <RefreshNowButton onDone={handleRefreshDone} />
+              <div className="text-xs text-gray-500">{sirenesFilterStatusText}</div>
+              {sirenesError && (
+                <div className="w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                  Não foi possível carregar as sirenes ({sirenesError}).
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -455,9 +626,10 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
                 <button
                   type="button"
                   onClick={() => setMapFiltersOpen((v) => !v)}
-                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-md hover:bg-gray-50"
+                  className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-md hover:bg-gray-50"
                 >
-                  {mapFiltersOpen ? "✕ Ocultar filtros" : "☰ Filtros"}
+                  <Filter size={14} />
+                  {mapFiltersOpen ? "Ocultar filtros" : "Filtros"}
                 </button>
                 {mapFiltersOpen && (
                   <div className="mt-2 flex max-w-xs flex-col gap-3 rounded-md border border-gray-200 bg-white p-3 shadow-lg sm:max-w-sm sm:flex-row sm:flex-wrap">
@@ -480,11 +652,59 @@ export default function Dashboard({ user, onLogout }: { user: AuthUser; onLogout
               municipioRedecMap={municipioRedecMap}
             />
           )}
+          {viewMode === "hidrologico" && (
+            <HidrologicaTable stations={filteredHidrologicas} municipioRedecMap={municipioRedecMap} />
+          )}
           {viewMode === "sirenes" && <SirenesTable stations={filteredSirenes} />}
           {viewMode === "alertas" && <AlertsPanel />}
           {viewMode === "riscos" && <RiscosOverviewPanel />}
         </main>
       </div>
+
+      <Footer />
+
+      {showManual && (
+        <div
+          className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setShowManual(false)}
+        >
+          <div
+            className="max-w-md rounded-xl bg-sedec-600 p-5 text-sm leading-relaxed text-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-2 text-base font-bold">📖 Manual de utilização</h2>
+            <p className="mb-2">
+              <strong>Mapa</strong>: visão geral de todas as estações no estado, coloridas por fonte; sirenes
+              tocando pulsam em vermelho.
+            </p>
+            <p className="mb-2">
+              <strong>Precipitação</strong>: acumulado de chuva em ~20 janelas por estação, da mais recente até 1
+              mês.
+            </p>
+            <p className="mb-2">
+              <strong>Dados Meteorológicos</strong>: temperatura, umidade, vento e maré por estação.
+            </p>
+            <p className="mb-2">
+              <strong>Hidrológico</strong>: nível de rio (atual/máx/mín 24h) e chuva das estações com esse sensor.
+            </p>
+            <p className="mb-2">
+              <strong>Sirenes</strong>: status (online/offline) e acionamento em tempo real das 225 sirenes de
+              alarme.
+            </p>
+            <p className="mb-4">
+              Use <strong>Atualizar agora</strong> pra forçar a busca do dado mais recente sem esperar o próximo
+              ciclo automático.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowManual(false)}
+              className="text-sedec-200 underline underline-offset-2 hover:text-white"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

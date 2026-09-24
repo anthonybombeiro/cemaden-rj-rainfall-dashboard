@@ -56,6 +56,20 @@ function formatReadingValue(readingType: string, value: number): string {
 
 const FIXED_SORT_KEYS = new Set(["name", "municipality", "source", "updated"]);
 
+// Mesmo padrão de largura/sticky da tabela de Precipitação (pedido do
+// usuário, 2026-09-23: "faça a mesma correção... nas tabelas dados
+// meteorologicos e sirenes") — colgroup + maxWidth/minWidth explícitos em
+// CADA célula (table-layout:fixed sozinho não é respeitado por células
+// sticky no Chrome, ver PrecipitationTable.tsx), só Estação fixa rolando
+// a tabela pro lado.
+const W_ESTACAO = 140;
+const W_MUNICIPIO = 120;
+const W_REDEC = 90;
+const W_FONTE = 90;
+const W_TIPO = 110;
+const W_COLUNA = 76;
+const W_ATUALIZADO = 150;
+
 export default function DataTable({
   stations,
   readingTypes,
@@ -158,7 +172,7 @@ export default function DataTable({
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
-      <div className="sticky top-0 z-10 flex justify-end border-b border-gray-100 bg-white px-3 py-1.5">
+      <div className="sticky top-0 z-40 flex justify-end border-b border-gray-100 bg-white px-3 py-1.5">
         <button
           onClick={exportar}
           className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
@@ -167,37 +181,70 @@ export default function DataTable({
           ⬇ Exportar CSV
         </button>
       </div>
-      <table className="min-w-full border-collapse text-sm table-fixed">
-        <thead className="sticky top-9 bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
+      <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: W_ESTACAO }} />
+          <col style={{ width: W_MUNICIPIO }} />
+          <col style={{ width: W_REDEC }} />
+          <col style={{ width: W_FONTE }} />
+          <col style={{ width: W_TIPO }} />
+          {columns.map((c) => (
+            <col key={c} style={{ width: W_COLUNA }} />
+          ))}
+          <col style={{ width: W_ATUALIZADO }} />
+        </colgroup>
+        <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="w-32 cursor-pointer select-none px-3 py-2"
+              className="sticky top-9 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
               onClick={() => toggleSort("name")}
             >
               Estação{arrow("name")}
             </th>
             <th
-              className="w-28 cursor-pointer select-none px-3 py-2"
+              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
               onClick={() => toggleSort("municipality")}
             >
               Município{arrow("municipality")}
             </th>
-            <th className="w-24 whitespace-nowrap px-3 py-2">REDEC</th>
-            <th className="w-24 cursor-pointer select-none px-3 py-2" onClick={() => toggleSort("source")}>
+            <th
+              className="sticky top-9 z-20 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
+            >
+              REDEC
+            </th>
+            <th
+              className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: W_FONTE, maxWidth: W_FONTE, minWidth: W_FONTE }}
+              onClick={() => toggleSort("source")}
+            >
               Fonte{arrow("source")}
             </th>
-            <th className="w-24 whitespace-nowrap px-3 py-2">Tipo</th>
+            <th
+              className="sticky top-9 z-20 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: W_TIPO, maxWidth: W_TIPO, minWidth: W_TIPO }}
+            >
+              Tipo
+            </th>
             {columns.map((c) => (
               <th
                 key={c}
-                className="w-20 cursor-pointer select-none px-3 py-2"
+                className="sticky top-9 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
+                style={{ width: W_COLUNA, maxWidth: W_COLUNA, minWidth: W_COLUNA }}
                 onClick={() => toggleSort(c)}
+                title={READING_TYPE_LABELS[c] ?? c}
               >
                 {READING_TYPE_LABELS[c] ?? c}
                 {arrow(c)}
               </th>
             ))}
-            <th className="w-24 cursor-pointer select-none px-3 py-2" onClick={() => toggleSort("updated")}>
+            <th
+              className="sticky top-9 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO }}
+              onClick={() => toggleSort("updated")}
+            >
               Atualizado em{arrow("updated")}
             </th>
           </tr>
@@ -209,27 +256,50 @@ export default function DataTable({
             const atraso = getDelayStatus(updated);
             return (
               <tr key={`${s.source}-${s.id}`} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="break-words px-3 py-1.5 font-medium text-gray-900">{s.name}</td>
-                <td className="break-words px-3 py-1.5 text-gray-600">{s.municipality || "—"}</td>
-                <td className="break-words px-3 py-1.5 text-gray-500">{redecOf(s.municipality) || "—"}</td>
                 <td
-                  className="break-words px-3 py-1.5 font-semibold"
-                  style={{ color: SOURCE_COLORS[s.source] ?? "#374151" }}
+                  className="sticky overflow-hidden text-ellipsis whitespace-nowrap bg-white px-2 py-1 font-medium text-gray-900 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+                  style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
+                  title={s.name}
+                >
+                  {s.name}
+                </td>
+                <td
+                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-600"
+                  style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
+                >
+                  {s.municipality || "—"}
+                </td>
+                <td
+                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-500"
+                  style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
+                >
+                  {redecOf(s.municipality) || "—"}
+                </td>
+                <td
+                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 font-semibold"
+                  style={{ width: W_FONTE, maxWidth: W_FONTE, minWidth: W_FONTE, color: SOURCE_COLORS[s.source] ?? "#374151" }}
                   title={s.source}
                 >
                   {SOURCE_LABELS[s.source] ?? s.source}
                 </td>
-                <td className="break-words px-3 py-1.5 text-gray-600">
+                <td
+                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-600"
+                  style={{ width: W_TIPO, maxWidth: W_TIPO, minWidth: W_TIPO }}
+                >
                   {STATION_TYPE_LABELS[s.station_type] ?? s.station_type}
                 </td>
                 {columns.map((c) => (
-                  <td key={c} className="break-words px-3 py-1.5 text-gray-800">
+                  <td
+                    key={c}
+                    className="whitespace-nowrap px-1.5 py-1 text-right text-gray-800"
+                    style={{ width: W_COLUNA, maxWidth: W_COLUNA, minWidth: W_COLUNA }}
+                  >
                     {readingsByType[c] ? formatReadingValue(c, readingsByType[c].value) : "—"}
                   </td>
                 ))}
                 <td
-                  className="break-words px-3 py-1.5"
-                  style={{ color: atraso.color }}
+                  className="whitespace-nowrap px-2 py-1"
+                  style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO, color: atraso.color }}
                   title={atraso.label}
                 >
                   {updated ? formatTimestamp(updated) : "—"}

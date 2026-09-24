@@ -168,17 +168,14 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         data.sort(key=lambda e: (not e["tocando"], e["status_estacao"] != Station.Status.INATIVA, e["name"]))
         return Response(data)
 
-    @action(detail=False, methods=["get"])
-    def precipitacao(self, request):
-        """Estações pluviométricas com chuva acumulada em várias janelas —
+    def _calcular_precipitacao(self, stations):
+        """Chuva acumulada em várias janelas pra uma lista de estações —
         inspirado no formato do Alerta Rio (websempre.rio.rj.gov.br/estacoes/)
-        e do portal de sirenes do CEMADEN-RJ, pedido pelo usuário pra ter
-        o mesmo leque de janelas que essas referências.
-
-        Endpoint dedicado (em vez de calcular isso no serializer padrão)
-        porque exige somar leituras de "chuva_mm" — caro demais pra rodar
-        em toda chamada de /api/stations/, que é usada pelo mapa e pela
-        tabela meteorológica onde isso não é necessário.
+        e do portal de sirenes do CEMADEN-RJ. Extraído da action
+        `precipitacao` (2026-09-23) pra ser reaproveitado por `hidrologicas`
+        também — uma estação hidrológica (nível de rio) frequentemente tem
+        um pluviômetro colocado, e o usuário pediu que a tabela de
+        hidrológicas mostre ambos os dados usando a MESMA lógica de janelas.
 
         5min/10min/15min/30min/1h/2h/3h/4h/6h/12h/24h/36h/48h/72h/96h são
         todos derivados das MESMAS leituras já buscadas (até 96h atrás) —
@@ -199,11 +196,6 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         em StationListSerializer). "no mês" (desde o dia 1 do mês
         corrente, hora local — calendário, não janela corrida) também.
         """
-        stations = list(
-            self._filtered_stations()
-            .filter(readings__reading_type=Reading.ReadingType.CHUVA_MM)
-            .distinct()
-        )
         station_ids = [s.id for s in stations]
 
         now = timezone.now()
@@ -310,6 +302,94 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 entry["pico_mm"] = pico_24h_por_estacao.get(station.id)
             elif kind == "running_daily":
                 entry["acumulado_hoje_mm"] = latest["value"] if latest else None
+            data.append(entry)
+
+        return data
+
+    @action(detail=False, methods=["get"])
+    def precipitacao(self, request):
+        """Estações pluviométricas com chuva acumulada em várias janelas —
+        ver `_calcular_precipitacao` pra detalhes de como cada janela é
+        derivada. Endpoint dedicado (em vez de calcular isso no serializer
+        padrão) porque exige somar leituras de "chuva_mm" — caro demais pra
+        rodar em toda chamada de /api/stations/, que é usada pelo mapa e
+        pela tabela meteorológica onde isso não é necessário.
+        """
+        stations = list(
+            self._filtered_stations()
+            .filter(readings__reading_type=Reading.ReadingType.CHUVA_MM)
+            .distinct()
+        )
+        return Response(self._calcular_precipitacao(stations))
+
+    @action(detail=False, methods=["get"])
+    def hidrologicas(self, request):
+        """Estações HIDROLÓGICAS (nível de rio) — pedido do usuário
+        (2026-09-23): tabela dedicada, nível de rio primeiro e chuva depois,
+        reaproveitando a mesma lógica de janelas da Precipitação pra chuva
+        (ver `_calcular_precipitacao`). "Hidrológica" aqui = qualquer
+        estação com pelo menos uma leitura de `nivel_m` (hoje: CEMADEN
+        nacional e INEA/Alerta de Cheias) — muitas têm um pluviômetro
+        colocado, daí mostrar as duas coisas juntas.
+
+        Nível de rio não "acumula" como chuva (é uma leitura de estado, não
+        uma taxa) — por isso as janelas aqui são MÁXIMO/MÍNIMO em vez de
+        soma: `nivel_atual_m` (leitura mais recente), `nivel_max_24h_m` e
+        `nivel_min_24h_m` (pra dar noção de variação/tendência sem expor o
+        histórico bruto).
+        """
+        stations = list(
+            self._filtered_stations()
+            .filter(readings__reading_type=Reading.ReadingType.NIVEL_M)
+            .distinct()
+        )
+        station_ids = [s.id for s in stations]
+        now = timezone.now()
+        cutoff_24h = now - datetime.timedelta(hours=24)
+
+        leituras_nivel = Reading.objects.filter(
+            station_id__in=station_ids,
+            reading_type=Reading.ReadingType.NIVEL_M,
+            timestamp__gte=cutoff_24h,
+        ).values("station_id", "value", "timestamp")
+        nivel_por_estacao = defaultdict(list)
+        for r in leituras_nivel:
+            nivel_por_estacao[r["station_id"]].append(r)
+
+        chuva_por_estacao = {
+            entry["id"]: entry for entry in self._calcular_precipitacao(stations)
+        }
+
+        data = []
+        for station in stations:
+            rows = sorted(nivel_por_estacao.get(station.id, []), key=lambda r: r["timestamp"])
+            latest = rows[-1] if rows else None
+            chuva = chuva_por_estacao.get(station.id, {})
+            entry = {
+                "id": station.id,
+                "source": station.source.slug,
+                "station_type": station.station_type,
+                "external_id": station.external_id,
+                "name": station.name,
+                "municipality": station.municipality,
+                "latitude": station.latitude,
+                "longitude": station.longitude,
+                "nivel_atual_m": latest["value"] if latest else None,
+                "nivel_max_24h_m": max((r["value"] for r in rows), default=None),
+                "nivel_min_24h_m": min((r["value"] for r in rows), default=None),
+                "nivel_atualizado_em": latest["timestamp"] if latest else None,
+            }
+            # Campos de chuva (mesmas ~20 janelas da Precipitação) — None
+            # pra quem não tem pluviômetro colocado, igual ao comportamento
+            # já existente em /stations/precipitacao/.
+            for campo, valor in chuva.items():
+                if campo not in entry:
+                    entry[campo] = valor
+            # "updated_at" da Precipitação é sobre a chuva; aqui o mais
+            # recente entre nível e chuva é o que importa pra coluna
+            # "Atualizado em" da tabela.
+            candidatos = [entry["nivel_atualizado_em"], chuva.get("updated_at")]
+            entry["updated_at"] = max((c for c in candidatos if c), default=None)
             data.append(entry)
 
         return Response(data)

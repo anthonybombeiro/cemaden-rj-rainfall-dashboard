@@ -5,18 +5,41 @@
   --foreground: #171717;
 }
 
+/* Paleta "sedec" (2026-09-23, pedido do usuário: mesmo esquema de cores do
+   SIGPLAN-SEDEC — https://sigplan-sedec.vercel.app/dashboard, inspecionada
+   ao vivo) — gera as classes bg-sedec-N, text-sedec-N e border-sedec-N
+   automaticamente (Tailwind v4, tema via CSS). sedec-600 é a cor de marca
+   principal (azul-marinho escuro, usado no cabeçalho/botões primários). */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-sedec-50: #ebf1fa;
+  --color-sedec-100: #d6e4f0;
+  --color-sedec-200: #b0c9e4;
+  --color-sedec-300: #7ba8d4;
+  --color-sedec-400: #4a87c4;
+  --color-sedec-500: #2e75b6;
+  --color-sedec-600: #1f3864;
+  --color-sedec-700: #182c4e;
+  --color-sedec-800: #112038;
+  --color-sedec-900: #0b1524;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Site inteiro é claro por design (mesmo padrão do SIGPLAN-SEDEC) — NUNCA
+   seguir o tema escuro do sistema operacional/navegador. Bug real corrigido
+   aqui (2026-09-23, pedido do usuário: "todas as caixas de seleção estão
+   com o texto invisível"): o bloco `@media (prefers-color-scheme: dark)`
+   que existia antes trocava `--foreground` pra quase-branco quando o SO
+   estava em modo escuro — como os botões dos filtros (MultiSelectFilter)
+   têm fundo branco explícito (`bg-white`) mas NÃO tinham cor de texto
+   explícita (herdavam do body), o texto ficava branco sobre fundo branco.
+   `color-scheme: light` também evita que o navegador desenhe controles
+   nativos (scrollbar, etc.) no estilo escuro por conta própria. */
+:root {
+  color-scheme: light;
 }
 
 body {
