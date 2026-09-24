@@ -505,3 +505,45 @@ export async function fetchMunicipioRedecMap(): Promise<Record<string, string>> 
   for (const a of data) mapa[normalizeMunicipioName(a.municipio)] = a.redec;
   return mapa;
 }
+
+export type Previsao = {
+  id: number;
+  data: string;
+  regiao: string;
+  temperatura_maxima: number;
+  temperatura_minima: number;
+  umidade_maxima: number;
+  umidade_minima: number;
+  vento_velocidade: string;
+  vento_direcao: string;
+  nascer_sol: string;
+  por_sol: string;
+  comentario: string;
+  icone: string;
+  origem: string;
+  criado_por: string;
+  atualizado_por: string;
+  atualizado_em: string;
+};
+
+export type PrevisaoInput = Omit<
+  Previsao,
+  "id" | "origem" | "criado_por" | "atualizado_por" | "atualizado_em"
+>;
+
+/** Previsões de um dia (uma por região). */
+export async function fetchPrevisoes(data: string): Promise<Previsao[]> {
+  const r = await fetchAllPages<Previsao>(`/previsoes/?data=${encodeURIComponent(data)}&limit=50`);
+  return r;
+}
+
+/** Data mais recente com previsão cadastrada (null se ainda não há nenhuma). */
+export async function fetchDataUltimaPrevisao(): Promise<string | null> {
+  const r = await getJson<Previsao[]>("/previsoes/ultima/");
+  return r.length > 0 ? r[0].data : null;
+}
+
+/** Cria — ou sobrescreve, se já existir (data, região) — uma previsão. */
+export async function salvarPrevisao(p: PrevisaoInput): Promise<Previsao> {
+  return postComCsrf<Previsao>("/previsoes/", p);
+}

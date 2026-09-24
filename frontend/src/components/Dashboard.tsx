@@ -10,6 +10,7 @@ import FilterToggleBar from "@/components/FilterToggleBar";
 import ContatosMap from "@/components/ContatosMap";
 import Footer from "@/components/Footer";
 import HidrologicaTable from "@/components/HidrologicaTable";
+import MeteorologiaPanel from "@/components/MeteorologiaPanel";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
@@ -44,10 +45,11 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // "Riscos" deixou de ser aba própria (pedido do usuário, 2026-09-24: a
 // "Visão Geral" dos 4 mapas agora mora DENTRO de "Alertas Ativos", como a
 // 1ª das 5 sub-abas — ver AlertsPanel.tsx).
-type ViewMode = "mapa" | "precipitacao" | "meteorologico" | "hidrologico" | "sirenes" | "alertas";
+type ViewMode = "mapa" | "meteorologia" | "precipitacao" | "meteorologico" | "hidrologico" | "sirenes" | "alertas";
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "mapa", label: "Mapa" },
+  { key: "meteorologia", label: "Meteorologia" },
   { key: "precipitacao", label: "Precipitação" },
   { key: "meteorologico", label: "Dados Meteorológicos" },
   { key: "hidrologico", label: "Hidrológico" },
@@ -595,7 +597,7 @@ export default function Dashboard({
             em "Filtros"). Não aparece no Mapa (tem o próprio painel
             flutuante) nem em Alertas Ativos (não filtra por essas
             dimensões — tem os próprios filtros de REDEC/município). */}
-        {viewMode !== "alertas" && viewMode !== "mapa" && viewMode !== "sirenes" && (
+        {viewMode !== "alertas" && viewMode !== "mapa" && viewMode !== "sirenes" && viewMode !== "meteorologia" && (
           <FilterToggleBar
             filterControls={filterControls}
             statusText={filterStatusText}
@@ -737,6 +739,7 @@ export default function Dashboard({
             />
           )}
           {viewMode === "sirenes" && <SirenesTable ref={sirenesTableRef} stations={filteredSirenes} />}
+          {viewMode === "meteorologia" && <MeteorologiaPanel />}
           {viewMode === "alertas" && <AlertsPanel />}
         </main>
       </div>

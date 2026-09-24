@@ -9,10 +9,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core.municipios import canonico_ou_original
-from core.models import AlertEvent, Reading, RiskAlert, Source, Station
+from core.models import AlertEvent, Previsao, Reading, RiskAlert, Source, Station
 
 from .serializers import (
     AlertEventSerializer,
+    PrevisaoSerializer,
     ReadingSerializer,
     RiskAlertSerializer,
     SourceSerializer,
@@ -499,3 +500,31 @@ class RiskAlertViewSet(viewsets.ReadOnlyModelViewSet):
         elif params.get("escopo") == "municipio":
             qs = qs.exclude(municipio="")
         return qs
+
+
+class PrevisaoViewSet(viewsets.ModelViewSet):
+    """Previsão do tempo diária por região. Leitura e escrita para qualquer
+    usuário logado (operador ou admin); POST em (data, região) já existente
+    sobrescreve. Filtros: ?data=, ?data_inicio=, ?data_fim=, ?regiao=."""
+
+    serializer_class = PrevisaoSerializer
+
+    def get_queryset(self):
+        qs = Previsao.objects.all()
+        p = self.request.query_params
+        if v := p.get("data"):
+            qs = qs.filter(data=v)
+        if v := p.get("data_inicio"):
+            qs = qs.filter(data__gte=v)
+        if v := p.get("data_fim"):
+            qs = qs.filter(data__lte=v)
+        if v := p.get("regiao"):
+            qs = qs.filter(regiao=v)
+        return qs
+
+    @action(detail=False, methods=["get"])
+    def ultima(self, request):
+        """Previsões da data mais recente cadastrada (uma por região)."""
+        ultima = Previsao.objects.aggregate(d=Max("data"))["d"]
+        qs = Previsao.objects.filter(data=ultima) if ultima else Previsao.objects.none()
+        return Response(self.get_serializer(qs, many=True).data)

@@ -213,3 +213,59 @@ class AlertEvent(models.Model):
     def __str__(self):
         estado = "ativo" if self.active else "resolvido"
         return f"{self.rule.name} · {self.station.name} · {estado}"
+
+
+class Previsao(models.Model):
+    """Previsão do tempo diária por região (REDEC) — substitui o sistema
+    legado contingenciaverao.rj.gov.br/CTRLADM (uma linha por região/dia)."""
+
+    REGIOES = [
+        "BAIXADA FLUMINENSE", "BAIXADA LITORÂNEA", "CAPITAL", "COSTA VERDE", "METROPOLITANA",
+        "NORTE", "NOROESTE", "SERRANA I", "SERRANA II", "SUL I", "SUL II",
+    ]
+
+    class Vento(models.TextChoices):
+        FRACO = "Fraco", "Fraco"
+        FRACO_MODERADO = "Fraco/Moderado", "Fraco/Moderado"
+        MODERADO = "Moderado", "Moderado"
+        MODERADO_FORTE = "Moderado/Forte", "Moderado/Forte"
+        FORTE = "Forte", "Forte"
+
+    class Icone(models.TextChoices):
+        CEU_CLARO = "ceuClaro", "Céu claro"
+        POUCAS_NUVENS = "ceuPoucasNuvens", "Poucas nuvens"
+        PARCIALMENTE_NUBLADO = "ceuParcialmenteNublado", "Parcialmente nublado"
+        PARCIALMENTE_NUBLADO_CHUVA = "ceuParcialmenteNubladoChuva", "Parcialmente nublado com chuva"
+        PARCIALMENTE_NUBLADO_CHUVA_RAIOS = "ceuParcialmenteNubladoChuvaRaios", "Parcialmente nublado com chuva e raios"
+        NUBLADO = "ceuNublado", "Nublado"
+        NUBLADO_CHUVA = "ceuNubladoChuva", "Nublado com chuva"
+        NUBLADO_CHUVA_RAIOS = "ceuNubladoChuvaRaios", "Nublado com chuva e raios"
+        ENCOBERTO = "ceuEncoberto", "Encoberto"
+        ENCOBERTO_CHUVA = "ceuEncobertoChuva", "Encoberto com chuva"
+        ENCOBERTO_CHUVA_RAIO = "ceuEncobertoChuvaRaio", "Encoberto com chuva e raio"
+
+    data = models.DateField(db_index=True)
+    regiao = models.CharField(max_length=30, choices=[(r, r) for r in REGIOES])
+    temperatura_maxima = models.SmallIntegerField()
+    temperatura_minima = models.SmallIntegerField()
+    umidade_maxima = models.PositiveSmallIntegerField()
+    umidade_minima = models.PositiveSmallIntegerField()
+    vento_velocidade = models.CharField(max_length=20, choices=Vento.choices, default=Vento.FRACO)
+    vento_direcao = models.CharField(max_length=20, blank=True)
+    nascer_sol = models.CharField(max_length=5, blank=True)
+    por_sol = models.CharField(max_length=5, blank=True)
+    comentario = models.CharField(max_length=200, blank=True)
+    icone = models.CharField(max_length=40, choices=Icone.choices, blank=True)
+    origem = models.CharField(max_length=10, default="painel", help_text="'painel' ou 'legado' (importado).")
+    legado_id = models.PositiveIntegerField(null=True, blank=True, unique=True)
+    criado_por = models.CharField(max_length=150, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_por = models.CharField(max_length=150, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["data", "regiao"], name="unique_previsao_data_regiao")]
+        ordering = ["-data", "regiao"]
+
+    def __str__(self):
+        return f"{self.data} · {self.regiao}"

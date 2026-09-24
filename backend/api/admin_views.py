@@ -218,3 +218,15 @@ class AdminOpsView(APIView):
             return Response({"detail": f"Erro: {exc}", "saida": saida.getvalue()}, status=500)
 
         return Response({"ok": True, "action": action, "saida": saida.getvalue()})
+
+
+class MigrateSuperuserView(APIView):
+    """POST /api/admin/migrate/ — roda `migrate` para um superusuário logado
+    (sessão + CSRF), sem depender do segredo `X-Admin-Secret`."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        saida = io.StringIO()
+        call_command("migrate", interactive=False, stdout=saida, stderr=saida)
+        return Response({"ok": True, "output": saida.getvalue()[-2000:]})

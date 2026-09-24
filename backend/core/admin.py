@@ -43,3 +43,13 @@ class RiskAlertAdmin(admin.ModelAdmin):
     list_display = ("tipo", "redec", "municipio", "risco", "atualizado_em", "ingested_at")
     list_filter = ("tipo", "risco", "redec")
     search_fields = ("municipio", "redec")
+
+
+from core.models import Previsao  # noqa: E402
+
+
+@admin.register(Previsao)
+class PrevisaoAdmin(admin.ModelAdmin):
+    list_display = ("data", "regiao", "temperatura_maxima", "temperatura_minima", "icone", "origem", "atualizado_em")
+    list_filter = ("regiao", "origem", "data")
+    date_hierarchy = "data"
