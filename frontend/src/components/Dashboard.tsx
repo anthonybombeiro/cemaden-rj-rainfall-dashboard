@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AlertsPanel from "@/components/AlertsPanel";
 import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable";
 import FilterToggleBar from "@/components/FilterToggleBar";
+import ContatosMap from "@/components/ContatosMap";
 import Footer from "@/components/Footer";
 import HidrologicaTable from "@/components/HidrologicaTable";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
@@ -93,6 +94,9 @@ export default function Dashboard({
   // filtro precisa ficar sobre o mapa (não empurrando layout), escondível
   // por um botão que funcione em mouse (desktop) e touch (celular/tablet).
   const [mapFiltersOpen, setMapFiltersOpen] = useState(true);
+  // Sub-abas da aba Mapa (pedido do usuário, 2026-09-24): "Estações" (mapa
+  // antigo) e "Contatos" (mapa de REDECs com contatos de prefeitos/gestores).
+  const [mapaSub, setMapaSub] = useState<"estacoes" | "contatos">("estacoes");
 
   // Município → REDEC — hoje só existia do lado dos alertas (AlertsPanel);
   // busca 1x aqui e reusa pra agregar/filtrar Precipitação e Dados
@@ -658,7 +662,30 @@ export default function Dashboard({
 
         <main className="relative flex-1 overflow-hidden">
           {viewMode === "mapa" && (
-            <>
+            <div className="flex h-full w-full flex-col">
+              <div className="flex shrink-0 gap-1 border-b border-gray-200 bg-white px-3 py-1.5">
+                {([
+                  ["estacoes", "Estações"],
+                  ["contatos", "Contatos"],
+                ] as const).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setMapaSub(k)}
+                    className={`rounded-full px-3 py-1 text-sm font-medium ${
+                      mapaSub === k ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+              {mapaSub === "contatos" ? (
+                <div className="min-h-0 flex-1">
+                  <ContatosMap />
+                </div>
+              ) : (
+                <div className="relative min-h-0 flex-1">
               <MapView stations={filteredStations} activeAlertEvents={activeAlertEvents} />
               {/* Painel de filtro flutuante sobre o mapa — pedido do usuário
                   (item 9): escondível por um botão de expansão/contração,
@@ -682,7 +709,9 @@ export default function Dashboard({
                   </div>
                 )}
               </div>
-            </>
+                </div>
+              )}
+            </div>
           )}
           {viewMode === "precipitacao" && (
             <PrecipitationTable
