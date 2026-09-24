@@ -25,11 +25,11 @@ type DadosPorTipo = {
 
 function Legenda() {
   return (
-    <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] leading-tight text-gray-500 landscape:text-[9px]">
+    <div className="mt-2 flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-gray-100 pt-2 text-[11px] leading-tight text-gray-500 landscape:mt-1 landscape:pt-1 landscape:text-[9px]">
       {NIVEIS.map((n) => (
         <span key={n} className="flex items-center gap-1">
           <span
-            className="inline-block h-2 w-2 shrink-0 rounded-sm border border-black/10"
+            className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-black/10"
             style={{ backgroundColor: RISK_LEVEL_COLORS[n] }}
           />
           {RISK_LEVEL_LABELS[n]}
@@ -103,13 +103,17 @@ export default function RiscosOverviewPanel() {
     // sempre 2 colunas (nunca cai pra 1), pra pelo menos 2 mapas ficarem
     // visíveis juntos mesmo que o par de baixo precise de rolagem.
     <div className="flex h-full w-full flex-col overflow-y-auto bg-white p-3 landscape:overflow-hidden landscape:p-2">
-      <h2 className="text-sm font-semibold text-gray-900 landscape:hidden">Riscos — visão geral</h2>
-      <p className="mb-2 text-xs text-gray-500 landscape:hidden">
-        As 4 camadas de alerta da Defesa Civil-RJ lado a lado, cada uma com sua legenda.
+      {/* Pedido do usuário (2026-09-24): texto descritivo suprimido;
+          "Atualizado às..." sobe pra mesma linha do título, alinhado à
+          direita; título renomeado. */}
+      <div className="mb-2 flex items-center justify-between landscape:hidden">
+        <h2 className="text-sm font-semibold text-gray-900">Mapas de Riscos - Visão Geral</h2>
         {atualizadoEm && (
-          <> Atualizado às {atualizadoEm.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })}.</>
+          <span className="text-xs text-gray-500">
+            Atualizado às {atualizadoEm.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+          </span>
         )}
-      </p>
+      </div>
 
       {error && (
         <div className="mb-2 shrink-0 rounded bg-red-50 p-2 text-xs text-red-600">
@@ -120,26 +124,30 @@ export default function RiscosOverviewPanel() {
       {loading ? (
         <div className="p-6 text-center text-sm text-gray-400">Carregando mapas…</div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 landscape:min-h-0 landscape:flex-1 landscape:grid-rows-2">
-          {TIPOS.map((tipo) => (
-            <div
-              key={tipo}
-              className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 p-1.5 landscape:p-1"
-            >
-              <h3 className="shrink-0 truncate text-[11px] font-semibold text-gray-800 landscape:text-[10px]">
-                {RISK_ALERT_TIPO_LABELS[tipo]}
-              </h3>
-              <Legenda />
-              <RiskChoroplethMap
-                tipo={tipo}
-                redecAlerts={dados[tipo].redec}
-                municipioAlerts={dados[tipo].municipio}
-                municipioRedecMap={municipioRedecMap}
-                compact
-              />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-2 landscape:min-h-0 landscape:flex-1 landscape:grid-rows-2">
+            {TIPOS.map((tipo) => (
+              <div
+                key={tipo}
+                className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 p-1.5 landscape:p-1"
+              >
+                <h3 className="shrink-0 truncate text-[11px] font-semibold text-gray-800 landscape:text-[10px]">
+                  {RISK_ALERT_TIPO_LABELS[tipo]}
+                </h3>
+                <RiskChoroplethMap
+                  tipo={tipo}
+                  redecAlerts={dados[tipo].redec}
+                  municipioAlerts={dados[tipo].municipio}
+                  municipioRedecMap={municipioRedecMap}
+                  compact
+                />
+              </div>
+            ))}
+          </div>
+          {/* Legenda única pros 4 mapas (pedido do usuário: "ficou muito
+              repetitivo" ter uma em cada mapa) — uma vez só, embaixo. */}
+          <Legenda />
+        </>
       )}
 
       <p className="mt-2 shrink-0 border-t border-gray-100 pt-1 text-[10px] text-gray-400 landscape:hidden">

@@ -12,15 +12,19 @@ import {
   RiskAlertTipo,
   RiskLevel,
 } from "@/lib/api";
-import RiskChoroplethMap from "@/components/RiskChoroplethMap";
+import RiskChoroplethMap, { Selecao } from "@/components/RiskChoroplethMap";
 
 const TIPOS: RiskAlertTipo[] = ["hidrologico", "geologico", "meteorologico", "incendio"];
 const NIVEIS: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
 
-/** A partir de qual nível listar município no card da REDEC, por tipo de
- * alerta — pedido explícito do operador do sistema: hidrológico a partir
- * de "Alto", geológico a partir de "Moderado". Meteorológico/incêndio não
- * têm granularidade municipal na fonte, por isso não entram aqui. */
+/** A partir de qual nível um card PRÓPRIO (separado) precisa existir pra
+ * essa REDEC — pedido do usuário (2026-09-24): antes a gente "empurrava"
+ * o card inteiro da REDEC pro MAIOR risco visto entre os municípios,
+ * escondendo que outros municípios da mesma REDEC estavam num nível mais
+ * baixo (mas ainda relevante) — ex: card mostrava "SERRANA I: Alto" com
+ * "Petrópolis, São José do Vale do Rio Preto, Teresópolis" juntos, quando
+ * na verdade só Petrópolis estava em Alto e os outros dois em Moderado.
+ * Agora cada nível qualificante vira um card SEPARADO pra aquela REDEC. */
 const DESTAQUE_MUNICIPIO_A_PARTIR_DE: Partial<Record<RiskAlertTipo, RiskLevel[]>> = {
   hidrologico: ["alto", "muito_alto"],
   geologico: ["moderado", "alto", "muito_alto"],
@@ -45,85 +49,117 @@ function formatTimestamp(iso: string | null): string {
   }
 }
 
-function RedecGrid({ alerts, municipioAlerts, tipo }: { alerts: RiskAlert[]; municipioAlerts: RiskAlert[]; tipo: RiskAlertTipo }) {
-  const temGranularidadeMunicipal = tipo === "geologico" || tipo === "hidrologico";
+type CardRedec = {
+  id: string;
+  redec: string;
+  risco: RiskLevel;
+  municipios: string[];
+  atualizado: string | null;
+};
 
-  // BUG relatado pelo usuário: os cards por REDEC (boletim
-  // atualizacao_hidro.php/atualizacao_geo.php — um feed) às vezes não
-  // batiam com o mapa/tabela por município (atualizacao_municipio_*.php —
-  // OUTRO feed da própria Defesa Civil-RJ, atualizado de forma
-  // independente). Em vez de confiar cegamente no boletim por REDEC pro
-  // nível do card, usamos o MAIOR risco entre (boletim da REDEC, maior
-  // risco visto entre os municípios daquela REDEC) — nunca escondemos um
-  // risco maior que já apareça no nível de município, então card e
-  // mapa/tabela ficam consistentes por construção. Geológico tem
-  // cobertura completa dos 92 municípios (fonte confiável de sobra);
-  // hidrológico só lista município a partir de "Alto" (documentado em
-  // cemaden_rj_alertas.py) — por isso aqui só EMPURRAMOS pra cima, nunca
-  // pra baixo (ausência no feed municipal não significa risco zero).
-  const maiorRiscoMunicipalPorRedec = useMemo(() => {
-    const mapa = new Map<string, RiskLevel>();
+function RedecGrid({
+  alerts,
+  municipioAlerts,
+  tipo,
+  selecao,
+}: {
+  alerts: RiskAlert[];
+  municipioAlerts: RiskAlert[];
+  tipo: RiskAlertTipo;
+  /** Busca ativa (pedido do usuário: "integrar as buscas" — selecionar um
+   * município/REDEC filtra os cards também, não só o mapa/tabela). */
+  selecao: Selecao;
+}) {
+  const temGranularidadeMunicipal = tipo === "geologico" || tipo === "hidrologico";
+  const niveisDestaque = DESTAQUE_MUNICIPIO_A_PARTIR_DE[tipo];
+
+  // Município exatamente em cada nível, agrupado por REDEC — só pros tipos
+  // com granularidade municipal (geológico/hidrológico).
+  const municipiosPorRedecNivel = useMemo(() => {
+    const mapa = new Map<string, Map<RiskLevel, string[]>>();
     if (!temGranularidadeMunicipal) return mapa;
     for (const m of municipioAlerts) {
-      const atual = mapa.get(m.redec);
-      if (!atual || NIVEIS.indexOf(m.risco) > NIVEIS.indexOf(atual)) {
-        mapa.set(m.redec, m.risco);
-      }
+      if (!mapa.has(m.redec)) mapa.set(m.redec, new Map());
+      const porNivel = mapa.get(m.redec)!;
+      const lista = porNivel.get(m.risco) ?? [];
+      lista.push(m.municipio);
+      porNivel.set(m.risco, lista);
+    }
+    for (const porNivel of mapa.values()) {
+      for (const lista of porNivel.values()) lista.sort((a, b) => a.localeCompare(b));
     }
     return mapa;
   }, [municipioAlerts, temGranularidadeMunicipal]);
 
-  const efetivo = useMemo(
-    () =>
-      alerts.map((a) => {
-        const maiorMunicipal = maiorRiscoMunicipalPorRedec.get(a.redec);
-        const risco =
-          maiorMunicipal && NIVEIS.indexOf(maiorMunicipal) > NIVEIS.indexOf(a.risco) ? maiorMunicipal : a.risco;
-        return { ...a, risco };
-      }),
-    [alerts, maiorRiscoMunicipalPorRedec],
-  );
+  // Um card por REDEC normalmente — MAS um card POR NÍVEL qualificante
+  // (moderado+ geológico / alto+ hidrológico) sempre que 1+ município
+  // daquela REDEC atingir esse nível, em vez de só "empurrar" pro maior.
+  const cards = useMemo<CardRedec[]>(() => {
+    const resultado: CardRedec[] = [];
+    for (const a of alerts) {
+      const atualizado = a.atualizado_em ?? a.criado_em;
+      const porNivel = municipiosPorRedecNivel.get(a.redec);
+      const niveisQualificantes = new Set<RiskLevel>();
+      if (niveisDestaque?.includes(a.risco)) niveisQualificantes.add(a.risco);
+      if (porNivel) {
+        for (const nivel of porNivel.keys()) {
+          if (niveisDestaque?.includes(nivel)) niveisQualificantes.add(nivel);
+        }
+      }
+      if (niveisQualificantes.size === 0) {
+        resultado.push({ id: `${a.id}`, redec: a.redec, risco: a.risco, municipios: [], atualizado });
+      } else {
+        for (const nivel of niveisQualificantes) {
+          resultado.push({
+            id: `${a.id}-${nivel}`,
+            redec: a.redec,
+            risco: nivel,
+            municipios: porNivel?.get(nivel) ?? [],
+            atualizado,
+          });
+        }
+      }
+    }
+    return resultado;
+  }, [alerts, municipiosPorRedecNivel, niveisDestaque]);
+
+  // Filtro pela busca compartilhada (pedido do usuário) — REDEC selecionada
+  // mostra só os cards dela; município selecionado mostra só o(s) card(s)
+  // da REDEC a que ele pertence (é a granularidade que os cards têm).
+  const filtrados = useMemo(() => {
+    if (!selecao) return cards;
+    if (selecao.tipo === "redec") return cards.filter((c) => c.redec === selecao.valor);
+    const redecDoMunicipio = municipioAlerts.find((m) => m.municipio === selecao.valor)?.redec;
+    return redecDoMunicipio ? cards.filter((c) => c.redec === redecDoMunicipio) : cards;
+  }, [cards, selecao, municipioAlerts]);
 
   const sorted = useMemo(
-    () => [...efetivo].sort((a, b) => NIVEIS.indexOf(b.risco) - NIVEIS.indexOf(a.risco) || a.redec.localeCompare(b.redec)),
-    [efetivo],
+    () =>
+      [...filtrados].sort(
+        (a, b) => NIVEIS.indexOf(b.risco) - NIVEIS.indexOf(a.risco) || a.redec.localeCompare(b.redec),
+      ),
+    [filtrados],
   );
-
-  const niveisDestaque = DESTAQUE_MUNICIPIO_A_PARTIR_DE[tipo];
-
-  const municipiosDestaquePorRedec = useMemo(() => {
-    const mapa = new Map<string, string[]>();
-    if (!niveisDestaque) return mapa;
-    for (const m of municipioAlerts) {
-      if (!niveisDestaque.includes(m.risco)) continue;
-      const lista = mapa.get(m.redec) ?? [];
-      lista.push(m.municipio);
-      mapa.set(m.redec, lista);
-    }
-    for (const lista of mapa.values()) lista.sort((a, b) => a.localeCompare(b));
-    return mapa;
-  }, [municipioAlerts, niveisDestaque]);
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      {sorted.map((a) => {
-        const bg = RISK_LEVEL_COLORS[a.risco];
-        const destaque = municipiosDestaquePorRedec.get(a.redec);
+      {sorted.map((c) => {
+        const bg = RISK_LEVEL_COLORS[c.risco];
         return (
-          <div key={a.id} className="rounded-lg border border-gray-200 p-3 shadow-sm" style={{ backgroundColor: bg }}>
+          <div key={c.id} className="rounded-lg border border-gray-200 p-3 shadow-sm" style={{ backgroundColor: bg }}>
             <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: textColorFor(bg) }}>
-              {a.redec}
+              {c.redec}
             </div>
             <div className="mt-1 text-lg font-bold" style={{ color: textColorFor(bg) }}>
-              {RISK_LEVEL_LABELS[a.risco]}
+              {RISK_LEVEL_LABELS[c.risco]}
             </div>
-            {destaque && destaque.length > 0 && (
+            {c.municipios.length > 0 && (
               <div className="mt-1 text-[11px] leading-snug opacity-90" style={{ color: textColorFor(bg) }}>
-                {destaque.join(", ")}
+                {c.municipios.join(", ")}
               </div>
             )}
             <div className="mt-1 text-[11px] opacity-80" style={{ color: textColorFor(bg) }}>
-              Atualizado: {formatTimestamp(a.atualizado_em ?? a.criado_em)}
+              Atualizado: {formatTimestamp(c.atualizado)}
             </div>
           </div>
         );
@@ -137,29 +173,19 @@ function RedecGrid({ alerts, municipioAlerts, tipo }: { alerts: RiskAlert[]; mun
 
 function MunicipioTable({ alerts, emptyMessage }: { alerts: RiskAlert[]; emptyMessage?: string }) {
   const [sortAsc, setSortAsc] = useState(false);
-  const [filter, setFilter] = useState("");
 
   const sorted = useMemo(() => {
-    const filtered = alerts.filter((a) => a.municipio.toLowerCase().includes(filter.toLowerCase()));
-    filtered.sort((a, b) => {
+    const copy = [...alerts];
+    copy.sort((a, b) => {
       const cmp = NIVEIS.indexOf(a.risco) - NIVEIS.indexOf(b.risco) || a.municipio.localeCompare(b.municipio);
       return sortAsc ? cmp : -cmp;
     });
-    return filtered;
-  }, [alerts, filter, sortAsc]);
+    return copy;
+  }, [alerts, sortAsc]);
 
   return (
     <div className="mt-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Por município ({alerts.length})</h3>
-        <input
-          type="text"
-          placeholder="Filtrar município…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="rounded border border-gray-300 px-2 py-1 text-xs"
-        />
-      </div>
+      <h3 className="mb-2 text-sm font-semibold text-gray-700">Por município ({alerts.length})</h3>
       <div className="max-h-80 overflow-auto rounded border border-gray-200">
         <table className="min-w-full border-collapse text-sm">
           <thead className="sticky top-0 bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
@@ -200,7 +226,7 @@ function MunicipioTable({ alerts, emptyMessage }: { alerts: RiskAlert[]; emptyMe
         </table>
         {sorted.length === 0 && (
           <div className="p-6 text-center text-sm text-gray-400">
-            {alerts.length === 0 && emptyMessage ? emptyMessage : "Nenhum município encontrado."}
+            {alerts.length === 0 && emptyMessage ? emptyMessage : "Nenhum município encontrado para essa busca."}
           </div>
         )}
       </div>
@@ -221,6 +247,16 @@ export default function AlertsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+
+  // Busca ÚNICA (pedido do usuário, 2026-09-24: "integrar as buscas") —
+  // uma seleção só, compartilhada entre cards/mapa/tabela, em vez do mapa
+  // ter sua própria busca e a tabela ter outra separada e desconectada.
+  const [busca, setBusca] = useState("");
+  const [selecao, setSelecao] = useState<Selecao>(null);
+  const limparBusca = () => {
+    setSelecao(null);
+    setBusca("");
+  };
 
   // Município→REDEC não muda entre abas — busca 1x (via geológico, que
   // sempre tem os 92) e reusa pra colorir o mapa de meteorológico/incêndio
@@ -249,10 +285,13 @@ export default function AlertsPanel() {
   // Evita setState depois que o componente desmontou (ex: trocou de aba no
   // meio de uma busca) — checado dentro de carregar(), não no efeito, pra
   // funcionar igual tanto na busca automática quanto na manual (botão).
+  // IMPORTANTE: resetado pra `false` dentro do PRÓPRIO efeito de busca
+  // (não só declarado 1x aqui) — sem isso, o StrictMode do React em dev
+  // (monta→desmonta→remonta 1x de propósito, só em desenvolvimento) deixa
+  // esse ref preso em `true` pra sempre depois do primeiro ciclo simulado,
+  // e a página trava em "Carregando alertas…" (visto só em `next dev`,
+  // não acontece no build de produção).
   const desmontadoRef = useRef(false);
-  useEffect(() => () => {
-    desmontadoRef.current = true;
-  }, []);
 
   // useCallback pra poder chamar isso tanto sozinho (efeito abaixo) quanto
   // sob demanda (botão "Atualizar agora") sem duplicar a lógica de busca.
@@ -281,15 +320,27 @@ export default function AlertsPanel() {
   );
 
   useEffect(() => {
+    desmontadoRef.current = false;
     carregar(true);
     const intervalo = setInterval(() => carregar(false), INTERVALO_ATUALIZACAO_MS);
-    return () => clearInterval(intervalo);
+    return () => {
+      desmontadoRef.current = true;
+      clearInterval(intervalo);
+    };
   }, [carregar]);
 
   const atualizarAgora = () => {
     setAtualizandoManual(true);
     carregar(false).finally(() => setAtualizandoManual(false));
   };
+
+  // Tabela filtrada pela mesma busca compartilhada — município selecionado
+  // mostra só ele; REDEC selecionada mostra todos os municípios dela.
+  const municipioAlertsFiltrados = useMemo(() => {
+    if (!selecao) return municipioAlerts;
+    if (selecao.tipo === "municipio") return municipioAlerts.filter((m) => m.municipio === selecao.valor);
+    return municipioAlerts.filter((m) => m.redec === selecao.valor);
+  }, [municipioAlerts, selecao]);
 
   return (
     <div className="h-full w-full overflow-auto bg-white p-4">
@@ -309,18 +360,19 @@ export default function AlertsPanel() {
       </div>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
-        <div className="flex flex-wrap items-center gap-3">
-          <span>Legenda (padrão Defesa Civil-RJ):</span>
-          {NIVEIS.map((n) => (
-            <span key={n} className="flex items-center gap-1">
-              <span
-                className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                style={{ backgroundColor: RISK_LEVEL_COLORS[n] }}
-              />
-              {RISK_LEVEL_LABELS[n]}
-            </span>
-          ))}
-        </div>
+        {/* Busca única, acima de cards/mapa/tabela — pedido do usuário
+            (2026-09-24): renomeada de "Mapa por Município", filtra os três
+            juntos até clicar em Limpar. Autocomplete próprio (não reusa o
+            de dentro de RiskChoroplethMap, que agora fica com hideSearchUI). */}
+        <BuscaUnificada
+          busca={busca}
+          setBusca={setBusca}
+          selecao={selecao}
+          setSelecao={setSelecao}
+          onLimpar={limparBusca}
+          redecs={Array.from(new Set(redecAlerts.map((a) => a.redec))).sort((a, b) => a.localeCompare(b))}
+          municipios={Array.from(new Set(municipioAlerts.map((a) => a.municipio))).sort((a, b) => a.localeCompare(b))}
+        />
         <div className="flex items-center gap-2">
           {atualizadoEm && (
             <span title="A página busca de novo sozinha a cada 5 minutos">
@@ -350,16 +402,36 @@ export default function AlertsPanel() {
       ) : (
         <>
           <h3 className="mb-2 text-sm font-semibold text-gray-700">Por REDEC (regional de Defesa Civil)</h3>
-          <RedecGrid alerts={redecAlerts} municipioAlerts={municipioAlerts} tipo={tipo} />
+          <RedecGrid alerts={redecAlerts} municipioAlerts={municipioAlerts} tipo={tipo} selecao={selecao} />
           <RiskChoroplethMap
             tipo={tipo}
             redecAlerts={redecAlerts}
             municipioAlerts={municipioAlerts}
             municipioRedecMap={municipioRedecMap}
+            selecao={selecao}
+            onSelecaoChange={setSelecao}
+            busca={busca}
+            onBuscaChange={setBusca}
+            hideSearchUI
           />
+          {/* Legenda saiu do topo da página (pedido do usuário, 2026-09-24)
+              e foi pro meio, entre o mapa e a tabela de município — texto
+              "(padrão Defesa Civil-RJ)" suprimido. */}
+          <div className="my-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+            <span>Legenda:</span>
+            {NIVEIS.map((n) => (
+              <span key={n} className="flex items-center gap-1">
+                <span
+                  className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                  style={{ backgroundColor: RISK_LEVEL_COLORS[n] }}
+                />
+                {RISK_LEVEL_LABELS[n]}
+              </span>
+            ))}
+          </div>
           {temGranularidadeMunicipal && (
             <MunicipioTable
-              alerts={municipioAlerts}
+              alerts={municipioAlertsFiltrados}
               emptyMessage={
                 tipo === "hidrologico"
                   ? "Sem dado de município no momento — a fonte oficial desse dado específico é instável e às vezes não responde. Tente recarregar em alguns minutos."
@@ -375,6 +447,86 @@ export default function AlertsPanel() {
         emitida pela própria Defesa Civil — este painel só espelha o dado, não substitui os canais oficiais de
         alerta.
       </p>
+    </div>
+  );
+}
+
+/** Busca única acima de cards/mapa/tabela (pedido do usuário, 2026-09-24:
+ * "integrar as buscas") — mesmo padrão visual de autocomplete que já
+ * existia dentro do mapa, só que vivendo aqui em cima pra poder filtrar
+ * os três ao mesmo tempo. */
+function BuscaUnificada({
+  busca,
+  setBusca,
+  selecao,
+  setSelecao,
+  onLimpar,
+  redecs,
+  municipios,
+}: {
+  busca: string;
+  setBusca: (v: string) => void;
+  selecao: Selecao;
+  setSelecao: (s: Selecao) => void;
+  onLimpar: () => void;
+  redecs: string[];
+  municipios: string[];
+}) {
+  const opcoes = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    if (!termo) return [];
+    const todas = [
+      ...redecs.map((valor) => ({ tipo: "redec" as const, valor })),
+      ...municipios.map((valor) => ({ tipo: "municipio" as const, valor })),
+    ];
+    return todas.filter((o) => o.valor.toLowerCase().includes(termo)).slice(0, 12);
+  }, [busca, redecs, municipios]);
+
+  return (
+    <div className="relative flex-1">
+      <label className="mb-1 block text-xs font-medium text-gray-500">Mapa por Região/Município</label>
+      <div className="flex max-w-xs gap-2">
+        <input
+          type="text"
+          value={busca}
+          onChange={(e) => {
+            setBusca(e.target.value);
+            if (selecao) setSelecao(null);
+          }}
+          placeholder="Buscar município ou regional…"
+          className="w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-900"
+        />
+        {(selecao || busca) && (
+          <button
+            type="button"
+            onClick={onLimpar}
+            className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+          >
+            Limpar
+          </button>
+        )}
+      </div>
+      {busca && !selecao && opcoes.length > 0 && (
+        <ul className="absolute z-10 mt-1 max-w-xs overflow-auto rounded border border-gray-200 bg-white text-xs shadow-md" style={{ width: "20rem", maxHeight: "14rem" }}>
+          {opcoes.map((op) => (
+            <li key={`${op.tipo}-${op.valor}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelecao(op);
+                  setBusca(op.valor);
+                }}
+                className="flex w-full items-center justify-between px-2 py-1.5 text-left hover:bg-gray-50"
+              >
+                <span>{op.valor}</span>
+                <span className="text-[10px] uppercase text-gray-400">
+                  {op.tipo === "redec" ? "Regional" : "Município"}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

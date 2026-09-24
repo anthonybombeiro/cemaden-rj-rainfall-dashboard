@@ -316,8 +316,8 @@ export const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
 };
 
 export const RISK_ALERT_TIPO_LABELS: Record<RiskAlertTipo, string> = {
-  hidrologico: "Aviso Hidrológico",
-  geologico: "Aviso Geológico",
+  hidrologico: "Risco Hidrológico",
+  geologico: "Risco Geológico",
   meteorologico: "Severidade Meteorológica",
   incendio: "Risco de Incêndio Florestal",
 };
