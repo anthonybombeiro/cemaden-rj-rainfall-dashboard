@@ -1,0 +1,13 @@
+{
+  "name": "Painel Integrado de Monitoramento - CEMADEN-RJ / SEDEC",
+  "short_name": "CEMADEN-RJ",
+  "description": "Agregador de dados meteorológicos e hidrológicos do estado do Rio de Janeiro para apoio à decisão da Defesa Civil.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#1f3864",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
