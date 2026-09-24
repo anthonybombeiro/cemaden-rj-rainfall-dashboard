@@ -55,6 +55,29 @@ class SourceViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SourceSerializer
 
 
+def ultimas_leituras(station_ids, dias=3):
+    """{station_id: [Reading, ...]} com a leitura mais recente de cada
+    (estação, tipo) dentro de `dias`, numa só query agregada (join com o
+    MAX(timestamp) agrupado — MySQL 5.7 não tem window function)."""
+    ids = list(station_ids)
+    if not ids:
+        return {}
+    cutoff = timezone.now() - datetime.timedelta(days=dias)
+    tabela = Reading._meta.db_table
+    marcadores = ",".join(["%s"] * len(ids))
+    sql = (
+        f"SELECT r.id, r.station_id, r.reading_type, r.value, r.timestamp FROM {tabela} r "
+        f"JOIN (SELECT station_id, reading_type, MAX(timestamp) AS mx FROM {tabela} "
+        f"WHERE station_id IN ({marcadores}) AND timestamp >= %s GROUP BY station_id, reading_type) m "
+        "ON r.station_id = m.station_id AND r.reading_type = m.reading_type AND r.timestamp = m.mx"
+    )
+    por_estacao = defaultdict(list)
+    for leitura in Reading.objects.raw(sql, [*ids, cutoff]):
+        por_estacao[leitura.station_id].append(leitura)
+    return por_estacao
+
+
+
 class StationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = StationListSerializer
 
@@ -70,39 +93,29 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
     def get_queryset(self):
-        # Prefetch com queryset PRÓPRIO (filtrado + ordenado) em vez de
-        # `.prefetch_related("readings")` cru — dois motivos:
-        #   1. Sem isso, 900+ estações cada uma acumulando semanas de
-        #      leitura vira um prefetch gigante (todo o histórico de todas
-        #      as estações numa passada só) — já bateu timeout/erro 500 em
-        #      produção (processo CGI do HostGator, sem os recursos de um
-        #      servidor dedicado).
-        #   2. Já vem ordenado por (reading_type, -timestamp) — o
-        #      serializer só precisa pegar a primeira ocorrência de cada
-        #      tipo, sem precisar ordenar de novo em Python nem (pior)
-        #      chamar `.order_by()` no related manager, que dispararia uma
-        #      query nova POR ESTAÇÃO (N+1) — ver StationListSerializer.
-        #
-        # Cutoff de 7 DIAS (usado até 2026-09-24) causou uma 2ª rodada do
-        # MESMO incidente: com Wunderground/Plugfield reportando a cada
-        # poucos minutos, um cutoff de 7 dias prefetcha ~50-70 MIL leituras
-        # POR PÁGINA de 300 estações (medido em produção via
-        # `StationViewSet.diagnostico`) — e pelo menos uma página bateu
-        # ~150k+ linhas e estourou o limite de tempo/memória do processo
-        # CGI (>10s, sem nem chegar a gerar uma resposta de erro do
-        # Django — o processo morria antes). 2 dias já é MUITO mais que
-        # suficiente pra achar "a última leitura de cada tipo" de
-        # qualquer estação viva (a mais lenta reporta de hora em hora) e
-        # mantém a pior página medida em ~57 mil leituras / ~3,4s — ver
-        # [[investigacao-500-stations-pagina]] na memória do projeto pros
-        # números completos. Se o nº de estações ou a frequência de algum
-        # conector crescer muito mais, terá que cair de novo (ou trocar a
-        # estratégia pra buscar só o "último valor por tipo" via query
-        # agregada em vez de prefetch cru — MySQL 5.7 não tem window
-        # function pra fazer isso numa passada só).
-        cutoff = timezone.now() - datetime.timedelta(days=2)
-        leituras_recentes = Reading.objects.filter(timestamp__gte=cutoff).order_by("reading_type", "-timestamp")
-        return self._filtered_stations().prefetch_related(Prefetch("readings", queryset=leituras_recentes))
+        # SEM prefetch de leituras: o "último valor de cada tipo" vem de UMA
+        # query agregada por página (`ultimas_leituras`), em vez de trazer
+        # dezenas de milhares de linhas pro Python. O prefetch cru estourava o
+        # limite de tempo/memória do CGI do HostGator a cada vez que o volume
+        # de leituras crescia (500 em /api/stations/?offset=300 em 2026-09-24,
+        # mesmo com cutoff de 2 dias) — ver [[investigacao-500-stations-pagina]].
+        return self._filtered_stations()
+
+    def paginate_queryset(self, queryset):
+        page = super().paginate_queryset(queryset)
+        if page is not None:
+            self._latest = ultimas_leituras([s.id for s in page])
+        return page
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self._latest = ultimas_leituras([instance.id])
+        return Response(self.get_serializer(instance).data)
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["latest_by_station"] = getattr(self, "_latest", {})
+        return ctx
 
     @action(detail=False, methods=["get"])
     def diagnostico(self, request):
