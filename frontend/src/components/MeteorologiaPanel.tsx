@@ -3,21 +3,9 @@
 import { ChevronLeft, ChevronRight, Droplets, Sunrise, Sunset, Wind } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import PrevisaoForm from "@/components/PrevisaoForm";
 import { fetchDataUltimaPrevisao, fetchPrevisoes, Previsao, REDECS } from "@/lib/api";
-
-const EMOJI_POR_ICONE: Record<string, string> = {
-  ceuClaro: "☀️",
-  ceuPoucasNuvens: "🌤️",
-  ceuParcialmenteNublado: "⛅",
-  ceuParcialmenteNubladoChuva: "🌦️",
-  ceuParcialmenteNubladoChuvaRaios: "⛈️",
-  ceuNublado: "☁️",
-  ceuNubladoChuva: "🌧️",
-  ceuNubladoChuvaRaios: "⛈️",
-  ceuEncoberto: "☁️",
-  ceuEncobertoChuva: "🌧️",
-  ceuEncobertoChuvaRaio: "⛈️",
-};
+import { EMOJI_POR_ICONE, iconeSrc } from "@/lib/meteorologia";
 
 function hojeISO(): string {
   const d = new Date();
@@ -49,7 +37,7 @@ function IconeTempo({ icone }: { icone: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/icones-tempo/prevTemp_${icone}.webp`}
+      src={iconeSrc(icone)}
       alt=""
       className="h-12 w-12 object-contain"
       onError={() => setSemImagem(true)}
@@ -117,7 +105,7 @@ function PrevisaoCard({ regiao, previsao }: { regiao: string; previsao?: Previsa
   );
 }
 
-export default function MeteorologiaPanel() {
+function PrevisaoDiaria() {
   const [data, setData] = useState<string | null>(null);
   const [previsoes, setPrevisoes] = useState<Previsao[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,6 +199,34 @@ export default function MeteorologiaPanel() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const SUBABAS = [
+  { key: "previsao", label: "Previsão" },
+  { key: "cadastro", label: "Cadastro" },
+] as const;
+
+export default function MeteorologiaPanel() {
+  const [sub, setSub] = useState<(typeof SUBABAS)[number]["key"]>("previsao");
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className="flex shrink-0 gap-1 border-b border-gray-200 bg-white px-3 py-1.5">
+        {SUBABAS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setSub(key)}
+            className={`rounded-full px-3 py-1 text-sm font-medium ${
+              sub === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1">{sub === "previsao" ? <PrevisaoDiaria /> : <PrevisaoForm />}</div>
     </div>
   );
 }
