@@ -3,7 +3,7 @@
 import { Check, Save } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import { fetchPrevisoes, Previsao, REDECS, salvarPrevisao } from "@/lib/api";
+import { fetchPrevisoes, Previsao, PREVISAO_JA_EXISTE, PrevisaoInput, REDECS, salvarPrevisao } from "@/lib/api";
 import { ICONES_TEMPO, iconeSrc, VENTOS } from "@/lib/meteorologia";
 
 type Campos = {
@@ -72,6 +72,108 @@ function validar(c: Campos): string | null {
 const inputCls = "w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900";
 const labelCls = "mb-1 block text-xs font-medium text-gray-600";
 
+function dataBR(iso: string): string {
+  return iso.split("-").reverse().join("/");
+}
+
+function ConfirmarSubstituicao({
+  novo,
+  atual,
+  saving,
+  onCancel,
+  onConfirm,
+}: {
+  novo: PrevisaoInput;
+  atual: Previsao | null;
+  saving: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const linhas: [string, string, string][] = atual
+    ? [
+        ["Temperatura máxima", `${atual.temperatura_maxima}°C`, `${novo.temperatura_maxima}°C`],
+        ["Temperatura mínima", `${atual.temperatura_minima}°C`, `${novo.temperatura_minima}°C`],
+        ["Umidade", `${atual.umidade_minima}% a ${atual.umidade_maxima}%`, `${novo.umidade_minima}% a ${novo.umidade_maxima}%`],
+        ["Vento", `${atual.vento_velocidade} ${atual.vento_direcao}`.trim(), `${novo.vento_velocidade} ${novo.vento_direcao}`.trim()],
+        ["Nascer / Pôr do sol", `${atual.nascer_sol || "—"} / ${atual.por_sol || "—"}`, `${novo.nascer_sol || "—"} / ${novo.por_sol || "—"}`],
+        ["Imagem do clima", ICONES_TEMPO.find((i) => i.key === atual.icone)?.label ?? "—", ICONES_TEMPO.find((i) => i.key === novo.icone)?.label ?? "—"],
+        ["Comentário", atual.comentario || "—", novo.comentario || "—"],
+      ]
+    : [];
+  const diferentes = linhas.filter(([, a, n]) => a !== n);
+  return (
+    <div
+      className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50 px-3"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirmar-titulo"
+    >
+      <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 id="confirmar-titulo" className="text-lg font-bold text-gray-900">
+          Substituir previsão existente?
+        </h2>
+        <p className="mt-2 text-sm text-gray-700">
+          Já existe previsão de <strong>{novo.regiao}</strong> para <strong>{dataBR(novo.data)}</strong>
+          {atual?.criado_por ? (
+            <>
+              , cadastrada por <strong>{atual.criado_por}</strong>
+              {atual.atualizado_por && atual.atualizado_por !== atual.criado_por ? (
+                <>
+                  {" "}
+                  e alterada por <strong>{atual.atualizado_por}</strong>
+                </>
+              ) : null}
+              {atual.atualizado_em ? <> em {new Date(atual.atualizado_em).toLocaleString("pt-BR")}</> : null}
+            </>
+          ) : null}
+          . Ao confirmar, ela será <strong>substituída</strong> e o valor anterior não poderá ser recuperado.
+        </p>
+        {diferentes.length > 0 ? (
+          <table className="mt-3 w-full text-xs">
+            <thead>
+              <tr className="text-left text-gray-500">
+                <th className="py-1 pr-2 font-medium">Campo</th>
+                <th className="py-1 pr-2 font-medium">Atual</th>
+                <th className="py-1 font-medium">Novo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diferentes.map(([campo, a, n]) => (
+                <tr key={campo} className="border-t border-gray-100 align-top">
+                  <td className="py-1 pr-2 text-gray-600">{campo}</td>
+                  <td className="py-1 pr-2 text-gray-800">{a}</td>
+                  <td className="py-1 font-semibold text-red-700">{n}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="mt-3 rounded bg-gray-50 p-2 text-xs text-gray-600">Os valores são iguais aos já cadastrados.</p>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={saving}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {saving ? "Substituindo…" : "Substituir previsão"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PrevisaoForm() {
   const [data, setData] = useState(hojeISO());
   const [regiao, setRegiao] = useState<string>(REDECS[0]);
@@ -80,6 +182,7 @@ export default function PrevisaoForm() {
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [pendente, setPendente] = useState<PrevisaoInput | null>(null);
 
   const porRegiao = useMemo(() => new Map(doDia.map((p) => [p.regiao, p])), [doDia]);
 
@@ -105,7 +208,49 @@ export default function PrevisaoForm() {
   const set = (k: keyof Campos) => (v: string) => setC((atual) => ({ ...atual, [k]: v }));
   const existente = porRegiao.get(regiao);
 
-  async function enviar(e: FormEvent) {
+  function montar(): PrevisaoInput {
+    return {
+      data,
+      regiao,
+      temperatura_maxima: Number(c.tmax),
+      temperatura_minima: Number(c.tmin),
+      umidade_maxima: Number(c.umax),
+      umidade_minima: Number(c.umin),
+      vento_velocidade: c.vento,
+      vento_direcao: c.direcao.trim(),
+      nascer_sol: c.nascer,
+      por_sol: c.por,
+      comentario: c.comentario.trim(),
+      icone: c.icone,
+    };
+  }
+
+  async function gravar(dados: PrevisaoInput, substituir: boolean) {
+    setSaving(true);
+    setErro(null);
+    try {
+      await salvarPrevisao(dados, substituir);
+      setPendente(null);
+      setOk(`Previsão de ${dados.regiao} salva para ${dados.data.split("-").reverse().join("/")}.`);
+      const atualizadas = await fetchPrevisoes(dados.data);
+      setDoDia(atualizadas);
+      const proxima = REDECS.find((r) => r !== dados.regiao && !atualizadas.some((p) => p.regiao === r));
+      if (proxima) setRegiao(proxima);
+    } catch (err) {
+      if (err instanceof Error && err.message === PREVISAO_JA_EXISTE) {
+        // Outra pessoa cadastrou enquanto este formulário estava aberto: recarrega e pergunta.
+        await carregarDia(dados.data);
+        setPendente(dados);
+      } else {
+        setPendente(null);
+        setErro(err instanceof Error ? err.message : "Erro ao salvar a previsão.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function enviar(e: FormEvent) {
     e.preventDefault();
     setOk(null);
     const problema = validar(c);
@@ -114,31 +259,11 @@ export default function PrevisaoForm() {
       return;
     }
     setErro(null);
-    setSaving(true);
-    try {
-      await salvarPrevisao({
-        data,
-        regiao,
-        temperatura_maxima: Number(c.tmax),
-        temperatura_minima: Number(c.tmin),
-        umidade_maxima: Number(c.umax),
-        umidade_minima: Number(c.umin),
-        vento_velocidade: c.vento,
-        vento_direcao: c.direcao.trim(),
-        nascer_sol: c.nascer,
-        por_sol: c.por,
-        comentario: c.comentario.trim(),
-        icone: c.icone,
-      });
-      setOk(`Previsão de ${regiao} salva para ${data.split("-").reverse().join("/")}.`);
-      const atualizadas = await fetchPrevisoes(data);
-      setDoDia(atualizadas);
-      const proxima = REDECS.find((r) => r !== regiao && !atualizadas.some((p) => p.regiao === r));
-      if (proxima) setRegiao(proxima);
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : "Erro ao salvar a previsão.");
-    } finally {
-      setSaving(false);
+    const dados = montar();
+    if (existente) {
+      setPendente(dados); // já existe: pede confirmação antes de substituir
+    } else {
+      void gravar(dados, false);
     }
   }
 
@@ -288,6 +413,16 @@ export default function PrevisaoForm() {
           </button>
         </div>
       </form>
+      {pendente && (
+        <ConfirmarSubstituicao
+          novo={pendente}
+          atual={porRegiao.get(pendente.regiao) ?? null}
+          saving={saving}
+          onCancel={() => setPendente(null)}
+          onConfirm={() => void gravar(pendente, true)}
+        />
+      )}
     </div>
   );
 }
+

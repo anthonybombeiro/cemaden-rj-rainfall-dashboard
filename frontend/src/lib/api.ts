@@ -567,6 +567,9 @@ export async function fetchDataUltimaPrevisao(): Promise<string | null> {
 }
 
 /** Cria — ou sobrescreve, se já existir (data, região) — uma previsão. */
-export async function salvarPrevisao(p: PrevisaoInput): Promise<Previsao> {
-  return postComCsrf<Previsao>("/previsoes/", p);
+export async function salvarPrevisao(p: PrevisaoInput, substituir = false): Promise<Previsao> {
+  return postComCsrf<Previsao>("/previsoes/", { ...p, ...(substituir ? { substituir: true } : {}) });
 }
+
+/** Erro devolvido pelo servidor (409) quando já existe previsão da região/data. */
+export const PREVISAO_JA_EXISTE = "previsao_ja_existe";

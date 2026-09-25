@@ -2,6 +2,7 @@ import datetime
 import time
 from collections import defaultdict
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Max, Prefetch, Sum
 from django.utils import timezone
 from rest_framework import viewsets
@@ -570,6 +571,20 @@ class PrevisaoViewSet(viewsets.ModelViewSet):
         if v := p.get("regiao"):
             qs = qs.filter(regiao=v)
         return qs
+
+    def create(self, request, *args, **kwargs):
+        """POST em (data, região) que já existe só substitui se vier
+        `substituir: true` — senão 409 `previsao_ja_existe` (evita sobrescrever
+        sem querer o que outro operador cadastrou)."""
+        dados = request.data
+        if not dados.get("substituir"):
+            try:
+                existe = Previsao.objects.filter(data=dados.get("data"), regiao=dados.get("regiao")).exists()
+            except (ValueError, TypeError, DjangoValidationError):
+                existe = False  # data inválida: o serializer devolve o erro certo
+            if existe:
+                return Response({"detail": "previsao_ja_existe"}, status=409)
+        return super().create(request, *args, **kwargs)
 
     @action(detail=False, methods=["get"])
     def ultima(self, request):
