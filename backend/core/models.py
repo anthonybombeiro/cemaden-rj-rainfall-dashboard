@@ -81,6 +81,18 @@ class Reading(models.Model):
         VENTO_RAJADA_MS = "vento_rajada_ms", "Rajada de vento (m/s)"
         VENTO_DIR_GRAUS = "vento_dir_graus", "Direção do vento (graus)"
         MARE_M = "mare_m", "Maré (m)"
+        # Extras meteorológicos (2026-09-25). max/min vêm da FONTE (INMET: extremo da
+        # hora; Plugfield: extremo do dia até agora; Alerta Rio: min/max informados).
+        TEMPERATURA_MAX_C = "temperatura_max_c", "Temperatura máxima (°C)"
+        TEMPERATURA_MIN_C = "temperatura_min_c", "Temperatura mínima (°C)"
+        UMIDADE_MAX_PCT = "umidade_max_pct", "Umidade máxima (%)"
+        UMIDADE_MIN_PCT = "umidade_min_pct", "Umidade mínima (%)"
+        PRESSAO_HPA = "pressao_hpa", "Pressão na estação (hPa)"
+        PRESSAO_NM_HPA = "pressao_nm_hpa", "Pressão ao nível do mar (hPa)"
+        PONTO_ORVALHO_C = "ponto_orvalho_c", "Ponto de orvalho (°C)"
+        RADIACAO_WM2 = "radiacao_wm2", "Radiação solar (W/m²)"
+        UV_INDICE = "uv_indice", "Índice UV"
+        SENSACAO_TERMICA_C = "sensacao_termica_c", "Sensação térmica (°C)"
 
     station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name="readings")
     reading_type = models.CharField(max_length=20, choices=ReadingType.choices)

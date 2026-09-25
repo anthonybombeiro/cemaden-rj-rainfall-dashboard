@@ -260,6 +260,21 @@ class WundergroundConnector(BaseConnector):
             if precip_total is not None:
                 add(Reading.ReadingType.CHUVA_MM, bucket_from_running_daily("wunderground", codigo, float(precip_total)))
             add(Reading.ReadingType.VENTO_DIR_GRAUS, obs.get("winddir"))
+            # Extras (2026-09-25). A pressão do Weather Company é ao NÍVEL DO MAR (ex.: 1016 hPa
+            # numa estação a 1729 m); o endpoint "current" não traz máxima/mínima.
+            # Filtros de plausibilidade (2026-09-25): há estações com pressão "ao nível do mar" de
+            # ~900 hPa e orvalho de -34 °C (sensor/configuração errados) — melhor descartar.
+            pressao = metric.get("pressure")
+            if pressao is not None and 950 <= float(pressao) <= 1060:
+                add(Reading.ReadingType.PRESSAO_NM_HPA, pressao)
+            orvalho = metric.get("dewpt")
+            temp_atual = metric.get("temp")
+            if orvalho is not None and -15 <= float(orvalho) <= 32 and (temp_atual is None or float(orvalho) <= float(temp_atual) + 1):
+                add(Reading.ReadingType.PONTO_ORVALHO_C, orvalho)
+            add(Reading.ReadingType.UV_INDICE, obs.get("uv"))
+            radiacao = obs.get("solarRadiation")
+            if radiacao is not None and float(radiacao) >= 0:
+                add(Reading.ReadingType.RADIACAO_WM2, radiacao)
             # windSpeed/windGust vêm em km/h (convenção "metric" da Weather
             # Company) — convertendo para m/s para bater com o padrão do
             # resto do projeto (Reading.ReadingType.VENTO_MS).

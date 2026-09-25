@@ -170,6 +170,9 @@ class AlertaRioConnector(BaseConnector):
             for chave, reading_type in (
                 ("temperature", Reading.ReadingType.TEMPERATURA_C),
                 ("humidity", Reading.ReadingType.UMIDADE_PCT),
+                ("max", Reading.ReadingType.TEMPERATURA_MAX_C),
+                ("min", Reading.ReadingType.TEMPERATURA_MIN_C),
+                ("pressure", Reading.ReadingType.PRESSAO_HPA),
             ):
                 valor = _parse_br_float(valores.get(chave))
                 if valor is not None:

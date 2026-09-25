@@ -21,6 +21,7 @@ class LatestReadingSerializer(serializers.ModelSerializer):
 class StationListSerializer(serializers.ModelSerializer):
     source = serializers.SlugRelatedField(slug_field="slug", read_only=True)
     latest_readings = serializers.SerializerMethodField()
+    extremos_24h = serializers.SerializerMethodField()
 
     class Meta:
         model = Station
@@ -36,7 +37,11 @@ class StationListSerializer(serializers.ModelSerializer):
             "longitude",
             "altitude_m",
             "latest_readings",
+            "extremos_24h",
         ]
+
+    def get_extremos_24h(self, obj: Station):
+        return self.context.get("extremos_24h", {}).get(obj.id)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

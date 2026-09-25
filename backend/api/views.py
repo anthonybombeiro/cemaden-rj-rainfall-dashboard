@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Max, Prefetch, Sum
+from django.db.models import Max, Min, Prefetch, Sum
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -72,6 +72,49 @@ def tendencia_nivel(valores):
 
 
 
+def extremos_24h(station_ids):
+    """{station_id: {temp_max, temp_min, umid_max, umid_min}} das últimas 24h —
+    máximo/mínimo entre as leituras instantâneas E os extremos que a própria fonte
+    informa (INMET por hora, Plugfield do dia). Uma query agregada por página."""
+    ids = list(station_ids)
+    if not ids:
+        return {}
+    R = Reading.ReadingType
+    corte = timezone.now() - datetime.timedelta(hours=24)
+    linhas = (
+        Reading.objects.filter(
+            station_id__in=ids,
+            timestamp__gte=corte,
+            reading_type__in=[
+                R.TEMPERATURA_C, R.TEMPERATURA_MAX_C, R.TEMPERATURA_MIN_C,
+                R.UMIDADE_PCT, R.UMIDADE_MAX_PCT, R.UMIDADE_MIN_PCT,
+            ],
+        )
+        .values("station_id", "reading_type")
+        .annotate(mx=Max("value"), mn=Min("value"))
+    )
+    tmax, tmin, umax, umin = (defaultdict(list) for _ in range(4))
+    for x in linhas:
+        sid, t = x["station_id"], x["reading_type"]
+        if t in (R.TEMPERATURA_C, R.TEMPERATURA_MAX_C):
+            tmax[sid].append(x["mx"])
+        if t in (R.TEMPERATURA_C, R.TEMPERATURA_MIN_C):
+            tmin[sid].append(x["mn"])
+        if t in (R.UMIDADE_PCT, R.UMIDADE_MAX_PCT):
+            umax[sid].append(x["mx"])
+        if t in (R.UMIDADE_PCT, R.UMIDADE_MIN_PCT):
+            umin[sid].append(x["mn"])
+    resultado = {}
+    for sid in set(tmax) | set(tmin) | set(umax) | set(umin):
+        resultado[sid] = {
+            "temp_max": max(tmax[sid]) if tmax[sid] else None,
+            "temp_min": min(tmin[sid]) if tmin[sid] else None,
+            "umid_max": max(umax[sid]) if umax[sid] else None,
+            "umid_min": min(umin[sid]) if umin[sid] else None,
+        }
+    return resultado
+
+
 def ultimas_leituras(station_ids, dias=3):
     """{station_id: [Reading, ...]} com a leitura mais recente de cada
     (estação, tipo) dentro de `dias`, numa só query agregada (join com o
@@ -122,16 +165,19 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         page = super().paginate_queryset(queryset)
         if page is not None:
             self._latest = ultimas_leituras([s.id for s in page])
+            self._extremos = extremos_24h([s.id for s in page])
         return page
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         self._latest = ultimas_leituras([instance.id])
+        self._extremos = extremos_24h([instance.id])
         return Response(self.get_serializer(instance).data)
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
         ctx["latest_by_station"] = getattr(self, "_latest", {})
+        ctx["extremos_24h"] = getattr(self, "_extremos", {})
         return ctx
 
     @action(detail=False, methods=["get"])

@@ -42,8 +42,8 @@ const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "bairro", "updat
 
 // Larguras padrão (px), ajustáveis arrastando a borda direita do cabeçalho (lembradas no
 // navegador). Em telas < 640px os padrões são menores. Texto quebra em várias linhas.
-const W_DESKTOP: Record<string, number> = { estacao: 170, municipio: 130, redec: 128, bairro: 170, status: 104, acionamento: 130, chuva: 84, atualizado: 130 };
-const W_MOBILE: Record<string, number> = { estacao: 120, municipio: 112, redec: 128, bairro: 130, status: 100, acionamento: 120, chuva: 80, atualizado: 110 };
+const W_DESKTOP: Record<string, number> = { estacao: 170, municipio: 130, redec: 140, bairro: 170, status: 104, acionamento: 130, chuva: 84, atualizado: 130 };
+const W_MOBILE: Record<string, number> = { estacao: 120, municipio: 112, redec: 140, bairro: 130, status: 100, acionamento: 120, chuva: 80, atualizado: 110 };
 
 const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }>(function SirenesTable(
   { stations },

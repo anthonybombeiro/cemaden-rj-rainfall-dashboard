@@ -187,10 +187,24 @@ class InmetConnector(BaseConnector):
                     ("VEN_VEL", Reading.ReadingType.VENTO_MS),
                     ("VEN_RAJ", Reading.ReadingType.VENTO_RAJADA_MS),
                     ("VEN_DIR", Reading.ReadingType.VENTO_DIR_GRAUS),
+                    # Extras (2026-09-25). TEM_/UMD_ MAX/MIN são extremos DENTRO DA HORA.
+                    ("TEM_MAX", Reading.ReadingType.TEMPERATURA_MAX_C),
+                    ("TEM_MIN", Reading.ReadingType.TEMPERATURA_MIN_C),
+                    ("UMD_MAX", Reading.ReadingType.UMIDADE_MAX_PCT),
+                    ("UMD_MIN", Reading.ReadingType.UMIDADE_MIN_PCT),
+                    ("PRE_INS", Reading.ReadingType.PRESSAO_HPA),
+                    ("PTO_INS", Reading.ReadingType.PONTO_ORVALHO_C),
+                    ("RAD_GLO", Reading.ReadingType.RADIACAO_WM2),
                 ):
                     valor = _to_float(row.get(campo_origem))
                     if valor is None:
                         continue
+                    if reading_type == Reading.ReadingType.RADIACAO_WM2:
+                        # RAD_GLO do INMET é kJ/m² acumulado na hora -> média em W/m²
+                        # (÷3,6). Negativo (ruído noturno do sensor) não é medição válida.
+                        if valor < 0:
+                            continue
+                        valor = valor / 3.6
                     if not _valor_plausivel(reading_type, valor):
                         descartados += 1
                         logger.warning("INMET %s: %s=%s fora da faixa física, descartado.", codigo, campo_origem, valor)
@@ -406,6 +420,13 @@ _FAIXAS = {
     Reading.ReadingType.VENTO_MS: (0.0, 80.0),
     Reading.ReadingType.VENTO_RAJADA_MS: (0.0, 100.0),
     Reading.ReadingType.VENTO_DIR_GRAUS: (0.0, 360.0),
+    Reading.ReadingType.TEMPERATURA_MAX_C: (-10.0, 50.0),
+    Reading.ReadingType.TEMPERATURA_MIN_C: (-10.0, 50.0),
+    Reading.ReadingType.UMIDADE_MAX_PCT: (0.0, 100.0),
+    Reading.ReadingType.UMIDADE_MIN_PCT: (0.0, 100.0),
+    Reading.ReadingType.PRESSAO_HPA: (300.0, 1100.0),
+    Reading.ReadingType.PONTO_ORVALHO_C: (-30.0, 40.0),
+    Reading.ReadingType.RADIACAO_WM2: (0.0, 1500.0),
 }
 
 

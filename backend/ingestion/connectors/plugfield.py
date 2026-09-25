@@ -219,6 +219,19 @@ class PlugfieldConnector(BaseConnector):
             add(Reading.ReadingType.CHUVA_MM, bucket_from_running_daily("plugfield", external_id, float(rain_day)))
         add(Reading.ReadingType.VENTO_DIR_GRAUS, dashboard.get("dire"))
 
+        # Extras (2026-09-25): tempMax/tempMin são os extremos do DIA até agora.
+        add(Reading.ReadingType.TEMPERATURA_MAX_C, dashboard.get("tempMax"))
+        add(Reading.ReadingType.TEMPERATURA_MIN_C, dashboard.get("tempMin"))
+        add(Reading.ReadingType.PRESSAO_HPA, dashboard.get("pres"))
+        add(Reading.ReadingType.PRESSAO_NM_HPA, dashboard.get("prre"))
+        orvalho, temp_atual = dashboard.get("duep"), dashboard.get("temp")
+        if orvalho is not None and -15 <= float(orvalho) <= 32 and (temp_atual is None or float(orvalho) <= float(temp_atual) + 1):
+            add(Reading.ReadingType.PONTO_ORVALHO_C, orvalho)
+        add(Reading.ReadingType.UV_INDICE, dashboard.get("uv"))
+        add(Reading.ReadingType.SENSACAO_TERMICA_C, dashboard.get("feel"))
+        # `radi` NÃO é gravado: chegou como ~10.000 às 7h da manhã (unidade não é W/m², provável
+        # iluminância) — sem confirmação da unidade, melhor não expor como radiação solar.
+
         # wind/winb vêm em km/h (speed_unit da conta) — convertendo para m/s.
         vento_kmh = dashboard.get("wind")
         if vento_kmh is not None:

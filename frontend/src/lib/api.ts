@@ -107,6 +107,8 @@ export type Station = {
   longitude: number;
   altitude_m: number | null;
   latest_readings: LatestReading[];
+  /** Máx./mín. das últimas 24h (instantâneas + extremos informados pela fonte); null se sem temp./umidade. */
+  extremos_24h?: { temp_max: number | null; temp_min: number | null; umid_max: number | null; umid_min: number | null } | null;
 };
 
 export type Reading = {
@@ -407,6 +409,21 @@ export const READING_TYPE_LABELS: Record<string, string> = {
   vento_rajada_ms: "Rajada de vento (km/h)",
   vento_dir_graus: "Direção do vento (°)",
   mare_m: "Maré (m)",
+  temperatura_max_c: "Temperatura máxima da fonte (°C)",
+  temperatura_min_c: "Temperatura mínima da fonte (°C)",
+  umidade_max_pct: "Umidade máxima da fonte (%)",
+  umidade_min_pct: "Umidade mínima da fonte (%)",
+  pressao_hpa: "Pressão na estação (hPa)",
+  pressao_nm_hpa: "Pressão ao nível do mar (hPa)",
+  ponto_orvalho_c: "Ponto de orvalho (°C)",
+  radiacao_wm2: "Radiação solar (W/m²)",
+  uv_indice: "Índice UV",
+  sensacao_termica_c: "Sensação térmica (°C)",
+  // Colunas calculadas nas últimas 24h (não são tipos de leitura): ver DataTable.tsx.
+  "x:temp_max": "Temp. Máx 24h (°C)",
+  "x:temp_min": "Temp. Mín 24h (°C)",
+  "x:umid_max": "Umid. Máx 24h (%)",
+  "x:umid_min": "Umid. Mín 24h (%)",
 };
 
 export const STATION_TYPE_LABELS: Record<string, string> = {

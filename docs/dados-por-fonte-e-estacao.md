@@ -4,6 +4,17 @@ Levantamento de **2026-09-25**, feito em três frentes: (1) o código dos conect
 fonte realmente devolveu (`raw_payload` guardado no banco) e (3) a contagem em produção do que cada tipo de estação
 entrega hoje (904 estações cadastradas; "com leitura" = leitura nos últimos 3 dias).
 
+> **Atualização de 2026-09-25 (implementado):** os dados marcados com ⚠️ nas seções 1 e 3 abaixo passaram a ser
+> gravados, exceto onde indicado. Novos tipos de leitura: temperatura máx./mín., umidade máx./mín., pressão na
+> estação, pressão ao nível do mar, ponto de orvalho, radiação solar, UV e sensação térmica. A tabela **Dados
+> Meteorológicos** ganhou colunas de **Temp. Máx/Mín 24h** e **Umid. Máx/Mín 24h** (calculadas sobre as últimas 24 h
+> a partir das leituras instantâneas **e** dos extremos que a fonte informa) e as colunas de pressão, orvalho,
+> sensação térmica, radiação e UV. Exceções: **Plugfield não grava radiação** (a unidade do campo `radi` não é
+> W/m², chegou ~10.000 às 7h); **Wunderground não traz máx./mín.** no endpoint usado (o 24h dele vem das leituras
+> instantâneas); **INMET radiação** é convertida de kJ/m² acumulado na hora para W/m² médio (÷3,6) e negativos são
+> descartados; **Wunderground pressão** é ao nível do mar e valores fora de 950-1060 hPa, ou orvalho fora de -15 a
+> 32 °C / acima da temperatura, são descartados por implausíveis. O texto abaixo é o levantamento original.
+
 ## 1. Resposta curta: por que faltam Tmáx, Tmín e umidade mínima?
 
 O painel só guarda **8 tipos de leitura** (`Reading.ReadingType`). Tudo que a fonte manda fora desses 8 não vira

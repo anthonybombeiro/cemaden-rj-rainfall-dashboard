@@ -16,22 +16,49 @@ import {
 import { downloadCsv } from "@/lib/csvExport";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 
+// Chaves "x:..." são colunas CALCULADAS (máx./mín. das últimas 24h, vindas de
+// `Station.extremos_24h`), não tipos de leitura.
 const COLUMN_ORDER = [
   "chuva_mm",
   "nivel_m",
   "temperatura_c",
+  "x:temp_max",
+  "x:temp_min",
   "umidade_pct",
+  "x:umid_max",
+  "x:umid_min",
+  "pressao_hpa",
+  "pressao_nm_hpa",
+  "ponto_orvalho_c",
+  "sensacao_termica_c",
   "vento_ms",
   "vento_rajada_ms",
   "vento_dir_graus",
+  "radiacao_wm2",
+  "uv_indice",
   "mare_m",
 ];
+
+/** Valor de uma coluna pra uma estação: última leitura do tipo, ou extremo de 24h. */
+function valorColuna(s: Station, key: string): number | null {
+  if (key.startsWith("x:")) {
+    const campo = key.slice(2) as "temp_max" | "temp_min" | "umid_max" | "umid_min";
+    return s.extremos_24h?.[campo] ?? null;
+  }
+  return s.latest_readings.find((r) => r.reading_type === key)?.value ?? null;
+}
 
 /** Tipos de leitura que aparecem na tabela de Dados Meteorológicos — chuva
  * fica de fora porque tem tela própria (com acumulados), ver PrecipitationTable. */
 export const METEOROLOGICAL_READING_TYPES = [
   "temperatura_c",
   "umidade_pct",
+  "pressao_hpa",
+  "pressao_nm_hpa",
+  "ponto_orvalho_c",
+  "sensacao_termica_c",
+  "radiacao_wm2",
+  "uv_indice",
   "vento_ms",
   "vento_rajada_ms",
   "vento_dir_graus",
@@ -68,8 +95,8 @@ const FIXED_SORT_KEYS = new Set(["name", "municipality", "source", "updated"]);
 
 // Larguras padrão (px), ajustáveis arrastando a borda direita do cabeçalho (lembradas no
 // navegador). Em telas < 640px os padrões são menores. Texto quebra em várias linhas.
-const W_DESKTOP: Record<string, number> = { estacao: 170, municipio: 130, redec: 128, fonte: 96, tipo: 110, coluna: 84, atualizado: 130 };
-const W_MOBILE: Record<string, number> = { estacao: 120, municipio: 112, redec: 128, fonte: 80, tipo: 96, coluna: 80, atualizado: 110 };
+const W_DESKTOP: Record<string, number> = { estacao: 170, municipio: 130, redec: 140, fonte: 116, tipo: 110, coluna: 100, atualizado: 130 };
+const W_MOBILE: Record<string, number> = { estacao: 120, municipio: 112, redec: 140, fonte: 100, tipo: 96, coluna: 92, atualizado: 110 };
 
 const DataTable = forwardRef<
   TableExportHandle,
@@ -101,7 +128,11 @@ const DataTable = forwardRef<
   const columns = useMemo(() => {
     const present = new Set<string>();
     filteredStations.forEach((s) => s.latest_readings.forEach((r) => present.add(r.reading_type)));
-    return COLUMN_ORDER.filter((c) => present.has(c) && (!allowedTypes || allowedTypes.has(c)));
+    const temExtremos = (campo: string) => filteredStations.some((s) => (s.extremos_24h as Record<string, number | null> | null | undefined)?.[campo] != null);
+    return COLUMN_ORDER.filter((c) => {
+      if (c.startsWith("x:")) return temExtremos(c.slice(2));
+      return present.has(c) && (!allowedTypes || allowedTypes.has(c));
+    });
   }, [filteredStations, allowedTypes]);
 
   const mostRecentUpdate = (s: Station): string | null => {
@@ -123,8 +154,8 @@ const DataTable = forwardRef<
       }
       // Coluna de valor (ex: temperatura_c) — quem não tem leitura desse
       // tipo vai sempre pro fim, não importa a direção.
-      const va = a.latest_readings.find((r) => r.reading_type === sortKey)?.value;
-      const vb = b.latest_readings.find((r) => r.reading_type === sortKey)?.value;
+      const va = valorColuna(a, sortKey);
+      const vb = valorColuna(b, sortKey);
       if (va == null && vb == null) return 0;
       if (va == null) return 1;
       if (vb == null) return -1;
@@ -158,7 +189,6 @@ const DataTable = forwardRef<
       "Atualizado em",
     ];
     const rows = sorted.map((s) => {
-      const readingsByType = Object.fromEntries(s.latest_readings.map((r) => [r.reading_type, r]));
       const updated = mostRecentUpdate(s);
       return [
         s.name,
@@ -166,7 +196,10 @@ const DataTable = forwardRef<
         redecOf(s.municipality),
         SOURCE_LABELS[s.source] ?? s.source,
         STATION_TYPE_LABELS[s.station_type] ?? s.station_type,
-        ...columns.map((c) => (readingsByType[c] ? formatReadingValue(c, readingsByType[c].value) : "")),
+        ...columns.map((c) => {
+          const v = valorColuna(s, c);
+          return v != null ? formatReadingValue(c, v) : "";
+        }),
         updated ? formatTimestamp(updated) : "",
       ];
     });
@@ -260,7 +293,6 @@ const DataTable = forwardRef<
         </thead>
         <tbody>
           {sorted.map((s) => {
-            const readingsByType = Object.fromEntries(s.latest_readings.map((r) => [r.reading_type, r]));
             const updated = mostRecentUpdate(s);
             const atraso = getDelayStatus(updated);
             return (
@@ -303,7 +335,10 @@ const DataTable = forwardRef<
                     className="whitespace-nowrap px-1.5 py-1 text-right text-gray-800"
                     style={{ width: w.coluna, maxWidth: w.coluna, minWidth: w.coluna }}
                   >
-                    {readingsByType[c] ? formatReadingValue(c, readingsByType[c].value) : "—"}
+                    {(() => {
+                      const v = valorColuna(s, c);
+                      return v != null ? formatReadingValue(c, v) : "—";
+                    })()}
                   </td>
                 ))}
                 <td

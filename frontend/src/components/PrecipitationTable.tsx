@@ -86,8 +86,8 @@ const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "source", "updat
 
 // Larguras padrão (px), ajustáveis arrastando a borda direita do cabeçalho (lembradas no
 // navegador). Em telas < 640px os padrões são menores. Texto quebra em várias linhas.
-const W_DESKTOP: Record<string, number> = { estacao: 170, redec: 128, municipio: 140, janela: 58, fonte: 84, atualizado: 112 };
-const W_MOBILE: Record<string, number> = { estacao: 120, redec: 128, municipio: 112, janela: 54, fonte: 72, atualizado: 100 };
+const W_DESKTOP: Record<string, number> = { estacao: 170, redec: 140, municipio: 140, janela: 58, fonte: 116, atualizado: 112 };
+const W_MOBILE: Record<string, number> = { estacao: 120, redec: 140, municipio: 112, janela: 54, fonte: 100, atualizado: 100 };
 
 const PrecipitationTable = forwardRef<
   TableExportHandle,
