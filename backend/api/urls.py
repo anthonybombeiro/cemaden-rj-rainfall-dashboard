@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .admin_views import AdminOpsView, MigrateSuperuserView
 from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeView, ProfileUpdateView
-from .ingest_views import RemoteReadingsIngestView
+from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .refresh_views import RefreshNowView
 from .views import AlertEventViewSet, PrevisaoViewSet, RiskAlertViewSet, SourceViewSet, StationViewSet
 
@@ -15,6 +15,7 @@ router.register("previsoes", PrevisaoViewSet, basename="previsao")
 router.register("risk-alerts", RiskAlertViewSet, basename="risk-alert")
 
 urlpatterns = [
+    path("ingest/status/", IngestStatusView.as_view(), name="ingest-status"),
     path("ingest/readings/", RemoteReadingsIngestView.as_view(), name="ingest-readings"),
     path("admin/migrate/", MigrateSuperuserView.as_view(), name="admin-migrate"),
     path("admin/run/", AdminOpsView.as_view(), name="admin-run"),

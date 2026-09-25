@@ -109,22 +109,33 @@ class InmetConnector(BaseConnector):
         return stations
 
     def fetch_readings(self, stations: list[dict]) -> list[dict]:
+        """API oficial com token é o método PRIMÁRIO. O scraping (Selenium)
+        fica preservado só como reserva: aqui dentro só roda se
+        INMET_SCRAPE_ENABLED=True (desligado por padrão — o HostGator não tem
+        Chrome); em produção a reserva é o workflow do GitHub Actions
+        `scrape-inmet.yml`, acionado só quando os dados do INMET ficam
+        defasados (ver IngestStatusView). Sem token ou com falha da API e sem
+        reserva local, o erro é PROPAGADO (aparece em Source.last_ingest_error),
+        nunca engolido."""
         token = getattr(settings, "INMET_API_TOKEN", "")
+        scrape_ok = getattr(settings, "INMET_SCRAPE_ENABLED", False)
+
         if token:
             try:
                 return self._fetch_readings_via_token(stations, token)
             except Exception:  # noqa: BLE001
-                logger.exception("Falha usando o token da API do INMET, tentando scraping como fallback.")
-
-        if not getattr(settings, "INMET_SCRAPE_ENABLED", True):
-            logger.info("INMET: sem token e scraping desabilitado (INMET_SCRAPE_ENABLED=False) — pulando leituras.")
-            return []
+                logger.exception("Falha na API do INMET (token).")
+                if not scrape_ok:
+                    raise
+                logger.warning("Usando o scraping como reserva local.")
+        elif not scrape_ok:
+            raise RuntimeError("INMET_API_TOKEN não configurado e scraping desabilitado — sem leituras do INMET.")
 
         try:
             return self._fetch_readings_via_scraping(stations)
         except Exception:  # noqa: BLE001
             logger.exception("Falha no scraping do INMET (Selenium/Chrome). Verifique se o Chrome está instalado.")
-            return []
+            raise
 
     # -- Método 1: API oficial (precisa de token) -----------------------------
 
@@ -139,12 +150,13 @@ class InmetConnector(BaseConnector):
         estações do RJ; valores idênticos aos do endpoint por estação.
         Erros da API chegam como HTTP 200 + texto, não como JSON."""
         codigos = {st["external_id"] for st in stations}
-        agora = dt.datetime.now(dt.timezone.utc)
-        horas = int(getattr(settings, "INMET_BULK_HOURS", 3))
         readings: list[dict] = []
+        descartados = 0
+        desconhecidas_com_dado: set[str] = set()
+        lista_horas = self._horas_a_buscar()
 
-        for i in range(horas):
-            h = agora - dt.timedelta(hours=i)
+        for i, h in enumerate(lista_horas):
+            horas = len(lista_horas)
             url = BULK_URL_TEMPLATE.format(data=h.date().isoformat(), hora=h.strftime("%H") + "00", token=token)
             resp = requests.get(url, timeout=60)
             resp.raise_for_status()
@@ -162,6 +174,8 @@ class InmetConnector(BaseConnector):
             for row in payload:
                 codigo = row.get("CD_ESTACAO")
                 if codigo not in codigos:
+                    if row.get("UF") == "RJ" and any(row.get(k) not in (None, "") for k in _CAMPOS_MEDICAO):
+                        desconhecidas_com_dado.add(str(codigo))
                     continue
                 timestamp = _parse_timestamp_api(row)
                 if timestamp is None:
@@ -177,6 +191,10 @@ class InmetConnector(BaseConnector):
                     valor = _to_float(row.get(campo_origem))
                     if valor is None:
                         continue
+                    if not _valor_plausivel(reading_type, valor):
+                        descartados += 1
+                        logger.warning("INMET %s: %s=%s fora da faixa física, descartado.", codigo, campo_origem, valor)
+                        continue
                     readings.append(
                         {
                             "external_id": codigo,
@@ -188,7 +206,31 @@ class InmetConnector(BaseConnector):
                     )
             if i < horas - 1:
                 time.sleep(2)
+        if desconhecidas_com_dado:
+            logger.warning(
+                "INMET: estações do RJ com dado no lote mas fora do cadastro (%s) — ignoradas; "
+                "confira /estacoes/T.", sorted(desconhecidas_com_dado),
+            )
         return readings
+
+    @staticmethod
+    def _horas_a_buscar() -> list[dt.datetime]:
+        """Horas (UTC, do mais antigo pro mais novo) a consultar no lote: sempre
+        as 3 últimas (a hora corrente vem incompleta e completa depois) e, se a
+        última leitura gravada for mais velha que isso (falha/queda anterior),
+        recua até ela — no máximo 8 chamadas por rodada pra respeitar o limite
+        do token; o resto do buraco fecha nas rodadas seguintes."""
+        from django.db.models import Max
+
+        base = dt.datetime.now(dt.timezone.utc).replace(minute=0, second=0, microsecond=0)
+        inicio = base - dt.timedelta(hours=2)
+        ultimo = Reading.objects.filter(station__source__slug="inmet").aggregate(m=Max("timestamp"))["m"]
+        if ultimo is not None:
+            ultimo = ultimo.astimezone(dt.timezone.utc).replace(minute=0, second=0, microsecond=0)
+            inicio = min(inicio, ultimo)
+        inicio = max(inicio, base - dt.timedelta(hours=7))
+        n = int((base - inicio).total_seconds() // 3600) + 1
+        return [inicio + dt.timedelta(hours=k) for k in range(n)]
 
     # -- Método 2: scraping da tabela pública via Selenium (temporário) ------
 
@@ -351,6 +393,25 @@ def _achar_coluna(colunas, tokens_obrigatorios: list[str]) -> str | None:
 def _normalizar(texto: str) -> str:
     sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
     return sem_acento.upper()
+
+
+_CAMPOS_MEDICAO = ("TEM_INS", "UMD_INS", "CHUVA", "VEN_VEL", "PRE_INS")
+
+# Faixas fisicamente possíveis pro RJ — só descarta o IMPOSSÍVEL (sensor com
+# defeito manda -9999 etc.), nunca um valor extremo mas real.
+_FAIXAS = {
+    Reading.ReadingType.TEMPERATURA_C: (-10.0, 50.0),
+    Reading.ReadingType.UMIDADE_PCT: (0.0, 100.0),
+    Reading.ReadingType.CHUVA_MM: (0.0, 300.0),
+    Reading.ReadingType.VENTO_MS: (0.0, 80.0),
+    Reading.ReadingType.VENTO_RAJADA_MS: (0.0, 100.0),
+    Reading.ReadingType.VENTO_DIR_GRAUS: (0.0, 360.0),
+}
+
+
+def _valor_plausivel(reading_type, valor: float) -> bool:
+    faixa = _FAIXAS.get(reading_type)
+    return faixa is None or faixa[0] <= valor <= faixa[1]
 
 
 def _to_float(valor) -> float | None:

@@ -119,3 +119,51 @@ class RemoteReadingsIngestView(APIView):
                 "tipos_invalidos": sorted(tipos_invalidos),
             }
         )
+
+
+class IngestStatusView(APIView):
+    """GET /api/ingest/status/?source=inmet — saúde da coleta de uma fonte,
+    pro workflow de RESERVA (scraping) decidir se precisa rodar. Mesmo segredo
+    do ingest (`X-Ingest-Secret`). `stale=true` quando faltam dados recentes:
+    última leitura com mais de 2h, ou menos da metade das estações ativas com
+    leitura nas últimas 3h (limiar folgado: o INMET publica por hora UTC e a
+    hora corrente só fecha depois)."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        secret_esperado = getattr(settings, "INGEST_SHARED_SECRET", "")
+        if not secret_esperado or request.headers.get("X-Ingest-Secret", "") != secret_esperado:
+            return Response({"detail": "Não autorizado."}, status=401)
+
+        slug = request.query_params.get("source", "inmet")
+        limite_h = 3
+        agora = timezone.now()
+        import datetime as _dt
+
+        corte = agora - _dt.timedelta(hours=limite_h)
+        ativas = Station.objects.filter(source__slug=slug, status=Station.Status.ATIVA).count()
+        recentes = Reading.objects.filter(station__source__slug=slug, timestamp__gte=corte)
+        reportando = recentes.values("station").distinct().count()
+        ultimo = Reading.objects.filter(station__source__slug=slug).order_by("-timestamp").values_list("timestamp", flat=True).first()
+        idade_min = round((agora - ultimo).total_seconds() / 60) if ultimo else None
+
+        motivo = ""
+        if ultimo is None:
+            motivo = "sem nenhuma leitura"
+        elif idade_min > 120:
+            motivo = f"última leitura há {idade_min} min"
+        elif ativas and reportando < ativas / 2:
+            motivo = f"só {reportando} de {ativas} estações ativas com leitura nas últimas {limite_h}h"
+        return Response(
+            {
+                "source": slug,
+                "stale": bool(motivo),
+                "motivo": motivo,
+                "ultima_leitura": ultimo.isoformat() if ultimo else None,
+                "idade_min": idade_min,
+                "estacoes_ativas": ativas,
+                "estacoes_reportando_3h": reportando,
+            }
+        )

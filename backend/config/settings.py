@@ -194,12 +194,13 @@ CEMADEN_RJ_SIRENES_PASSWORD = os.environ.get("CEMADEN_RJ_SIRENES_PASSWORD", "")
 
 INMET_API_TOKEN = os.environ.get("INMET_API_TOKEN", "")
 
-# Solução temporária enquanto não há token da API: faz scraping da tabela
+# RESERVA (desligada por padrão desde 2026-09-25, quando o token da API do INMET
+# passou a ser o método primário): faz scraping da tabela
 # pública (sem login) tempo.inmet.gov.br/TabelaEstacoes/{codigo} com um
 # Chrome real via Selenium. Exige Google Chrome instalado na máquina que
 # roda a ingestão — NÃO funciona no HostGator compartilhado (sem root para
 # instalar Chrome). Ver docs/fontes-de-dados.md.
-INMET_SCRAPE_ENABLED = os.environ.get("INMET_SCRAPE_ENABLED", "True") == "True"
+INMET_SCRAPE_ENABLED = os.environ.get("INMET_SCRAPE_ENABLED", "False") == "True"
 INMET_SCRAPE_HEADLESS = os.environ.get("INMET_SCRAPE_HEADLESS", "True") == "True"
 CEMADEN_NACIONAL_BASE_URL = os.environ.get(
     "CEMADEN_NACIONAL_BASE_URL", "http://150.163.255.240/CEMADEN/resources/parceiros"
