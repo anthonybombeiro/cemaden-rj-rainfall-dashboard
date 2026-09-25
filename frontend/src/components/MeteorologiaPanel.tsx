@@ -61,7 +61,8 @@ function PrevisaoCard({ regiao, previsao }: { regiao: string; previsao?: Previsa
         <IconeTempo icone={previsao.icone} />
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-2 text-center">
+      <div className="mt-2 text-xs font-semibold text-gray-600">Temperatura:</div>
+      <div className="mt-1 grid grid-cols-2 gap-2 text-center">
         <div className="rounded bg-red-50 py-1.5">
           <div className="text-[11px] text-gray-500">Máxima</div>
           <div className="text-xl font-semibold text-red-600">{previsao.temperatura_maxima}°C</div>
@@ -77,24 +78,31 @@ function PrevisaoCard({ regiao, previsao }: { regiao: string; previsao?: Previsa
           <Droplets size={15} className="shrink-0 text-sky-600" />
           <dt className="sr-only">Umidade</dt>
           <dd>
-            Umidade {previsao.umidade_minima}% – {previsao.umidade_maxima}%
+            <span className="font-medium">Umidade</span> entre {previsao.umidade_minima}% e {previsao.umidade_maxima}%
           </dd>
         </div>
         <div className="flex items-center gap-2">
           <Wind size={15} className="shrink-0 text-orange-500" />
           <dt className="sr-only">Vento</dt>
           <dd>
-            {previsao.vento_velocidade}
-            {previsao.vento_direcao ? ` · ${previsao.vento_direcao}` : ""}
+            <span className="font-medium">Vento</span> {previsao.vento_velocidade}
+            {previsao.vento_direcao && (
+              <>
+                {" "}
+                <span className="font-medium">Direção</span> {previsao.vento_direcao}
+              </>
+            )}
           </dd>
         </div>
         {(previsao.nascer_sol || previsao.por_sol) && (
-          <div className="flex items-center gap-3 text-gray-600">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-700">
             <span className="flex items-center gap-1">
-              <Sunrise size={15} className="text-amber-500" /> {previsao.nascer_sol || "—"}
+              <Sunrise size={15} className="text-amber-500" /> <span className="font-medium">Nascer</span>{" "}
+              {previsao.nascer_sol || "—"}
             </span>
             <span className="flex items-center gap-1">
-              <Sunset size={15} className="text-amber-700" /> {previsao.por_sol || "—"}
+              <Sunset size={15} className="text-amber-700" /> <span className="font-medium">Pôr</span>{" "}
+              {previsao.por_sol || "—"}
             </span>
           </div>
         )}
