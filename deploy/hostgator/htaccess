@@ -4,3 +4,5 @@ DirectoryIndex index.html
 
 RewriteEngine On
 RewriteRule ^api/(.*)$ /django.cgi/api/$1 [L,QSA]
+# Django Admin (edicao de cotas, tipos de acionamento de sirene etc.)
+RewriteRule ^admin(/.*)?$ /django.cgi/admin$1 [L,QSA]
