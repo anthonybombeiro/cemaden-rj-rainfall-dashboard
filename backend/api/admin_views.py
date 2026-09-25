@@ -230,3 +230,40 @@ class MigrateSuperuserView(APIView):
         saida = io.StringIO()
         call_command("migrate", interactive=False, stdout=saida, stderr=saida)
         return Response({"ok": True, "output": saida.getvalue()[-2000:]})
+
+
+class EnvCheckView(APIView):
+    """GET /api/admin/env-check/ — só superusuário. Diz SE segredos estão
+    configurados (booleanos/tamanho), nunca o valor."""
+
+    def get(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        import os
+
+        from django.conf import settings as dj
+
+        arq = dj.BASE_DIR / ".env.local"
+        info = {"env_local_existe": arq.exists(), "env_local_legivel": os.access(arq, os.R_OK) if arq.exists() else False}
+        if info["env_local_legivel"]:
+            try:
+                linhas = arq.read_text(encoding="utf-8", errors="replace").splitlines()
+                info["env_local_chaves"] = [l.split("=", 1)[0] for l in linhas if "=" in l]
+                info["env_local_bytes"] = arq.stat().st_size
+            except Exception as exc:  # noqa: BLE001
+                info["env_local_erro"] = str(exc)
+        token = getattr(dj, "INMET_API_TOKEN", "")
+        info["settings_inmet_token_configurado"] = bool(token)
+        info["settings_inmet_token_tamanho"] = len(token)
+        info["os_environ_tem_token"] = bool(os.environ.get("INMET_API_TOKEN"))
+        try:
+            import dotenv
+
+            info["dotenv_versao"] = getattr(dotenv, "__version__", "?")
+            vals = dotenv.dotenv_values(arq)
+            info["dotenv_values"] = {k: (len(v) if v is not None else None) for k, v in vals.items()}
+            info["dotenv_load_retorno"] = dotenv.load_dotenv(arq, override=False)
+            info["apos_load_env_tem_token"] = bool(os.environ.get("INMET_API_TOKEN"))
+        except Exception as exc:  # noqa: BLE001
+            info["dotenv_erro"] = str(exc)
+        return Response(info)
