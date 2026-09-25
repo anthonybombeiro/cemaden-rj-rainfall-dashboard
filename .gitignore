@@ -18,3 +18,5 @@ frontend/.env*.local
 .idea/
 .DS_Store
 Thumbs.db
+
+backend/.env.local

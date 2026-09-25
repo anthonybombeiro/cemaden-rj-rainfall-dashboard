@@ -30,6 +30,9 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+# Segredos adicionados depois do setup inicial (ex.: INMET_API_TOKEN) ficam neste
+# arquivo separado, fora do git, pra não precisar reescrever o .env de produção.
+load_dotenv(BASE_DIR / ".env.local")
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-key")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
