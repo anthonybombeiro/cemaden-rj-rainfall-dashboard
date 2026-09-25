@@ -155,9 +155,9 @@ Legenda: **✅** gravado · **⚠️** a fonte envia mas **não gravamos** · **
 ## 5. Pontos de atenção para fidelidade dos dados
 
 Observados no código; alguns dependem de validação com a fonte:
-1. **Niterói grava só 5 min** e a coleta é de 15 em 15 min. Se a leitura de 5 min for gravada uma vez por coleta, os
-   outros 10 min de cada quarto de hora **não entram** nos acumulados (subestima). A API já entrega `m15`/`h01`.
-   *A validar antes de qualquer decisão operacional com essa rede.*
+1. **Niterói (CORRIGIDO em 2026-09-25):** o sistema gravava só a janela de 5 min (`m05`) numa coleta de 15 em 15
+   min, captando 1/3 da chuva (ex.: Engenho do Mato informava 2,2 mm na última hora e o painel mostrava 0,0). Passou a
+   gravar `m15` (janela igual ao intervalo de coleta) e o histórico foi regravado a partir do `raw_payload`.
 2. **Alerta Rio, unidade do vento:** o código assume km/h e divide por 3,6, mas isso está anotado como não confirmado.
 3. **Acumulados por janela** (1 h, 24 h…) das tabelas de Precipitação são **calculados somando as leituras** que
    gravamos. As janelas maiores que as fontes entregam prontas (24 h, 96 h, mês) não são usadas para conferência.

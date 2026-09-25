@@ -10,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core.municipios import canonico_ou_original
-from core.models import AlertEvent, Previsao, Reading, RiskAlert, Source, Station
+from core.models import AlertEvent, Previsao, Reading, RiskAlert, SireneAcaoTipo, Source, Station
 
 from .serializers import (
     AlertEventSerializer,
@@ -267,18 +267,35 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         stations = list(self._filtered_stations().filter(station_type=Station.StationType.SIRENE))
         station_ids = [s.id for s in stations]
 
-        tocando_desde = {
-            ev.station_id: ev.triggered_at
-            for ev in AlertEvent.objects.filter(
-                rule__name="Sirene de alarme tocando", station_id__in=station_ids, resolved_at__isnull=True
-            )
-        }
+        eventos = list(
+            AlertEvent.objects.filter(rule__name="Sirene de alarme tocando", station_id__in=station_ids)
+            .order_by("station_id", "-triggered_at")
+            .values("station_id", "value", "triggered_at", "resolved_at")
+        )
+        ativo = {}
+        ultimo = {}
+        for ev in eventos:  # já vem do mais novo pro mais antigo por estação
+            if ev["resolved_at"] is None:
+                ativo.setdefault(ev["station_id"], ev)
+            else:
+                ultimo.setdefault(ev["station_id"], ev)
+        tipos = {t.codigo: t for t in SireneAcaoTipo.objects.all()}
+
+        def info_acao(codigo):
+            t = tipos.get(int(codigo)) if codigo is not None else None
+            return (t.nome, t.categoria) if t else (f"Acionamento código {int(codigo)}", "outro")
+
+        # Chuva de 1h (soma dos baldes de 15 min da última hora) — só pras sirenes com
+        # pluviômetro; sem leitura na última hora fica None (não "0,0").
+        com_pluv = [s for s in stations if (s.raw_metadata or {}).get("tem_pluviometro")]
+        chuva_1h = {}
+        for entry in self._calcular_precipitacao(com_pluv):
+            chuva_1h[entry["id"]] = entry.get("acumulado_1h_mm")
+        limite_1h = timezone.now() - datetime.timedelta(hours=1)
 
         # Última leitura de chuva (só existe pras ~85 sirenes com
         # pluviômetro acoplado) — pega em Python a 1ª ocorrência por
-        # estação de uma lista já ordenada (station_id, -timestamp),
-        # mesma técnica de StationListSerializer.get_latest_readings (evita
-        # N+1 e evita `.distinct("campo")`, que o MySQL não suporta).
+        # estação de uma lista já ordenada (station_id, -timestamp).
         leituras_recentes = Reading.objects.filter(
             station_id__in=station_ids,
             reading_type=Reading.ReadingType.CHUVA_MM,
@@ -292,7 +309,12 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         for station in stations:
             meta = station.raw_metadata or {}
             chuva = ultima_chuva.get(station.id)
-            triggered_at = tocando_desde.get(station.id)
+            ev = ativo.get(station.id)
+            triggered_at = ev["triggered_at"] if ev else None
+            acao_nome, acao_categoria = info_acao(ev["value"]) if ev else (None, None)
+            prev = ultimo.get(station.id)
+            prev_nome = info_acao(prev["value"])[0] if prev else None
+            sem_dado_1h = chuva is None or chuva["timestamp"] < limite_1h
             data.append(
                 {
                     "id": station.id,
@@ -311,6 +333,12 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                     "status_estacao": station.status,
                     "tocando": triggered_at is not None,
                     "tocando_desde": triggered_at,
+                    "acao_codigo": int(ev["value"]) if ev else None,
+                    "acao_nome": acao_nome,
+                    "acao_categoria": acao_categoria,
+                    "ultimo_acionamento_nome": prev_nome,
+                    "ultimo_acionamento_fim": prev["resolved_at"] if prev else None,
+                    "chuva_1h_mm": (None if sem_dado_1h else chuva_1h.get(station.id)),
                     "ultima_chuva_mm": chuva["value"] if chuva else None,
                     "ultima_chuva_em": chuva["timestamp"] if chuva else None,
                     "updated_at": station.updated_at,

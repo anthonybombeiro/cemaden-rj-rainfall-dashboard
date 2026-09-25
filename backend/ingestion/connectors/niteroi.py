@@ -14,13 +14,15 @@ diretor do CEMADEN-RJ, em setembro/2026).
 Autenticação: HTTP Basic (usuário/senha institucional, configurar em
 NITEROI_API_USERNAME/NITEROI_API_PASSWORD no `.env` — nunca no código).
 
-Guardamos "m05" (chuva acumulada nos últimos 5 min) como `chuva_mm` — é a
-janela mais fina disponível, tratada como "balde" (soma ao longo do tempo
-é válida) pro nosso próprio cálculo de acumulados em `api/views.py`
-(`PRECIPITACAO_BUCKET_SOURCES`). As janelas maiores que a API já entrega
-prontas (h24, h96, mes, ...) não são usadas diretamente, mesmo motivo
-documentado em `cemaden_rj_pluviometros.py`: consistência com as outras
-fontes em vez de um campo especial só pra essa.
+Guardamos "m15" (chuva acumulada nos últimos 15 min) como `chuva_mm`, tratada
+como "balde" (soma ao longo do tempo é válida) pro nosso cálculo de acumulados em
+`api/views.py` (`PRECIPITACAO_BUCKET_SOURCES`). ATENÇÃO: o balde só é válido se a
+janela gravada tiver o MESMO tamanho do intervalo entre coletas. A coleta é de 15 em
+15 min (cron), então a janela certa é `m15` — até 2026-09-25 gravávamos `m05`, que
+captava só 5 de cada 15 min (subestimava a chuva em até ~3x: ex. Engenho do Mato
+informava h01=2,2 mm e o painel mostrava 0,0). O histórico foi corrigido a partir do
+`raw_payload` (migração 0012). As janelas maiores que a API já entrega prontas (h24,
+h96, mes, ...) não são usadas diretamente, por consistência com as outras fontes.
 """
 
 from __future__ import annotations
@@ -103,7 +105,7 @@ class NiteroiConnector(BaseConnector):
             timestamp = _parse_timestamp(item.get("horaLeitura"))
             if timestamp is None:
                 continue
-            valor = item.get("m05")
+            valor = item.get("m15")
             if valor is None:
                 continue
             readings.append(

@@ -65,3 +65,13 @@ class CotaHidrologicaAdmin(admin.ModelAdmin):
     search_fields = ("station__name", "rio", "station__municipality")
     list_filter = ("responsavel",)
     autocomplete_fields = ("station",)
+
+
+from core.models import SireneAcaoTipo  # noqa: E402
+
+
+@admin.register(SireneAcaoTipo)
+class SireneAcaoTipoAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "categoria", "observacao")
+    list_editable = ("nome", "categoria")
+    ordering = ("codigo",)

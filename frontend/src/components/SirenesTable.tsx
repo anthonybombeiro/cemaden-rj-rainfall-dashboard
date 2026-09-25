@@ -45,6 +45,20 @@ const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "bairro", "updat
 const W_DESKTOP: Record<string, number> = { estacao: 170, municipio: 130, redec: 140, bairro: 170, status: 104, acionamento: 130, chuva: 84, atualizado: 130 };
 const W_MOBILE: Record<string, number> = { estacao: 120, municipio: 112, redec: 140, bairro: 130, status: 100, acionamento: 120, chuva: 80, atualizado: 110 };
 
+const ACAO_ESTILO: Record<string, string> = {
+  aviso: "bg-amber-500 text-gray-900",
+  teste: "bg-sky-600 text-white",
+  mobilizacao: "bg-red-600 text-white",
+  outro: "bg-purple-700 text-white",
+  normal: "bg-gray-200 text-gray-600",
+};
+const ACAO_ROTULO: Record<string, string> = {
+  aviso: "Aviso de Chuva",
+  teste: "Teste de Manutenção",
+  mobilizacao: "Mobilização",
+  outro: "Outro / a confirmar",
+};
+
 const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }>(function SirenesTable(
   { stations },
   ref,
@@ -63,11 +77,11 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
       else if (sortKey === "redec") cmp = a.redec.localeCompare(b.redec);
       else if (sortKey === "bairro") cmp = a.bairro.localeCompare(b.bairro);
       else if (sortKey === "status") cmp = a.status_estacao.localeCompare(b.status_estacao);
-      else if (sortKey === "ultima_chuva_mm") {
-        if (a.ultima_chuva_mm == null && b.ultima_chuva_mm == null) cmp = 0;
-        else if (a.ultima_chuva_mm == null) cmp = -1;
-        else if (b.ultima_chuva_mm == null) cmp = 1;
-        else cmp = a.ultima_chuva_mm - b.ultima_chuva_mm;
+      else if (sortKey === "chuva_1h_mm") {
+        if (a.chuva_1h_mm == null && b.chuva_1h_mm == null) cmp = 0;
+        else if (a.chuva_1h_mm == null) cmp = -1;
+        else if (b.chuva_1h_mm == null) cmp = 1;
+        else cmp = a.chuva_1h_mm - b.chuva_1h_mm;
       } else if (sortKey === "updated") cmp = (a.updated_at ?? "").localeCompare(b.updated_at ?? "");
       return sortAsc ? cmp : -cmp;
     });
@@ -97,8 +111,9 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
       "Endereço",
       "Status",
       "Acionamento",
+      "Tipo de acionamento",
       "Tocando desde",
-      "Última chuva (mm)",
+      "Chuva 1h (mm)",
       "Atualizado em",
     ];
     const rows = sorted.map((s) => [
@@ -109,8 +124,9 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
       [s.rua, s.numero].filter(Boolean).join(", "),
       s.status_estacao === "ativa" ? "Online" : s.status_estacao === "inativa" ? "Offline" : "Desconhecido",
       s.tocando ? "TOCANDO" : "Normal",
+      s.tocando ? (s.acao_nome ?? "") : "",
       s.tocando_desde ? formatTimestamp(s.tocando_desde) : "",
-      s.tem_pluviometro ? (s.ultima_chuva_mm ?? "") : "",
+      s.tem_pluviometro ? (s.chuva_1h_mm ?? "") : "",
       formatTimestamp(s.updated_at),
     ]);
     downloadCsv(`cemaden-rj-sirenes-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
@@ -192,9 +208,9 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
             <th
               className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-1 py-2 text-right"
               style={{ width: w.chuva, maxWidth: w.chuva, minWidth: w.chuva }}
-              onClick={() => toggleSort("ultima_chuva_mm")}
+              onClick={() => toggleSort("chuva_1h_mm")}
             >
-              Últ. chuva{arrow("ultima_chuva_mm")}
+              Chuva 1h (mm){arrow("chuva_1h_mm")}
               {resizer("chuva")}
             </th>
             <th
@@ -262,11 +278,25 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
                 </td>
                 <td className="whitespace-normal break-words leading-tight px-2 py-1" style={{ backgroundColor: bgFundo }}>
                   {s.tocando ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-                      🔊 TOCANDO
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${
+                        ACAO_ESTILO[s.acao_categoria ?? "outro"]
+                      }`}
+                      title={s.acao_codigo != null ? `Código de acionamento ${s.acao_codigo}` : undefined}
+                    >
+                      🔊 {s.acao_nome ?? "TOCANDO"}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-400">Normal</span>
+                    <span
+                      className="text-xs text-gray-400"
+                      title={
+                        s.ultimo_acionamento_nome && s.ultimo_acionamento_fim
+                          ? `Último acionamento: ${s.ultimo_acionamento_nome}, encerrado em ${formatTimestamp(s.ultimo_acionamento_fim)} (retorno à normalidade)`
+                          : "Sem acionamento ativo (retorno à normalidade)"
+                      }
+                    >
+                      Normal
+                    </span>
                   )}
                   {s.tocando && s.tocando_desde && (
                     <div className="mt-0.5 text-[10px] text-gray-500">desde {formatTimestamp(s.tocando_desde)}</div>
@@ -276,7 +306,17 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
                   className="whitespace-nowrap px-1.5 py-1 text-right text-gray-700"
                   style={{ backgroundColor: bgFundo }}
                 >
-                  {s.tem_pluviometro ? formatMm(s.ultima_chuva_mm) : <span className="text-gray-300">n/d</span>}
+                  {s.tem_pluviometro ? (
+                    s.chuva_1h_mm == null ? (
+                      <span className="text-gray-400" title="Sem leitura de chuva na última hora">
+                        —
+                      </span>
+                    ) : (
+                      formatMm(s.chuva_1h_mm)
+                    )
+                  ) : (
+                    <span className="text-gray-300">n/d</span>
+                  )}
                 </td>
                 <td className="whitespace-normal break-words leading-tight px-2 py-1 text-gray-500" style={{ backgroundColor: bgFundo }}>
                   {formatTimestamp(s.updated_at)}
@@ -286,14 +326,25 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
           })}
         </tbody>
       </table>
+      <div className="sticky left-0 flex flex-wrap items-center gap-2 border-t border-gray-100 bg-white px-3 py-2 text-[10px] text-gray-500 sm:text-[11px]">
+        <span>Acionamento:</span>
+        {(["aviso", "teste", "mobilizacao", "outro"] as const).map((k) => (
+          <span key={k} className={`rounded-full px-2 py-0.5 font-bold ${ACAO_ESTILO[k]}`}>
+            {ACAO_ROTULO[k]}
+          </span>
+        ))}
+        <span className="text-gray-400">Normal = retorno à normalidade</span>
+      </div>
       {sorted.length === 0 && (
         <div className="p-6 text-center text-sm text-gray-400">Nenhuma sirene encontrada com os filtros atuais.</div>
       )}
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
         Status vem do próprio portal de sirenes da CEMADEN-RJ (GridLab), lido junto com as
         leituras a cada sincronização — não é uma checagem em tempo real feita por este painel.
-        &ldquo;Últ. chuva&rdquo; só existe pras sirenes com pluviômetro acoplado (usado pra
-        parametrizar o acionamento automático dela). Clique em qualquer cabeçalho pra ordenar.
+        &ldquo;Chuva 1h&rdquo; é a soma da chuva na última hora e só existe pras sirenes com
+        pluviômetro acoplado (usado pra parametrizar o acionamento automático dela); &ldquo;—&rdquo; = sem
+        leitura na última hora. O tipo de acionamento vem do código do portal; os nomes dos códigos ficam na
+        tabela &ldquo;Tipos de acionamento de sirene&rdquo; do Admin. Clique em qualquer cabeçalho pra ordenar.
       </div>
       <div className="sticky left-0 border-t border-gray-100 p-2 text-xs text-gray-400">
         Arraste a borda direita de um cabeçalho para ajustar a largura da coluna (duplo clique restaura).{" "}

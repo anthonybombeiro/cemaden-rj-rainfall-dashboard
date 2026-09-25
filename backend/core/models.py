@@ -340,3 +340,30 @@ class CotaHidrologica(models.Model):
 
     def __str__(self):
         return f"Cotas · {self.station.name}"
+
+
+class SireneAcaoTipo(models.Model):
+    """Nome de cada código de acionamento (`fk_idStatusAcaoEstacao`) do portal de
+    sirenes. Editável no Admin: códigos novos aparecem aqui sozinhos (com nome
+    provisório) na primeira vez que o sync os vê. Pelo código do próprio portal:
+    4 (e 0) = normal / retorno à normalidade e 1 = estação mobilizada."""
+
+    class Categoria(models.TextChoices):
+        NORMAL = "normal", "Normal / retorno à normalidade"
+        AVISO = "aviso", "Aviso de chuva"
+        TESTE = "teste", "Teste de manutenção"
+        MOBILIZACAO = "mobilizacao", "Mobilização"
+        OUTRO = "outro", "Outro / a confirmar"
+
+    codigo = models.IntegerField(unique=True)
+    nome = models.CharField(max_length=80)
+    categoria = models.CharField(max_length=15, choices=Categoria.choices, default=Categoria.OUTRO)
+    observacao = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["codigo"]
+        verbose_name = "tipo de acionamento de sirene"
+        verbose_name_plural = "tipos de acionamento de sirene"
+
+    def __str__(self):
+        return f"{self.codigo} · {self.nome}"

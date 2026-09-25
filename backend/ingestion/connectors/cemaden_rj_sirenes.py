@@ -158,7 +158,7 @@ def sync() -> SirenesSyncResult:
     from django.conf import settings
     from django.utils import timezone
 
-    from core.models import AlertEvent, Reading, Source, Station
+    from core.models import AlertEvent, Reading, SireneAcaoTipo, Source, Station
 
     result = SirenesSyncResult()
     usuario = getattr(settings, "CEMADEN_RJ_SIRENES_USERNAME", "")
@@ -189,6 +189,8 @@ def sync() -> SirenesSyncResult:
     )
     regra = _regra_sirene()
     now = timezone.now()
+    tipos = {t.codigo: t for t in SireneAcaoTipo.objects.all()}
+    codigos_normais = STATUS_ACAO_NORMAL | {c for c, t in tipos.items() if t.categoria == "normal"}
 
     for registro in registros:
         tipo_equip = (registro.get("equipamento") or {}).get("tipoEquipamento", "")
@@ -254,12 +256,27 @@ def sync() -> SirenesSyncResult:
                 if criado:
                     result.readings_created += 1
 
-        tocando = status_acao is not None and status_acao not in STATUS_ACAO_NORMAL
+        # Igual ao portal (mapaFrame.jsp): só conta como acionada se a estação está ONLINE
+        # (statusEstacao == 1) e a ação não é normal (0/4). Cada mudança de código
+        # (ex.: aviso -> mobilização) fecha o evento anterior e abre outro, guardando o
+        # histórico; o código fica em AlertEvent.value.
+        tocando = status_estacao == 1 and status_acao is not None and status_acao not in codigos_normais
         evento_ativo = AlertEvent.objects.filter(rule=regra, station=station, resolved_at__isnull=True).first()
         if tocando:
+            codigo = int(status_acao)
+            if codigo not in tipos:
+                tipos[codigo], _ = SireneAcaoTipo.objects.get_or_create(
+                    codigo=codigo,
+                    defaults={"nome": f"Acionamento código {codigo} (nome a confirmar)", "categoria": "outro"},
+                )
             result.sirenes_tocando += 1
+            if evento_ativo is not None and int(evento_ativo.value) != codigo:
+                evento_ativo.resolved_at = now
+                evento_ativo.save(update_fields=["resolved_at"])
+                result.eventos_resolvidos += 1
+                evento_ativo = None
             if evento_ativo is None:
-                AlertEvent.objects.create(rule=regra, station=station, value=float(status_acao))
+                AlertEvent.objects.create(rule=regra, station=station, value=float(codigo))
                 result.eventos_criados += 1
         elif evento_ativo is not None:
             evento_ativo.resolved_at = now

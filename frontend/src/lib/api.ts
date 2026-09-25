@@ -301,6 +301,14 @@ export type SireneStation = {
   status_estacao: string;
   tocando: boolean;
   tocando_desde: string | null;
+  /** Tipo do acionamento ativo (tabela SireneAcaoTipo, editável no Admin). */
+  acao_codigo: number | null;
+  acao_nome: string | null;
+  acao_categoria: "normal" | "aviso" | "teste" | "mobilizacao" | "outro" | null;
+  ultimo_acionamento_nome: string | null;
+  ultimo_acionamento_fim: string | null;
+  /** Soma da chuva na última 1h (null = sem pluviômetro ou sem leitura na última hora). */
+  chuva_1h_mm: number | null;
   ultima_chuva_mm: number | null;
   ultima_chuva_em: string | null;
   updated_at: string | null;
