@@ -89,7 +89,7 @@ const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "rio", "bacia", 
 // cabeçalho e lembradas no navegador. Em telas < 640px os padrões são menores.
 const W_DESKTOP: Record<string, number> = {
   estacao: 170,
-  redec: 110,
+  redec: 128,
   municipio: 140,
   rio: 140,
   nivel: 96,
@@ -102,7 +102,7 @@ const W_DESKTOP: Record<string, number> = {
 };
 const W_MOBILE: Record<string, number> = {
   estacao: 120,
-  redec: 106,
+  redec: 128,
   municipio: 112,
   rio: 112,
   nivel: 84,

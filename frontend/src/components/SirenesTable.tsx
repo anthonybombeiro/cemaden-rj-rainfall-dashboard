@@ -2,9 +2,11 @@
 
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
+import ColumnResizer from "@/components/ColumnResizer";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import { SireneStation } from "@/lib/api";
 import { downloadCsv } from "@/lib/csvExport";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 
 function formatTimestamp(iso: string | null): string {
   if (!iso) return "—";
@@ -37,19 +39,17 @@ const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "bairro", "updat
 // usuário, 2026-09-23) — colgroup + maxWidth/minWidth explícitos, só
 // Estação fixa. "Atualizado em" ganhou mais espaço (era w-28/112px,
 // cortava a data — mesmo problema já corrigido nas outras tabelas).
-const W_ESTACAO = 160;
-const W_MUNICIPIO = 120;
-const W_REDEC = 90;
-const W_BAIRRO = 150;
-const W_STATUS = 100;
-const W_ACIONAMENTO = 130;
-const W_CHUVA = 80;
-const W_ATUALIZADO = 150;
+
+// Larguras padrão (px), ajustáveis arrastando a borda direita do cabeçalho (lembradas no
+// navegador). Em telas < 640px os padrões são menores. Texto quebra em várias linhas.
+const W_DESKTOP: Record<string, number> = { estacao: 170, municipio: 130, redec: 128, bairro: 170, status: 104, acionamento: 130, chuva: 84, atualizado: 130 };
+const W_MOBILE: Record<string, number> = { estacao: 120, municipio: 112, redec: 128, bairro: 130, status: 100, acionamento: 120, chuva: 80, atualizado: 110 };
 
 const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }>(function SirenesTable(
   { stations },
   ref,
 ) {
+  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-sirenes-v1", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>("prioridade");
   const [sortAsc, setSortAsc] = useState(false);
 
@@ -84,6 +84,9 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
   };
 
   const arrow = (key: string) => (key === sortKey ? (sortAsc ? " ▲" : " ▼") : "");
+  const resizer = (k: string) => (
+    <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
+  );
 
   const exportar = () => {
     const headers = [
@@ -122,74 +125,85 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
-      <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
+      <table
+        className="border-collapse text-xs sm:text-sm"
+        style={{ tableLayout: "fixed", width: w.estacao + w.municipio + w.redec + w.bairro + w.status + w.acionamento + w.chuva + w.atualizado }}
+      >
         <colgroup>
-          <col style={{ width: W_ESTACAO }} />
-          <col style={{ width: W_MUNICIPIO }} />
-          <col style={{ width: W_REDEC }} />
-          <col style={{ width: W_BAIRRO }} />
-          <col style={{ width: W_STATUS }} />
-          <col style={{ width: W_ACIONAMENTO }} />
-          <col style={{ width: W_CHUVA }} />
-          <col style={{ width: W_ATUALIZADO }} />
+          <col style={{ width: w.estacao }} />
+          <col style={{ width: w.municipio }} />
+          <col style={{ width: w.redec }} />
+          <col style={{ width: w.bairro }} />
+          <col style={{ width: w.status }} />
+          <col style={{ width: w.acionamento }} />
+          <col style={{ width: w.chuva }} />
+          <col style={{ width: w.atualizado }} />
         </colgroup>
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-0 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-              style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
+              className="sticky top-0 align-bottom leading-tight z-30 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
               onClick={() => toggleSort("name")}
             >
               Estação{arrow("name")}
+              {resizer("estacao")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio }}
               onClick={() => toggleSort("municipality")}
             >
               Município{arrow("municipality")}
+              {resizer("municipio")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec }}
               onClick={() => toggleSort("redec")}
             >
               REDEC{arrow("redec")}
+              {resizer("redec")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_BAIRRO, maxWidth: W_BAIRRO, minWidth: W_BAIRRO }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.bairro, maxWidth: w.bairro, minWidth: w.bairro }}
               onClick={() => toggleSort("bairro")}
             >
               Bairro / Endereço{arrow("bairro")}
+              {resizer("bairro")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_STATUS, maxWidth: W_STATUS, minWidth: W_STATUS }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.status, maxWidth: w.status, minWidth: w.status }}
               onClick={() => toggleSort("status")}
             >
               Status{arrow("status")}
+              {resizer("status")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_ACIONAMENTO, maxWidth: W_ACIONAMENTO, minWidth: W_ACIONAMENTO }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.acionamento, maxWidth: w.acionamento, minWidth: w.acionamento }}
               onClick={() => toggleSort("prioridade")}
             >
               Acionamento{arrow("prioridade")}
+              {resizer("acionamento")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
-              style={{ width: W_CHUVA, maxWidth: W_CHUVA, minWidth: W_CHUVA }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-1 py-2 text-right"
+              style={{ width: w.chuva, maxWidth: w.chuva, minWidth: w.chuva }}
               onClick={() => toggleSort("ultima_chuva_mm")}
             >
               Últ. chuva{arrow("ultima_chuva_mm")}
+              {resizer("chuva")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: w.atualizado, maxWidth: w.atualizado, minWidth: w.atualizado }}
               onClick={() => toggleSort("updated")}
             >
               Atualizado em{arrow("updated")}
+              {resizer("atualizado")}
             </th>
           </tr>
         </thead>
@@ -205,30 +219,30 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
                 title={s.descricao || undefined}
               >
                 <td
-                  className="sticky overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 font-medium text-gray-900 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-                  style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO, backgroundColor: bgFundo }}
+                  className="sticky z-10 whitespace-normal break-words leading-tight align-middle px-2 py-1 font-medium text-gray-900 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+                  style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao, backgroundColor: bgFundo }}
                 >
                   {s.name}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-600"
-                  style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO, backgroundColor: bgFundo }}
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-600"
+                  style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio, backgroundColor: bgFundo }}
                 >
                   {s.municipality || "—"}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-500"
-                  style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC, backgroundColor: bgFundo }}
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-500"
+                  style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec, backgroundColor: bgFundo }}
                 >
                   {s.redec || "—"}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-500"
-                  style={{ width: W_BAIRRO, maxWidth: W_BAIRRO, minWidth: W_BAIRRO, backgroundColor: bgFundo }}
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-500"
+                  style={{ width: w.bairro, maxWidth: w.bairro, minWidth: w.bairro, backgroundColor: bgFundo }}
                 >
                   {[s.bairro, s.rua].filter(Boolean).join(" — ") || "—"}
                 </td>
-                <td className="whitespace-nowrap px-2 py-1" style={{ backgroundColor: bgFundo }}>
+                <td className="whitespace-normal break-words leading-tight px-2 py-1" style={{ backgroundColor: bgFundo }}>
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${
                       online
@@ -246,7 +260,7 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
                     {online ? "Online" : desconhecido ? "Desconhecido" : "Offline"}
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-2 py-1" style={{ backgroundColor: bgFundo }}>
+                <td className="whitespace-normal break-words leading-tight px-2 py-1" style={{ backgroundColor: bgFundo }}>
                   {s.tocando ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
                       🔊 TOCANDO
@@ -264,7 +278,7 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
                 >
                   {s.tem_pluviometro ? formatMm(s.ultima_chuva_mm) : <span className="text-gray-300">n/d</span>}
                 </td>
-                <td className="whitespace-nowrap px-2 py-1 text-gray-500" style={{ backgroundColor: bgFundo }}>
+                <td className="whitespace-normal break-words leading-tight px-2 py-1 text-gray-500" style={{ backgroundColor: bgFundo }}>
                   {formatTimestamp(s.updated_at)}
                 </td>
               </tr>
@@ -280,6 +294,12 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
         leituras a cada sincronização — não é uma checagem em tempo real feita por este painel.
         &ldquo;Últ. chuva&rdquo; só existe pras sirenes com pluviômetro acoplado (usado pra
         parametrizar o acionamento automático dela). Clique em qualquer cabeçalho pra ordenar.
+      </div>
+      <div className="sticky left-0 border-t border-gray-100 p-2 text-xs text-gray-400">
+        Arraste a borda direita de um cabeçalho para ajustar a largura da coluna (duplo clique restaura).{" "}
+        <button type="button" onClick={resetAll} className="underline hover:text-gray-600">
+          Restaurar larguras
+        </button>
       </div>
     </div>
   );

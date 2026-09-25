@@ -2,6 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
+import ColumnResizer from "@/components/ColumnResizer";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import {
   getDelayStatus,
@@ -13,6 +14,7 @@ import {
   Station,
 } from "@/lib/api";
 import { downloadCsv } from "@/lib/csvExport";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 
 const COLUMN_ORDER = [
   "chuva_mm",
@@ -63,13 +65,11 @@ const FIXED_SORT_KEYS = new Set(["name", "municipality", "source", "updated"]);
 // CADA célula (table-layout:fixed sozinho não é respeitado por células
 // sticky no Chrome, ver PrecipitationTable.tsx), só Estação fixa rolando
 // a tabela pro lado.
-const W_ESTACAO = 140;
-const W_MUNICIPIO = 120;
-const W_REDEC = 90;
-const W_FONTE = 90;
-const W_TIPO = 110;
-const W_COLUNA = 76;
-const W_ATUALIZADO = 150;
+
+// Larguras padrão (px), ajustáveis arrastando a borda direita do cabeçalho (lembradas no
+// navegador). Em telas < 640px os padrões são menores. Texto quebra em várias linhas.
+const W_DESKTOP: Record<string, number> = { estacao: 170, municipio: 130, redec: 128, fonte: 96, tipo: 110, coluna: 84, atualizado: 130 };
+const W_MOBILE: Record<string, number> = { estacao: 120, municipio: 112, redec: 128, fonte: 80, tipo: 96, coluna: 80, atualizado: 110 };
 
 const DataTable = forwardRef<
   TableExportHandle,
@@ -87,6 +87,7 @@ const DataTable = forwardRef<
   }
 >(function DataTable({ stations, readingTypes, defaultSortKey = "municipality", municipioRedecMap = {} }, ref) {
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
+  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-meteorologico-v1", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>(defaultSortKey);
   const [sortAsc, setSortAsc] = useState(!FIXED_SORT_KEYS.has(defaultSortKey) ? false : true);
 
@@ -142,6 +143,9 @@ const DataTable = forwardRef<
   };
 
   const arrow = (key: string) => (key === sortKey ? (sortAsc ? " ▲" : " ▼") : "");
+  const resizer = (k: string) => (
+    <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
+  );
 
   const exportar = () => {
     const headers = [
@@ -176,71 +180,81 @@ const DataTable = forwardRef<
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
-      <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
+      <table
+        className="border-collapse text-xs sm:text-sm"
+        style={{ tableLayout: "fixed", width: w.estacao + w.municipio + w.redec + w.fonte + w.tipo + columns.length * w.coluna + w.atualizado }}
+      >
         <colgroup>
-          <col style={{ width: W_ESTACAO }} />
-          <col style={{ width: W_MUNICIPIO }} />
-          <col style={{ width: W_REDEC }} />
-          <col style={{ width: W_FONTE }} />
-          <col style={{ width: W_TIPO }} />
+          <col style={{ width: w.estacao }} />
+          <col style={{ width: w.municipio }} />
+          <col style={{ width: w.redec }} />
+          <col style={{ width: w.fonte }} />
+          <col style={{ width: w.tipo }} />
           {columns.map((c) => (
-            <col key={c} style={{ width: W_COLUNA }} />
+            <col key={c} style={{ width: w.coluna }} />
           ))}
-          <col style={{ width: W_ATUALIZADO }} />
+          <col style={{ width: w.atualizado }} />
         </colgroup>
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-0 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-              style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
+              className="sticky top-0 align-bottom leading-tight z-30 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
               onClick={() => toggleSort("name")}
             >
               Estação{arrow("name")}
+              {resizer("estacao")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio }}
               onClick={() => toggleSort("municipality")}
             >
               Município{arrow("municipality")}
+              {resizer("municipio")}
             </th>
             <th
-              className="sticky top-0 z-20 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
+              className="sticky top-0 align-bottom leading-tight z-20 whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec }}
             >
               REDEC
+              {resizer("redec")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_FONTE, maxWidth: W_FONTE, minWidth: W_FONTE }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.fonte, maxWidth: w.fonte, minWidth: w.fonte }}
               onClick={() => toggleSort("source")}
             >
               Fonte{arrow("source")}
+              {resizer("fonte")}
             </th>
             <th
-              className="sticky top-0 z-20 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_TIPO, maxWidth: W_TIPO, minWidth: W_TIPO }}
+              className="sticky top-0 align-bottom leading-tight z-20 whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.tipo, maxWidth: w.tipo, minWidth: w.tipo }}
             >
               Tipo
+              {resizer("tipo")}
             </th>
             {columns.map((c) => (
               <th
                 key={c}
-                className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
-                style={{ width: W_COLUNA, maxWidth: W_COLUNA, minWidth: W_COLUNA }}
+                className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-1 py-2 text-right"
+                style={{ width: w.coluna, maxWidth: w.coluna, minWidth: w.coluna }}
                 onClick={() => toggleSort(c)}
                 title={READING_TYPE_LABELS[c] ?? c}
               >
                 {READING_TYPE_LABELS[c] ?? c}
                 {arrow(c)}
-              </th>
+              {resizer("coluna")}
+            </th>
             ))}
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: w.atualizado, maxWidth: w.atualizado, minWidth: w.atualizado }}
               onClick={() => toggleSort("updated")}
             >
               Atualizado em{arrow("updated")}
+              {resizer("atualizado")}
             </th>
           </tr>
         </thead>
@@ -252,34 +266,34 @@ const DataTable = forwardRef<
             return (
               <tr key={`${s.source}-${s.id}`} className="border-b border-gray-100 hover:bg-gray-50">
                 <td
-                  className="sticky overflow-hidden text-ellipsis whitespace-nowrap bg-white px-2 py-1 font-medium text-gray-900 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-                  style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
+                  className="sticky z-10 whitespace-normal break-words leading-tight align-middle bg-white px-2 py-1 font-medium text-gray-900 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+                  style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
                   title={s.name}
                 >
                   {s.name}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-600"
-                  style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-600"
+                  style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio }}
                 >
                   {s.municipality || "—"}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-500"
-                  style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-500"
+                  style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec }}
                 >
                   {redecOf(s.municipality) || "—"}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 font-semibold"
-                  style={{ width: W_FONTE, maxWidth: W_FONTE, minWidth: W_FONTE, color: SOURCE_COLORS[s.source] ?? "#374151" }}
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1 font-semibold"
+                  style={{ width: w.fonte, maxWidth: w.fonte, minWidth: w.fonte, color: SOURCE_COLORS[s.source] ?? "#374151" }}
                   title={s.source}
                 >
                   {SOURCE_LABELS[s.source] ?? s.source}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 text-gray-600"
-                  style={{ width: W_TIPO, maxWidth: W_TIPO, minWidth: W_TIPO }}
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-600"
+                  style={{ width: w.tipo, maxWidth: w.tipo, minWidth: w.tipo }}
                 >
                   {STATION_TYPE_LABELS[s.station_type] ?? s.station_type}
                 </td>
@@ -287,14 +301,14 @@ const DataTable = forwardRef<
                   <td
                     key={c}
                     className="whitespace-nowrap px-1.5 py-1 text-right text-gray-800"
-                    style={{ width: W_COLUNA, maxWidth: W_COLUNA, minWidth: W_COLUNA }}
+                    style={{ width: w.coluna, maxWidth: w.coluna, minWidth: w.coluna }}
                   >
                     {readingsByType[c] ? formatReadingValue(c, readingsByType[c].value) : "—"}
                   </td>
                 ))}
                 <td
-                  className="whitespace-nowrap px-2 py-1"
-                  style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO, color: atraso.color }}
+                  className="whitespace-normal break-words leading-tight px-2 py-1"
+                  style={{ width: w.atualizado, maxWidth: w.atualizado, minWidth: w.atualizado, color: atraso.color }}
                   title={atraso.label}
                 >
                   {updated ? formatTimestamp(updated) : "—"}
@@ -307,6 +321,12 @@ const DataTable = forwardRef<
       {sorted.length === 0 && (
         <div className="p-6 text-center text-sm text-gray-400">Nenhuma estação encontrada com os filtros atuais.</div>
       )}
+      <div className="sticky left-0 border-t border-gray-100 p-2 text-xs text-gray-400">
+        Arraste a borda direita de um cabeçalho para ajustar a largura da coluna (duplo clique restaura).{" "}
+        <button type="button" onClick={resetAll} className="underline hover:text-gray-600">
+          Restaurar larguras
+        </button>
+      </div>
     </div>
   );
 });

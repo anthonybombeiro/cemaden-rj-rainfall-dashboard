@@ -2,6 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
+import ColumnResizer from "@/components/ColumnResizer";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import {
   getChuva1hFaixa,
@@ -13,6 +14,7 @@ import {
   SOURCE_LABELS,
 } from "@/lib/api";
 import { downloadCsv } from "@/lib/csvExport";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 
 function formatTimestamp(iso: string | null): string {
   if (!iso) return "—";
@@ -81,12 +83,11 @@ const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "source", "updat
 // celular era ruim demais. Estação sozinha ainda dá o contexto mínimo
 // de "qual linha é qual" rolando ~20 colunas de dado; REDEC/Município
 // agora rolam junto com o resto e podem ser mais largas/legíveis.
-const W_REDEC = 100;
-const W_MUNICIPIO = 140;
-const W_ESTACAO = 140;
-const W_JANELA = 44;
-const W_FONTE = 80;
-const W_ATUALIZADO = 96;
+
+// Larguras padrão (px), ajustáveis arrastando a borda direita do cabeçalho (lembradas no
+// navegador). Em telas < 640px os padrões são menores. Texto quebra em várias linhas.
+const W_DESKTOP: Record<string, number> = { estacao: 170, redec: 128, municipio: 140, janela: 58, fonte: 84, atualizado: 112 };
+const W_MOBILE: Record<string, number> = { estacao: 120, redec: 128, municipio: 112, janela: 54, fonte: 72, atualizado: 100 };
 
 const PrecipitationTable = forwardRef<
   TableExportHandle,
@@ -99,6 +100,7 @@ const PrecipitationTable = forwardRef<
   // Pedido do usuário: por padrão, ordenar pelos MAIORES valores de 15min
   // (é o que mais importa pra decisão operacional imediata) — o usuário
   // troca depois clicando em qualquer outro cabeçalho.
+  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-precipitacao-v1", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>("acumulado_15min_mm");
   const [sortAsc, setSortAsc] = useState(false);
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
@@ -139,6 +141,9 @@ const PrecipitationTable = forwardRef<
   };
 
   const arrow = (key: string) => (key === sortKey ? (sortAsc ? " ▲" : " ▼") : "");
+  const resizer = (k: string) => (
+    <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
+  );
 
   const exportar = () => {
     const headers = [
@@ -169,65 +174,74 @@ const PrecipitationTable = forwardRef<
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
-      <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
+      <table
+        className="border-collapse text-xs sm:text-sm"
+        style={{ tableLayout: "fixed", width: w.estacao + w.redec + w.municipio + JANELAS.length * w.janela + w.fonte + w.atualizado }}
+      >
         <colgroup>
-          <col style={{ width: W_ESTACAO }} />
-          <col style={{ width: W_REDEC }} />
-          <col style={{ width: W_MUNICIPIO }} />
+          <col style={{ width: w.estacao }} />
+          <col style={{ width: w.redec }} />
+          <col style={{ width: w.municipio }} />
           {JANELAS.map((j) => (
-            <col key={j.key} style={{ width: W_JANELA }} />
+            <col key={j.key} style={{ width: w.janela }} />
           ))}
-          <col style={{ width: W_FONTE }} />
-          <col style={{ width: W_ATUALIZADO }} />
+          <col style={{ width: w.fonte }} />
+          <col style={{ width: w.atualizado }} />
         </colgroup>
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-0 z-30 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-              style={{ left: 0, width: W_ESTACAO, maxWidth: W_ESTACAO, minWidth: W_ESTACAO }}
+              className="sticky top-0 align-bottom leading-tight z-30 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+              style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
               onClick={() => toggleSort("name")}
             >
               Estação{arrow("name")}
+              {resizer("estacao")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_REDEC, maxWidth: W_REDEC, minWidth: W_REDEC }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec }}
               onClick={() => toggleSort("redec")}
             >
               REDEC{arrow("redec")}
+              {resizer("redec")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_MUNICIPIO, maxWidth: W_MUNICIPIO, minWidth: W_MUNICIPIO }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio }}
               onClick={() => toggleSort("municipality")}
             >
               Município{arrow("municipality")}
+              {resizer("municipio")}
             </th>
             {JANELAS.map((j) => (
               <th
                 key={j.key}
-                className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden whitespace-nowrap bg-gray-100 px-1 py-2 text-right"
-                style={{ width: W_JANELA, maxWidth: W_JANELA, minWidth: W_JANELA }}
+                className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-1 py-2 text-right"
+                style={{ width: w.janela, maxWidth: w.janela, minWidth: w.janela }}
                 onClick={() => toggleSort(j.key)}
                 title={j.titulo}
               >
                 {j.label}
                 {arrow(j.key)}
-              </th>
+              {resizer("janela")}
+            </th>
             ))}
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_FONTE, maxWidth: W_FONTE, minWidth: W_FONTE }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-2 py-2"
+              style={{ width: w.fonte, maxWidth: w.fonte, minWidth: w.fonte }}
               onClick={() => toggleSort("source")}
             >
               Fonte{arrow("source")}
+              {resizer("fonte")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
-              style={{ width: W_ATUALIZADO, maxWidth: W_ATUALIZADO, minWidth: W_ATUALIZADO }}
+              className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
+              style={{ width: w.atualizado, maxWidth: w.atualizado, minWidth: w.atualizado }}
               onClick={() => toggleSort("updated")}
             >
               Atualizado em{arrow("updated")}
+              {resizer("atualizado")}
             </th>
           </tr>
         </thead>
@@ -247,12 +261,12 @@ const PrecipitationTable = forwardRef<
             return (
               <tr key={`${s.source}-${s.id}`} className="border-b border-gray-100" title={faixa1h?.label}>
                 <td
-                  className="sticky overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 font-medium shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+                  className="sticky z-10 whitespace-normal break-words leading-tight align-middle px-2 py-1 font-medium shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
                   style={{
                     left: 0,
-                    width: W_ESTACAO,
-                    maxWidth: W_ESTACAO,
-                    minWidth: W_ESTACAO,
+                    width: w.estacao,
+                    maxWidth: w.estacao,
+                    minWidth: w.estacao,
                     backgroundColor: bgFundo,
                     color: corTexto ?? "#111827",
                   }}
@@ -261,11 +275,11 @@ const PrecipitationTable = forwardRef<
                   {s.name}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1"
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1"
                   style={{
-                    width: W_REDEC,
-                    maxWidth: W_REDEC,
-                    minWidth: W_REDEC,
+                    width: w.redec,
+                    maxWidth: w.redec,
+                    minWidth: w.redec,
                     backgroundColor: bgFundo,
                     color: corTexto ?? "#6b7280",
                   }}
@@ -273,11 +287,11 @@ const PrecipitationTable = forwardRef<
                   {redecOf(s.municipality) || "—"}
                 </td>
                 <td
-                  className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1"
+                  className="whitespace-normal break-words leading-tight align-middle px-2 py-1"
                   style={{
-                    width: W_MUNICIPIO,
-                    maxWidth: W_MUNICIPIO,
-                    minWidth: W_MUNICIPIO,
+                    width: w.municipio,
+                    maxWidth: w.municipio,
+                    minWidth: w.municipio,
                     backgroundColor: bgFundo,
                     color: corTexto ?? "#4b5563",
                   }}
@@ -313,14 +327,14 @@ const PrecipitationTable = forwardRef<
                   ),
                 )}
                 <td
-                  className="whitespace-nowrap px-2 py-1 font-semibold"
+                  className="whitespace-normal break-words leading-tight px-2 py-1 font-semibold"
                   style={{ backgroundColor: bgFundo, color: faixa1h ? faixa1h.text : (SOURCE_COLORS[s.source] ?? "#374151") }}
                   title={s.source}
                 >
                   {SOURCE_LABELS[s.source] ?? s.source}
                 </td>
                 <td
-                  className="whitespace-nowrap px-2 py-1"
+                  className="whitespace-normal break-words leading-tight px-2 py-1"
                   style={{ backgroundColor: bgFundo, color: faixa1h ? faixa1h.text : atraso.color }}
                   title={atraso.label}
                 >
@@ -362,6 +376,12 @@ const PrecipitationTable = forwardRef<
         cadência real de uma fonte saem iguais a &ldquo;Últ.&rdquo;, não é erro. Só a coluna Estação fica fixa
         rolando a tabela pro lado — em celular, arraste horizontalmente pra ver todas as janelas. Clique em
         qualquer cabeçalho pra ordenar.
+      </div>
+      <div className="sticky left-0 border-t border-gray-100 p-2 text-xs text-gray-400">
+        Arraste a borda direita de um cabeçalho para ajustar a largura da coluna (duplo clique restaura).{" "}
+        <button type="button" onClick={resetAll} className="underline hover:text-gray-600">
+          Restaurar larguras
+        </button>
       </div>
     </div>
   );
