@@ -34,7 +34,7 @@ jobs:
           if [ "$FORCAR" = "true" ]; then
             echo "Execução forçada."; echo "raspar=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          STATUS_URL="${INGEST_URL%readings/}status/?source=inmet"
+          STATUS_URL=$(echo "$INGEST_URL" | sed -E 's#readings/?$#status/?source=inmet#')
           RESP=$(curl -s -m 30 -w "\n%{http_code}" -H "X-Ingest-Secret: $INGEST_SHARED_SECRET" "$STATUS_URL" || true)
           CODE=$(echo "$RESP" | tail -n1); BODY=$(echo "$RESP" | sed '$d')
           echo "HTTP $CODE: $BODY"
