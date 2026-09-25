@@ -37,6 +37,7 @@ import datetime as dt
 import logging
 import math
 import re
+import time
 import unicodedata
 from io import StringIO
 
@@ -51,6 +52,7 @@ logger = logging.getLogger("ingestion")
 
 STATIONS_URL = "https://apitempo.inmet.gov.br/estacoes/T"
 READINGS_URL_TEMPLATE = "https://apitempo.inmet.gov.br/token/estacao/{inicio}/{fim}/{codigo}/{token}"
+BULK_URL_TEMPLATE = "https://apitempo.inmet.gov.br/token/estacao/dados/{data}/{hora}/{token}"
 TABELA_URL_TEMPLATE = "https://tempo.inmet.gov.br/TabelaEstacoes/{codigo}"
 
 UF_ALVO = "RJ"
@@ -127,21 +129,40 @@ class InmetConnector(BaseConnector):
     # -- Método 1: API oficial (precisa de token) -----------------------------
 
     def _fetch_readings_via_token(self, stations: list[dict], token: str) -> list[dict]:
-        hoje = dt.date.today()
-        ontem = hoje - dt.timedelta(days=1)
+        """Usa o endpoint em LOTE da API oficial:
+        GET /token/estacao/dados/{data}/{HHMM}/{token} — devolve TODAS as
+        estações automáticas do país numa hora (UTC), ~740 linhas / 300 KB /
+        <1s; filtramos as do RJ. Medido em 2026-09-25: 1 chamada por hora em
+        vez de 1 por estação (~33), que estourava o limite de requisições do
+        token ("Você atingiu o limite de requisições.", HTTP 200 com texto
+        puro, recuperável em ~1-2 min). A hora corrente já vem com ~75% das
+        estações do RJ; valores idênticos aos do endpoint por estação.
+        Erros da API chegam como HTTP 200 + texto, não como JSON."""
+        codigos = {st["external_id"] for st in stations}
+        agora = dt.datetime.now(dt.timezone.utc)
+        horas = int(getattr(settings, "INMET_BULK_HOURS", 3))
         readings: list[dict] = []
 
-        for st in stations:
-            codigo = st["external_id"]
-            url = READINGS_URL_TEMPLATE.format(inicio=ontem.isoformat(), fim=hoje.isoformat(), codigo=codigo, token=token)
-            resp = requests.get(url, timeout=30)
+        for i in range(horas):
+            h = agora - dt.timedelta(hours=i)
+            url = BULK_URL_TEMPLATE.format(data=h.date().isoformat(), hora=h.strftime("%H") + "00", token=token)
+            resp = requests.get(url, timeout=60)
             resp.raise_for_status()
-            payload = resp.json()
+            try:
+                payload = resp.json()
+            except ValueError:
+                texto = resp.text.strip()[:80]
+                if "limite" in texto.lower():
+                    logger.warning("INMET: limite de requisições atingido (%s); usando o que já foi coletado.", texto)
+                    break
+                raise RuntimeError(f"Resposta inesperada da API do INMET: {texto!r}")
             if not isinstance(payload, list):
-                logger.warning("Resposta inesperada do INMET (token) para %s: %r", codigo, payload)
-                continue
+                raise RuntimeError(f"Resposta inesperada da API do INMET: {str(payload)[:80]!r}")
 
             for row in payload:
+                codigo = row.get("CD_ESTACAO")
+                if codigo not in codigos:
+                    continue
                 timestamp = _parse_timestamp_api(row)
                 if timestamp is None:
                     continue
@@ -165,6 +186,8 @@ class InmetConnector(BaseConnector):
                             "raw_payload": row,
                         }
                     )
+            if i < horas - 1:
+                time.sleep(2)
         return readings
 
     # -- Método 2: scraping da tabela pública via Selenium (temporário) ------
