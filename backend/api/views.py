@@ -55,6 +55,22 @@ class SourceViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SourceSerializer
 
 
+def tendencia_nivel(valores):
+    """Tendência do nível de rio nas 3 últimas leituras (mais antiga → mais
+    recente): 'subindo' (nunca cai e terminou acima do início), 'descendo'
+    (nunca sobe e terminou abaixo), 'estavel' (todas iguais ou oscilação sem
+    direção única) e None se houver menos de 3 leituras."""
+    if len(valores) < 3:
+        return None
+    a, b, c = valores
+    if a <= b <= c and c > a:
+        return "subindo"
+    if a >= b >= c and c < a:
+        return "descendo"
+    return "estavel"
+
+
+
 def ultimas_leituras(station_ids, dias=3):
     """{station_id: [Reading, ...]} com a leitura mais recente de cada
     (estação, tipo) dentro de `dias`, numa só query agregada (join com o
@@ -431,6 +447,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         """
         stations = list(
             self._filtered_stations()
+            .select_related("cota")
             .filter(readings__reading_type=Reading.ReadingType.NIVEL_M)
             .distinct()
         )
@@ -469,7 +486,26 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 "nivel_max_24h_m": max((r["value"] for r in rows), default=None),
                 "nivel_min_24h_m": min((r["value"] for r in rows), default=None),
                 "nivel_atualizado_em": latest["timestamp"] if latest else None,
+                "tendencia": tendencia_nivel([r["value"] for r in rows[-3:]]),
+                "rio_monitorado": station.rio_monitorado,
+                "regiao_hidrografica": station.regiao_hidrografica,
+                "bacia": station.bacia,
+                "ana_codigo_plu": station.ana_codigo_plu,
+                "ana_codigo_flu": station.ana_codigo_flu,
             }
+            cota = getattr(station, "cota", None)
+            entry["cota"] = (
+                {
+                    "atencao_cm": cota.atencao_cm,
+                    "alerta_cm": cota.alerta_cm,
+                    "inundacao_cm": cota.inundacao_cm,
+                    "extrema_cm": cota.extrema_calculada_cm,
+                }
+                if cota
+                else None
+            )
+            nivel_cm = latest["value"] * 100 if latest else None
+            entry["cota_classe"] = cota.classificar(nivel_cm) if cota else ("sem_cota" if nivel_cm is not None else None)
             # Campos de chuva (mesmas ~20 janelas da Precipitação) — None
             # pra quem não tem pluviômetro colocado, igual ao comportamento
             # já existente em /stations/precipitacao/.

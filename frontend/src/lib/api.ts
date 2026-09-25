@@ -241,11 +241,34 @@ export async function fetchPrecipitacao(): Promise<PrecipitacaoStation[]> {
  * janelas de chuva de `PrecipitacaoStation` (reaproveitadas do backend,
  * ver StationViewSet.hidrologicas) mais os 3 campos de nível abaixo — por
  * isso estende o mesmo tipo em vez de duplicar os ~20 campos de janela. */
+export type CotaClasse = "normal" | "atencao" | "alerta" | "transbordo" | "extrema" | "sem_cota";
+export type TendenciaNivel = "subindo" | "estavel" | "descendo";
+
 export type HidrologicaStation = PrecipitacaoStation & {
   nivel_atual_m: number | null;
   nivel_max_24h_m: number | null;
   nivel_min_24h_m: number | null;
   nivel_atualizado_em: string | null;
+  /** Direção do nível nas 3 últimas leituras (null = menos de 3 leituras). */
+  tendencia: TendenciaNivel | null;
+  rio_monitorado: string;
+  regiao_hidrografica: string;
+  bacia: string;
+  ana_codigo_plu: string;
+  ana_codigo_flu: string;
+  /** Cotas em cm (tabela CotaHidrologica, editável no Admin); extrema = +20% do transbordo. */
+  cota: { atencao_cm: number | null; alerta_cm: number | null; inundacao_cm: number | null; extrema_cm: number | null } | null;
+  cota_classe: CotaClasse | null;
+};
+
+/** Cores do fundo da célula "Nível Atual" por cota do rio (pedido do usuário, 2026-09-25). */
+export const COTA_ESTILOS: Record<CotaClasse, { bg: string; text: string; label: string }> = {
+  normal: { bg: "#16A34A", text: "#ffffff", label: "Cota Normal" },
+  atencao: { bg: "#FF9800", text: "#111827", label: "Cota de Atenção" },
+  alerta: { bg: "#DC2626", text: "#ffffff", label: "Cota de Alerta" },
+  transbordo: { bg: "#7E22CE", text: "#ffffff", label: "Cota de Transbordo" },
+  extrema: { bg: "#F472B6", text: "#111827", label: "Cota Extrema" },
+  sem_cota: { bg: "#E5E7EB", text: "#6B7280", label: "Sem cota definida" },
 };
 
 export async function fetchHidrologicas(): Promise<HidrologicaStation[]> {

@@ -53,3 +53,15 @@ class PrevisaoAdmin(admin.ModelAdmin):
     list_display = ("data", "regiao", "temperatura_maxima", "temperatura_minima", "icone", "origem", "atualizado_em")
     list_filter = ("regiao", "origem", "data")
     date_hierarchy = "data"
+
+
+from core.models import CotaHidrologica  # noqa: E402
+
+
+@admin.register(CotaHidrologica)
+class CotaHidrologicaAdmin(admin.ModelAdmin):
+    list_display = ("station", "rio", "atencao_cm", "alerta_cm", "inundacao_cm", "extrema_cm", "responsavel", "atualizado_em")
+    list_editable = ("atencao_cm", "alerta_cm", "inundacao_cm", "extrema_cm")
+    search_fields = ("station__name", "rio", "station__municipality")
+    list_filter = ("responsavel",)
+    autocomplete_fields = ("station",)

@@ -39,6 +39,13 @@ class Station(models.Model):
     )
     name = models.CharField(max_length=200)
     municipality = models.CharField(max_length=120, blank=True)
+    # Inventário hidrometeorológico (INEA/ANA) — preenchido pelo carregamento
+    # de referência (core/hidro_ref.py); ver [[hidrologico-cotas-e-inventario]].
+    ana_codigo_plu = models.CharField("Código ANA (plu)", max_length=20, blank=True)
+    ana_codigo_flu = models.CharField("Código ANA (flu)", max_length=20, blank=True)
+    rio_monitorado = models.CharField(max_length=120, blank=True)
+    regiao_hidrografica = models.CharField(max_length=120, blank=True)
+    bacia = models.CharField(max_length=120, blank=True)
     station_type = models.CharField(max_length=20, choices=StationType.choices, default=StationType.OUTRO)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DESCONHECIDO)
     latitude = models.FloatField()
@@ -269,3 +276,55 @@ class Previsao(models.Model):
 
     def __str__(self):
         return f"{self.data} · {self.regiao}"
+
+
+class CotaHidrologica(models.Model):
+    """Cotas de referência (cm) de uma estação hidrológica. Editável pelo Django
+    Admin. Classificação do nível atual:
+      < atenção  -> normal (verde)      >= atenção   -> atenção (laranja)
+      >= alerta  -> alerta (vermelho)   >= inundação -> transbordo (roxo)
+      >= extrema -> extrema (rosa), onde extrema = `extrema_cm` se preenchida,
+      senão 20% acima da cota de inundação (transbordo)."""
+
+    station = models.OneToOneField(Station, on_delete=models.CASCADE, related_name="cota")
+    atencao_cm = models.FloatField(null=True, blank=True)
+    alerta_cm = models.FloatField(null=True, blank=True)
+    inundacao_cm = models.FloatField("Transbordo (inundação) cm", null=True, blank=True)
+    extrema_cm = models.FloatField(
+        null=True, blank=True, help_text="Vazio = 20% acima da cota de inundação (calculado)."
+    )
+    rio = models.CharField(max_length=120, blank=True)
+    codigo_referencia = models.CharField(max_length=20, blank=True, help_text="CODIGO na planilha INEA/CPRM.")
+    responsavel = models.CharField(max_length=40, blank=True)
+    observacao = models.CharField(max_length=200, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "cota hidrológica"
+        verbose_name_plural = "cotas hidrológicas"
+
+    @property
+    def extrema_calculada_cm(self):
+        if self.extrema_cm is not None:
+            return self.extrema_cm
+        return self.inundacao_cm * 1.2 if self.inundacao_cm is not None else None
+
+    def classificar(self, nivel_cm):
+        """Devolve 'normal'|'atencao'|'alerta'|'transbordo'|'extrema'|'sem_cota'|None (sem leitura)."""
+        if nivel_cm is None:
+            return None
+        if self.atencao_cm is None and self.alerta_cm is None and self.inundacao_cm is None:
+            return "sem_cota"
+        extrema = self.extrema_calculada_cm
+        if extrema is not None and nivel_cm >= extrema:
+            return "extrema"
+        if self.inundacao_cm is not None and nivel_cm >= self.inundacao_cm:
+            return "transbordo"
+        if self.alerta_cm is not None and nivel_cm >= self.alerta_cm:
+            return "alerta"
+        if self.atencao_cm is not None and nivel_cm >= self.atencao_cm:
+            return "atencao"
+        return "normal"
+
+    def __str__(self):
+        return f"Cotas · {self.station.name}"

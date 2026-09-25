@@ -1,0 +1,1326 @@
+[
+ {
+  "source": "inea",
+  "external_id": "ALTO DA SERRA",
+  "nome": "Alto da Serra",
+  "inventario": {
+   "ana_codigo_plu": "2243315",
+   "ana_codigo_flu": "58400040",
+   "rio_monitorado": "Rio Palatinado",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 258.6,
+   "alerta_cm": 344.8,
+   "inundacao_cm": 431.0,
+   "rio": "Palatinado",
+   "codigo_referencia": "2243315",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "BR-101",
+  "nome": "BR-101",
+  "inventario": {
+   "ana_codigo_plu": "2242152",
+   "ana_codigo_flu": "59240700",
+   "rio_monitorado": "Rio Tanguá",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Caceribu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Tanguá",
+   "codigo_referencia": "224342410",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "BANQUETE",
+  "nome": "Banquete",
+  "inventario": {
+   "ana_codigo_plu": "2242144",
+   "ana_codigo_flu": "58836000",
+   "rio_monitorado": "Rio Grande",
+   "regiao_hidrografica": "Rio Dois Rios",
+   "bacia": "Bacia do Macaé"
+  },
+  "cota": {
+   "atencao_cm": 420.0,
+   "alerta_cm": 560.0,
+   "inundacao_cm": 700.0,
+   "rio": "Grande",
+   "codigo_referencia": "2242144",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "BARRA DO SANA",
+  "nome": "Barra do Sana",
+  "inventario": {
+   "ana_codigo_plu": "2242147",
+   "ana_codigo_flu": "59134000",
+   "rio_monitorado": "Rio Sana",
+   "regiao_hidrografica": "Macaé e das Ostras",
+   "bacia": "Bacia do Macaé"
+  },
+  "cota": {
+   "atencao_cm": 224.4,
+   "alerta_cm": 299.2,
+   "inundacao_cm": 374.0,
+   "rio": "Sana",
+   "codigo_referencia": "BE708480",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "BARRAGEM DA CEDAE",
+  "nome": "Barragem da CEDAE",
+  "inventario": {
+   "ana_codigo_plu": "2242117",
+   "ana_codigo_flu": "59248900",
+   "rio_monitorado": "Canal de Imunana",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Guapimirim-macacu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Macacu",
+   "codigo_referencia": "BE70C78A",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "BINGEN",
+  "nome": "Bingen",
+  "inventario": {
+   "ana_codigo_plu": "2243316",
+   "ana_codigo_flu": "58400005",
+   "rio_monitorado": "Rio Piabanha",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 201.0,
+   "alerta_cm": 268.0,
+   "inundacao_cm": 335.0,
+   "rio": "Piabanha",
+   "codigo_referencia": "2243316",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "BOM JESUS DO ITABAPOANA",
+  "nome": "Bom Jesus do Itabapoana",
+  "inventario": {
+   "ana_codigo_plu": "2141095",
+   "ana_codigo_flu": "57776100",
+   "rio_monitorado": "Rio Itabapoana",
+   "regiao_hidrografica": "Baixo Paraíba do Sul e Itabapoana",
+   "bacia": "Bacia do Itabapoana"
+  },
+  "cota": {
+   "atencao_cm": 186.0,
+   "alerta_cm": 248.0,
+   "inundacao_cm": 310.0,
+   "rio": "Itabapoana",
+   "codigo_referencia": "2141095",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CET MERITI",
+  "nome": "CET Meriti",
+  "inventario": {
+   "ana_codigo_plu": "2243294",
+   "ana_codigo_flu": "59305003",
+   "rio_monitorado": "Rio Pavuna",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Pavuna-Meriti"
+  },
+  "cota": {
+   "atencao_cm": 192.0,
+   "alerta_cm": 256.0,
+   "inundacao_cm": 320.0,
+   "rio": "Pavuna",
+   "codigo_referencia": "2243294",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CACHOEIRAS DE MACACU",
+  "nome": "Cachoeiras de Macacu",
+  "cota": {
+   "atencao_cm": 300.0,
+   "alerta_cm": 400.0,
+   "inundacao_cm": 500.0,
+   "rio": "Macacu",
+   "codigo_referencia": "222842390",
+   "responsavel": "INEA"
+  },
+  "inventario": {
+   "rio_monitorado": "Macacu"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CAMPELO",
+  "nome": "Campelo",
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Lagoa dp Campelo",
+   "codigo_referencia": "2141101",
+   "responsavel": "INEA"
+  },
+  "inventario": {
+   "rio_monitorado": "Lagoa dp Campelo"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CAPELA MAYRINK",
+  "nome": "Capela Mayrink",
+  "inventario": {
+   "ana_codigo_plu": "2243239",
+   "ana_codigo_flu": "59305071",
+   "rio_monitorado": "Rio Cachoeira",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia contribuinte ao Complexo Lagunar de Jacarepagua"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Tijuca",
+   "codigo_referencia": "BE70E166",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CEL VEIGA",
+  "nome": "Cel Veiga",
+  "inventario": {
+   "ana_codigo_plu": "2243317",
+   "ana_codigo_flu": "58400015",
+   "rio_monitorado": "Rio Quitandinha",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 198.0,
+   "alerta_cm": 264.0,
+   "inundacao_cm": 330.0,
+   "rio": "Quitandinha",
+   "codigo_referencia": "2243317",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CENTRO",
+  "nome": "Centro",
+  "inventario": {
+   "ana_codigo_plu": "2243313",
+   "ana_codigo_flu": "58400025",
+   "rio_monitorado": "Rio Quitandinha",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 120.0,
+   "alerta_cm": 160.0,
+   "inundacao_cm": 200.0,
+   "rio": "Quitandinha",
+   "codigo_referencia": "2243313",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "COLUBANDE-ALCANTARA",
+  "nome": "Colubandê-Alcântara",
+  "inventario": {
+   "ana_codigo_plu": "2243507",
+   "ana_codigo_flu": "59228050",
+   "rio_monitorado": "Rio Alcântara",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Guaxindiba-alcantara"
+  },
+  "cota": {
+   "atencao_cm": 180.0,
+   "alerta_cm": 240.0,
+   "inundacao_cm": 300.0,
+   "rio": "Alcântara",
+   "codigo_referencia": "2243507",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CONSELHEIRO PAULINO",
+  "nome": "Conselheiro Paulino",
+  "inventario": {
+   "ana_codigo_plu": "2242141",
+   "ana_codigo_flu": "58831900",
+   "rio_monitorado": "Rio Bengala",
+   "regiao_hidrografica": "Rio Dois Rios",
+   "bacia": "Bacia do Grande, Negro e Dois Rios"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Benganla",
+   "codigo_referencia": "2242141",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CORREAS IGREJA",
+  "nome": "Corrêas Igreja",
+  "inventario": {
+   "ana_codigo_plu": "2243509",
+   "ana_codigo_flu": "",
+   "rio_monitorado": "Rio Piabanha",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 417.0,
+   "alerta_cm": 556.0,
+   "inundacao_cm": 695.0,
+   "rio": "Piabanha",
+   "codigo_referencia": "BE7052E8",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "CUIABA",
+  "nome": "Cuiabá",
+  "inventario": {
+   "ana_codigo_plu": "2243325",
+   "ana_codigo_flu": "58400300",
+   "rio_monitorado": "Rio Cuiabá",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 168.6,
+   "alerta_cm": 224.8,
+   "inundacao_cm": 281.0,
+   "rio": "Cuiabá",
+   "codigo_referencia": "2243325",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "DUAS BARRAS",
+  "nome": "Duas Barras",
+  "inventario": {
+   "ana_codigo_plu": "2242030",
+   "ana_codigo_flu": "59242000",
+   "rio_monitorado": "Rio Guapiaçu",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Guapimirim-macacu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Guapiaçu",
+   "codigo_referencia": "",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "DUQUES",
+  "nome": "Duques",
+  "inventario": {
+   "ana_codigo_plu": "2242153",
+   "ana_codigo_flu": "59241400",
+   "rio_monitorado": "Rio Duques",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Caceribu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Duques",
+   "codigo_referencia": "224442470",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "FAZENDA ESCOLA UBM",
+  "nome": "Fazenda Escola UBM",
+  "inventario": {
+   "ana_codigo_plu": "2244167",
+   "ana_codigo_flu": "58288000",
+   "rio_monitorado": "Rio Barra Mansa",
+   "regiao_hidrografica": "Médio Paraíba do Sul",
+   "bacia": "Bacia do curso Medio Superior do Paraiba do Sul"
+  },
+  "cota": {
+   "atencao_cm": 120.0,
+   "alerta_cm": 160.0,
+   "inundacao_cm": 200.0,
+   "rio": "Barra Mansa",
+   "codigo_referencia": "BE7011E2",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "GALDINOPOLIS",
+  "nome": "Galdinópolis",
+  "inventario": {
+   "ana_codigo_plu": "2242146",
+   "ana_codigo_flu": "59125100",
+   "rio_monitorado": "Rio Macaé",
+   "regiao_hidrografica": "Macaé e das Ostras",
+   "bacia": "Bacia do Macaé"
+  },
+  "cota": {
+   "atencao_cm": 163.2,
+   "alerta_cm": 217.6,
+   "inundacao_cm": 272.0,
+   "rio": "Macaé",
+   "codigo_referencia": "",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "GLICERIO",
+  "nome": "Glicério",
+  "inventario": {
+   "ana_codigo_plu": "2242150",
+   "ana_codigo_flu": "59139900",
+   "rio_monitorado": "Rio São Pedro",
+   "regiao_hidrografica": "Macaé e das Ostras",
+   "bacia": "Bacia do Macaé"
+  },
+  "cota": {
+   "atencao_cm": 294.0,
+   "alerta_cm": 392.0,
+   "inundacao_cm": 490.0,
+   "rio": "São Pedro",
+   "codigo_referencia": "221342030",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "GUANDU DUTRA",
+  "nome": "Guandu Dutra",
+  "inventario": {
+   "ana_codigo_plu": "2243336",
+   "ana_codigo_flu": "59316500",
+   "rio_monitorado": "Rio Guandu",
+   "regiao_hidrografica": "Guandu",
+   "bacia": "Bacia do Guandu"
+  },
+  "cota": {
+   "atencao_cm": 584.4,
+   "alerta_cm": 779.2,
+   "inundacao_cm": 974.0,
+   "rio": "Guandu",
+   "codigo_referencia": "224343380",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "GUANDU SEROPEDICA",
+  "nome": "Guandu Seropédica",
+  "inventario": {
+   "ana_codigo_plu": "2243335",
+   "ana_codigo_flu": "59316200",
+   "rio_monitorado": "Rio Guandu",
+   "regiao_hidrografica": "Guandu",
+   "bacia": "Bacia do Guandu"
+  },
+  "cota": {
+   "atencao_cm": 478.8,
+   "alerta_cm": 638.4,
+   "inundacao_cm": 798.0,
+   "rio": "Guandu",
+   "codigo_referencia": "224843370",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "HARAS VITORIA",
+  "nome": "Haras Vitória",
+  "inventario": {
+   "ana_codigo_plu": "2242156",
+   "ana_codigo_flu": "59241800",
+   "rio_monitorado": "Rio Poço Fundo",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Caceribu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Iguá",
+   "codigo_referencia": "224742490",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "IPIIBA",
+  "nome": "Ipiíba",
+  "inventario": {
+   "ana_codigo_plu": "2242157",
+   "ana_codigo_flu": "59227900",
+   "rio_monitorado": "Rio da Aldeia",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Caceribu"
+  },
+  "cota": {
+   "atencao_cm": 116.4,
+   "alerta_cm": 155.2,
+   "inundacao_cm": 194.0,
+   "rio": "da Aldeia",
+   "codigo_referencia": "225242580",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "ITAIPAVA",
+  "nome": "Itaipava",
+  "inventario": {
+   "ana_codigo_plu": "2243319",
+   "ana_codigo_flu": "58401000",
+   "rio_monitorado": "Rio Santo Antônio",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 492.0,
+   "alerta_cm": 656.0,
+   "inundacao_cm": 820.0,
+   "rio": "Santo Antônio",
+   "codigo_referencia": "2243319",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "ITALVA",
+  "nome": "Italva",
+  "inventario": {
+   "ana_codigo_plu": "2141091",
+   "ana_codigo_flu": "58949000",
+   "rio_monitorado": "Rio Muriaé",
+   "regiao_hidrografica": "Baixo Paraíba do Sul e Itabapoana",
+   "bacia": "Bacia do Muriae"
+  },
+  "cota": {
+   "atencao_cm": 319.2,
+   "alerta_cm": 425.6,
+   "inundacao_cm": 532.0,
+   "rio": "Muriaé",
+   "codigo_referencia": "2141091",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "ITAPERUNA",
+  "nome": "Itaperuna",
+  "inventario": {
+   "ana_codigo_plu": "2141090",
+   "ana_codigo_flu": "58939900",
+   "rio_monitorado": "Rio Muriaé",
+   "regiao_hidrografica": "Baixo Paraíba do Sul e Itabapoana",
+   "bacia": "Bacia do Muriae"
+  },
+  "cota": {
+   "atencao_cm": 276.0,
+   "alerta_cm": 368.0,
+   "inundacao_cm": 460.0,
+   "rio": "Muriaé",
+   "codigo_referencia": "2141090",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "JAPUIBA",
+  "nome": "Japuíba",
+  "inventario": {
+   "ana_codigo_plu": "2242090",
+   "ana_codigo_flu": "59237000",
+   "rio_monitorado": "Rio Macacu",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Guapimirim-macacu"
+  },
+  "cota": {
+   "atencao_cm": 463.8,
+   "alerta_cm": 618.4,
+   "inundacao_cm": 773.0,
+   "rio": "Macacu",
+   "codigo_referencia": "223342410",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "JAVARY",
+  "nome": "Javary",
+  "inventario": {
+   "ana_codigo_plu": "2243511",
+   "ana_codigo_flu": "58375000",
+   "rio_monitorado": "Rio do Saco",
+   "regiao_hidrografica": "Médio Paraíba do Sul",
+   "bacia": "Bacia do curso Medio Superior do Paraiba do Sul"
+  },
+  "cota": {
+   "atencao_cm": 122.4,
+   "alerta_cm": 163.2,
+   "inundacao_cm": 204.0,
+   "rio": "do Saco",
+   "codigo_referencia": "2243511",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "JUNDIA",
+  "nome": "Jundiá",
+  "inventario": {
+   "ana_codigo_plu": "2241036",
+   "ana_codigo_flu": "59212500",
+   "rio_monitorado": "Rio Jundiá",
+   "regiao_hidrografica": "Macaé e das Ostras",
+   "bacia": "Bacia do Macaé"
+  },
+  "cota": {
+   "atencao_cm": 170.4,
+   "alerta_cm": 227.2,
+   "inundacao_cm": 284.0,
+   "rio": "Jundiá",
+   "codigo_referencia": "2241036",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "LAGOA FEIA - FAZENDA MODELO E CARAES",
+  "nome": "Lagoa Feia - Fazenda Modelo E Carães",
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "",
+   "codigo_referencia": "2141102",
+   "responsavel": "INEA"
+  },
+  "inventario": {
+   "rio_monitorado": ""
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "LAGOA DE IMBOASSICA",
+  "nome": "Lagoa de Imboassica",
+  "cota": {
+   "atencao_cm": 96.0,
+   "alerta_cm": 128.0,
+   "inundacao_cm": 160.0,
+   "rio": "Lagoa de Imboassica",
+   "codigo_referencia": "BE711318",
+   "responsavel": "INEA"
+  },
+  "inventario": {
+   "rio_monitorado": "Lagoa de Imboassica"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "LAJE DO MURIAE",
+  "nome": "Laje do Muriaé",
+  "inventario": {
+   "ana_codigo_plu": "2142082",
+   "ana_codigo_flu": "58922100",
+   "rio_monitorado": "Rio Muriaé",
+   "regiao_hidrografica": "Baixo Paraíba do Sul e Itabapoana",
+   "bacia": "Bacia do Muriae"
+  },
+  "cota": {
+   "atencao_cm": 309.0,
+   "alerta_cm": 412.0,
+   "inundacao_cm": 515.0,
+   "rio": "Muriaé",
+   "codigo_referencia": "2142082",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "MACAE DE CIMA",
+  "nome": "Macaé de Cima",
+  "inventario": {
+   "ana_codigo_plu": "2242148",
+   "ana_codigo_flu": "59119800",
+   "rio_monitorado": "Rio Macaé",
+   "regiao_hidrografica": "Macaé e das Ostras",
+   "bacia": "Bacia do Macaé"
+  },
+  "cota": {
+   "atencao_cm": 331.2,
+   "alerta_cm": 441.6,
+   "inundacao_cm": 552.0,
+   "rio": "Macaé",
+   "codigo_referencia": "BE706772",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "NATIVIDADE",
+  "nome": "Natividade",
+  "inventario": {
+   "ana_codigo_plu": "2141093",
+   "ana_codigo_flu": "58934500",
+   "rio_monitorado": "Rio Carangola",
+   "regiao_hidrografica": "Baixo Paraíba do Sul e Itabapoana",
+   "bacia": "Bacia do Muriáe"
+  },
+  "cota": {
+   "atencao_cm": 301.8,
+   "alerta_cm": 402.4,
+   "inundacao_cm": 503.0,
+   "rio": "Carangola",
+   "codigo_referencia": "2141093",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "NITEROI / ENGENHOCA",
+  "nome": "Niterói / Engenhoca",
+  "inventario": {
+   "ana_codigo_plu": "2243309",
+   "ana_codigo_flu": "59227000",
+   "rio_monitorado": "Rio Engenhoca",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Guaxindiba-alcantara"
+  },
+  "cota": {
+   "atencao_cm": 138.6,
+   "alerta_cm": 184.8,
+   "inundacao_cm": 231.0,
+   "rio": "Engenhoca",
+   "codigo_referencia": "2243309",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "NOGUEIRA",
+  "nome": "Nogueira",
+  "inventario": {
+   "ana_codigo_plu": "2243510",
+   "ana_codigo_flu": "",
+   "rio_monitorado": "Rio Piabanha",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 426.6,
+   "alerta_cm": 568.8,
+   "inundacao_cm": 711.0,
+   "rio": "Piabanha",
+   "codigo_referencia": "BE7097F6",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "OLARIA",
+  "nome": "Olaria",
+  "inventario": {
+   "ana_codigo_plu": "2242126",
+   "ana_codigo_flu": "58826060",
+   "rio_monitorado": "Rio Cônego",
+   "regiao_hidrografica": "Rio Dois Rios",
+   "bacia": "Bacia do Grande, Negro e Dois Rios"
+  },
+  "cota": {
+   "atencao_cm": 130.8,
+   "alerta_cm": 174.4,
+   "inundacao_cm": 218.0,
+   "rio": "Cônego",
+   "codigo_referencia": "2242126",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "ORINDI",
+  "nome": "Orindí",
+  "inventario": {
+   "ana_codigo_plu": "2242052",
+   "ana_codigo_flu": "59245200",
+   "rio_monitorado": "Rio Iconha",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Guapimirim-macacu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Iconha",
+   "codigo_referencia": "2242052",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "PAQUEQUER",
+  "nome": "Paquequer",
+  "inventario": {
+   "ana_codigo_plu": "2242121",
+   "ana_codigo_flu": "58410000",
+   "rio_monitorado": "Rio Paquequer",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Paquequer",
+   "codigo_referencia": "BE70419E",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "PARACAMBI",
+  "nome": "Paracambi",
+  "inventario": {
+   "ana_codigo_plu": "2243333",
+   "ana_codigo_flu": "59256500",
+   "rio_monitorado": "Rio dos Macacos",
+   "regiao_hidrografica": "Guandu",
+   "bacia": "Bacia do Macaco"
+  },
+  "cota": {
+   "atencao_cm": 172.8,
+   "alerta_cm": 230.4,
+   "inundacao_cm": 288.0,
+   "rio": "Macacos",
+   "codigo_referencia": "2243333",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "PAULO DE FRONTIN",
+  "nome": "Paulo de Frontin",
+  "inventario": {
+   "ana_codigo_plu": "2243512",
+   "ana_codigo_flu": "59256700",
+   "rio_monitorado": "Rio dos Macacos",
+   "regiao_hidrografica": "Guandu",
+   "bacia": "Bacia do Macaco"
+  },
+  "cota": {
+   "atencao_cm": 135.0,
+   "alerta_cm": 180.0,
+   "inundacao_cm": 225.0,
+   "rio": "Macacos",
+   "codigo_referencia": "2243512",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "PONTE ESTRADA DONA MARIANA",
+  "nome": "Ponte Estrada Dona Mariana",
+  "inventario": {
+   "ana_codigo_plu": "2242143",
+   "ana_codigo_flu": "58834000",
+   "rio_monitorado": "Rio Grande",
+   "regiao_hidrografica": "Rio Dois Rios",
+   "bacia": "Bacia do Grande, Negro e Dois Rios"
+  },
+  "cota": {
+   "atencao_cm": 354.0,
+   "alerta_cm": 472.0,
+   "inundacao_cm": 590.0,
+   "rio": "Grande",
+   "codigo_referencia": "BE70370E",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "PONTE PARAOQUENA",
+  "nome": "Ponte Paraoquena",
+  "inventario": {
+   "ana_codigo_plu": "2142083",
+   "ana_codigo_flu": "58789000",
+   "rio_monitorado": "Rio Pomba",
+   "regiao_hidrografica": "Baixo Paraíba do Sul e Itabapoana",
+   "bacia": "Bacia do Pomba"
+  },
+  "cota": {
+   "atencao_cm": 270.0,
+   "alerta_cm": 360.0,
+   "inundacao_cm": 450.0,
+   "rio": "Pomba",
+   "codigo_referencia": "",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "PONTE DE FERRO CAPIVARI",
+  "nome": "Ponte de Ferro Capivari",
+  "inventario": {
+   "ana_codigo_plu": "2243278",
+   "ana_codigo_flu": "59281300",
+   "rio_monitorado": "Rio Capivari",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Iguaçu-Sarapui"
+  },
+  "cota": {
+   "atencao_cm": 228.0,
+   "alerta_cm": 304.0,
+   "inundacao_cm": 380.0,
+   "rio": "Capivari",
+   "codigo_referencia": "2243278",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "PONTE DE FERRO PIABETA",
+  "nome": "Ponte de Ferro Piabeta",
+  "inventario": {
+   "ana_codigo_plu": "2243276",
+   "ana_codigo_flu": "59251700",
+   "rio_monitorado": "Rio Inhomirim",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Estrela, Inhomirim, Saracuruna"
+  },
+  "cota": {
+   "atencao_cm": 360.0,
+   "alerta_cm": 480.0,
+   "inundacao_cm": 600.0,
+   "rio": "Inhomirim",
+   "codigo_referencia": "2243276",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "PORTAL SILVA JARDIM",
+  "nome": "Portal Silva Jardim",
+  "inventario": {
+   "ana_codigo_plu": "2242129",
+   "ana_codigo_flu": "59192502",
+   "rio_monitorado": "Rio Capivari",
+   "regiao_hidrografica": "Lagos São João",
+   "bacia": "Bacia do São Joao"
+  },
+  "cota": {
+   "atencao_cm": 234.0,
+   "alerta_cm": 312.0,
+   "inundacao_cm": 390.0,
+   "rio": "Capivari",
+   "codigo_referencia": "223842240",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "POSSE - SAO SEBASTIAO",
+  "nome": "Posse - São Sebastião",
+  "inventario": {
+   "ana_codigo_plu": "2243311",
+   "ana_codigo_flu": "",
+   "rio_monitorado": "Príncipe",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 105.0,
+   "alerta_cm": 140.0,
+   "inundacao_cm": 175.0,
+   "rio": "Príncipe",
+   "codigo_referencia": "2243311",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "QUEBRA FRASCOS",
+  "nome": "Quebra Frascos",
+  "inventario": {
+   "ana_codigo_plu": "2243312",
+   "ana_codigo_flu": "58409800",
+   "rio_monitorado": "Rio Quebra Frascos",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 261.0,
+   "alerta_cm": 348.0,
+   "inundacao_cm": 435.0,
+   "rio": "Quebra Frascos",
+   "codigo_referencia": "2243312",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "QUIZANGA",
+  "nome": "Quizanga",
+  "inventario": {
+   "ana_codigo_plu": "2242093",
+   "ana_codigo_flu": "59245002",
+   "rio_monitorado": "Rio Guapiaçu",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Guapimirim-macacu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Guapiaçu",
+   "codigo_referencia": "BE70D4FC",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "RIALTO",
+  "nome": "Rialto",
+  "inventario": {
+   "ana_codigo_plu": "2244168",
+   "ana_codigo_flu": "58286800",
+   "rio_monitorado": "Rio Bananal",
+   "regiao_hidrografica": "Médio Paraíba do Sul",
+   "bacia": "Bacia do curso Medio Superior do Paraiba do Sul"
+  },
+  "cota": {
+   "atencao_cm": 402.0,
+   "alerta_cm": 536.0,
+   "inundacao_cm": 670.0,
+   "rio": "Bananal",
+   "codigo_referencia": "BE700294",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "RIO DAS FLORES",
+  "nome": "Rio das Flores",
+  "inventario": {
+   "ana_codigo_plu": "2243292",
+   "ana_codigo_flu": "58583000",
+   "rio_monitorado": "Ribeirão Manoel Pereira",
+   "regiao_hidrografica": "Médio Paraíba do Sul",
+   "bacia": "Bacia do Preto"
+  },
+  "cota": {
+   "atencao_cm": 213.0,
+   "alerta_cm": 284.0,
+   "inundacao_cm": 355.0,
+   "rio": "Ribeirão Manoel Pereira",
+   "codigo_referencia": "221043350",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "SANTA CRUZ DA SERRA",
+  "nome": "Santa Cruz da Serra",
+  "inventario": {
+   "ana_codigo_plu": "2243274",
+   "ana_codigo_flu": "59270000",
+   "rio_monitorado": "Rio Saracuruna",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Estrela, Inhomirim, Saracuruna"
+  },
+  "cota": {
+   "atencao_cm": 228.0,
+   "alerta_cm": 304.0,
+   "inundacao_cm": 380.0,
+   "rio": "Saracuruna",
+   "codigo_referencia": "2243274",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "SANTO ANTONIO DE PADUA",
+  "nome": "Santo Antônio de Pádua",
+  "inventario": {
+   "ana_codigo_plu": "2141094",
+   "ana_codigo_flu": "58774000",
+   "rio_monitorado": "Rio Pomba",
+   "regiao_hidrografica": "Baixo Paraíba do Sul e Itabapoana",
+   "bacia": "Bacia do Pomba"
+  },
+  "cota": {
+   "atencao_cm": 300.0,
+   "alerta_cm": 400.0,
+   "inundacao_cm": 500.0,
+   "rio": "Pomba",
+   "codigo_referencia": "213042120",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "SOARINHO",
+  "nome": "Soarinho",
+  "inventario": {
+   "ana_codigo_plu": "2242441",
+   "ana_codigo_flu": "",
+   "rio_monitorado": "Rio Soarinho",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Guapimirim-macacu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Soarinho",
+   "codigo_referencia": "BE70B11A",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "SUSPIRO",
+  "nome": "Suspiro",
+  "inventario": {
+   "ana_codigo_plu": "2242120",
+   "ana_codigo_flu": "58826065",
+   "rio_monitorado": "Rio Bengala",
+   "regiao_hidrografica": "Rio Dois Rios",
+   "bacia": "Bacia do Grande, Negro e Dois Rios"
+  },
+  "cota": {
+   "atencao_cm": 240.0,
+   "alerta_cm": 320.0,
+   "inundacao_cm": 400.0,
+   "rio": "Bengala",
+   "codigo_referencia": "2242120",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "SAO CRISTOVAO",
+  "nome": "São Cristóvão",
+  "inventario": {
+   "ana_codigo_plu": "2243271",
+   "ana_codigo_flu": "59305055",
+   "rio_monitorado": "Rio Maracanã",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacias drenantes da vertente norte da Serra da Carioca"
+  },
+  "cota": {
+   "atencao_cm": 201.0,
+   "alerta_cm": 268.0,
+   "inundacao_cm": 335.0,
+   "rio": "Maracanã",
+   "codigo_referencia": "225443130",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "SAO PEDRO",
+  "nome": "São Pedro",
+  "inventario": {
+   "ana_codigo_plu": "2241031",
+   "ana_codigo_flu": "59143000",
+   "rio_monitorado": "Rio São Pedro",
+   "regiao_hidrografica": "Macaé e das Ostras",
+   "bacia": "Bacia do Macae"
+  },
+  "cota": {
+   "atencao_cm": 144.6,
+   "alerta_cm": 192.8,
+   "inundacao_cm": 241.0,
+   "rio": "São Pedro",
+   "codigo_referencia": "2241031",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "SAO ROMAO",
+  "nome": "São Romão",
+  "inventario": {
+   "ana_codigo_plu": "2242163",
+   "ana_codigo_flu": "59133000",
+   "rio_monitorado": "Rio Macaé",
+   "regiao_hidrografica": "Macaé e das Ostras",
+   "bacia": "Bacia do Macae"
+  },
+  "cota": {
+   "atencao_cm": 175.2,
+   "alerta_cm": 233.6,
+   "inundacao_cm": 292.0,
+   "rio": "Macaé",
+   "codigo_referencia": "",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "SITIO BEIRA RIO",
+  "nome": "Sítio Beira Rio",
+  "inventario": {
+   "ana_codigo_plu": "2242130",
+   "ana_codigo_flu": "59191005",
+   "rio_monitorado": "Rio Bacaxá",
+   "regiao_hidrografica": "Lagos São João",
+   "bacia": "Bacia do São Joao"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Bacaxá",
+   "codigo_referencia": "224342230",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "TATU",
+  "nome": "Tatu",
+  "inventario": {
+   "ana_codigo_plu": "2242437",
+   "ana_codigo_flu": "",
+   "rio_monitorado": "Rio Tatu",
+   "regiao_hidrografica": "Baía de Guanabara",
+   "bacia": "Bacia do Caceribu"
+  },
+  "cota": {
+   "atencao_cm": null,
+   "alerta_cm": null,
+   "inundacao_cm": null,
+   "rio": "Tatu",
+   "codigo_referencia": "BE70A26C",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "UNIFESO",
+  "nome": "Unifeso",
+  "inventario": {
+   "ana_codigo_plu": "2242140",
+   "ana_codigo_flu": "58410900",
+   "rio_monitorado": "Rio Meudon",
+   "regiao_hidrografica": "Piabanha",
+   "bacia": "Bacia do Piabanha"
+  },
+  "cota": {
+   "atencao_cm": 178.2,
+   "alerta_cm": 237.6,
+   "inundacao_cm": 297.0,
+   "rio": "Meudon",
+   "codigo_referencia": "2242140",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "VENDA DAS PEDRAS",
+  "nome": "Venda das Pedras",
+  "inventario": {
+   "ana_codigo_plu": "2242137",
+   "ana_codigo_flu": "58826070",
+   "rio_monitorado": "Córrego D´antas",
+   "regiao_hidrografica": "Rio Dois Rios",
+   "bacia": "Bacia do Grande, Negro e Dois Rios"
+  },
+  "cota": {
+   "atencao_cm": 168.0,
+   "alerta_cm": 224.0,
+   "inundacao_cm": 280.0,
+   "rio": "Córrego Dantas",
+   "codigo_referencia": "2242137",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "VISCONDE DE MAUA",
+  "nome": "Visconde de Mauá",
+  "inventario": {
+   "ana_codigo_plu": "2244169",
+   "ana_codigo_flu": "58525100",
+   "rio_monitorado": "Rio Preto",
+   "regiao_hidrografica": "Médio Paraíba do Sul",
+   "bacia": "Bacia do curso Medio Superior do Paraiba do Sul"
+  },
+  "cota": {
+   "atencao_cm": 165.0,
+   "alerta_cm": 220.0,
+   "inundacao_cm": 275.0,
+   "rio": "Preto",
+   "codigo_referencia": "2244169",
+   "responsavel": "INEA"
+  }
+ },
+ {
+  "source": "inea",
+  "external_id": "YPU",
+  "nome": "Ypu",
+  "inventario": {
+   "ana_codigo_plu": "2242125",
+   "ana_codigo_flu": "58826035",
+   "rio_monitorado": "Rio Santo Antônio",
+   "regiao_hidrografica": "Rio Dois Rios",
+   "bacia": "Bacia do Grande, Negro e Dois Rios"
+  },
+  "cota": {
+   "atencao_cm": 321.0,
+   "alerta_cm": 428.0,
+   "inundacao_cm": 535.0,
+   "rio": "Santo Antônio",
+   "codigo_referencia": "2242125",
+   "responsavel": "INEA"
+  }
+ }
+]
