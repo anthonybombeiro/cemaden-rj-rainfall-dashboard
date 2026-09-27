@@ -688,7 +688,12 @@ export default function Dashboard({
                 </div>
               ) : (
                 <div className="relative min-h-0 flex-1">
-              <MapView stations={filteredStations} activeAlertEvents={activeAlertEvents} />
+              <MapView
+                stations={filteredStations}
+                activeAlertEvents={activeAlertEvents}
+                redecFilter={redecFilter}
+                municipalityFilter={municipalityFilter}
+              />
               {/* Painel de filtro flutuante sobre o mapa — pedido do usuário
                   (item 9): escondível por um botão de expansão/contração,
                   funciona em mouse e touch (onClick cobre os dois). Fica à
