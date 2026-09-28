@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
 import ColumnResizer from "@/components/ColumnResizer";
@@ -272,7 +273,16 @@ const PrecipitationTable = forwardRef<
                   }}
                   title={s.name}
                 >
-                  {s.name}
+                  <Link
+                    href={`/estacao?id=${s.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline-offset-2 hover:underline"
+                    style={{ color: "inherit" }}
+                    title="Abrir histórico da estação em nova aba"
+                  >
+                    {s.name}
+                  </Link>
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight align-middle px-2 py-1"

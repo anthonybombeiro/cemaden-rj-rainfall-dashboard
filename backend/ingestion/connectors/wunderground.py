@@ -248,15 +248,16 @@ class WundergroundConnector(BaseConnector):
                     }
                 )
 
-            # Filtro de plausibilidade (2026-09-28): a estação "Itatiaia" (IITATI4)
-            # chegou a reportar 60°C de máxima e -40°C de mínima (sensor com
-            # defeito/mal instalado) — faixa generosa o bastante pra cobrir tanto o
-            # litoral quanto o Parque Nacional do Itatiaia (~2.700m, onde já geou
-            # com temperatura negativa de verdade), mas descarta esses absurdos.
-            # Umidade relativa é sempre 0-100% por definição; fora disso é erro de
-            # sensor/transmissão.
+            # Filtro de plausibilidade (2026-09-28, faixa ampliada no mesmo dia após
+            # feedback do usuário): a estação "Itatiaia" (IITATI4) chegou a reportar
+            # 60°C de máxima e -40°C de mínima (sensor com defeito/mal instalado) —
+            # -15°C a 50°C cobre tanto o litoral (recordes de calor do RJ chegam a
+            # ~43°C) quanto o Parque Nacional do Itatiaia (~2.700m, onde já geou com
+            # temperatura negativa de verdade), com folga, mas descarta esses
+            # absurdos. Umidade relativa é sempre 0-100% por definição; fora disso é
+            # erro de sensor/transmissão.
             temp_valor = metric.get("temp")
-            if temp_valor is not None and -10 <= float(temp_valor) <= 45:
+            if temp_valor is not None and -15 <= float(temp_valor) <= 50:
                 add(Reading.ReadingType.TEMPERATURA_C, temp_valor)
             umidade_valor = obs.get("humidity")
             if umidade_valor is not None and 0 <= float(umidade_valor) <= 100:
