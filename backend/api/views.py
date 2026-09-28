@@ -51,6 +51,18 @@ PRECIPITACAO_BUCKET_SOURCES = {
 PRECIPITACAO_RUNNING_DAILY_SOURCES: set[str] = set()
 
 
+def _parse_iso_param(valor):
+    if not valor:
+        return None
+    try:
+        dt = datetime.datetime.fromisoformat(valor.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt
+
+
 class SourceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Source.objects.all()
     serializer_class = SourceSerializer
@@ -241,13 +253,107 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def readings(self, request, pk=None):
+        """`since`/`until` (ISO, qualquer timezone — vira UTC) filtram por
+        período; sem eles, continua o comportamento antigo (as `limit` mais
+        recentes). Com período, o teto sobe pra 20 mil linhas — página de
+        histórico (/estacao) pode pedir até "1 mês" de uma fonte de 5 em 5
+        min (~8600 leituras), bem abaixo disso."""
         station = self.get_object()
         qs = station.readings.all()
         if reading_type := request.query_params.get("reading_type"):
             qs = qs.filter(reading_type=reading_type)
-        limit = int(request.query_params.get("limit", 500))
+        since = _parse_iso_param(request.query_params.get("since"))
+        until = _parse_iso_param(request.query_params.get("until"))
+        if since:
+            qs = qs.filter(timestamp__gte=since)
+        if until:
+            qs = qs.filter(timestamp__lte=until)
+        limit_padrao = 20000 if (since or until) else 500
+        limit = min(int(request.query_params.get("limit", limit_padrao)), 20000)
         data = ReadingSerializer(qs[:limit], many=True).data
         return Response(data)
+
+    @action(detail=True, methods=["get"], url_path="precipitacao-serie")
+    def precipitacao_serie(self, request, pk=None):
+        """Chuva em baldes de tempo pra plotar barra+linha acumulada — mesma
+        ideia do "Precipitação Acumulada em 4h/24h/7 dias" do Rede Salvar do
+        CEMADEN nacional (pedido do usuário, 2026-09-28). `janela`: "4h"
+        (baldes de 15min), "24h" (baldes de 1h) ou "7d" (baldes de 1 dia)."""
+        station = self.get_object()
+        janela = request.query_params.get("janela", "24h")
+        agora = timezone.now()
+        config = {
+            "4h": (datetime.timedelta(hours=4), "minute", 15),
+            "24h": (datetime.timedelta(hours=24), "hour", 1),
+            "7d": (datetime.timedelta(days=7), "day", 1),
+        }
+        if janela not in config:
+            return Response({"detail": "janela deve ser '4h', '24h' ou '7d'."}, status=400)
+        duracao, unidade_trunc, passo = config[janela]
+        inicio = agora - duracao
+
+        leituras = list(
+            Reading.objects.filter(
+                station=station, reading_type=Reading.ReadingType.CHUVA_MM, timestamp__gte=inicio
+            ).values("timestamp", "value")
+        )
+
+        # Balde em Python (não no banco): pra "4h em baldes de 15min" o
+        # Trunc do Django só trunca em unidades fixas (minute/hour/day), não
+        # em "grupos de 15" — agrupar por época múltipla do passo resolve
+        # sem precisar de SQL cru, e o volume aqui é pequeno (no máximo
+        # poucas centenas de leituras de uma estação só).
+        baldes: dict[datetime.datetime, float] = {}
+        seg_por_balde = {"minute": 60, "hour": 3600, "day": 86400}[unidade_trunc] * passo
+        epoch0 = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+        for r in leituras:
+            offset = (r["timestamp"] - epoch0).total_seconds()
+            inicio_balde = epoch0 + datetime.timedelta(seconds=(offset // seg_por_balde) * seg_por_balde)
+            baldes[inicio_balde] = baldes.get(inicio_balde, 0.0) + r["value"]
+
+        serie = [{"inicio": ts.isoformat(), "chuva_mm": round(v, 2)} for ts, v in sorted(baldes.items())]
+        total = round(sum(b["chuva_mm"] for b in serie), 2)
+        return Response({"janela": janela, "inicio": inicio.isoformat(), "total_mm": total, "serie": serie})
+
+    @action(detail=True, methods=["get"])
+    def proximas(self, request, pk=None):
+        """As estações mais próximas (linha reta, sem considerar relevo) —
+        pro mapinha da página /estacao (pedido do usuário, 2026-09-28).
+        `raio_km` (padrão 20) e `limit` (padrão 12)."""
+        import math
+
+        station = self.get_object()
+        raio_km = float(request.query_params.get("raio_km", 20))
+        limit = int(request.query_params.get("limit", 12))
+
+        lat0, lon0 = math.radians(station.latitude), math.radians(station.longitude)
+        candidatas = Station.objects.select_related("source").exclude(pk=station.pk).only(
+            "id", "name", "station_type", "latitude", "longitude", "municipality", "source__slug"
+        )
+        proximas = []
+        for s in candidatas:
+            lat1, lon1 = math.radians(s.latitude), math.radians(s.longitude)
+            dlat, dlon = lat1 - lat0, lon1 - lon0
+            a = math.sin(dlat / 2) ** 2 + math.cos(lat0) * math.cos(lat1) * math.sin(dlon / 2) ** 2
+            distancia_km = 2 * 6371 * math.asin(math.sqrt(a))
+            if distancia_km <= raio_km:
+                proximas.append((distancia_km, s))
+        proximas.sort(key=lambda x: x[0])
+        return Response(
+            [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "source": s.source.slug,
+                    "station_type": s.station_type,
+                    "municipality": canonico_ou_original(s.municipality),
+                    "latitude": s.latitude,
+                    "longitude": s.longitude,
+                    "distancia_km": round(d, 1),
+                }
+                for d, s in proximas[:limit]
+            ]
+        )
 
     @action(detail=False, methods=["get"])
     def sirenes(self, request):

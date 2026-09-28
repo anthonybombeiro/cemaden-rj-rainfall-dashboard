@@ -188,14 +188,50 @@ export async function fetchStation(stationId: number): Promise<Station> {
   return { ...r, municipality: canonicoOuOriginal(r.municipality) };
 }
 
+/** `since`/`until` filtram por período (página /estacao: seletor
+ * Dia/Semana/Mês/Personalizado) — sem eles, continua devolvendo só as
+ * `limit` leituras mais recentes (comportamento antigo). */
 export async function fetchStationReadings(
   stationId: number,
   readingType?: string,
-  limit = 500,
+  opts?: { since?: Date; until?: Date; limit?: number },
 ): Promise<Reading[]> {
-  const params = new URLSearchParams({ limit: String(limit) });
+  const params = new URLSearchParams();
   if (readingType) params.set("reading_type", readingType);
+  if (opts?.since) params.set("since", opts.since.toISOString());
+  if (opts?.until) params.set("until", opts.until.toISOString());
+  if (opts?.limit) params.set("limit", String(opts.limit));
   return getJson<Reading[]>(`/stations/${stationId}/readings/?${params}`);
+}
+
+export type SerieBalde = { inicio: string; chuva_mm: number };
+export type PrecipitacaoSerie = { janela: "4h" | "24h" | "7d"; inicio: string; total_mm: number; serie: SerieBalde[] };
+
+/** Chuva em baldes de tempo pras 3 janelas fixas do card "Chuva" da
+ * página /estacao (pedido do usuário: mesmo padrão do Rede Salvar do
+ * CEMADEN nacional — 4h/24h/7 dias, não o seletor de período genérico). */
+export async function fetchPrecipitacaoSerie(
+  stationId: number,
+  janela: "4h" | "24h" | "7d",
+): Promise<PrecipitacaoSerie> {
+  return getJson<PrecipitacaoSerie>(`/stations/${stationId}/precipitacao-serie/?janela=${janela}`);
+}
+
+export type EstacaoProxima = {
+  id: number;
+  name: string;
+  source: string;
+  station_type: string;
+  municipality: string;
+  latitude: number;
+  longitude: number;
+  distancia_km: number;
+};
+
+/** Estações mais próximas — mapinha da página /estacao. */
+export async function fetchEstacoesProximas(stationId: number, raioKm = 20, limit = 12): Promise<EstacaoProxima[]> {
+  const r = await getJson<EstacaoProxima[]>(`/stations/${stationId}/proximas/?raio_km=${raioKm}&limit=${limit}`);
+  return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
 export type PrecipitacaoStation = {
