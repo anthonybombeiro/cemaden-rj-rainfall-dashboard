@@ -48,8 +48,18 @@ export async function fetchStations(): Promise<Station[]> {
   return Array.isArray(data) ? data : data.results;
 }
 
-export async function fetchStationReadings(stationId: number): Promise<Reading[]> {
-  return getJson<Reading[]>(`/stations/${stationId}/readings/`);
+export async function fetchStation(stationId: number): Promise<Station> {
+  return getJson<Station>(`/stations/${stationId}/`);
+}
+
+export async function fetchStationReadings(
+  stationId: number,
+  readingType?: string,
+  limit = 500,
+): Promise<Reading[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (readingType) params.set("reading_type", readingType);
+  return getJson<Reading[]>(`/stations/${stationId}/readings/?${params}`);
 }
 
 export type PrecipitacaoStation = {
@@ -152,6 +162,17 @@ export const READING_TYPE_LABELS: Record<string, string> = {
   vento_rajada_ms: "Rajada de vento (m/s)",
   vento_dir_graus: "Direção do vento (°)",
   mare_m: "Maré (m)",
+};
+
+export const READING_TYPE_UNITS: Record<string, string> = {
+  chuva_mm: "mm",
+  nivel_m: "m",
+  temperatura_c: "°C",
+  umidade_pct: "%",
+  vento_ms: "m/s",
+  vento_rajada_ms: "m/s",
+  vento_dir_graus: "°",
+  mare_m: "m",
 };
 
 export const STATION_TYPE_LABELS: Record<string, string> = {

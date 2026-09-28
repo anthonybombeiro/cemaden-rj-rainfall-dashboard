@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { READING_TYPE_LABELS, STATION_TYPE_LABELS, Station } from "@/lib/api";
 
-const COLUMN_ORDER = [
+export const COLUMN_ORDER = [
   "chuva_mm",
   "nivel_m",
   "temperatura_c",
@@ -129,7 +130,17 @@ export default function DataTable({
             const updated = mostRecentUpdate(s);
             return (
               <tr key={`${s.source}-${s.id}`} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="whitespace-nowrap px-3 py-1.5 font-medium text-gray-900">{s.name}</td>
+                <td className="whitespace-nowrap px-3 py-1.5 font-medium">
+                  <Link
+                    href={`/estacao?id=${s.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-700 underline-offset-2 hover:underline"
+                    title="Abrir histórico da estação em nova aba"
+                  >
+                    {s.name}
+                  </Link>
+                </td>
                 <td className="whitespace-nowrap px-3 py-1.5 text-gray-600">{s.municipality || "—"}</td>
                 <td className="whitespace-nowrap px-3 py-1.5 text-gray-600">{s.source}</td>
                 <td className="whitespace-nowrap px-3 py-1.5 text-gray-600">
