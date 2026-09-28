@@ -6,6 +6,9 @@ RewriteEngine On
 RewriteRule ^api/(.*)$ /django.cgi/api/$1 [L,QSA]
 # Django Admin (edicao de cotas, tipos de acionamento de sirene etc.)
 RewriteRule ^admin(/.*)?$ /django.cgi/admin$1 [L,QSA]
+# Pagina de historico por estacao (Next export gera estacao.html, sem
+# extensao/pasta navegavel — link em Dados Meteorologicos abre /estacao?id=N).
+RewriteRule ^estacao/?$ /estacao.html [L]
 
 # Compressao pros GeoJSON de REDECs/municipios (2026-09-27, ~325KB+216KB
 # sem gzip) e demais estaticos — no-op se mod_deflate nao existir no host.

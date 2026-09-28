@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
 import ColumnResizer from "@/components/ColumnResizer";
@@ -16,9 +17,11 @@ import {
 import { downloadCsv } from "@/lib/csvExport";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 
+// Exportado pra /estacao (página de histórico por estação) montar as abas
+// de tipo de leitura na mesma ordem da tabela.
 // Chaves "x:..." são colunas CALCULADAS (máx./mín. das últimas 24h, vindas de
 // `Station.extremos_24h`), não tipos de leitura.
-const COLUMN_ORDER = [
+export const COLUMN_ORDER = [
   "chuva_mm",
   "nivel_m",
   "temperatura_c",
@@ -298,11 +301,18 @@ const DataTable = forwardRef<
             return (
               <tr key={`${s.source}-${s.id}`} className="border-b border-gray-100 hover:bg-gray-50">
                 <td
-                  className="sticky z-10 whitespace-normal break-words leading-tight align-middle bg-white px-2 py-1 font-medium text-gray-900 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
+                  className="sticky z-10 whitespace-normal break-words leading-tight align-middle bg-white px-2 py-1 font-medium shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
                   style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
-                  title={s.name}
                 >
-                  {s.name}
+                  <Link
+                    href={`/estacao?id=${s.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sedec-600 underline-offset-2 hover:underline"
+                    title="Abrir histórico da estação em nova aba"
+                  >
+                    {s.name}
+                  </Link>
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-600"

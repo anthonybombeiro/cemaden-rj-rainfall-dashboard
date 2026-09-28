@@ -180,8 +180,22 @@ export async function fetchStations(): Promise<Station[]> {
   return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
-export async function fetchStationReadings(stationId: number): Promise<Reading[]> {
-  return getJson<Reading[]>(`/stations/${stationId}/readings/`);
+/** Uma estação por id (com `latest_readings`/`extremos_24h`) — usado na
+ * página /estacao (histórico por estação, link a partir do nome na tabela
+ * de Dados Meteorológicos). */
+export async function fetchStation(stationId: number): Promise<Station> {
+  const r = await getJson<Station>(`/stations/${stationId}/`);
+  return { ...r, municipality: canonicoOuOriginal(r.municipality) };
+}
+
+export async function fetchStationReadings(
+  stationId: number,
+  readingType?: string,
+  limit = 500,
+): Promise<Reading[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (readingType) params.set("reading_type", readingType);
+  return getJson<Reading[]>(`/stations/${stationId}/readings/?${params}`);
 }
 
 export type PrecipitacaoStation = {
@@ -432,6 +446,30 @@ export const READING_TYPE_LABELS: Record<string, string> = {
   "x:temp_min": "Temp. Mín 24h (°C)",
   "x:umid_max": "Umid. Máx 24h (%)",
   "x:umid_min": "Umid. Mín 24h (%)",
+};
+
+/** Unidade curta de cada tipo de leitura — usado no gráfico/tabela de
+ * histórico da página /estacao (o rótulo completo de READING_TYPE_LABELS já
+ * inclui a unidade por extenso, longo demais pro eixo de um gráfico). */
+export const READING_TYPE_UNITS: Record<string, string> = {
+  chuva_mm: "mm",
+  nivel_m: "m",
+  temperatura_c: "°C",
+  umidade_pct: "%",
+  vento_ms: "km/h",
+  vento_rajada_ms: "km/h",
+  vento_dir_graus: "°",
+  mare_m: "m",
+  temperatura_max_c: "°C",
+  temperatura_min_c: "°C",
+  umidade_max_pct: "%",
+  umidade_min_pct: "%",
+  pressao_hpa: "hPa",
+  pressao_nm_hpa: "hPa",
+  ponto_orvalho_c: "°C",
+  radiacao_wm2: "W/m²",
+  uv_indice: "",
+  sensacao_termica_c: "°C",
 };
 
 export const STATION_TYPE_LABELS: Record<string, string> = {
