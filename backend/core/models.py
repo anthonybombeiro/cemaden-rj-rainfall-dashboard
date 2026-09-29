@@ -54,6 +54,37 @@ class Station(models.Model):
     raw_metadata = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Campos específicos de sirene (2026-09-29, pedido do usuário) — só fazem
+    # sentido pra station_type=SIRENE, mas ficam direto na Station (mesmo
+    # padrão dos campos de inventário hidro acima) pra não precisar de mais
+    # uma tabela 1-pra-1. Ficam em branco/nulos pras demais estações.
+    class TipoSirene(models.TextChoices):
+        EAA = "EAA", "Simples (EAA)"
+        EAA_P = "EAA+P", "Com pluviômetro (EAA+P)"
+        EAA_H = "EAA+H", "Com estação hidrológica (EAA+H)"
+        EAA_M = "EAA+M", "Com estação meteorológica (EAA+M)"
+
+    class RiscoSirene(models.TextChoices):
+        GEO = "geo", "Geológico"
+        HIDRO = "hidro", "Hidrológico"
+        GEO_HIDRO = "geo_hidro", "Geológico + Hidrológico"
+
+    tipo_sirene = models.CharField(
+        "Tipo de sirene", max_length=10, choices=TipoSirene.choices, blank=True,
+        help_text="EAA/EAA+P são derivados automaticamente (tem ou não pluviômetro); EAA+H/EAA+M são atribuídos manualmente quando essas sirenes existirem.",
+    )
+    risco_sirene = models.CharField(
+        "Tipo de risco (sirene)", max_length=10, choices=RiscoSirene.choices, blank=True,
+        help_text="Não vem de nenhuma fonte automática — classificação manual por sirene.",
+    )
+    sirene_ref = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="sirenes_referenciadas",
+        verbose_name="Estação de referência (REF)",
+        help_text="Estação com pluviômetro usada pra calcular os gatilhos desta sirene quando ela não tem pluviômetro próprio. "
+        "Pré-preenchida automaticamente com a estação pluviométrica mais próxima dentro de 2km (ver management command "
+        "populate_sirene_ref) — editável aqui manualmente.",
+    )
+
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["source", "external_id"], name="unique_station_per_source")
@@ -367,3 +398,43 @@ class SireneAcaoTipo(models.Model):
 
     def __str__(self):
         return f"{self.codigo} · {self.nome}"
+
+
+class GatilhoPluviometrico(models.Model):
+    """Gatilhos pluviométricos de acionamento de sirene, por município
+    (2026-09-29, pedido do usuário — planilha repassada pela Defesa Civil).
+
+    Cada gatilho é INDEPENDENTE dos demais (pode disparar só um, vários, ou
+    nenhum, dependendo da situação dos acumulados) — confirmado pelo
+    usuário. GI usa só a chuva de 1h; GII/GIII/GIV têm DUAS condições que
+    precisam ser atingidas SIMULTANEAMENTE (1h + a janela mais longa da
+    coluna). Threshold em branco = gatilho não definido pra esse município
+    (mostra "--" na tabela, não "não atingido").
+
+    Só fazemos a gestão de 13 municípios (os que a Defesa Civil nos
+    repassou) — os demais ficam sem registro aqui mesmo, de propósito (ver
+    [[sirenes-acionamento-e-niteroi]]).
+    """
+
+    municipio = models.CharField(max_length=120, unique=True)
+    gatilho_i_1h_mm = models.FloatField("Gatilho I — chuva 1h (mm)", null=True, blank=True)
+    gatilho_ii_1h_mm = models.FloatField("Gatilho II — chuva 1h (mm)", null=True, blank=True)
+    gatilho_ii_24h_mm = models.FloatField("Gatilho II — chuva 24h (mm)", null=True, blank=True)
+    gatilho_iii_1h_mm = models.FloatField("Gatilho III — chuva 1h (mm)", null=True, blank=True)
+    gatilho_iii_96h_mm = models.FloatField("Gatilho III — chuva 96h (mm)", null=True, blank=True)
+    gatilho_iv_1h_mm = models.FloatField("Gatilho IV — chuva 1h (mm)", null=True, blank=True)
+    gatilho_iv_30d_mm = models.FloatField("Gatilho IV — chuva 30 dias (mm)", null=True, blank=True)
+
+    class Meta:
+        ordering = ["municipio"]
+        verbose_name = "gatilho pluviométrico (por município)"
+        verbose_name_plural = "gatilhos pluviométricos (por município)"
+
+    def save(self, *args, **kwargs):
+        from core.municipios import canonico_ou_original
+
+        self.municipio = canonico_ou_original(self.municipio)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.municipio

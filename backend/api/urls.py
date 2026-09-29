@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
-from .admin_views import AdminOpsView, EnvCheckView, MigrateSuperuserView
+from .admin_views import AdminOpsView, EnvCheckView, MigrateSuperuserView, PopulateSireneRefSuperuserView
 from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeView, ProfileUpdateView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .refresh_views import RefreshNowView
@@ -19,6 +19,7 @@ urlpatterns = [
     path("ingest/readings/", RemoteReadingsIngestView.as_view(), name="ingest-readings"),
     path("admin/env-check/", EnvCheckView.as_view(), name="admin-env-check"),
     path("admin/migrate/", MigrateSuperuserView.as_view(), name="admin-migrate"),
+    path("admin/populate-sirene-ref/", PopulateSireneRefSuperuserView.as_view(), name="admin-populate-sirene-ref"),
     path("admin/run/", AdminOpsView.as_view(), name="admin-run"),
     path("auth/csrf/", CsrfView.as_view(), name="auth-csrf"),
     path("auth/login/", LoginView.as_view(), name="auth-login"),

@@ -9,8 +9,9 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.gatilhos import aplicar_estado_real, avaliar_gatilhos
 from core.municipios import canonico_ou_original
-from core.models import AlertEvent, Previsao, Reading, RiskAlert, SireneAcaoTipo, Source, Station
+from core.models import AlertEvent, GatilhoPluviometrico, Previsao, Reading, RiskAlert, SireneAcaoTipo, Source, Station
 
 from .serializers import (
     AlertEventSerializer,
@@ -370,7 +371,11 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         isso que consultamos aqui pra saber o estado atual de acionamento
         e desde quando está tocando.
         """
-        stations = list(self._filtered_stations().filter(station_type=Station.StationType.SIRENE))
+        stations = list(
+            self._filtered_stations()
+            .filter(station_type=Station.StationType.SIRENE)
+            .select_related("sirene_ref", "sirene_ref__source")
+        )
         station_ids = [s.id for s in stations]
 
         eventos = list(
@@ -391,13 +396,36 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             t = tipos.get(int(codigo)) if codigo is not None else None
             return (t.nome, t.categoria) if t else (f"Acionamento código {int(codigo)}", "outro")
 
-        # Chuva de 1h (soma dos baldes de 15 min da última hora) — só pras sirenes com
-        # pluviômetro; sem leitura na última hora fica None (não "0,0").
+        # Chuva de 1h/24h/96h/30d — pras sirenes com pluviômetro próprio (EAA+P), a
+        # partir da leitura da própria estação; pras demais, a partir de `sirene_ref`
+        # (estação de referência, auto-preenchida pelo management command
+        # populate_sirene_ref ou editada manualmente no Admin — ver core/gatilhos.py
+        # e [[sirenes-acionamento-e-niteroi]]). Uma única chamada a
+        # `_calcular_precipitacao` cobre estação própria + todas as referências.
         com_pluv = [s for s in stations if (s.raw_metadata or {}).get("tem_pluviometro")]
-        chuva_1h = {}
-        for entry in self._calcular_precipitacao(com_pluv):
-            chuva_1h[entry["id"]] = entry.get("acumulado_1h_mm")
+        refs = {s.sirene_ref for s in stations if s.sirene_ref_id and not (s.raw_metadata or {}).get("tem_pluviometro")}
+        acumulados_por_id = {
+            entry["id"]: entry for entry in self._calcular_precipitacao(com_pluv + list(refs))
+        }
+
+        def _efetiva_id(station):
+            if (station.raw_metadata or {}).get("tem_pluviometro"):
+                return station.id
+            return station.sirene_ref_id
+
+        chuva_1h = {s.id: (acumulados_por_id.get(_efetiva_id(s)) or {}).get("acumulado_1h_mm") for s in stations}
+        chuva_24h = {s.id: (acumulados_por_id.get(_efetiva_id(s)) or {}).get("acumulado_24h_mm") for s in stations}
+        chuva_96h = {s.id: (acumulados_por_id.get(_efetiva_id(s)) or {}).get("acumulado_96h_mm") for s in stations}
+        chuva_30d = {s.id: (acumulados_por_id.get(_efetiva_id(s)) or {}).get("acumulado_1mes_mm") for s in stations}
+        # "Sem dado na 1h" agora depende da estação EFETIVA (própria OU REF), não
+        # necessariamente da própria sirene — uma sirene sem pluviômetro usa a
+        # frescor da leitura da sua referência.
+        efetiva_updated_at = {s.id: (acumulados_por_id.get(_efetiva_id(s)) or {}).get("updated_at") for s in stations}
         limite_1h = timezone.now() - datetime.timedelta(hours=1)
+
+        # Gatilhos (GI-GIV) — só fazemos a gestão de 13 municípios (ver
+        # GatilhoPluviometrico); os demais ficam com todos os 4 em None ("--").
+        gatilhos_por_municipio = {g.municipio: g for g in GatilhoPluviometrico.objects.all()}
 
         # Última leitura de chuva (só existe pras ~85 sirenes com
         # pluviômetro acoplado) — pega em Python a 1ª ocorrência por
@@ -420,13 +448,26 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             acao_nome, acao_categoria = info_acao(ev["value"]) if ev else (None, None)
             prev = ultimo.get(station.id)
             prev_nome = info_acao(prev["value"])[0] if prev else None
-            sem_dado_1h = chuva is None or chuva["timestamp"] < limite_1h
+            efetiva_ts = efetiva_updated_at.get(station.id)
+            sem_dado_1h = efetiva_ts is None or efetiva_ts < limite_1h
+            tocando = triggered_at is not None
+            municipio_canonico = canonico_ou_original(station.municipality)
+            gatilho_config = gatilhos_por_municipio.get(municipio_canonico)
+            status_gatilhos = avaliar_gatilhos(
+                gatilho_config,
+                None if sem_dado_1h else chuva_1h.get(station.id),
+                chuva_24h.get(station.id),
+                chuva_96h.get(station.id),
+                chuva_30d.get(station.id),
+            )
+            status_gatilhos = aplicar_estado_real(status_gatilhos, tocando, gatilho_config is not None)
+            ref = station.sirene_ref
             data.append(
                 {
                     "id": station.id,
                     "external_id": station.external_id,
                     "name": station.name,
-                    "municipality": canonico_ou_original(station.municipality),
+                    "municipality": municipio_canonico,
                     "bairro": meta.get("bairro") or "",
                     "rua": meta.get("rua") or "",
                     "numero": meta.get("numero") or "",
@@ -437,7 +478,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                     "latitude": station.latitude,
                     "longitude": station.longitude,
                     "status_estacao": station.status,
-                    "tocando": triggered_at is not None,
+                    "tocando": tocando,
                     "tocando_desde": triggered_at,
                     "acao_codigo": int(ev["value"]) if ev else None,
                     "acao_nome": acao_nome,
@@ -445,8 +486,17 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                     "ultimo_acionamento_nome": prev_nome,
                     "ultimo_acionamento_fim": prev["resolved_at"] if prev else None,
                     "chuva_1h_mm": (None if sem_dado_1h else chuva_1h.get(station.id)),
+                    "chuva_24h_mm": chuva_24h.get(station.id),
+                    "chuva_96h_mm": chuva_96h.get(station.id),
+                    "chuva_30d_mm": chuva_30d.get(station.id),
                     "ultima_chuva_mm": chuva["value"] if chuva else None,
                     "ultima_chuva_em": chuva["timestamp"] if chuva else None,
+                    "tipo_sirene": station.tipo_sirene or None,
+                    "risco_sirene": station.risco_sirene or None,
+                    "ref_id": ref.id if ref else None,
+                    "ref_nome": ref.name if ref else None,
+                    "gatilho_definido": gatilho_config is not None,
+                    "gatilhos": status_gatilhos,
                     "updated_at": station.updated_at,
                 }
             )

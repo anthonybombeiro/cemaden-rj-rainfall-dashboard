@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AlertEvent, AlertRule, Reading, RiskAlert, Source, Station
+from .models import AlertEvent, AlertRule, GatilhoPluviometrico, Reading, RiskAlert, Source, Station
 
 
 @admin.register(Source)
@@ -12,9 +12,17 @@ class SourceAdmin(admin.ModelAdmin):
 
 @admin.register(Station)
 class StationAdmin(admin.ModelAdmin):
-    list_display = ("name", "source", "external_id", "municipality", "station_type", "status", "updated_at")
-    list_filter = ("source", "station_type", "status", "municipality")
+    list_display = (
+        "name", "source", "external_id", "municipality", "station_type", "status",
+        "tipo_sirene", "risco_sirene", "sirene_ref", "updated_at",
+    )
+    list_filter = ("source", "station_type", "status", "municipality", "tipo_sirene", "risco_sirene")
+    # sirene_ref fica de fora do list_editable de propósito: como FK pra Station
+    # (~700 linhas), o <select> da changelist ficaria pesado — edita pela ficha
+    # da estação (onde autocomplete_fields já faz a busca por nome).
+    list_editable = ("tipo_sirene", "risco_sirene")
     search_fields = ("name", "external_id", "municipality")
+    autocomplete_fields = ("sirene_ref",)
 
 
 @admin.register(Reading)
@@ -75,3 +83,22 @@ class SireneAcaoTipoAdmin(admin.ModelAdmin):
     list_display = ("codigo", "nome", "categoria", "observacao")
     list_editable = ("nome", "categoria")
     ordering = ("codigo",)
+
+
+@admin.register(GatilhoPluviometrico)
+class GatilhoPluviometricoAdmin(admin.ModelAdmin):
+    list_display = (
+        "municipio",
+        "gatilho_i_1h_mm",
+        "gatilho_ii_1h_mm", "gatilho_ii_24h_mm",
+        "gatilho_iii_1h_mm", "gatilho_iii_96h_mm",
+        "gatilho_iv_1h_mm", "gatilho_iv_30d_mm",
+    )
+    list_editable = (
+        "gatilho_i_1h_mm",
+        "gatilho_ii_1h_mm", "gatilho_ii_24h_mm",
+        "gatilho_iii_1h_mm", "gatilho_iii_96h_mm",
+        "gatilho_iv_1h_mm", "gatilho_iv_30d_mm",
+    )
+    search_fields = ("municipio",)
+    ordering = ("municipio",)

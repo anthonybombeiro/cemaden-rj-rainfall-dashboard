@@ -334,6 +334,13 @@ export async function fetchHidrologicas(): Promise<HidrologicaStation[]> {
  * `Station.status` ("ativa"=online / "inativa"=offline /
  * "desconhecido"); `tocando`/`tocando_desde` refletem o AlertEvent ativo
  * da regra "Sirene de alarme tocando", não um campo da própria estação. */
+/** Status de cada gatilho (GI-GIV): "condicionado" (amarelo, perto de bater),
+ * "obrigatorio" (laranja, superado em 10%+), "acionado" (vermelho, a sirene
+ * JÁ está tocando de verdade — sobrepõe qualquer cálculo), ou null (não
+ * atingido, OU o município não tem gatilho definido — ver `gatilho_definido`). */
+export type GatilhoStatus = "condicionado" | "obrigatorio" | "acionado" | null;
+export type GatilhosSirene = { GI: GatilhoStatus; GII: GatilhoStatus; GIII: GatilhoStatus; GIV: GatilhoStatus };
+
 export type SireneStation = {
   id: number;
   external_id: string;
@@ -357,10 +364,23 @@ export type SireneStation = {
   acao_categoria: "normal" | "aviso" | "teste" | "mobilizacao" | "outro" | null;
   ultimo_acionamento_nome: string | null;
   ultimo_acionamento_fim: string | null;
-  /** Soma da chuva na última 1h (null = sem pluviômetro ou sem leitura na última hora). */
+  /** Soma da chuva na última 1h (null = sem pluviômetro/referência ou sem leitura na última hora). */
   chuva_1h_mm: number | null;
+  chuva_24h_mm: number | null;
+  chuva_96h_mm: number | null;
+  chuva_30d_mm: number | null;
   ultima_chuva_mm: number | null;
   ultima_chuva_em: string | null;
+  /** EAA / EAA+P / EAA+H / EAA+M — editável no Admin. */
+  tipo_sirene: string | null;
+  /** geo / hidro / geo_hidro — editável no Admin, sem preenchimento automático. */
+  risco_sirene: string | null;
+  /** Estação de referência usada pros gatilhos quando a sirene não tem pluviômetro próprio. */
+  ref_id: number | null;
+  ref_nome: string | null;
+  /** false = município fora dos 13 que gerimos gatilhos — mostrar "--", não "normal". */
+  gatilho_definido: boolean;
+  gatilhos: GatilhosSirene;
   updated_at: string | null;
 };
 

@@ -74,6 +74,7 @@ ACOES_PERMITIDAS = {
     "purge_readings",
     "create_user",
     "normalize_municipios",
+    "populate_sirene_ref",
 }
 
 
@@ -126,6 +127,8 @@ class AdminOpsView(APIView):
                 saida.write(resultado.summary())
             elif action == "normalize_municipios":
                 call_command("normalize_municipios", stdout=saida, stderr=saida)
+            elif action == "populate_sirene_ref":
+                call_command("populate_sirene_ref", stdout=saida, stderr=saida)
             elif action == "sync_sirenes":
                 from ingestion.connectors import cemaden_rj_sirenes
 
@@ -230,6 +233,21 @@ class MigrateSuperuserView(APIView):
         saida = io.StringIO()
         call_command("migrate", interactive=False, stdout=saida, stderr=saida)
         return Response({"ok": True, "output": saida.getvalue()[-2000:]})
+
+
+class PopulateSireneRefSuperuserView(APIView):
+    """POST /api/admin/populate-sirene-ref/ — mesma ideia da MigrateSuperuserView
+    acima (sessão + CSRF, sem precisar do segredo X-Admin-Secret): preenche o
+    campo REF das sirenes sem pluviômetro próprio (ver management command
+    populate_sirene_ref). Idempotente — não sobrescreve REF já definido
+    manualmente, então é seguro rodar de novo depois de cadastrar sirenes novas."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        saida = io.StringIO()
+        call_command("populate_sirene_ref", stdout=saida, stderr=saida)
+        return Response({"ok": True, "output": saida.getvalue()[-4000:]})
 
 
 class EnvCheckView(APIView):
