@@ -4,7 +4,9 @@
  * institucional à esquerda, crédito de desenvolvimento à direita. */
 export default function Footer() {
   return (
-    <footer className="shrink-0 border-t border-gray-800 bg-gray-900 px-4 py-2">
+    // Escondido no celular/tablet (pedido do usuário, 2026-09-29): a barra
+    // inferior fixa do menu já ocupa esse espaço nesse breakpoint.
+    <footer className="hidden shrink-0 border-t border-gray-800 bg-gray-900 px-4 py-2 md:!block">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <img src="/logo-cemadenrj.png" alt="CEMADEN-RJ" className="h-5 w-auto opacity-70" />

@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
 import ColumnResizer from "@/components/ColumnResizer";
+import { CampoClicavel, HistoricoIconLink, W_HISTORICO } from "@/components/EstacaoCellLinks";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import {
   getDelayStatus,
@@ -114,8 +114,11 @@ const DataTable = forwardRef<
     /** Município (normalizado) → REDEC — pra mostrar/exportar a coluna REDEC.
      * Sem isso a coluna fica em branco, não quebra nada (ver page.tsx). */
     municipioRedecMap?: Record<string, string>;
+    /** Abre o painel de histórico da estação IN-APP (sem navegar) — ver
+     * Dashboard.tsx/StationHistoryPanel.tsx. */
+    onOpenStation: (id: number) => void;
   }
->(function DataTable({ stations, readingTypes, defaultSortKey = "municipality", municipioRedecMap = {} }, ref) {
+>(function DataTable({ stations, readingTypes, defaultSortKey = "municipality", municipioRedecMap = {}, onOpenStation }, ref) {
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
   const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-meteorologico-v1", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>(defaultSortKey);
@@ -218,7 +221,10 @@ const DataTable = forwardRef<
     <div className="h-full w-full overflow-auto bg-white">
       <table
         className="border-collapse text-xs sm:text-sm"
-        style={{ tableLayout: "fixed", width: w.estacao + w.municipio + w.redec + w.fonte + w.tipo + columns.length * w.coluna + w.atualizado }}
+        style={{
+          tableLayout: "fixed",
+          width: w.estacao + w.municipio + w.redec + w.fonte + w.tipo + columns.length * w.coluna + w.atualizado + W_HISTORICO,
+        }}
       >
         <colgroup>
           <col style={{ width: w.estacao }} />
@@ -230,6 +236,7 @@ const DataTable = forwardRef<
             <col key={c} style={{ width: w.coluna }} />
           ))}
           <col style={{ width: w.atualizado }} />
+          <col style={{ width: W_HISTORICO }} />
         </colgroup>
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
@@ -292,6 +299,13 @@ const DataTable = forwardRef<
               Atualizado em{arrow("updated")}
               {resizer("atualizado")}
             </th>
+            <th
+              className="sticky top-0 align-bottom leading-tight z-20 whitespace-nowrap bg-gray-100 px-1 py-2 text-center"
+              style={{ width: W_HISTORICO, maxWidth: W_HISTORICO, minWidth: W_HISTORICO }}
+              title="Abrir em nova aba"
+            >
+              Histórico
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -304,40 +318,41 @@ const DataTable = forwardRef<
                   className="sticky z-10 whitespace-normal break-words leading-tight align-middle bg-white px-2 py-1 font-medium shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
                   style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
                 >
-                  <Link
-                    href={`/estacao?id=${s.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sedec-600 underline-offset-2 hover:underline"
-                    title="Abrir histórico da estação em nova aba"
-                  >
-                    {s.name}
-                  </Link>
+                  <CampoClicavel
+                    id={s.id}
+                    valor={s.name}
+                    onOpenStation={onOpenStation}
+                    className="text-left text-sedec-600 underline-offset-2 hover:underline"
+                  />
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-600"
                   style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio }}
                 >
-                  {s.municipality || "—"}
+                  <CampoClicavel id={s.id} valor={s.municipality || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-500"
                   style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec }}
                 >
-                  {redecOf(s.municipality) || "—"}
+                  <CampoClicavel id={s.id} valor={redecOf(s.municipality) || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight align-middle px-2 py-1 font-semibold"
                   style={{ width: w.fonte, maxWidth: w.fonte, minWidth: w.fonte, color: SOURCE_COLORS[s.source] ?? "#374151" }}
                   title={s.source}
                 >
-                  {SOURCE_LABELS[s.source] ?? s.source}
+                  <CampoClicavel id={s.id} valor={SOURCE_LABELS[s.source] ?? s.source} onOpenStation={onOpenStation} />
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight align-middle px-2 py-1 text-gray-600"
                   style={{ width: w.tipo, maxWidth: w.tipo, minWidth: w.tipo }}
                 >
-                  {STATION_TYPE_LABELS[s.station_type] ?? s.station_type}
+                  <CampoClicavel
+                    id={s.id}
+                    valor={STATION_TYPE_LABELS[s.station_type] ?? s.station_type}
+                    onOpenStation={onOpenStation}
+                  />
                 </td>
                 {columns.map((c) => (
                   <td
@@ -357,6 +372,9 @@ const DataTable = forwardRef<
                   title={atraso.label}
                 >
                   {updated ? formatTimestamp(updated) : "—"}
+                </td>
+                <td className="px-1 py-1 text-center align-middle" style={{ width: W_HISTORICO, maxWidth: W_HISTORICO, minWidth: W_HISTORICO }}>
+                  <HistoricoIconLink id={s.id} />
                 </td>
               </tr>
             );

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, BookOpen, Filter, LogOut, User } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, BookOpen, CloudSun, Database, Filter, LogOut, Map, Siren, User, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -15,7 +15,9 @@ import MultiSelectFilter from "@/components/MultiSelectFilter";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
 import SirenesTable from "@/components/SirenesTable";
+import StationHistoryPanel from "@/components/StationHistoryPanel";
 import { TableExportHandle } from "@/components/tableExportHandle";
+import VentosTable from "@/components/VentosTable";
 import {
   AlertEvent,
   AuthUser,
@@ -45,16 +47,27 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // "Riscos" deixou de ser aba própria (pedido do usuário, 2026-09-24: a
 // "Visão Geral" dos 4 mapas agora mora DENTRO de "Alertas Ativos", como a
 // 1ª das 5 sub-abas — ver AlertsPanel.tsx).
-type ViewMode = "mapa" | "meteorologia" | "precipitacao" | "meteorologico" | "hidrologico" | "sirenes" | "alertas";
+// Reagrupamento dos menus principais (pedido do usuário, 2026-09-29):
+// Precipitação/Meteorológicos/Hidrológicos/Ventos viraram sub-abas de
+// "Dados" (mesmo padrão de sub-aba que "Mapa" já tinha com
+// Estações/Contatos) — 5 itens principais cabem bem tanto no menu
+// horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
+type ViewMode = "mapa" | "meteorologia" | "dados" | "sirenes" | "alertas";
+type DadosSub = "precipitacao" | "meteorologico" | "hidrologico" | "ventos";
 
-const VIEW_MODES: { key: ViewMode; label: string }[] = [
-  { key: "mapa", label: "Mapa" },
-  { key: "meteorologia", label: "Meteorologia" },
+const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
+  { key: "mapa", label: "Mapa", Icone: Map },
+  { key: "meteorologia", label: "Meteorologia", Icone: CloudSun },
+  { key: "dados", label: "Dados", Icone: Database },
+  { key: "sirenes", label: "Sirenes", Icone: Siren },
+  { key: "alertas", label: "Alertas", Icone: AlertTriangle },
+];
+
+const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "precipitacao", label: "Precipitação" },
-  { key: "meteorologico", label: "Dados Meteorológicos" },
-  { key: "hidrologico", label: "Hidrológico" },
-  { key: "sirenes", label: "Sirenes" },
-  { key: "alertas", label: "Alertas Ativos" },
+  { key: "meteorologico", label: "Meteorológicos" },
+  { key: "hidrologico", label: "Hidrológicos" },
+  { key: "ventos", label: "Ventos" },
 ];
 
 const TITULO_TOOLTIP =
@@ -80,7 +93,14 @@ export default function Dashboard({
   const precipitacaoTableRef = useRef<TableExportHandle>(null);
   const meteorologicoTableRef = useRef<TableExportHandle>(null);
   const hidrologicoTableRef = useRef<TableExportHandle>(null);
+  const ventosTableRef = useRef<TableExportHandle>(null);
   const sirenesTableRef = useRef<TableExportHandle>(null);
+
+  // Painel de histórico de estação IN-APP (pedido do usuário, 2026-09-29):
+  // clicar numa estação nas tabelas não navega mais pra rota separada —
+  // só abre esse painel por cima do conteúdo da aba atual, mantendo
+  // cabeçalho/menu/filtros exatamente como estavam. `null` = fechado.
+  const [painelEstacaoId, setPainelEstacaoId] = useState<number | null>(null);
 
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +112,7 @@ export default function Dashboard({
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
   const [redecFilter, setRedecFilter] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("mapa");
+  const [dadosSub, setDadosSub] = useState<DadosSub>("precipitacao");
   // Painel de filtros flutuante sobre o mapa — pedido do usuário: no mapa o
   // filtro precisa ficar sobre o mapa (não empurrando layout), escondível
   // por um botão que funcione em mouse (desktop) e touch (celular/tablet).
@@ -229,7 +250,7 @@ export default function Dashboard({
   // acumulados no backend varre até 96h de leituras, então evita fazer isso
   // toda vez que o painel carrega se o operador nunca abrir essa aba.
   useEffect(() => {
-    if (viewMode !== "precipitacao" || precipitacaoLoaded) return;
+    if (viewMode !== "dados" || dadosSub !== "precipitacao" || precipitacaoLoaded) return;
     let cancelled = false;
     setPrecipitacaoLoading(true);
     fetchPrecipitacao()
@@ -248,10 +269,10 @@ export default function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [viewMode, precipitacaoLoaded]);
+  }, [viewMode, dadosSub, precipitacaoLoaded]);
 
   useEffect(() => {
-    if (viewMode !== "hidrologico" || hidrologicasLoaded) return;
+    if (viewMode !== "dados" || dadosSub !== "hidrologico" || hidrologicasLoaded) return;
     let cancelled = false;
     setHidrologicasLoading(true);
     fetchHidrologicas()
@@ -270,7 +291,7 @@ export default function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [viewMode, hidrologicasLoaded]);
+  }, [viewMode, dadosSub, hidrologicasLoaded]);
 
   // Igual à Precipitação: busca sob demanda na 1ª vez que a aba é aberta.
   // Diferente dela, também refaz a cada 1min ENQUANTO a aba estiver aberta
@@ -471,32 +492,45 @@ export default function Dashboard({
     </>
   );
 
+  const ventosStationsCount = useMemo(
+    () =>
+      filteredStations.filter((s) =>
+        s.latest_readings.some((r) => r.reading_type === "vento_ms" || r.reading_type === "vento_rajada_ms" || r.reading_type === "vento_dir_graus"),
+      ).length,
+    [filteredStations],
+  );
+
   const filterStatusText =
-    viewMode === "precipitacao"
-      ? precipitacaoLoading
-        ? "Carregando precipitação…"
-        : `${filteredPrecipitacao.length} estações pluviométricas`
-      : viewMode === "hidrologico"
-        ? hidrologicasLoading
-          ? "Carregando estações hidrológicas…"
-          : `${filteredHidrologicas.length} estações hidrológicas`
-        : viewMode === "meteorologico"
-          ? loading
-            ? "Carregando estações…"
-            : `${meteorologicalStations.length} estações meteorológicas`
-          : loading
-            ? "Carregando estações…"
-            : `${filteredStations.length} de ${stations.length} estações`;
+    viewMode !== "dados"
+      ? loading
+        ? "Carregando estações…"
+        : `${filteredStations.length} de ${stations.length} estações`
+      : dadosSub === "precipitacao"
+        ? precipitacaoLoading
+          ? "Carregando precipitação…"
+          : `${filteredPrecipitacao.length} estações pluviométricas`
+        : dadosSub === "hidrologico"
+          ? hidrologicasLoading
+            ? "Carregando estações hidrológicas…"
+            : `${filteredHidrologicas.length} estações hidrológicas`
+          : dadosSub === "meteorologico"
+            ? loading
+              ? "Carregando estações…"
+              : `${meteorologicalStations.length} estações meteorológicas`
+            : loading
+              ? "Carregando estações…"
+              : `${ventosStationsCount} estações com dado de vento`;
 
   // "Atualizar agora" (item 10, pedido do usuário) — depois que o backend
-  // termina de rodar TODAS as fontes, recarrega os dados da aba atual (as
-  // outras abas recarregam sozinhas na próxima vez que forem abertas,
+  // termina de rodar TODAS as fontes, recarrega os dados da aba/sub-aba
+  // atual (as outras recarregam sozinhas na próxima vez que forem abertas,
   // igual ao comportamento normal de "buscar sob demanda").
   const handleRefreshDone = () => {
-    if (viewMode === "precipitacao") fetchPrecipitacao().then(setPrecipitacao).catch(() => {});
-    else if (viewMode === "meteorologico") reloadStations();
-    else if (viewMode === "hidrologico") fetchHidrologicas().then(setHidrologicas).catch(() => {});
-    else if (viewMode === "sirenes") fetchSirenes().then(setSirenes).catch(() => {});
+    if (viewMode === "dados") {
+      if (dadosSub === "precipitacao") fetchPrecipitacao().then(setPrecipitacao).catch(() => {});
+      else if (dadosSub === "meteorologico" || dadosSub === "ventos") reloadStations();
+      else if (dadosSub === "hidrologico") fetchHidrologicas().then(setHidrologicas).catch(() => {});
+    } else if (viewMode === "sirenes") fetchSirenes().then(setSirenes).catch(() => {});
   };
 
   if (showProfile) {
@@ -571,7 +605,10 @@ export default function Dashboard({
             : {activeAlertEvents.map((e) => e.station_name).join(", ")}
           </div>
         )}
-        <nav className="flex flex-wrap gap-1 border-t border-gray-800 px-3 py-1.5">
+        {/* Menu horizontal — só desktop/tablet largo (pedido do usuário,
+            2026-09-29: no celular/tablet estreito vira barra inferior fixa,
+            ver <nav> logo após o </header>, mais parecido com app nativo). */}
+        <nav className="hidden flex-wrap gap-1 border-t border-gray-800 px-3 py-1.5 md:!flex">
           {VIEW_MODES.map(({ key, label }) => (
             <button
               key={key}
@@ -587,7 +624,27 @@ export default function Dashboard({
         </nav>
       </header>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Barra inferior fixa — só celular/tablet (< md), estilo app nativo
+          (ícone + rótulo curto), pedido do usuário 2026-09-29. O conteúdo
+          principal ganha padding-bottom nesse breakpoint pra essa barra
+          nunca cobrir nada (ver <div className="flex flex-1..."> abaixo). */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-gray-800 bg-gray-900 pb-[env(safe-area-inset-bottom)] md:!hidden">
+        {VIEW_MODES.map(({ key, label, Icone }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setViewMode(key)}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
+              viewMode === key ? "text-white" : "text-gray-400"
+            }`}
+          >
+            <Icone size={20} strokeWidth={viewMode === key ? 2.5 : 2} />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="flex flex-1 flex-col overflow-hidden pb-14 md:!pb-0">
         {/* Barra de filtro flutuante (pedido do usuário, 2026-09-23: a barra
             antiga com os 4 filtros sempre abertos + Exportar CSV numa linha
             separada tomava quase metade da tela no celular — escolhida a
@@ -597,15 +654,16 @@ export default function Dashboard({
             em "Filtros"). Não aparece no Mapa (tem o próprio painel
             flutuante) nem em Alertas Ativos (não filtra por essas
             dimensões — tem os próprios filtros de REDEC/município). */}
-        {viewMode !== "alertas" && viewMode !== "mapa" && viewMode !== "sirenes" && viewMode !== "meteorologia" && (
+        {viewMode === "dados" && (
           <FilterToggleBar
             filterControls={filterControls}
             statusText={filterStatusText}
             onRefreshDone={handleRefreshDone}
             onExport={() => {
-              if (viewMode === "precipitacao") precipitacaoTableRef.current?.exportar();
-              else if (viewMode === "meteorologico") meteorologicoTableRef.current?.exportar();
-              else if (viewMode === "hidrologico") hidrologicoTableRef.current?.exportar();
+              if (dadosSub === "precipitacao") precipitacaoTableRef.current?.exportar();
+              else if (dadosSub === "meteorologico") meteorologicoTableRef.current?.exportar();
+              else if (dadosSub === "hidrologico") hidrologicoTableRef.current?.exportar();
+              else if (dadosSub === "ventos") ventosTableRef.current?.exportar();
             }}
             errors={
               <>
@@ -720,32 +778,87 @@ export default function Dashboard({
               )}
             </div>
           )}
-          {viewMode === "precipitacao" && (
-            <PrecipitationTable
-              ref={precipitacaoTableRef}
-              stations={filteredPrecipitacao}
-              municipioRedecMap={municipioRedecMap}
-            />
+          {viewMode === "dados" && (
+            <div className="flex h-full w-full flex-col">
+              <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 bg-white px-3 py-1.5">
+                {DADOS_SUBS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setDadosSub(key)}
+                    className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
+                      dadosSub === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="min-h-0 flex-1">
+                {dadosSub === "precipitacao" && (
+                  <PrecipitationTable
+                    ref={precipitacaoTableRef}
+                    stations={filteredPrecipitacao}
+                    municipioRedecMap={municipioRedecMap}
+                    onOpenStation={setPainelEstacaoId}
+                  />
+                )}
+                {dadosSub === "meteorologico" && (
+                  <DataTable
+                    ref={meteorologicoTableRef}
+                    stations={filteredStations}
+                    readingTypes={METEOROLOGICAL_READING_TYPES}
+                    defaultSortKey="temperatura_c"
+                    municipioRedecMap={municipioRedecMap}
+                    onOpenStation={setPainelEstacaoId}
+                  />
+                )}
+                {dadosSub === "hidrologico" && (
+                  <HidrologicaTable
+                    ref={hidrologicoTableRef}
+                    stations={filteredHidrologicas}
+                    municipioRedecMap={municipioRedecMap}
+                    onOpenStation={setPainelEstacaoId}
+                  />
+                )}
+                {dadosSub === "ventos" && (
+                  <VentosTable
+                    ref={ventosTableRef}
+                    stations={filteredStations}
+                    municipioRedecMap={municipioRedecMap}
+                    onOpenStation={setPainelEstacaoId}
+                  />
+                )}
+              </div>
+            </div>
           )}
-          {viewMode === "meteorologico" && (
-            <DataTable
-              ref={meteorologicoTableRef}
-              stations={filteredStations}
-              readingTypes={METEOROLOGICAL_READING_TYPES}
-              defaultSortKey="temperatura_c"
-              municipioRedecMap={municipioRedecMap}
-            />
+          {viewMode === "sirenes" && (
+            <SirenesTable ref={sirenesTableRef} stations={filteredSirenes} onOpenStation={setPainelEstacaoId} />
           )}
-          {viewMode === "hidrologico" && (
-            <HidrologicaTable
-              ref={hidrologicoTableRef}
-              stations={filteredHidrologicas}
-              municipioRedecMap={municipioRedecMap}
-            />
-          )}
-          {viewMode === "sirenes" && <SirenesTable ref={sirenesTableRef} stations={filteredSirenes} />}
           {viewMode === "meteorologia" && <MeteorologiaPanel />}
           {viewMode === "alertas" && <AlertsPanel />}
+
+          {/* Painel de histórico de estação IN-APP — por cima do conteúdo da
+              aba atual (mesmo <main>), NÃO do cabeçalho/menu (pedido do
+              usuário: cabeçalho e menu nunca somem). "Voltar" só fecha o
+              painel (setPainelEstacaoId(null)) — nada é perdido, a aba e os
+              filtros continuam exatamente como estavam. */}
+          {painelEstacaoId !== null && (
+            <div className="absolute inset-0 z-40 overflow-auto bg-gray-50">
+              <StationHistoryPanel
+                stationId={painelEstacaoId}
+                topo={
+                  <button
+                    type="button"
+                    onClick={() => setPainelEstacaoId(null)}
+                    className="flex items-center gap-1.5 text-sm font-medium text-sedec-600 hover:underline"
+                  >
+                    <X size={16} /> Fechar e voltar ao painel
+                  </button>
+                }
+              />
+            </div>
+          )}
         </main>
       </div>
 

@@ -3,6 +3,7 @@
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
 import ColumnResizer from "@/components/ColumnResizer";
+import { CampoClicavel, HistoricoIconLink, W_HISTORICO } from "@/components/EstacaoCellLinks";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import { GatilhoStatus, SireneStation } from "@/lib/api";
 import { downloadCsv } from "@/lib/csvExport";
@@ -129,10 +130,10 @@ function GatilhoCelula({ status, definido, gatilho }: { status: GatilhoStatus; d
   );
 }
 
-const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }>(function SirenesTable(
-  { stations },
-  ref,
-) {
+const SirenesTable = forwardRef<
+  TableExportHandle,
+  { stations: SireneStation[]; onOpenStation: (id: number) => void }
+>(function SirenesTable({ stations, onOpenStation }, ref) {
   const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-sirenes-v2", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>("prioridade");
   const [sortAsc, setSortAsc] = useState(false);
@@ -216,7 +217,7 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
 
   useImperativeHandle(ref, () => ({ exportar }));
 
-  const larguraTotal = ORDEM_COLUNAS.reduce((soma, k) => soma + w[k], 0);
+  const larguraTotal = ORDEM_COLUNAS.reduce((soma, k) => soma + w[k], 0) + W_HISTORICO;
   // Grade completa (pedido do usuário, referência: tela de sirenes do CBMERJ) —
   // border em toda célula, não só border-bottom como as outras tabelas.
   const th = "sticky top-0 border border-gray-300 bg-gray-100 px-1.5 py-1.5 align-middle whitespace-normal break-words leading-tight";
@@ -230,6 +231,7 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
           {ORDEM_COLUNAS.map((k) => (
             <col key={k} style={{ width: w[k] }} />
           ))}
+          <col style={{ width: W_HISTORICO }} />
         </colgroup>
         <thead className="text-left uppercase tracking-wide text-gray-600">
           {/* Cabeçalho agrupado em 2 linhas (pedido do usuário, referência: tela
@@ -288,6 +290,9 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
               Atualizado em{arrow("updated")}
               {resizer("atualizado")}
             </th>
+            <th className={`${th} z-20 cursor-default text-center`} rowSpan={2} style={{ width: W_HISTORICO }} title="Abrir em nova aba">
+              Histórico
+            </th>
           </tr>
           <tr>
             <th className={`${thOrdenavel} text-right`} style={{ width: w.h1 }} onClick={() => toggleSort("chuva_1h_mm")}>
@@ -335,10 +340,10 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
                   className={`${td} sticky left-0 z-10 font-medium text-gray-900 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]`}
                   style={{ backgroundColor: bgFundo }}
                 >
-                  {s.name}
+                  <CampoClicavel id={s.id} valor={s.name} onOpenStation={onOpenStation} className="text-left hover:underline" />
                 </td>
                 <td className={`${td} text-gray-600`} style={{ backgroundColor: bgFundo }}>
-                  {s.municipality || "—"}
+                  <CampoClicavel id={s.id} valor={s.municipality || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td className={td} style={{ backgroundColor: bgFundo }}>
                   <span
@@ -409,7 +414,7 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
                   <GatilhoCelula status={s.gatilhos.GIV} definido={s.gatilho_definido} gatilho="Gatilho IV" />
                 </td>
                 <td className={`${td} text-gray-600`} style={{ backgroundColor: bgFundo }} title={s.tipo_sirene ? TIPO_ROTULO[s.tipo_sirene] : undefined}>
-                  {s.tipo_sirene || "—"}
+                  <CampoClicavel id={s.id} valor={s.tipo_sirene || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td className={`${td} text-gray-600`} style={{ backgroundColor: bgFundo }}>
                   {s.ref_nome ?? (s.tem_pluviometro ? "(própria)" : "—")}
@@ -418,13 +423,16 @@ const SirenesTable = forwardRef<TableExportHandle, { stations: SireneStation[] }
                   {s.risco_sirene ? (RISCO_ROTULO[s.risco_sirene] ?? s.risco_sirene) : "—"}
                 </td>
                 <td className={`${td} text-gray-500`} style={{ backgroundColor: bgFundo }}>
-                  {s.redec || "—"}
+                  <CampoClicavel id={s.id} valor={s.redec || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td className={`${td} text-gray-500`} style={{ backgroundColor: bgFundo }}>
                   {[s.bairro, s.rua].filter(Boolean).join(" — ") || "—"}
                 </td>
                 <td className={`${td} text-gray-500`} style={{ backgroundColor: bgFundo }}>
                   {formatTimestamp(s.updated_at)}
+                </td>
+                <td className={`${td} text-center`} style={{ backgroundColor: bgFundo }}>
+                  <HistoricoIconLink id={s.id} />
                 </td>
               </tr>
             );

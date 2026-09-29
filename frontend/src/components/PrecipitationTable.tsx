@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
 import ColumnResizer from "@/components/ColumnResizer";
+import { CampoClicavel, HistoricoIconLink, W_HISTORICO } from "@/components/EstacaoCellLinks";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import {
   getChuva1hFaixa,
@@ -96,8 +96,10 @@ const PrecipitationTable = forwardRef<
     stations: PrecipitacaoStation[];
     /** Município (normalizado) → REDEC — ver DataTable.tsx/page.tsx. */
     municipioRedecMap?: Record<string, string>;
+    /** Abre o painel de histórico da estação IN-APP (sem navegar). */
+    onOpenStation: (id: number) => void;
   }
->(function PrecipitationTable({ stations, municipioRedecMap = {} }, ref) {
+>(function PrecipitationTable({ stations, municipioRedecMap = {}, onOpenStation }, ref) {
   // Pedido do usuário: por padrão, ordenar pelos MAIORES valores de 15min
   // (é o que mais importa pra decisão operacional imediata) — o usuário
   // troca depois clicando em qualquer outro cabeçalho.
@@ -177,7 +179,10 @@ const PrecipitationTable = forwardRef<
     <div className="h-full w-full overflow-auto bg-white">
       <table
         className="border-collapse text-xs sm:text-sm"
-        style={{ tableLayout: "fixed", width: w.estacao + w.redec + w.municipio + JANELAS.length * w.janela + w.fonte + w.atualizado }}
+        style={{
+          tableLayout: "fixed",
+          width: w.estacao + w.redec + w.municipio + JANELAS.length * w.janela + w.fonte + w.atualizado + W_HISTORICO,
+        }}
       >
         <colgroup>
           <col style={{ width: w.estacao }} />
@@ -188,6 +193,7 @@ const PrecipitationTable = forwardRef<
           ))}
           <col style={{ width: w.fonte }} />
           <col style={{ width: w.atualizado }} />
+          <col style={{ width: W_HISTORICO }} />
         </colgroup>
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
@@ -244,6 +250,13 @@ const PrecipitationTable = forwardRef<
               Atualizado em{arrow("updated")}
               {resizer("atualizado")}
             </th>
+            <th
+              className="sticky top-0 align-bottom leading-tight z-20 whitespace-nowrap bg-gray-100 px-1 py-2 text-center"
+              style={{ width: W_HISTORICO, maxWidth: W_HISTORICO, minWidth: W_HISTORICO }}
+              title="Abrir em nova aba"
+            >
+              Histórico
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -273,16 +286,13 @@ const PrecipitationTable = forwardRef<
                   }}
                   title={s.name}
                 >
-                  <Link
-                    href={`/estacao?id=${s.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline-offset-2 hover:underline"
-                    style={{ color: "inherit" }}
-                    title="Abrir histórico da estação em nova aba"
-                  >
-                    {s.name}
-                  </Link>
+                  <CampoClicavel
+                    id={s.id}
+                    valor={s.name}
+                    onOpenStation={onOpenStation}
+                    className="text-left underline-offset-2 hover:underline"
+                    title="Ver histórico desta estação"
+                  />
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight align-middle px-2 py-1"
@@ -294,7 +304,7 @@ const PrecipitationTable = forwardRef<
                     color: corTexto ?? "#6b7280",
                   }}
                 >
-                  {redecOf(s.municipality) || "—"}
+                  <CampoClicavel id={s.id} valor={redecOf(s.municipality) || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight align-middle px-2 py-1"
@@ -306,7 +316,7 @@ const PrecipitationTable = forwardRef<
                     color: corTexto ?? "#4b5563",
                   }}
                 >
-                  {s.municipality || "—"}
+                  <CampoClicavel id={s.id} valor={s.municipality || "—"} onOpenStation={onOpenStation} />
                 </td>
                 {JANELAS.map((j) =>
                   j.key === "acumulado_hoje_mm" ? (
@@ -341,7 +351,7 @@ const PrecipitationTable = forwardRef<
                   style={{ backgroundColor: bgFundo, color: faixa1h ? faixa1h.text : (SOURCE_COLORS[s.source] ?? "#374151") }}
                   title={s.source}
                 >
-                  {SOURCE_LABELS[s.source] ?? s.source}
+                  <CampoClicavel id={s.id} valor={SOURCE_LABELS[s.source] ?? s.source} onOpenStation={onOpenStation} />
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight px-2 py-1"
@@ -349,6 +359,9 @@ const PrecipitationTable = forwardRef<
                   title={atraso.label}
                 >
                   {formatTimestamp(s.updated_at)}
+                </td>
+                <td className="px-1 py-1 text-center align-middle" style={{ backgroundColor: bgFundo }}>
+                  <HistoricoIconLink id={s.id} />
                 </td>
               </tr>
             );

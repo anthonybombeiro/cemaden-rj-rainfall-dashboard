@@ -4,6 +4,7 @@ import { ArrowDown, ArrowRight, ArrowUp } from "lucide-react";
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 
 import ColumnResizer from "@/components/ColumnResizer";
+import { CampoClicavel, HistoricoIconLink, W_HISTORICO } from "@/components/EstacaoCellLinks";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import {
   COTA_ESTILOS,
@@ -123,8 +124,10 @@ const HidrologicaTable = forwardRef<
   {
     stations: HidrologicaStation[];
     municipioRedecMap?: Record<string, string>;
+    /** Abre o painel de histórico da estação IN-APP (sem navegar). */
+    onOpenStation: (id: number) => void;
   }
->(function HidrologicaTable({ stations, municipioRedecMap = {} }, ref) {
+>(function HidrologicaTable({ stations, municipioRedecMap = {}, onOpenStation }, ref) {
   // Padrão: maior nível ATUAL primeiro — é o que mais importa pra decisão
   // operacional imediata numa tabela de monitoramento de cheias.
   const [sortKey, setSortKey] = useState<string>("nivel_atual_m");
@@ -216,7 +219,7 @@ const HidrologicaTable = forwardRef<
     <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
   );
   const larguraTotal =
-    w.estacao + w.redec + w.municipio + w.rio + w.nivel + w.situacao + JANELAS_CHUVA.length * w.janela + w.bacia + w.regiao + w.fonte + w.atualizado;
+    w.estacao + w.redec + w.municipio + w.rio + w.nivel + w.situacao + JANELAS_CHUVA.length * w.janela + w.bacia + w.regiao + w.fonte + w.atualizado + W_HISTORICO;
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
@@ -235,6 +238,7 @@ const HidrologicaTable = forwardRef<
           <col style={{ width: w.regiao }} />
           <col style={{ width: w.fonte }} />
           <col style={{ width: w.atualizado }} />
+          <col style={{ width: W_HISTORICO }} />
         </colgroup>
         <thead className="text-left text-[11px] uppercase tracking-wide text-gray-600 sm:text-xs">
           <tr>
@@ -305,6 +309,9 @@ const HidrologicaTable = forwardRef<
               Atualizado em{arrow("updated")}
               {resizer("atualizado")}
             </th>
+            <th className={`${TH_BASE} cursor-default text-center`} style={{ width: W_HISTORICO, maxWidth: W_HISTORICO, minWidth: W_HISTORICO }} title="Abrir em nova aba">
+              Histórico
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -321,16 +328,16 @@ const HidrologicaTable = forwardRef<
                   style={{ ...wStyle("estacao"), left: 0, backgroundColor: bgFundo, color: corTexto ?? "#111827" }}
                   title={s.name}
                 >
-                  {s.name}
+                  <CampoClicavel id={s.id} valor={s.name} onOpenStation={onOpenStation} className="text-left hover:underline" />
                 </td>
                 <td className={TD_TEXTO} style={{ ...wStyle("redec"), backgroundColor: bgFundo, color: corTexto ?? "#6b7280" }}>
-                  {redecOf(s.municipality) || "—"}
+                  <CampoClicavel id={s.id} valor={redecOf(s.municipality) || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td
                   className={TD_TEXTO}
                   style={{ ...wStyle("municipio"), backgroundColor: bgFundo, color: corTexto ?? "#4b5563" }}
                 >
-                  {s.municipality || "—"}
+                  <CampoClicavel id={s.id} valor={s.municipality || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td
                   className={TD_TEXTO}
@@ -376,7 +383,7 @@ const HidrologicaTable = forwardRef<
                   }}
                   title={s.source}
                 >
-                  {SOURCE_LABELS[s.source] ?? s.source}
+                  <CampoClicavel id={s.id} valor={SOURCE_LABELS[s.source] ?? s.source} onOpenStation={onOpenStation} />
                 </td>
                 <td
                   className={TD_TEXTO}
@@ -384,6 +391,9 @@ const HidrologicaTable = forwardRef<
                   title={atraso.label}
                 >
                   {formatTimestamp(s.updated_at)}
+                </td>
+                <td className="px-1 py-1 text-center align-middle" style={{ backgroundColor: bgFundo }}>
+                  <HistoricoIconLink id={s.id} />
                 </td>
               </tr>
             );
