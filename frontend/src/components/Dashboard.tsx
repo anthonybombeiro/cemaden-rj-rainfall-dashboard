@@ -15,8 +15,10 @@ import MultiSelectFilter from "@/components/MultiSelectFilter";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
 import SirenesTable from "@/components/SirenesTable";
+import ShareModal from "@/components/ShareModal";
 import StationHistoryPanel from "@/components/StationHistoryPanel";
 import { TableExportHandle } from "@/components/tableExportHandle";
+import { ShareData } from "@/lib/shareExport";
 import VentosTable from "@/components/VentosTable";
 import {
   AlertEvent,
@@ -101,6 +103,10 @@ export default function Dashboard({
   // só abre esse painel por cima do conteúdo da aba atual, mantendo
   // cabeçalho/menu/filtros exatamente como estavam. `null` = fechado.
   const [painelEstacaoId, setPainelEstacaoId] = useState<number | null>(null);
+  // Modal "Compartilhar" (pedido do usuário, 2026-09-29: resumo pronto pra
+  // Telegram/WhatsApp) — cada tabela monta seu próprio ShareData curado e
+  // chama isso; o modal em si é genérico (ver ShareModal.tsx).
+  const [shareData, setShareData] = useState<ShareData | null>(null);
 
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
@@ -665,6 +671,7 @@ export default function Dashboard({
               else if (dadosSub === "hidrologico") hidrologicoTableRef.current?.exportar();
               else if (dadosSub === "ventos") ventosTableRef.current?.exportar();
             }}
+            onShare={dadosSub === "ventos" ? () => ventosTableRef.current?.compartilhar?.() : undefined}
             errors={
               <>
                 {error && (
@@ -694,6 +701,7 @@ export default function Dashboard({
             statusText={sirenesFilterStatusText}
             onRefreshDone={handleRefreshDone}
             onExport={() => sirenesTableRef.current?.exportar()}
+            onShare={() => sirenesTableRef.current?.compartilhar?.()}
             extraSummary={
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
                 <span className="flex items-center gap-1">
@@ -827,13 +835,19 @@ export default function Dashboard({
                     stations={filteredStations}
                     municipioRedecMap={municipioRedecMap}
                     onOpenStation={setPainelEstacaoId}
+                    onShare={setShareData}
                   />
                 )}
               </div>
             </div>
           )}
           {viewMode === "sirenes" && (
-            <SirenesTable ref={sirenesTableRef} stations={filteredSirenes} onOpenStation={setPainelEstacaoId} />
+            <SirenesTable
+              ref={sirenesTableRef}
+              stations={filteredSirenes}
+              onOpenStation={setPainelEstacaoId}
+              onShare={setShareData}
+            />
           )}
           {viewMode === "meteorologia" && <MeteorologiaPanel />}
           {viewMode === "alertas" && <AlertsPanel />}
@@ -906,6 +920,8 @@ export default function Dashboard({
           </div>
         </div>
       )}
+
+      {shareData && <ShareModal data={shareData} onClose={() => setShareData(null)} />}
     </div>
   );
 }

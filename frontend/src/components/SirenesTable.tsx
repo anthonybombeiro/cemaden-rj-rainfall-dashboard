@@ -7,6 +7,7 @@ import { CampoClicavel, HistoricoIconLink, W_HISTORICO } from "@/components/Esta
 import { TableExportHandle } from "@/components/tableExportHandle";
 import { GatilhoStatus, SireneStation } from "@/lib/api";
 import { downloadCsv } from "@/lib/csvExport";
+import { ShareData } from "@/lib/shareExport";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 
 function formatTimestamp(iso: string | null): string {
@@ -132,8 +133,14 @@ function GatilhoCelula({ status, definido, gatilho }: { status: GatilhoStatus; d
 
 const SirenesTable = forwardRef<
   TableExportHandle,
-  { stations: SireneStation[]; onOpenStation: (id: number) => void }
->(function SirenesTable({ stations, onOpenStation }, ref) {
+  {
+    stations: SireneStation[];
+    onOpenStation: (id: number) => void;
+    /** Abre o ShareModal com o resumo curado (top 20 pela ordenação atual) —
+     * ver ShareModal.tsx/shareExport.ts. */
+    onShare?: (data: ShareData) => void;
+  }
+>(function SirenesTable({ stations, onOpenStation, onShare }, ref) {
   const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-sirenes-v2", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>("prioridade");
   const [sortAsc, setSortAsc] = useState(false);
@@ -215,7 +222,56 @@ const SirenesTable = forwardRef<
     downloadCsv(`cemaden-rj-sirenes-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
-  useImperativeHandle(ref, () => ({ exportar }));
+  const compartilhar = () => {
+    if (!onShare) return;
+    const top20 = sorted.slice(0, 20);
+    const linhas = top20.map((s) => {
+      const online = s.status_estacao === "ativa";
+      const desconhecido = s.status_estacao === "desconhecido";
+      const bgFundo = s.tocando ? "#fee2e2" : !online && !desconhecido ? "#f3f4f6" : "#ffffff";
+      const corTexto = s.tocando ? "#7f1d1d" : undefined;
+      const gatilhoMaisAlto = (["GIV", "GIII", "GII", "GI"] as const)
+        .map((g) => s.gatilhos[g])
+        .find((st) => st === "acionado" || st === "obrigatorio" || st === "condicionado");
+      return {
+        valores: {
+          municipio: s.municipality || "—",
+          estacao: s.name,
+          status: online ? "Online" : desconhecido ? "Desconhecido" : "Offline",
+          toque: s.tocando ? (s.acao_nome ?? "TOCANDO") : "Normal",
+          h1: formatMm(s.chuva_1h_mm),
+          h24: formatMm(s.chuva_24h_mm),
+          gatilho: gatilhoMaisAlto ? GATILHO_ROTULO[gatilhoMaisAlto] : s.gatilho_definido ? "—" : "n/d",
+        },
+        bg: bgFundo,
+        text: corTexto,
+      };
+    });
+    const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    const data: ShareData = {
+      titulo: "CEMADEN-RJ - Monitoramento de sirenes",
+      dataHora: agora,
+      colunas: [
+        { chave: "municipio", rotulo: "Município" },
+        { chave: "estacao", rotulo: "Estação" },
+        { chave: "status", rotulo: "Status" },
+        { chave: "toque", rotulo: "Toque" },
+        { chave: "h1", rotulo: "1h (mm)", alinhamento: "right" },
+        { chave: "h24", rotulo: "24h (mm)", alinhamento: "right" },
+        { chave: "gatilho", rotulo: "Gatilho", alinhamento: "center" },
+      ],
+      linhas,
+      legenda: [
+        { cor: "#fee2e2", rotulo: "Tocando agora" },
+        { cor: "#f3f4f6", rotulo: "Offline" },
+      ],
+      fonteTexto: "Fonte dados: CEMADEN-RJ / SEDEC (portal de sirenes)",
+      nomeArquivo: `cemaden-rj-sirenes-${new Date().toISOString().slice(0, 10)}`,
+    };
+    onShare(data);
+  };
+
+  useImperativeHandle(ref, () => ({ exportar, compartilhar: onShare ? compartilhar : undefined }));
 
   const larguraTotal = ORDEM_COLUNAS.reduce((soma, k) => soma + w[k], 0) + W_HISTORICO;
   // Grade completa (pedido do usuário, referência: tela de sirenes do CBMERJ) —

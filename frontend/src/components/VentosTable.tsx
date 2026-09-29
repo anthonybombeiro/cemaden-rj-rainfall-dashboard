@@ -14,6 +14,7 @@ import {
   Station,
 } from "@/lib/api";
 import { downloadCsv } from "@/lib/csvExport";
+import { ShareData } from "@/lib/shareExport";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 
 /** Tabela dedicada só a vento (pedido do usuário, 2026-09-29) — separada da
@@ -92,8 +93,11 @@ const VentosTable = forwardRef<
     stations: Station[];
     municipioRedecMap?: Record<string, string>;
     onOpenStation: (id: number) => void;
+    /** Abre o ShareModal com o resumo curado (top 20 pela ordenação atual) —
+     * ver ShareModal.tsx/shareExport.ts. */
+    onShare?: (data: ShareData) => void;
   }
->(function VentosTable({ stations, municipioRedecMap = {}, onOpenStation }, ref) {
+>(function VentosTable({ stations, municipioRedecMap = {}, onOpenStation, onShare }, ref) {
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
   const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-ventos-v2", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>("vento_rajada_ms");
@@ -173,7 +177,52 @@ const VentosTable = forwardRef<
     downloadCsv(`cemaden-rj-ventos-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
-  useImperativeHandle(ref, () => ({ exportar }));
+  const compartilhar = () => {
+    if (!onShare) return;
+    const top20 = sorted.slice(0, 20);
+    const linhas = top20.map((s) => {
+      const vento = valorDe(s, "vento_ms");
+      const rajadaMs = valorDe(s, "vento_rajada_ms");
+      const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
+      const direcao = valorDe(s, "vento_dir_graus");
+      const updated = mostRecentUpdate(s);
+      const faixa = faixaDaRajada(rajadaKmh);
+      return {
+        valores: {
+          municipio: s.municipality || "—",
+          estacao: s.name,
+          atualizado: updated ? formatTimestamp(updated) : "—",
+          vento: vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toFixed(1) : "—",
+          direcao: direcao !== null ? `${Math.round(direcao)}° ${pontoCardeal(direcao)}` : "—",
+          rajada: rajadaKmh !== null ? rajadaKmh.toFixed(1) : "—",
+          situacao: faixa?.label ?? "—",
+        },
+        bg: faixa?.bg,
+        text: faixa?.text,
+      };
+    });
+    const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    const data: ShareData = {
+      titulo: "CEMADEN-RJ - Monitoramento de vento",
+      dataHora: agora,
+      colunas: [
+        { chave: "municipio", rotulo: "Município" },
+        { chave: "estacao", rotulo: "Estação" },
+        { chave: "atualizado", rotulo: "Último dado" },
+        { chave: "vento", rotulo: "Vento (km/h)", alinhamento: "right" },
+        { chave: "direcao", rotulo: "Direção", alinhamento: "center" },
+        { chave: "rajada", rotulo: "Rajada (km/h)", alinhamento: "right" },
+        { chave: "situacao", rotulo: "Situação", alinhamento: "center" },
+      ],
+      linhas,
+      legenda: FAIXAS_RAJADA.slice().reverse().map(({ faixa }) => ({ cor: faixa.bg, rotulo: faixa.label })),
+      fonteTexto: "Fonte dados: INMET, REDEMET, Wunderground, Plugfield — CEMADEN-RJ/SEDEC",
+      nomeArquivo: `cemaden-rj-ventos-${new Date().toISOString().slice(0, 10)}`,
+    };
+    onShare(data);
+  };
+
+  useImperativeHandle(ref, () => ({ exportar, compartilhar: onShare ? compartilhar : undefined }));
 
   const larguraTotal = ORDEM_COLUNAS.reduce((soma, k) => soma + w[k], 0) + W_HISTORICO;
 

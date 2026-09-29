@@ -9,4 +9,9 @@
  * AÇÃO imperativa sem levantar estado. */
 export type TableExportHandle = {
   exportar: () => void;
+  /** Monta o ShareData curado (colunas reduzidas, top N pela ordenação
+   * atual) e entrega pro callback `onShare` do componente pai — só
+   * implementado pelas tabelas que já têm essa curadoria (ver
+   * ShareModal.tsx/shareExport.ts). */
+  compartilhar?: () => void;
 };

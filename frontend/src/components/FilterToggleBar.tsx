@@ -24,6 +24,7 @@ export default function FilterToggleBar({
   onExport,
   onRefreshDone,
   extraSummary,
+  onShare,
 }: {
   filterControls: ReactNode;
   statusText: string;
@@ -31,6 +32,11 @@ export default function FilterToggleBar({
   onExport: () => void;
   onRefreshDone: () => void;
   extraSummary?: ReactNode;
+  /** Abre o modal de "Compartilhar" (resumo pronto pra Telegram/WhatsApp,
+   * ver ShareModal.tsx) — só passado pelas tabelas que já têm essa
+   * curadoria implementada (pedido do usuário, 2026-09-29: começar por
+   * Ventos e Sirenes). Sem essa prop, o botão nem aparece. */
+  onShare?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -48,10 +54,20 @@ export default function FilterToggleBar({
         <RefreshNowButton onDone={onRefreshDone} />
         {extraSummary}
         <span className="text-xs text-gray-500">{statusText}</span>
+        {onShare && (
+          <button
+            type="button"
+            onClick={onShare}
+            className="ml-auto rounded border border-sedec-300 bg-sedec-50 px-2 py-1 text-xs font-medium text-sedec-700 hover:bg-sedec-100"
+            title="Gerar resumo pronto pra compartilhar no Telegram/WhatsApp (imagem ou texto)"
+          >
+            📤 Compartilhar
+          </button>
+        )}
         <button
           type="button"
           onClick={onExport}
-          className="ml-auto rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+          className={`${onShare ? "" : "ml-auto"} rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50`}
           title="Exportar a tabela (com o filtro e a ordenação atuais) em CSV"
         >
           ⬇ Exportar CSV
