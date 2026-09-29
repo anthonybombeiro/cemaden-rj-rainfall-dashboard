@@ -250,6 +250,24 @@ class PopulateSireneRefSuperuserView(APIView):
         return Response({"ok": True, "output": saida.getvalue()[-4000:]})
 
 
+class SetRiscoSireneSuperuserView(APIView):
+    """POST /api/admin/set-risco-sirene/ — sessão + CSRF, sem precisar do segredo.
+    Preenche risco_sirene em massa pras sirenes AINDA EM BRANCO (não sobrescreve
+    quem já foi classificado manualmente). Body opcional: {"valor": "geo"} (padrão)."""
+
+    VALORES_VALIDOS = {"geo", "hidro", "geo_hidro"}
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        valor = (request.data or {}).get("valor", "geo")
+        if valor not in self.VALORES_VALIDOS:
+            return Response({"detail": f"valor inválido. Permitidos: {sorted(self.VALORES_VALIDOS)}"}, status=400)
+        saida = io.StringIO()
+        call_command("set_risco_sirene_padrao", valor=valor, stdout=saida, stderr=saida)
+        return Response({"ok": True, "output": saida.getvalue()})
+
+
 class EnvCheckView(APIView):
     """GET /api/admin/env-check/ — só superusuário. Diz SE segredos estão
     configurados (booleanos/tamanho), nunca o valor."""
