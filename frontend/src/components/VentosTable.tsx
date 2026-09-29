@@ -19,7 +19,11 @@ import { useColumnWidths } from "@/lib/useColumnWidths";
 /** Tabela dedicada só a vento (pedido do usuário, 2026-09-29) — separada da
  * "Dados Meteorológicos" (que mistura todos os tipos de leitura), com
  * bússola visual por linha igual à do card de vento na página de estação
- * (ver VentoGauge em Gauges.tsx, versão mini aqui pra caber numa célula). */
+ * (ver VentoGauge em Gauges.tsx, versão mini aqui pra caber numa célula).
+ * Cores/legenda por RAJADA (2026-09-29, pedido do usuário, referência:
+ * print do CEMADEN-RJ "Monitoramento de vento") — mesma classificação
+ * Fraca/Moderada/Forte/Muito forte, aplicada como cor de fundo da linha
+ * (mesmo padrão de Precipitação/Hidrológica) + coluna "Situação". */
 
 const PONTOS = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
 function pontoCardeal(graus: number): string {
@@ -32,6 +36,18 @@ function formatTimestamp(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+type FaixaRajada = { label: string; bg: string; text: string };
+const FAIXAS_RAJADA: { min: number; faixa: FaixaRajada }[] = [
+  { min: 76, faixa: { label: "Muito forte", bg: "#c084fc", text: "#3b0764" } },
+  { min: 52, faixa: { label: "Forte", bg: "#f87171", text: "#7f1d1d" } },
+  { min: 18.6, faixa: { label: "Moderada", bg: "#f0a868", text: "#7c2d12" } },
+  { min: 0, faixa: { label: "Fraca", bg: "#dcfce7", text: "#166534" } },
+];
+function faixaDaRajada(rajadaKmh: number | null): FaixaRajada | null {
+  if (rajadaKmh === null) return null;
+  return FAIXAS_RAJADA.find((f) => rajadaKmh >= f.min)?.faixa ?? null;
 }
 
 function Bussola({ graus }: { graus: number | null }) {
@@ -48,14 +64,23 @@ function Bussola({ graus }: { graus: number | null }) {
   );
 }
 
-const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "source", "updated"]);
+const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "source", "situacao", "updated"]);
+
+// Grade completa (mesmo padrão de Sirenes, pedido do usuário 2026-09-29) —
+// border em toda célula, não só border-bottom.
+const TH = "sticky top-0 z-20 border border-gray-300 bg-gray-100 px-1.5 py-1.5 align-middle align-bottom leading-tight";
+const TH_ORDENAVEL = `${TH} cursor-pointer select-none whitespace-normal break-words`;
+const TD = "border border-gray-200 px-1.5 py-1 align-middle";
 
 const W_DESKTOP: Record<string, number> = {
-  estacao: 170, municipio: 130, redec: 140, fonte: 116, tipo: 110, vento: 96, rajada: 96, direcao: 130, atualizado: 130,
+  estacao: 170, municipio: 130, rajada: 100, vento: 96, direcao: 130, situacao: 100,
+  redec: 140, fonte: 116, tipo: 110, atualizado: 130,
 };
 const W_MOBILE: Record<string, number> = {
-  estacao: 120, municipio: 112, redec: 140, fonte: 100, tipo: 96, vento: 84, rajada: 84, direcao: 110, atualizado: 110,
+  estacao: 120, municipio: 112, rajada: 90, vento: 84, direcao: 110, situacao: 92,
+  redec: 140, fonte: 100, tipo: 96, atualizado: 110,
 };
+const ORDEM_COLUNAS = ["estacao", "municipio", "rajada", "vento", "direcao", "situacao", "redec", "fonte", "tipo", "atualizado"] as const;
 
 function valorDe(s: Station, tipo: string): number | null {
   return s.latest_readings.find((r) => r.reading_type === tipo)?.value ?? null;
@@ -70,8 +95,8 @@ const VentosTable = forwardRef<
   }
 >(function VentosTable({ stations, municipioRedecMap = {}, onOpenStation }, ref) {
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
-  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-ventos-v1", W_DESKTOP, W_MOBILE);
-  const [sortKey, setSortKey] = useState<string>("vento_ms");
+  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-ventos-v2", W_DESKTOP, W_MOBILE);
+  const [sortKey, setSortKey] = useState<string>("vento_rajada_ms");
   const [sortAsc, setSortAsc] = useState(false);
 
   // Só estações que reportam pelo menos vento OU rajada OU direção.
@@ -124,22 +149,24 @@ const VentosTable = forwardRef<
   const resizer = (k: string) => <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />;
 
   const exportar = () => {
-    const headers = ["Estação", "Município", "REDEC", "Fonte", "Tipo", "Vento (km/h)", "Rajada (km/h)", "Direção (°)", "Direção", "Atualizado em"];
+    const headers = ["Estação", "Município", "Rajada (km/h)", "Vento (km/h)", "Direção (°)", "Direção", "Situação", "REDEC", "Fonte", "Tipo", "Atualizado em"];
     const rows = sorted.map((s) => {
       const vento = valorDe(s, "vento_ms");
-      const rajada = valorDe(s, "vento_rajada_ms");
+      const rajadaMs = valorDe(s, "vento_rajada_ms");
+      const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
       const direcao = valorDe(s, "vento_dir_graus");
       const updated = mostRecentUpdate(s);
       return [
         s.name,
         s.municipality || "",
+        rajadaKmh ?? "",
+        vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toString() : "",
+        direcao !== null ? Math.round(direcao).toString() : "",
+        direcao !== null ? pontoCardeal(direcao) : "",
+        faixaDaRajada(rajadaKmh)?.label ?? "",
         redecOf(s.municipality),
         SOURCE_LABELS[s.source] ?? s.source,
         STATION_TYPE_LABELS[s.station_type] ?? s.station_type,
-        vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toString() : "",
-        rajada !== null ? (Math.round(rajada * 3.6 * 10) / 10).toString() : "",
-        direcao !== null ? Math.round(direcao).toString() : "",
-        direcao !== null ? pontoCardeal(direcao) : "",
         updated ? formatTimestamp(updated) : "",
       ];
     });
@@ -148,75 +175,33 @@ const VentosTable = forwardRef<
 
   useImperativeHandle(ref, () => ({ exportar }));
 
-  const larguraTotal = w.estacao + w.municipio + w.redec + w.fonte + w.tipo + w.vento + w.rajada + w.direcao + w.atualizado + W_HISTORICO;
+  const larguraTotal = ORDEM_COLUNAS.reduce((soma, k) => soma + w[k], 0) + W_HISTORICO;
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
       <table className="border-collapse text-xs sm:text-sm" style={{ tableLayout: "fixed", width: larguraTotal }}>
         <colgroup>
-          <col style={{ width: w.estacao }} />
-          <col style={{ width: w.municipio }} />
-          <col style={{ width: w.redec }} />
-          <col style={{ width: w.fonte }} />
-          <col style={{ width: w.tipo }} />
-          <col style={{ width: w.vento }} />
-          <col style={{ width: w.rajada }} />
-          <col style={{ width: w.direcao }} />
-          <col style={{ width: w.atualizado }} />
+          {ORDEM_COLUNAS.map((k) => (
+            <col key={k} style={{ width: w[k] }} />
+          ))}
           <col style={{ width: W_HISTORICO }} />
         </colgroup>
         <thead className="text-left uppercase tracking-wide text-gray-600">
           <tr>
             <th
-              className="sticky top-0 z-30 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-2 py-2 align-bottom leading-tight shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-              style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
+              className={`${TH_ORDENAVEL} left-0 z-30 shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]`}
+              style={{ width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
               onClick={() => toggleSort("name")}
             >
               Estação{arrow("name")}
               {resizer("estacao")}
             </th>
-            <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-2 py-2 align-bottom leading-tight"
-              style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio }}
-              onClick={() => toggleSort("municipality")}
-            >
+            <th className={TH_ORDENAVEL} style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio }} onClick={() => toggleSort("municipality")}>
               Município{arrow("municipality")}
               {resizer("municipio")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-2 py-2 align-bottom leading-tight"
-              style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec }}
-              onClick={() => toggleSort("redec")}
-            >
-              REDEC{arrow("redec")}
-              {resizer("redec")}
-            </th>
-            <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-2 py-2 align-bottom leading-tight"
-              style={{ width: w.fonte, maxWidth: w.fonte, minWidth: w.fonte }}
-              onClick={() => toggleSort("source")}
-            >
-              Fonte{arrow("source")}
-              {resizer("fonte")}
-            </th>
-            <th
-              className="sticky top-0 z-20 whitespace-normal break-words bg-gray-100 px-2 py-2 align-bottom leading-tight"
-              style={{ width: w.tipo, maxWidth: w.tipo, minWidth: w.tipo }}
-            >
-              Tipo
-              {resizer("tipo")}
-            </th>
-            <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-1 py-2 text-right align-bottom leading-tight"
-              style={{ width: w.vento, maxWidth: w.vento, minWidth: w.vento }}
-              onClick={() => toggleSort("vento_ms")}
-              title="Velocidade do vento"
-            >
-              Vento (km/h){arrow("vento_ms")}
-              {resizer("vento")}
-            </th>
-            <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-1 py-2 text-right align-bottom leading-tight"
+              className={`${TH_ORDENAVEL} text-right`}
               style={{ width: w.rajada, maxWidth: w.rajada, minWidth: w.rajada }}
               onClick={() => toggleSort("vento_rajada_ms")}
               title="Rajada de vento"
@@ -225,7 +210,16 @@ const VentosTable = forwardRef<
               {resizer("rajada")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-1 py-2 text-center align-bottom leading-tight"
+              className={`${TH_ORDENAVEL} text-right`}
+              style={{ width: w.vento, maxWidth: w.vento, minWidth: w.vento }}
+              onClick={() => toggleSort("vento_ms")}
+              title="Velocidade do vento"
+            >
+              Vento (km/h){arrow("vento_ms")}
+              {resizer("vento")}
+            </th>
+            <th
+              className={`${TH_ORDENAVEL} text-center`}
               style={{ width: w.direcao, maxWidth: w.direcao, minWidth: w.direcao }}
               onClick={() => toggleSort("vento_dir_graus")}
               title="Direção do vento (° e posição na roda dos ventos)"
@@ -234,18 +228,31 @@ const VentosTable = forwardRef<
               {resizer("direcao")}
             </th>
             <th
-              className="sticky top-0 z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2 align-bottom leading-tight"
-              style={{ width: w.atualizado, maxWidth: w.atualizado, minWidth: w.atualizado }}
-              onClick={() => toggleSort("updated")}
+              className={`${TH_ORDENAVEL} text-center`}
+              style={{ width: w.situacao, maxWidth: w.situacao, minWidth: w.situacao }}
+              onClick={() => toggleSort("situacao")}
+              title="Classificação pela rajada (ver legenda no rodapé)"
             >
+              Situação{arrow("situacao")}
+              {resizer("situacao")}
+            </th>
+            <th className={TH_ORDENAVEL} style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec }} onClick={() => toggleSort("redec")}>
+              REDEC{arrow("redec")}
+              {resizer("redec")}
+            </th>
+            <th className={TH_ORDENAVEL} style={{ width: w.fonte, maxWidth: w.fonte, minWidth: w.fonte }} onClick={() => toggleSort("source")}>
+              Fonte{arrow("source")}
+              {resizer("fonte")}
+            </th>
+            <th className={TH} style={{ width: w.tipo, maxWidth: w.tipo, minWidth: w.tipo }}>
+              Tipo
+              {resizer("tipo")}
+            </th>
+            <th className={TH_ORDENAVEL} style={{ width: w.atualizado, maxWidth: w.atualizado, minWidth: w.atualizado }} onClick={() => toggleSort("updated")}>
               Atualizado em{arrow("updated")}
               {resizer("atualizado")}
             </th>
-            <th
-              className="sticky top-0 z-20 whitespace-nowrap bg-gray-100 px-1 py-2 text-center align-bottom leading-tight"
-              style={{ width: W_HISTORICO, maxWidth: W_HISTORICO, minWidth: W_HISTORICO }}
-              title="Abrir em nova aba"
-            >
+            <th className={`${TH} text-center`} style={{ width: W_HISTORICO, maxWidth: W_HISTORICO, minWidth: W_HISTORICO }} title="Abrir em nova aba">
               Histórico
             </th>
           </tr>
@@ -255,48 +262,55 @@ const VentosTable = forwardRef<
             const updated = mostRecentUpdate(s);
             const atraso = getDelayStatus(updated);
             const vento = valorDe(s, "vento_ms");
-            const rajada = valorDe(s, "vento_rajada_ms");
+            const rajadaMs = valorDe(s, "vento_rajada_ms");
+            const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
             const direcao = valorDe(s, "vento_dir_graus");
+            const faixa = faixaDaRajada(rajadaKmh);
+            const bgFundo = faixa?.bg ?? "#ffffff";
+            const corTexto = faixa?.text;
             return (
-              <tr key={`${s.source}-${s.id}`} className="border-b border-gray-100 hover:bg-gray-50">
+              <tr key={`${s.source}-${s.id}`} title={faixa?.label}>
                 <td
-                  className="sticky z-10 whitespace-normal break-words align-middle bg-white px-2 py-1 font-medium leading-tight shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]"
-                  style={{ left: 0, width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao }}
+                  className={`${TD} sticky left-0 z-10 font-medium shadow-[2px_0_3px_-1px_rgba(0,0,0,0.15)]`}
+                  style={{ width: w.estacao, maxWidth: w.estacao, minWidth: w.estacao, backgroundColor: bgFundo, color: corTexto ?? "#111827" }}
                 >
                   <CampoClicavel id={s.id} valor={s.name} onOpenStation={onOpenStation} className="text-left text-sedec-600 underline-offset-2 hover:underline" />
                 </td>
-                <td className="whitespace-normal break-words align-middle px-2 py-1 leading-tight text-gray-600" style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio }}>
+                <td className={TD} style={{ width: w.municipio, maxWidth: w.municipio, minWidth: w.municipio, backgroundColor: bgFundo, color: corTexto ?? "#4b5563" }}>
                   <CampoClicavel id={s.id} valor={s.municipality || "—"} onOpenStation={onOpenStation} />
                 </td>
-                <td className="whitespace-normal break-words align-middle px-2 py-1 leading-tight text-gray-500" style={{ width: w.redec, maxWidth: w.redec, minWidth: w.redec }}>
+                <td className={`${TD} text-right font-semibold`} style={{ backgroundColor: bgFundo, color: corTexto ?? "#111827" }}>
+                  {rajadaKmh !== null ? rajadaKmh.toFixed(1) : "—"}
+                </td>
+                <td className={`${TD} text-right`} style={{ backgroundColor: bgFundo, color: corTexto ?? "#1f2937" }}>
+                  {vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toFixed(1) : "—"}
+                </td>
+                <td className={TD} style={{ backgroundColor: bgFundo }}>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <Bussola graus={direcao} />
+                    <span style={{ color: corTexto ?? "#374151" }}>{direcao !== null ? `${Math.round(direcao)}° ${pontoCardeal(direcao)}` : "—"}</span>
+                  </div>
+                </td>
+                <td className={`${TD} text-center font-semibold`} style={{ backgroundColor: bgFundo, color: corTexto ?? "#9ca3af" }}>
+                  {faixa?.label ?? "—"}
+                </td>
+                <td className={TD} style={{ backgroundColor: bgFundo, color: corTexto ?? "#6b7280" }}>
                   <CampoClicavel id={s.id} valor={redecOf(s.municipality) || "—"} onOpenStation={onOpenStation} />
                 </td>
                 <td
-                  className="whitespace-normal break-words align-middle px-2 py-1 font-semibold leading-tight"
-                  style={{ width: w.fonte, maxWidth: w.fonte, minWidth: w.fonte, color: SOURCE_COLORS[s.source] ?? "#374151" }}
+                  className={`${TD} font-semibold`}
+                  style={{ backgroundColor: bgFundo, color: corTexto ?? (SOURCE_COLORS[s.source] ?? "#374151") }}
                   title={s.source}
                 >
                   <CampoClicavel id={s.id} valor={SOURCE_LABELS[s.source] ?? s.source} onOpenStation={onOpenStation} />
                 </td>
-                <td className="whitespace-normal break-words align-middle px-2 py-1 leading-tight text-gray-600" style={{ width: w.tipo, maxWidth: w.tipo, minWidth: w.tipo }}>
+                <td className={TD} style={{ backgroundColor: bgFundo, color: corTexto ?? "#4b5563" }}>
                   <CampoClicavel id={s.id} valor={STATION_TYPE_LABELS[s.station_type] ?? s.station_type} onOpenStation={onOpenStation} />
                 </td>
-                <td className="whitespace-nowrap px-1.5 py-1 text-right align-middle text-gray-800">
-                  {vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toFixed(1) : "—"}
-                </td>
-                <td className="whitespace-nowrap px-1.5 py-1 text-right align-middle text-gray-800">
-                  {rajada !== null ? (Math.round(rajada * 3.6 * 10) / 10).toFixed(1) : "—"}
-                </td>
-                <td className="px-1.5 py-1 align-middle">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <Bussola graus={direcao} />
-                    <span className="text-gray-700">{direcao !== null ? `${Math.round(direcao)}° ${pontoCardeal(direcao)}` : "—"}</span>
-                  </div>
-                </td>
-                <td className="whitespace-normal break-words px-2 py-1 leading-tight" style={{ width: w.atualizado, maxWidth: w.atualizado, minWidth: w.atualizado, color: atraso.color }} title={atraso.label}>
+                <td className={TD} style={{ backgroundColor: bgFundo, color: corTexto ?? atraso.color }} title={atraso.label}>
                   {updated ? formatTimestamp(updated) : "—"}
                 </td>
-                <td className="px-1 py-1 text-center align-middle">
+                <td className={`${TD} text-center`} style={{ backgroundColor: bgFundo }}>
                   <HistoricoIconLink id={s.id} />
                 </td>
               </tr>
@@ -307,10 +321,20 @@ const VentosTable = forwardRef<
       {sorted.length === 0 && (
         <div className="p-6 text-center text-sm text-gray-400">Nenhuma estação com dado de vento encontrada.</div>
       )}
+      <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 bg-white px-3 py-2 text-[10px] text-gray-500 sm:text-[11px]">
+        <span>Situação (classificação pela rajada, referência CEMADEN-RJ):</span>
+        {FAIXAS_RAJADA.slice().reverse().map(({ faixa }) => (
+          <span key={faixa.label} className="flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded-sm border border-black/10" style={{ backgroundColor: faixa.bg }} />
+            {faixa.label}
+          </span>
+        ))}
+      </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
-        Só aparecem aqui estações que reportam velocidade, rajada ou direção do vento. Vento é guardado em m/s e
-        exibido em km/h, igual ao resto do painel. Clique num cabeçalho pra ordenar; arraste a borda direita pra
-        ajustar a largura da coluna.{" "}
+        Fraca &lt; 18,6 km/h · Moderada 18,6–51,9 km/h · Forte 52–75,9 km/h · Muito forte ≥ 76 km/h. Só aparecem
+        aqui estações que reportam velocidade, rajada ou direção do vento. Vento é guardado em m/s e exibido em
+        km/h, igual ao resto do painel. Clique num cabeçalho pra ordenar; arraste a borda direita pra ajustar a
+        largura da coluna.{" "}
         <button type="button" onClick={resetAll} className="underline hover:text-gray-600">
           Restaurar larguras
         </button>

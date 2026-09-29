@@ -178,7 +178,7 @@ const PrecipitationTable = forwardRef<
   return (
     <div className="h-full w-full overflow-auto bg-white">
       <table
-        className="border-collapse text-xs sm:text-sm"
+        className="border-collapse text-xs sm:text-sm [&_td]:border [&_td]:border-gray-200 [&_th]:border [&_th]:border-gray-300"
         style={{
           tableLayout: "fixed",
           width: w.estacao + w.redec + w.municipio + JANELAS.length * w.janela + w.fonte + w.atualizado + W_HISTORICO,
