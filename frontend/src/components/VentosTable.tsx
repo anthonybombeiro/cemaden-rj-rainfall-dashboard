@@ -46,7 +46,27 @@ const FAIXAS_RAJADA: { min: number; faixa: FaixaRajada }[] = [
   { min: 18.6, faixa: { label: "Moderada", bg: "#f0a868", text: "#7c2d12" } },
   { min: 0, faixa: { label: "Fraca", bg: "#dcfce7", text: "#166534" } },
 ];
-function faixaDaRajada(rajadaKmh: number | null): FaixaRajada | null {
+// Estação atrasada (pedido do usuário, 2026-09-30: leitura de vento de
+// horas atrás não pode aparecer colorida como se fosse dado do momento —
+// vinha confundindo quem olhava rápido a tabela pra decidir algo).
+// "2 leituras sem dados" varia por fonte (cadência de 15min a 1h
+// dependendo da estação, não temos isso tabulado aqui) — na prática o
+// corte que cobre as duas condições pedidas ("2 leituras" OU "3 horas")
+// é simplesmente 3h: se uma fonte atualiza de hora em hora, 3h já são 2-3
+// leituras perdidas; se atualiza mais rápido, 3h é MUITO mais que 2
+// leituras. Mesmo cinza/rótulo "Atrasada" já usado nas outras tabelas
+// (ver getChuva1hFaixa em lib/api.ts), só que aplicado à rajada aqui.
+const HORAS_ATRASO_VENTO = 3;
+const FAIXA_ATRASADA: FaixaRajada = { label: "Atrasada", bg: "#BEBEBE", text: "#1f2937" };
+
+function estaAtrasadoVento(updated: string | null): boolean {
+  if (!updated) return true;
+  const horas = (Date.now() - new Date(updated).getTime()) / 3_600_000;
+  return horas > HORAS_ATRASO_VENTO;
+}
+
+function faixaDaRajada(rajadaKmh: number | null, atrasado: boolean): FaixaRajada | null {
+  if (atrasado) return FAIXA_ATRASADA;
   if (rajadaKmh === null) return null;
   return FAIXAS_RAJADA.find((f) => rajadaKmh >= f.min)?.faixa ?? null;
 }
@@ -121,6 +141,15 @@ const VentosTable = forwardRef<
   const sorted = useMemo(() => {
     const copy = [...filtered];
     copy.sort((a, b) => {
+      // Atrasada sempre por último, em QUALQUER ordenação (pedido do
+      // usuário, 2026-09-30) — não é só uma cor, é prioridade de
+      // exibição: dado velho não deve competir com dado fresco em
+      // nenhuma consulta, nem quando o sort escolhido é outra coluna.
+      // Não inverte com sortAsc de propósito.
+      const atrasoA = estaAtrasadoVento(mostRecentUpdate(a));
+      const atrasoB = estaAtrasadoVento(mostRecentUpdate(b));
+      if (atrasoA !== atrasoB) return atrasoA ? 1 : -1;
+
       let cmp = 0;
       if (sortKey === "name") cmp = a.name.localeCompare(b.name);
       else if (sortKey === "municipality") cmp = a.municipality.localeCompare(b.municipality);
@@ -167,7 +196,7 @@ const VentosTable = forwardRef<
         vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toString() : "",
         direcao !== null ? Math.round(direcao).toString() : "",
         direcao !== null ? pontoCardeal(direcao) : "",
-        faixaDaRajada(rajadaKmh)?.label ?? "",
+        faixaDaRajada(rajadaKmh, estaAtrasadoVento(updated))?.label ?? "",
         redecOf(s.municipality),
         SOURCE_LABELS[s.source] ?? s.source,
         STATION_TYPE_LABELS[s.station_type] ?? s.station_type,
@@ -186,7 +215,7 @@ const VentosTable = forwardRef<
       const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
       const direcao = valorDe(s, "vento_dir_graus");
       const updated = mostRecentUpdate(s);
-      const faixa = faixaDaRajada(rajadaKmh);
+      const faixa = faixaDaRajada(rajadaKmh, estaAtrasadoVento(updated));
       return {
         valores: {
           municipio: s.municipality || "—",
@@ -215,7 +244,10 @@ const VentosTable = forwardRef<
         { chave: "situacao", rotulo: "Situação", alinhamento: "center" },
       ],
       linhas,
-      legenda: FAIXAS_RAJADA.slice().reverse().map(({ faixa }) => ({ cor: faixa.bg, rotulo: faixa.label })),
+      legenda: [
+        ...FAIXAS_RAJADA.slice().reverse().map(({ faixa }) => ({ cor: faixa.bg, rotulo: faixa.label })),
+        { cor: FAIXA_ATRASADA.bg, rotulo: `${FAIXA_ATRASADA.label} (> ${HORAS_ATRASO_VENTO}h sem atualizar)` },
+      ],
       fonteTexto: "Fonte dados: INMET, REDEMET, Wunderground, Plugfield — CEMADEN-RJ/SEDEC",
       nomeArquivo: `cemaden-rj-ventos-${new Date().toISOString().slice(0, 10)}`,
     };
@@ -314,7 +346,7 @@ const VentosTable = forwardRef<
             const rajadaMs = valorDe(s, "vento_rajada_ms");
             const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
             const direcao = valorDe(s, "vento_dir_graus");
-            const faixa = faixaDaRajada(rajadaKmh);
+            const faixa = faixaDaRajada(rajadaKmh, estaAtrasadoVento(updated));
             const bgFundo = faixa?.bg ?? "#ffffff";
             const corTexto = faixa?.text;
             return (
@@ -378,12 +410,18 @@ const VentosTable = forwardRef<
             {faixa.label}
           </span>
         ))}
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded-sm border border-black/10" style={{ backgroundColor: FAIXA_ATRASADA.bg }} />
+          {FAIXA_ATRASADA.label} (&gt; {HORAS_ATRASO_VENTO}h sem atualizar)
+        </span>
       </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
-        Fraca &lt; 18,6 km/h · Moderada 18,6–51,9 km/h · Forte 52–75,9 km/h · Muito forte ≥ 76 km/h. Só aparecem
-        aqui estações que reportam velocidade, rajada ou direção do vento. Vento é guardado em m/s e exibido em
-        km/h, igual ao resto do painel. Clique num cabeçalho pra ordenar; arraste a borda direita pra ajustar a
-        largura da coluna.{" "}
+        Fraca &lt; 18,6 km/h · Moderada 18,6–51,9 km/h · Forte 52–75,9 km/h · Muito forte ≥ 76 km/h. Estação sem
+        leitura há mais de {HORAS_ATRASO_VENTO}h aparece cinza ("Atrasada") em vez da cor da rajada — dado velho
+        não deve parecer dado do momento — e vai sempre pro fim da lista, em qualquer ordenação escolhida. Só
+        aparecem aqui estações que reportam velocidade, rajada ou direção do vento. Vento é guardado em m/s e
+        exibido em km/h, igual ao resto do painel. Clique num cabeçalho pra ordenar; arraste a borda direita pra
+        ajustar a largura da coluna.{" "}
         <button type="button" onClick={resetAll} className="underline hover:text-gray-600">
           Restaurar larguras
         </button>
