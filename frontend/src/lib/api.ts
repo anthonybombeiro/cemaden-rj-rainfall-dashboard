@@ -549,6 +549,8 @@ export const SOURCE_LABELS: Record<string, string> = {
   niteroi: "Niterói (Defesa Civil)",
   cemaden_rj_sirenes: "CEMADEN-RJ — Sirenes/Alarme",
   inea: "INEA — Alerta de Cheias",
+  ecowitt_paracambi: "Paracambi (Defesa Civil)",
+  macae_ufrj: "Macaé (Defesa Civil/UFRJ)",
 };
 
 /** Uma cor fixa por fonte, pra dar pra distinguir de relance numa tabela
@@ -574,6 +576,8 @@ export const SOURCE_COLORS: Record<string, string> = {
   // reaproveitado da Rede Salvar dessa vez, de propósito: aqui o vermelho
   // já é usado consistentemente no resto do painel pra "emergência/perigo".
   cemaden_rj_sirenes: "#dc2626",
+  ecowitt_paracambi: "#0EA5E9", // emprestado da cor do SIMGE lá
+  macae_ufrj: "#7C3AED", // emprestado da cor do CEMADEN-MG lá
 };
 
 /** Faixas de atraso (tempo desde a última leitura) e cor associada — mesma

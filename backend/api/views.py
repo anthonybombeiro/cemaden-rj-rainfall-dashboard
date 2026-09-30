@@ -48,6 +48,7 @@ PRECIPITACAO_BUCKET_SOURCES = {
     "inea",
     "wunderground",
     "plugfield",
+    "macae_ufrj",
 }
 PRECIPITACAO_RUNNING_DAILY_SOURCES: set[str] = set()
 

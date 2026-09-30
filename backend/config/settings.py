@@ -202,6 +202,12 @@ ECOWITT_PARACAMBI_API_KEY = os.environ.get("ECOWITT_PARACAMBI_API_KEY", "")
 CEMADEN_RJ_SIRENES_USERNAME = os.environ.get("CEMADEN_RJ_SIRENES_USERNAME", "")
 CEMADEN_RJ_SIRENES_PASSWORD = os.environ.get("CEMADEN_RJ_SIRENES_PASSWORD", "")
 
+# Login institucional (Defesa Civil de Macaé) na rede de telemetria da
+# UFRJ (telemetria.macae.ufrj.br) — fornecido pela própria Defesa Civil
+# de Macaé. Ver ingestion/connectors/macae_ufrj.py.
+MACAE_UFRJ_USERNAME = os.environ.get("MACAE_UFRJ_USERNAME", "")
+MACAE_UFRJ_PASSWORD = os.environ.get("MACAE_UFRJ_PASSWORD", "")
+
 INMET_API_TOKEN = os.environ.get("INMET_API_TOKEN", "")
 
 # RESERVA (desligada por padrão desde 2026-09-25, quando o token da API do INMET
