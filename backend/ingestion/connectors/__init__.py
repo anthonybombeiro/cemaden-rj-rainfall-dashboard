@@ -2,6 +2,7 @@ from .alerta_rio import AlertaRioConnector
 from .base import BaseConnector, IngestResult
 from .cemaden_nacional import CemadenNacionalConnector
 from .cemaden_rj_pluviometros import CemadenMcticConnector
+from .ecowitt_paracambi import EcowittParacambiConnector
 from .inea import INEAConnector
 from .inmet import InmetConnector
 from .niteroi import NiteroiConnector
@@ -28,6 +29,7 @@ REGISTRY: dict[str, type[BaseConnector]] = {
     CemadenMcticConnector.slug: CemadenMcticConnector,
     NiteroiConnector.slug: NiteroiConnector,
     INEAConnector.slug: INEAConnector,
+    EcowittParacambiConnector.slug: EcowittParacambiConnector,
 }
 
 

@@ -187,6 +187,12 @@ WUNDERGROUND_API_KEY = os.environ.get("WUNDERGROUND_API_KEY", "")
 NITEROI_API_USERNAME = os.environ.get("NITEROI_API_USERNAME", "")
 NITEROI_API_PASSWORD = os.environ.get("NITEROI_API_PASSWORD", "")
 
+# Conta institucional (Defesa Civil de Paracambi) na API oficial da Ecowitt
+# (2 estações GW3000B cedidas por eles) — fornecida pela própria Defesa
+# Civil de Paracambi. Ver ingestion/connectors/ecowitt_paracambi.py.
+ECOWITT_PARACAMBI_APPLICATION_KEY = os.environ.get("ECOWITT_PARACAMBI_APPLICATION_KEY", "")
+ECOWITT_PARACAMBI_API_KEY = os.environ.get("ECOWITT_PARACAMBI_API_KEY", "")
+
 # Login de SERVIÇO (criado especificamente pra essa automação, não é a
 # conta pessoal do diretor) pra área autenticada do portal de sirenes do
 # CEMADEN-RJ (sirene.cbmerj.rj.gov.br, hospedado no domínio do CBMERJ —
