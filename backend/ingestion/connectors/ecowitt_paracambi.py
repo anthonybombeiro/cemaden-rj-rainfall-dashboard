@@ -14,11 +14,15 @@ scraping/login.
 cadastrada na conta — não precisamos cadastrar lat/lon manualmente, nem
 saber os MACs de antemão pra listar estações (só pra consultar leituras).
 
-Atenção (2026-09-30): a 2ª estação ("BNH de Cima") tem coordenadas
-(-22.332, -42.0008) que NÃO ficam em Paracambi — caem lá pelos lados de
-Macaé/Rio das Ostras. Mantido o município "Paracambi" (informado pela
-própria Defesa Civil de Paracambi como dona da estação) até confirmação;
-o `raw_metadata` guarda a coordenada bruta da Ecowitt pra investigar depois.
+Atenção (2026-09-30): a 2ª estação ("BNH de Cima") vinha com coordenadas
+(-22.332, -42.0008) que caem lá pelos lados de Macaé/Rio das Ostras — a
+Defesa Civil de Paracambi confirmou que a estação é mesmo de lá (bairro
+BNH de Cima, referência = Escola Municipal Prefeito Hélio Ferreira da
+Silva), então o cadastro na Ecowitt é que está com a coordenada errada,
+não a estação em si. Corrigido manualmente em `COORDENADAS_CORRIGIDAS`
+abaixo (localizada via Google Maps: R. Maceió, Jardim Nova Era, Paracambi)
+— a coordenada bruta da Ecowitt continua em `raw_metadata`, caso mudem o
+cadastro lá e a correção precise ser revista.
 """
 
 from __future__ import annotations
@@ -37,6 +41,11 @@ logger = logging.getLogger("ingestion")
 
 DEVICE_LIST_URL = "https://api.ecowitt.net/api/v3/device/list"
 REAL_TIME_URL = "https://api.ecowitt.net/api/v3/device/real_time"
+
+# MAC -> (latitude, longitude) corrigida manualmente (ver nota acima).
+COORDENADAS_CORRIGIDAS: dict[str, tuple[float, float]] = {
+    "38:18:2B:F2:F5:C7": (-22.6006603, -43.6931076),  # BNH de Cima / EM Hélio Ferreira da Silva
+}
 
 
 def _chaves() -> tuple[str, str]:
@@ -77,6 +86,7 @@ class EcowittParacambiConnector(BaseConnector):
             # do "_" (o resto é o ponto de referência/escola, útil no
             # raw_metadata mas polui o nome curto da tabela).
             nome_curto = (d.get("name") or d["mac"]).split("_")[0]
+            lat, lon = COORDENADAS_CORRIGIDAS.get(d["mac"], (d["latitude"], d["longitude"]))
             estacoes.append(
                 {
                     "external_id": d["mac"],
@@ -84,8 +94,8 @@ class EcowittParacambiConnector(BaseConnector):
                     "municipality": "Paracambi",
                     "station_type": Station.StationType.METEOROLOGICA,
                     "status": Station.Status.DESCONHECIDO,
-                    "latitude": d["latitude"],
-                    "longitude": d["longitude"],
+                    "latitude": lat,
+                    "longitude": lon,
                     "altitude_m": None,
                     "raw_metadata": d,
                 }
