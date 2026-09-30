@@ -17,5 +17,14 @@ RewriteRule ^estacao/?$ /estacao.html [L]
 </IfModule>
 <IfModule mod_expires.c>
   ExpiresActive On
-  ExpiresByType application/json "access plus 1 day"
+  # IMPORTANTE (2026-09-30): por EXTENSÃO de arquivo (FilesMatch), não por
+  # Content-Type (ExpiresByType) — "ExpiresByType application/json" pegava
+  # TAMBÉM as respostas dinâmicas da API (/api/* roteado pro django.cgi
+  # acima), fazendo o navegador cachear por 24h dados que acabaram de
+  # mudar (achado: edição de SireneAcaoTipo no Admin não aparecia pro
+  # usuário mesmo já salva no banco). FilesMatch só bate em arquivo
+  # estático de verdade servido pelo Apache — nunca a saída do CGI.
+  <FilesMatch "\.(json|geojson)$">
+    ExpiresDefault "access plus 1 day"
+  </FilesMatch>
 </IfModule>
