@@ -7,6 +7,8 @@ Todos os modelos e conectores devem usar esta lista para validação.
 Sincronizado com frontend/src/lib/municipios-canonical.ts.
 """
 
+from __future__ import annotations
+
 import re
 
 MUNICIPIOS_CANONICOS = [
