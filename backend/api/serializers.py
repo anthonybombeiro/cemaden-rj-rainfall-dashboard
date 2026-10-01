@@ -3,7 +3,7 @@ import re
 from rest_framework import serializers
 
 from core.municipios import canonico_ou_original
-from core.models import AlertEvent, Previsao, Reading, RiskAlert, Source, Station
+from core.models import AlertEvent, AvisoMauTempo, Previsao, Reading, RiskAlert, Source, Station
 
 
 class SourceSerializer(serializers.ModelSerializer):
@@ -81,6 +81,21 @@ class RiskAlertSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["municipio"] = canonico_ou_original(data.get("municipio") or "")
         return data
+
+
+class AvisoMauTempoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AvisoMauTempo
+        fields = [
+            "id",
+            "numero_externo",
+            "area",
+            "tipo",
+            "descricao",
+            "emitido_em",
+            "valido_ate",
+            "fonte",
+        ]
 
 
 class AlertEventSerializer(serializers.ModelSerializer):

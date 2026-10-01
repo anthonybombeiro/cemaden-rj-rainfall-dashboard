@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Max, Min, Prefetch, Sum
+from django.db.models import Max, Min, Prefetch, Q, Sum
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -11,10 +11,21 @@ from rest_framework.response import Response
 
 from core.gatilhos import aplicar_estado_real, avaliar_gatilhos
 from core.municipios import canonico_ou_original
-from core.models import AlertEvent, GatilhoPluviometrico, Previsao, Reading, RiskAlert, SireneAcaoTipo, Source, Station
+from core.models import (
+    AlertEvent,
+    AvisoMauTempo,
+    GatilhoPluviometrico,
+    Previsao,
+    Reading,
+    RiskAlert,
+    SireneAcaoTipo,
+    Source,
+    Station,
+)
 
 from .serializers import (
     AlertEventSerializer,
+    AvisoMauTempoSerializer,
     PrevisaoSerializer,
     ReadingSerializer,
     RiskAlertSerializer,
@@ -780,6 +791,32 @@ class RiskAlertViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(municipio="")
         elif params.get("escopo") == "municipio":
             qs = qs.exclude(municipio="")
+        return qs
+
+
+class AvisoMauTempoViewSet(viewsets.ReadOnlyModelViewSet):
+    """Avisos de mau tempo da Marinha do Brasil (SMM/CHM) para as áreas
+    CHARLIE e DELTA da METAREA V, que cobrem o litoral do RJ — ver
+    ingestion/connectors/marinha_avisos.py.
+
+    Por padrão só devolve avisos ainda válidos (`valido_ate` no futuro, ou
+    sem `valido_ate` conhecido); `?ativo=false` devolve só os já expirados,
+    `?ativo=all` devolve o histórico completo. Filtra por `?area=CHARLIE`
+    ou `?area=DELTA`."""
+
+    serializer_class = AvisoMauTempoSerializer
+
+    def get_queryset(self):
+        qs = AvisoMauTempo.objects.all()
+        params = self.request.query_params
+        if area := params.get("area"):
+            qs = qs.filter(area=area.upper())
+        ativo = params.get("ativo", "true")
+        agora = timezone.now()
+        if ativo == "true":
+            qs = qs.filter(Q(valido_ate__isnull=True) | Q(valido_ate__gte=agora))
+        elif ativo == "false":
+            qs = qs.filter(valido_ate__lt=agora)
         return qs
 
 

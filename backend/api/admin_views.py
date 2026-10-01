@@ -15,6 +15,9 @@ Deliberadamente uma lista BRANCA fixa de ações (nunca comando arbitrário):
   - "sync_risk_alerts": roda ingestion/connectors/cemaden_rj_alertas.py
     (alertas oficiais de risco da Defesa Civil-RJ — não é um conector
     Station/Reading, por isso não está no REGISTRY normal)
+  - "sync_avisos_mau_tempo": roda ingestion/connectors/marinha_avisos.py
+    (avisos de mau tempo da Marinha/SMM para as áreas CHARLIE e DELTA —
+    também fora do REGISTRY normal, mesmo motivo do sync_risk_alerts)
   - "sync_sirenes": roda ingestion/connectors/cemaden_rj_sirenes.py (as
     225 sirenes de alerta/alarme da CEMADEN-RJ, via API autenticada —
     também fora do REGISTRY normal, porque além de Station/Reading isso
@@ -69,6 +72,7 @@ ACOES_PERMITIDAS = {
     "collectstatic",
     "ingest",
     "sync_risk_alerts",
+    "sync_avisos_mau_tempo",
     "sync_sirenes",
     "delete_stations",
     "purge_readings",
@@ -124,6 +128,11 @@ class AdminOpsView(APIView):
                 from ingestion.connectors import cemaden_rj_alertas
 
                 resultado = cemaden_rj_alertas.sync()
+                saida.write(resultado.summary())
+            elif action == "sync_avisos_mau_tempo":
+                from ingestion.connectors import marinha_avisos
+
+                resultado = marinha_avisos.sync()
                 saida.write(resultado.summary())
             elif action == "normalize_municipios":
                 call_command("normalize_municipios", stdout=saida, stderr=saida)

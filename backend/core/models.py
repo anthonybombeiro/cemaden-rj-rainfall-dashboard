@@ -438,3 +438,46 @@ class GatilhoPluviometrico(models.Model):
 
     def __str__(self):
         return self.municipio
+
+
+class AvisoMauTempo(models.Model):
+    """Avisos de mau tempo do Serviço Meteorológico Marinho (SMM/CHM,
+    Marinha do Brasil) para a METAREA V — ver
+    ingestion/connectors/marinha_avisos.py e docs/fontes-de-dados.md
+    (seção "Avisos de mau tempo").
+
+    Só ingerimos as áreas CHARLIE e DELTA, que juntas cobrem o litoral do
+    RJ (confirmado pelo diretor do CEMADEN-RJ, usuário deste projeto).
+    Cada boletim tem um número sequencial próprio da fonte (`numero_externo`,
+    único em toda a METAREA V, não só dentro de uma área) — usado como chave
+    de upsert. Diferente de `RiskAlert` (que guarda só o estado atual por
+    escopo), aqui mantemos o histórico: vários avisos podem estar
+    simultaneamente válidos pra uma mesma área, e um aviso expirado
+    continua sendo um registro histórico útil (não é sobrescrito por um
+    novo, tem seu próprio número)."""
+
+    class Area(models.TextChoices):
+        CHARLIE = "CHARLIE", "Área Charlie"
+        DELTA = "DELTA", "Área Delta"
+
+    numero_externo = models.CharField(
+        max_length=20, unique=True, help_text="Ex: '716/2026' — número do boletim na fonte."
+    )
+    area = models.CharField(max_length=10, choices=Area.choices)
+    tipo = models.CharField(
+        max_length=80, help_text="Texto do tipo de aviso como vem da fonte (ex: 'VENTO FORTE', 'MAR GROSSO')."
+    )
+    descricao = models.TextField(help_text="Texto completo do aviso (área geográfica, intensidade, etc).")
+    emitido_em = models.DateTimeField(null=True, blank=True)
+    valido_ate = models.DateTimeField(null=True, blank=True)
+    fonte = models.CharField(max_length=120, blank=True, default="Marinha do Brasil - SMM/CHM")
+    raw_payload = models.JSONField(default=dict, blank=True)
+    ingested_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-emitido_em", "area"]
+        verbose_name = "aviso de mau tempo (Marinha)"
+        verbose_name_plural = "avisos de mau tempo (Marinha)"
+
+    def __str__(self):
+        return f"{self.area} · {self.tipo} · NR {self.numero_externo}"

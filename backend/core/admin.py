@@ -102,3 +102,14 @@ class GatilhoPluviometricoAdmin(admin.ModelAdmin):
     )
     search_fields = ("municipio",)
     ordering = ("municipio",)
+
+
+from core.models import AvisoMauTempo  # noqa: E402
+
+
+@admin.register(AvisoMauTempo)
+class AvisoMauTempoAdmin(admin.ModelAdmin):
+    list_display = ("numero_externo", "area", "tipo", "emitido_em", "valido_ate", "ingested_at")
+    list_filter = ("area",)
+    search_fields = ("numero_externo", "tipo", "descricao")
+    date_hierarchy = "emitido_em"
