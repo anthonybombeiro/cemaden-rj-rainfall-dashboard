@@ -359,40 +359,69 @@ ativo** (`cf-mitigated: challenge` confirmado via `curl -I` com User-Agent de
 navegador comum) — toda tentativa de leitura automatizada nesta sessão retornou
 **HTTP 403**, em várias páginas diferentes (avisos de mau tempo, BNDO, tábuas de
 maré, página inicial do CHM). É mais rígido que a proteção do INMET (que um
-Chrome real resolve sozinho, sem ação nossa — ver seção INMET acima); **ainda não
-sabemos se um Chrome/Selenium real também resolve o desafio da Marinha** —
-precisa ser testado a partir do servidor de produção (HostGator), não deste
-ambiente de desenvolvimento.
+Chrome real resolve sozinho, sem ação nossa — ver seção INMET acima).
+
+**Atualização importante (01/10/2026) — o bloqueio é por ferramenta/página, não
+pelo domínio inteiro:** usando a biblioteca Python `requests` pura (sem
+Selenium, sem header especial, sem User-Agent de navegador — só
+`requests.get(url, verify=False)`) em vez de `curl`, a página de **avisos de
+mau tempo passou a responder HTTP 200 com o conteúdo completo**, de forma
+reproduzível (testado 2x, isolado, com espera entre chamadas). Ou seja, o
+WAF da Marinha provavelmente bloqueia pela assinatura TLS/HTTP do `curl`
+especificamente, não pelo fato de ser automação. **Mas isso não destrava
+tudo:** testando as outras páginas (tábuas de maré, BNDO, previsões
+especiais, cartas sinóticas, formulário de solicitação) da mesma forma, com
+`requests` puro, **todas continuaram voltando 403 "Just a moment..."**
+(desafio Cloudflare) — é proteção configurada por página/rota específica no
+CHM, não um bloqueio geral do domínio. `idem.marinha.mil.br` também responde
+200, mas é só a casca de uma SPA (2,4 KB, sem dado real, igual ao caso do
+dados.gov.br). Essa descoberta veio de ler o código-fonte de um projeto
+open-source de terceiros (ver seção 4 abaixo) que usa exatamente essa técnica
+(`requests` puro) para ler essa mesma página.
 
 Dois subdomínios relevantes (`pam.dhn.mar.mil.br` e `idem.dhn.mar.mil.br`) nem
 chegaram a ser testados: o proxy de saída deste ambiente **bloqueia por política
 qualquer domínio `.mar.mil.br`** (erro `connect_rejected`). Precisam ser
 validados a partir da máquina de produção, que tem saída de internet normal.
 
-### 1. Avisos de mau tempo — prioridade alta
+### 1. Avisos de mau tempo — prioridade alta — RESOLVIDO (01/10/2026)
 
 - Página: `https://www.marinha.mil.br/chm/dados-do-smm-avisos-de-mau-tempo/avisos-de-mau-tempo`.
   Organiza os avisos pela **METAREA V** (águas do Atlântico Sul sob
-  responsabilidade do Brasil), subdividida em áreas A–H, N, S num mapa SVG
-  interativo. Mostra timestamp de atualização (ex.: "30/09/2026 - 11:57" no
-  teste desta sessão) — parece atualizar várias vezes ao dia.
-- Conteúdo é texto de boletim (padrão OMM/IMO para avisos marítimos: vento muito
-  forte, mar muito grosso, ressaca, com velocidades/alturas), não achamos
-  JSON/XML/RSS estruturado na página.
+  responsabilidade do Brasil), subdividida em áreas ALFA, BRAVO, DELTA e
+  SUL OCEÂNICA (nomenclatura real vista no teste; o mapa SVG mostra mais
+  subdivisões, mas só essas apareceram com aviso ativo). Mostra timestamp de
+  atualização e parece atualizar várias vezes ao dia.
+- **Confirmado com dados reais (01/10/2026): dá pra ler com `requests` puro +
+  BeautifulSoup** (sem Selenium — ver nota sobre bloqueio por página/
+  ferramenta no início desta seção). A página devolve um bloco HTML
+  (`<div id="block-govbr-govbr-theme-system-main">`) com um `<p>` por área
+  (nome da área) seguido de um `<p>` por aviso dentro dela, em português e
+  depois repetido em inglês. Cada aviso vem como texto corrido, mas
+  estruturável por regex: número do aviso, tipo (vento forte/muito forte,
+  mar grosso/muito grosso), horário de emissão, coordenadas da área,
+  intensidade (força Beaufort/altura de onda) e validade. Não é JSON/XML,
+  mas é parseável de forma confiável — exemplo real capturado no teste:
+  `AVISO NR 716/2026 AVISO DE VENTO FORTE EMITIDO ÀS 1200Z - SEG - 28/SET/2026
+  ÁREA COSTEIRA ENTRE ARRAIAL DO CABO/RJ E VITÓRIA/ES ATÉ 300 MN DA COSTA...`.
+- **ÁREA DELTA é a que cobre o litoral do RJ** (confirmado no teste: "ÁREA
+  COSTEIRA ENTRE ARRAIAL DO CABO/RJ E VITÓRIA/ES ATÉ 300 MN DA COSTA") —
+  resolve a dúvida que tínhamos sobre qual subárea filtrar.
 - **Canal oficial de distribuição real desses avisos é via satélite Inmarsat
   SafetyNET**, pela estação terrena de Tanguá (AOR-E), em inglês, 2x/dia
   (0730Z e 1930Z) + imediato quando há aviso novo. O Brasil não opera NAVTEX
-  próprio nessa área (avisos costeiros vão por SafetyNET). Isso é relevante
-  porque pode existir mirror/agregador internacional desses boletins de texto
-  (sites de meteorologia marítima para veleiros costumam agregar boletins
-  SafetyNET/high-seas) — não investigado a fundo ainda, é uma pista a seguir
-  se o acesso direto ao site continuar bloqueado.
-- **Qual subárea cobre o litoral do RJ** (A? B?) não foi confirmado nesta
-  pesquisa — precisa abrir o mapa com navegador real.
+  próprio nessa área (avisos costeiros vão por SafetyNET) — não precisamos
+  mais desse caminho agora que o scraping direto funciona, mas fica
+  registrado como alternativa caso o WAF da Marinha mude de comportamento.
 - Canais alternativos não estruturados: página do Facebook do SMM
   (`facebook.com/servicometeorologicomb`) e app Android "Boletim ao Mar"
   (parceria Marinha + Instituto Rumo ao Mar/RUMAR) — úteis como verificação
   manual/fallback, não como fonte automatizável.
+- **Próximo passo:** escrever o conector de verdade (`backend/ingestion/
+  connectors/`), parseando os avisos da ÁREA DELTA, com teste de que o
+  bloqueio por `curl`/ferramenta não afeta a biblioteca `requests` do Python
+  (ainda precisa validar que isso também funciona a partir do servidor de
+  produção HostGator, não só deste ambiente de desenvolvimento).
 
 ### 2. Cartas sinóticas
 
@@ -432,8 +461,8 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   mais relevante para este painel.
 - **Catálogo/metadados:** lista de boias fixas em
   `https://idem.marinha.mil.br/` (menu PNBOIA > Boias Fixas, segundo achado via
-  busca — não confirmado visualmente por causa do bloqueio de domínio
-  `.mar.mil.br` neste ambiente).
+  busca — a página carrega, mas é só casca de SPA sem dado real, mesmo
+  problema do dados.gov.br).
 - **Visualizações em tempo real possivelmente existentes** (achadas como itens
   de menu, não abertas): `https://www.marinha.mil.br/chm/views-dados-do-smm-mapa-ondogramas`
   (ondogramas) e `https://www.marinha.mil.br/chm/meteogramas_mapa` (meteogramas)
@@ -446,6 +475,39 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   propriedades físico-químicas), período e área geográfica. Esse é o mesmo
   padrão de acesso institucional que já funcionou para o CEMADEN-RJ/GridLab
   neste projeto (contato direto).
+- **ACHADO IMPORTANTE (01/10/2026) — existe uma API dedicada do PNBOIA, fora
+  do domínio `marinha.mil.br`, sem o bloqueio Cloudflare:** encontramos o
+  projeto open-source `github.com/soutobias/oceanobs` (pacote Python
+  "oceanoobsbrasil", autor Tobias Ferreira, pesquisador oceanógrafo afiliado
+  ao National Oceanography Centre/UK — achado pesquisando repositórios no
+  GitHub, não no Reddit). O README descreve explicitamente que agrega
+  **boias PNBOIA, marégrafos via CHM, avisos meteorológicos da Marinha e
+  cartas sinóticas** — ou seja, alguém já integrou exatamente as quatro
+  fontes que estamos atrás. O código-fonte (`oceanobs/buoys/pnboia.py`)
+  revela uma **API REST própria, dedicada, em
+  `http://52.67.222.63/v1/`** (IP AWS, não `marinha.mil.br`):
+  - `GET /v1/moored/buoys?token={token}&response_type=json` — lista de boias
+    fixas.
+  - `GET /v1/{identificador_da_boia}?start_date=...&end_date=...&token={token}`
+    — série temporal.
+  - **Testado nesta sessão: o IP responde normalmente** (sem bloqueio de
+    rede, nem Cloudflare) — só exige um `token` (`PNBOIA_TOKEN` no código),
+    cuja forma de obtenção não está documentada no repositório.
+  - Site público associado (mencionado em buscas, não confirmado
+    tecnicamente nesta sessão por problemas de conectividade do ambiente):
+    **oceano.live** — descrito como "usado pela própria Marinha como sistema
+    oficial de validação de avisos de mau tempo/ressaca", o que sugere que
+    não é um projeto hobby isolado, tem alguma legitimidade/uso
+    institucional real. O nome oficial do programa também aparece em
+    `goosbrasil.org/pnboia` (GOOS-Brasil), mas essa página não carregou
+    nesta sessão (instabilidade de conexão, não confirmado se é bloqueio).
+  - **Sem arquivo de licença visível no repositório** — não copiar o código
+    diretamente; usar só como referência de "é possível" e de onde fica a
+    API real. Para usar de verdade, o caminho mais seguro é **contatar o
+    autor (via GitHub) ou o GOOS-Brasil perguntando como obter um
+    `PNBOIA_TOKEN`** — pode ser tão simples quanto um cadastro, ou pode
+    precisar do mesmo tipo de contato institucional do formulário BNDO
+    acima.
 
 ### 5. Dados de maré
 
@@ -463,7 +525,12 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   harmônicas, observações de maré, previsões horárias de máx/mín) são só por
   e-mail, sob pedido. FAQ em
   `https://www.marinha.mil.br/chm/bndo/duvidas-frequentes`. Nenhuma dessas
-  páginas foi lida com sucesso nesta sessão (403 Cloudflare).
+  páginas foi lida com sucesso nesta sessão (403 Cloudflare) — **testado de
+  novo em 01/10/2026 com `requests` puro (a técnica que destravou os avisos
+  de mau tempo) e continua 403 "Just a moment..."** em todas elas (tábuas de
+  maré, BNDO, previsões especiais, cartas sinóticas, formulário). Essas
+  páginas especificamente têm proteção mais forte que a de avisos de mau
+  tempo.
 - **Terceiros que já resolveram esse problema (candidatos a atalho, não
   oficiais — avaliar com a mesma cautela já aplicada ao Weather Underground):**
   - `github.com/Ddiidev/tabua_mare_convert_pdf2db` — projeto open-source que
@@ -518,47 +585,58 @@ validados a partir da máquina de produção, que tem saída de internet normal.
 
 ### Recomendações e próximos passos (ordem sugerida)
 
-1. **Testar as páginas bloqueadas a partir do servidor de produção (HostGator)
-   com Selenium/Chrome real** — mesmo caminho que já funcionou para o INMET —
-   para saber se o desafio Cloudflare da Marinha é resolvido por um navegador
-   de verdade ou se é um desafio interativo que de fato impede automação.
-   Cobre: avisos de mau tempo, BNDO, tábuas de maré, `pam.dhn.mar.mil.br`,
-   `idem.marinha.mil.br`.
+1. ~~Testar as páginas bloqueadas com Chrome real/Selenium~~ — **parcialmente
+   resolvido em 01/10/2026 de forma mais simples:** não precisou de Selenium,
+   só trocar `curl` por `requests` (Python) resolveu a página de avisos de
+   mau tempo. **Ainda falta** aplicar/testar essa mesma técnica a partir do
+   servidor de produção (HostGator) — o que funcionou foi testado só deste
+   ambiente de desenvolvimento — e as páginas que continuam bloqueadas
+   mesmo com `requests` (BNDO, tábuas de maré, previsões especiais, cartas
+   sinóticas, `pam.dhn.mar.mil.br`) ainda precisam do teste com Selenium/
+   Chrome real.
 2. ~~Criar conta e token em dados.gov.br~~ — **feito em 01/10/2026, sem dado
    útil encontrado** (ver seção 6 acima). Não repetir esse caminho.
-3. **Preencher o formulário de solicitação de dados do BNDO** pedindo, em um
+3. **Escrever o conector de avisos de mau tempo (ÁREA DELTA)** —
+   tecnicamente resolvido (seção 1), só falta implementar de verdade em
+   `backend/ingestion/connectors/` e validar a partir da produção.
+4. **Contatar o autor do `oceanobs` (GitHub `soutobias`) e/ou o GOOS-Brasil
+   (`goosbrasil.org`) para perguntar como obter um `PNBOIA_TOKEN`** —
+   caminho mais direto para a API de boias (`52.67.222.63/v1/`) encontrada
+   nesta sessão, que não tem o bloqueio Cloudflare do `marinha.mil.br`.
+5. **Preencher o formulário de solicitação de dados do BNDO** pedindo, em um
    único contato institucional (mesmo padrão que já destravou o CEMADEN-RJ/
    GridLab): (a) dados da boia PNBOIA "Itaguaí" em quase-tempo-real (IDs 20
-   meteorológico e 26 físico-químico); (b) tábua de maré dos portos do RJ em
-   formato estruturado (CSV/planilha, não só PDF); (c) confirmar se existe
-   algum feed não-HTML para avisos de mau tempo/cartas sinóticas.
-4. **Avaliar usar o mirror de cartas sinóticas do INMET**
+   meteorológico e 26 físico-químico), caso o caminho do item 4 não vingue;
+   (b) tábua de maré dos portos do RJ em formato estruturado (CSV/planilha,
+   não só PDF); (c) confirmar se existe algum feed não-HTML para cartas
+   sinóticas.
+6. **Avaliar usar o mirror de cartas sinóticas do INMET**
    (`portal.inmet.gov.br/cartasinotica`) em vez de depender do CHM para esse
    item específico, já que o projeto já tem conector INMET.
-5. **Investigar `pam.dhn.mar.mil.br` (Previsão Ambiental Marinha) com navegador
-   real** — parece ser um portal mais novo e dedicado a previsão
-   ambiental marinha (provavelmente onda/vento/corrente por modelo numérico);
-   se tiver mapa com camadas consultáveis, é o maior valor agregado em
-   potencial para o painel entre tudo que foi levantado aqui — mas não pôde
-   ser nem acessado nesta sessão (domínio bloqueado pela política de saída
-   deste ambiente).
-6. **Avaliar o projeto de terceiros `Ddiidev/tabua_mare_convert_pdf2db`**
+7. **Investigar `pam.dhn.mar.mil.br` (Previsão Ambiental Marinha) e
+   `oceano.live` com navegador real** — ambos parecem portais dedicados a
+   previsão/visualização ambiental marinha; se tiverem mapa com camadas
+   consultáveis, são o maior valor agregado em potencial para o painel
+   entre tudo que foi levantado aqui — mas não puderam ser acessados nesta
+   sessão (domínio/conectividade bloqueados pelo ambiente).
+8. **Avaliar o projeto de terceiros `Ddiidev/tabua_mare_convert_pdf2db`**
    (licença, atividade, confiabilidade) como atalho temporário para maré,
    com a mesma ressalva de "fonte não-oficial" já aplicada ao Weather
    Underground neste documento.
-7. **Não tentar contornar a proteção anti-robô da Marinha** (é órgão federal/
-   militar, mais sensível que o INMET) — qualquer automação deve ficar restrita
-   a abrir a página com navegador real sem forjar cabeçalhos/tokens/desafios,
-   exatamente a política já adotada neste projeto para o INMET.
+9. **Não tentar contornar a proteção anti-robô da Marinha além de trocar a
+   ferramenta de requisição** (é órgão federal/militar, mais sensível que o
+   INMET) — usar `requests`/navegador real normalmente está liberado (é o
+   que já fizemos); não forjar cabeçalhos de desafio, resolver CAPTCHA
+   automaticamente, nem coisas do tipo.
 
 ### Resumo — o que dá para usar hoje vs. o que precisa de mais trabalho
 
 | Necessidade do usuário | Fonte na Marinha | Status após este levantamento |
 |---|---|---|
-| Avisos de mau tempo | SMM, página de avisos (METAREA V) | Bloqueado por Cloudflare nesta sessão; conteúdo é texto, sem API visível; testar com Chrome real na produção |
-| Cartas sinóticas | SMM (CHM) | Produto gráfico, sem dado estruturado; mirror do INMET é alternativa mais simples |
-| Dados de maré | BNDO / Tábuas de Maré | PDF anual oficial + acesso institucional por e-mail/formulário; atalhos de terceiros existem mas não são oficiais |
-| Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | Caminho institucional claro (formulário BNDO, IDs 20/26); visualizações web ainda não confirmadas como tendo API |
+| Avisos de mau tempo | SMM, página de avisos (METAREA V) | **Resolvido (01/10/2026)** — `requests` puro + BeautifulSoup lê a página real; ÁREA DELTA é a relevante pro RJ; falta só implementar o conector |
+| Cartas sinóticas | SMM (CHM) | Página continua bloqueada mesmo com `requests`; mirror do INMET é alternativa mais simples; projeto `oceanobs` também integra isso (não inspecionado o código ainda) |
+| Dados de maré | BNDO / Tábuas de Maré | Página continua bloqueada mesmo com `requests`; PDF anual oficial + acesso institucional por e-mail/formulário; atalhos de terceiros existem mas não são oficiais |
+| Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | **API real encontrada** (`52.67.222.63/v1/`, fora do bloqueio Cloudflare) — só falta o token; alternativa institucional via formulário BNDO continua valendo |
 | Dados abertos em geral | NAD-DHN / dados.gov.br | **Investigado e descartado (01/10/2026)** — endpoint público existe (`api/publico/busca/buscar`) mas não tem dataset real de maré/boia/aviso da Marinha; só achado documento normativo em PDF |
 
 ## Ainda não iniciado (Fase 3 do plano)
