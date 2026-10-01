@@ -404,9 +404,14 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   mas é parseável de forma confiável — exemplo real capturado no teste:
   `AVISO NR 716/2026 AVISO DE VENTO FORTE EMITIDO ÀS 1200Z - SEG - 28/SET/2026
   ÁREA COSTEIRA ENTRE ARRAIAL DO CABO/RJ E VITÓRIA/ES ATÉ 300 MN DA COSTA...`.
-- **ÁREA DELTA é a que cobre o litoral do RJ** (confirmado no teste: "ÁREA
-  COSTEIRA ENTRE ARRAIAL DO CABO/RJ E VITÓRIA/ES ATÉ 300 MN DA COSTA") —
-  resolve a dúvida que tínhamos sobre qual subárea filtrar.
+- **ÁREA DELTA cobre o litoral do RJ** (confirmado no teste: "ÁREA COSTEIRA
+  ENTRE ARRAIAL DO CABO/RJ E VITÓRIA/ES ATÉ 300 MN DA COSTA"). **A ÁREA
+  CHARLIE também cobre parte do litoral do RJ** (confirmado pelo usuário,
+  diretor do CEMADEN-RJ — não havia aviso ativo nessa área no momento do
+  teste pra capturar o texto exato dos limites; registrar o texto de um
+  aviso real da ÁREA CHARLIE assim que houver um ativo, pra confirmar onde
+  exatamente é o limite entre ela e a DELTA). **O conector final deve
+  filtrar as duas áreas (CHARLIE e DELTA), não só DELTA.**
 - **Canal oficial de distribuição real desses avisos é via satélite Inmarsat
   SafetyNET**, pela estação terrena de Tanguá (AOR-E), em inglês, 2x/dia
   (0730Z e 1930Z) + imediato quando há aviso novo. O Brasil não opera NAVTEX
@@ -418,10 +423,10 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   (parceria Marinha + Instituto Rumo ao Mar/RUMAR) — úteis como verificação
   manual/fallback, não como fonte automatizável.
 - **Próximo passo:** escrever o conector de verdade (`backend/ingestion/
-  connectors/`), parseando os avisos da ÁREA DELTA, com teste de que o
-  bloqueio por `curl`/ferramenta não afeta a biblioteca `requests` do Python
-  (ainda precisa validar que isso também funciona a partir do servidor de
-  produção HostGator, não só deste ambiente de desenvolvimento).
+  connectors/`), parseando os avisos das ÁREAS CHARLIE e DELTA, com teste de
+  que o bloqueio por `curl`/ferramenta não afeta a biblioteca `requests` do
+  Python (ainda precisa validar que isso também funciona a partir do
+  servidor de produção HostGator, não só deste ambiente de desenvolvimento).
 
 ### 2. Cartas sinóticas
 
@@ -596,7 +601,7 @@ validados a partir da máquina de produção, que tem saída de internet normal.
    Chrome real.
 2. ~~Criar conta e token em dados.gov.br~~ — **feito em 01/10/2026, sem dado
    útil encontrado** (ver seção 6 acima). Não repetir esse caminho.
-3. **Escrever o conector de avisos de mau tempo (ÁREA DELTA)** —
+3. **Escrever o conector de avisos de mau tempo (ÁREAS CHARLIE e DELTA)** —
    tecnicamente resolvido (seção 1), só falta implementar de verdade em
    `backend/ingestion/connectors/` e validar a partir da produção.
 4. **Contatar o autor do `oceanobs` (GitHub `soutobias`) e/ou o GOOS-Brasil
@@ -633,7 +638,7 @@ validados a partir da máquina de produção, que tem saída de internet normal.
 
 | Necessidade do usuário | Fonte na Marinha | Status após este levantamento |
 |---|---|---|
-| Avisos de mau tempo | SMM, página de avisos (METAREA V) | **Resolvido (01/10/2026)** — `requests` puro + BeautifulSoup lê a página real; ÁREA DELTA é a relevante pro RJ; falta só implementar o conector |
+| Avisos de mau tempo | SMM, página de avisos (METAREA V) | **Resolvido (01/10/2026)** — `requests` puro + BeautifulSoup lê a página real; ÁREAS CHARLIE e DELTA cobrem o litoral do RJ; falta só implementar o conector |
 | Cartas sinóticas | SMM (CHM) | Página continua bloqueada mesmo com `requests`; mirror do INMET é alternativa mais simples; projeto `oceanobs` também integra isso (não inspecionado o código ainda) |
 | Dados de maré | BNDO / Tábuas de Maré | Página continua bloqueada mesmo com `requests`; PDF anual oficial + acesso institucional por e-mail/formulário; atalhos de terceiros existem mas não são oficiais |
 | Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | **API real encontrada** (`52.67.222.63/v1/`, fora do bloqueio Cloudflare) — só falta o token; alternativa institucional via formulário BNDO continua valendo |
