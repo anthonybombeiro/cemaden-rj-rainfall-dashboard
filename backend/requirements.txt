@@ -22,3 +22,7 @@ redis==5.0.8
 
 # Conversão de hexágonos H3 para lat/lon (ver ingestion/connectors/rio_chuva_bairro.py)
 h3==4.1.2
+
+# Parsing de HTML (ver ingestion/connectors/marinha_avisos.py) — 4.12.x é a
+# última série com suporte confirmado a Python 3.9 (produção no HostGator).
+beautifulsoup4==4.12.3

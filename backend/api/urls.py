@@ -12,7 +12,14 @@ from .admin_views import (
 from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeView, ProfileUpdateView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .refresh_views import RefreshNowView
-from .views import AlertEventViewSet, PrevisaoViewSet, RiskAlertViewSet, SourceViewSet, StationViewSet
+from .views import (
+    AlertEventViewSet,
+    AvisoMauTempoViewSet,
+    PrevisaoViewSet,
+    RiskAlertViewSet,
+    SourceViewSet,
+    StationViewSet,
+)
 
 router = DefaultRouter()
 router.register("sources", SourceViewSet, basename="source")
@@ -20,6 +27,7 @@ router.register("stations", StationViewSet, basename="station")
 router.register("alerts", AlertEventViewSet, basename="alert")
 router.register("previsoes", PrevisaoViewSet, basename="previsao")
 router.register("risk-alerts", RiskAlertViewSet, basename="risk-alert")
+router.register("avisos-mau-tempo", AvisoMauTempoViewSet, basename="aviso-mau-tempo")
 
 urlpatterns = [
     path("ingest/status/", IngestStatusView.as_view(), name="ingest-status"),

@@ -422,11 +422,20 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   (`facebook.com/servicometeorologicomb`) e app Android "Boletim ao Mar"
   (parceria Marinha + Instituto Rumo ao Mar/RUMAR) — úteis como verificação
   manual/fallback, não como fonte automatizável.
-- **Próximo passo:** escrever o conector de verdade (`backend/ingestion/
-  connectors/`), parseando os avisos das ÁREAS CHARLIE e DELTA, com teste de
-  que o bloqueio por `curl`/ferramenta não afeta a biblioteca `requests` do
-  Python (ainda precisa validar que isso também funciona a partir do
-  servidor de produção HostGator, não só deste ambiente de desenvolvimento).
+- **IMPLEMENTADO (01/10/2026):** conector em
+  `backend/ingestion/connectors/marinha_avisos.py` (`sync()`), modelo
+  `AvisoMauTempo` em `core/models.py`, endpoint `GET /api/avisos-mau-tempo/`
+  (autenticado, como o resto da API — filtros `?area=` e `?ativo=`) e
+  disparo administrativo via `POST /api/admin/run/` com
+  `{"action": "sync_avisos_mau_tempo"}` (mesmo padrão do
+  `sync_risk_alerts`). Testado localmente ponta a ponta (fetch → parse →
+  upsert → API) com HTML real capturado nesta sessão — parseou
+  corretamente 2 avisos reais da ÁREA DELTA, inclusive um caso de virada de
+  mês (emitido 28/SET, válido até 01/OUT). **Ainda falta validar a partir
+  do servidor de produção HostGator** (só foi testado deste ambiente de
+  desenvolvimento) **e adicionar o Cron Job no cPanel** que chama
+  `/api/admin/run/` periodicamente (passo manual fora do controle de
+  versão, igual já é feito pros outros `sync_*`).
 
 ### 2. Cartas sinóticas
 
@@ -601,9 +610,9 @@ validados a partir da máquina de produção, que tem saída de internet normal.
    Chrome real.
 2. ~~Criar conta e token em dados.gov.br~~ — **feito em 01/10/2026, sem dado
    útil encontrado** (ver seção 6 acima). Não repetir esse caminho.
-3. **Escrever o conector de avisos de mau tempo (ÁREAS CHARLIE e DELTA)** —
-   tecnicamente resolvido (seção 1), só falta implementar de verdade em
-   `backend/ingestion/connectors/` e validar a partir da produção.
+3. ~~Escrever o conector de avisos de mau tempo (ÁREAS CHARLIE e DELTA)~~ —
+   **implementado em 01/10/2026** (seção 1). Falta só validar a partir da
+   produção e configurar o Cron Job no cPanel.
 4. **Contatar o autor do `oceanobs` (GitHub `soutobias`) e/ou o GOOS-Brasil
    (`goosbrasil.org`) para perguntar como obter um `PNBOIA_TOKEN`** —
    caminho mais direto para a API de boias (`52.67.222.63/v1/`) encontrada
@@ -638,7 +647,7 @@ validados a partir da máquina de produção, que tem saída de internet normal.
 
 | Necessidade do usuário | Fonte na Marinha | Status após este levantamento |
 |---|---|---|
-| Avisos de mau tempo | SMM, página de avisos (METAREA V) | **Resolvido (01/10/2026)** — `requests` puro + BeautifulSoup lê a página real; ÁREAS CHARLIE e DELTA cobrem o litoral do RJ; falta só implementar o conector |
+| Avisos de mau tempo | SMM, página de avisos (METAREA V) | **Implementado (01/10/2026)** — conector + modelo + API (`/api/avisos-mau-tempo/`) prontos e testados localmente; falta validar a partir da produção e configurar o Cron Job |
 | Cartas sinóticas | SMM (CHM) | Página continua bloqueada mesmo com `requests`; mirror do INMET é alternativa mais simples; projeto `oceanobs` também integra isso (não inspecionado o código ainda) |
 | Dados de maré | BNDO / Tábuas de Maré | Página continua bloqueada mesmo com `requests`; PDF anual oficial + acesso institucional por e-mail/formulário; atalhos de terceiros existem mas não são oficiais |
 | Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | **API real encontrada** (`52.67.222.63/v1/`, fora do bloqueio Cloudflare) — só falta o token; alternativa institucional via formulário BNDO continua valendo |
