@@ -223,7 +223,7 @@ const VentosTable = forwardRef<
     // pedido do usuário: preencher o espaço em vez de sobrar card vazio) —
     // só o TEXTO (mais apertado pra ler no celular) fica limitado a 10, via
     // ShareData.limiteTexto abaixo.
-    const LINHAS_IMAGEM = 20;
+    const LINHAS_IMAGEM = 25;
     const LINHAS_TEXTO = 10;
     const estacoesImagem = sorted.slice(0, LINHAS_IMAGEM);
     const linhas = estacoesImagem.map((s) => {
@@ -238,8 +238,8 @@ const VentosTable = forwardRef<
         valores: {
           municipio: s.municipality || "—",
           estacao: s.name,
-          rajada: rajadaKmh !== null ? rajadaKmh.toFixed(1) : "—",
-          vento: vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toFixed(1) : "—",
+          rajada: rajadaKmh !== null ? `${rajadaKmh.toFixed(1)} km/h` : "—",
+          vento: vento !== null ? `${(Math.round(vento * 3.6 * 10) / 10).toFixed(1)} km/h` : "—",
           direcao: direcao !== null ? `${Math.round(direcao)}° ${pontoCardeal(direcao)}` : "—",
           redec: redecOf(s.municipality) || "—",
           situacao: faixa?.label ?? "—",
@@ -270,14 +270,14 @@ const VentosTable = forwardRef<
       titulo: "CEMADEN-RJ — Monitoramento de vento",
       dataHora,
       colunas: [
-        { chave: "municipio", rotulo: "Município" },
-        { chave: "estacao", rotulo: "Estação" },
-        { chave: "rajada", rotulo: "Rajada", alinhamento: "right" },
-        { chave: "vento", rotulo: "Vento", alinhamento: "right" },
-        { chave: "direcao", rotulo: "Direção", alinhamento: "center" },
-        { chave: "redec", rotulo: "REDEC" },
-        { chave: "situacao", rotulo: "Situação", alinhamento: "center" },
-        { chave: "atualizado", rotulo: "Atualizado", alinhamento: "center" },
+        { chave: "municipio", rotulo: "Município", larguraPct: 15 },
+        { chave: "estacao", rotulo: "Estação", larguraPct: 19 },
+        { chave: "rajada", rotulo: "Rajada", alinhamento: "right", larguraPct: 11 },
+        { chave: "vento", rotulo: "Vento", alinhamento: "right", larguraPct: 11 },
+        { chave: "direcao", rotulo: "Direção", alinhamento: "center", larguraPct: 10 },
+        { chave: "redec", rotulo: "REDEC", larguraPct: 13 },
+        { chave: "situacao", rotulo: "Situação", alinhamento: "center", larguraPct: 10 },
+        { chave: "atualizado", rotulo: "Atualizado", alinhamento: "center", larguraPct: 11 },
       ],
       linhas,
       legenda: [

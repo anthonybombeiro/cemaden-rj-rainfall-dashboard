@@ -6,7 +6,15 @@
  * (html-to-image sobre o card renderizado) e o texto (monoespaçado,
  * pronto pra colar). Ver ShareModal.tsx. */
 
-export type ShareColuna = { chave: string; rotulo: string; alinhamento?: "left" | "right" | "center" };
+export type ShareColuna = {
+  chave: string;
+  rotulo: string;
+  alinhamento?: "left" | "right" | "center";
+  /** Largura da coluna na IMAGEM, em % da tabela (2026-10-01, pedido do
+   * usuário: município/estação legíveis, o resto mais compacto). Sem
+   * isso, o ShareModal divide a largura igualmente entre as colunas. */
+  larguraPct?: number;
+};
 export type ShareLinha = {
   valores: Record<string, string>;
   /** Cor de fundo da linha (mesma lógica das tabelas, ex: faixa de chuva/vento/gatilho). */

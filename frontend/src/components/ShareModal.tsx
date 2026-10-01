@@ -172,6 +172,13 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                 quanto couberem bem no card, ver VentosTable.compartilhar). */}
             <div className="flex min-h-0 flex-1 flex-col justify-start px-4 py-3">
               <table className="w-full table-fixed border-collapse text-[10.5px]">
+                {data.colunas.some((c) => c.larguraPct) && (
+                  <colgroup>
+                    {data.colunas.map((c) => (
+                      <col key={c.chave} style={c.larguraPct ? { width: `${c.larguraPct}%` } : undefined} />
+                    ))}
+                  </colgroup>
+                )}
                 <thead>
                   <tr>
                     {data.colunas.map((c) => (
