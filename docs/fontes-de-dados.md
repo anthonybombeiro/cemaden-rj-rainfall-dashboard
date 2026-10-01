@@ -320,8 +320,226 @@ gerar um login/senha dedicados pra essa parte (ainda não integrada; exige
 sessão autenticada, diferente da tabela pública). Isso é operacionalmente
 importante: mostrar acionamento de sirene no mapa em tempo real.
 
+## Marinha do Brasil (CHM/DHN) — plano de obtenção de dados (levantamento em 01/10/2026)
+
+Pesquisa feita a pedido do usuário, **só levantamento de opções, nada implementado
+ainda**. Objetivo: trazer para o painel os avisos de mau tempo, cartas sinóticas,
+dados de maré e boias climáticas (PNBOIA) da Marinha, que são referência
+institucional para monitoramento costeiro/climático no RJ. Site principal:
+`https://www.marinha.mil.br/chm/` (Centro de Hidrografia da Marinha).
+
+### Estrutura institucional (quem é quem)
+
+- **DHN** (Diretoria de Hidrografia e Navegação) — órgão maior, dono das normas de
+  acesso a dados.
+- **CHM** (Centro de Hidrografia da Marinha) — opera o **SMM** e o **PNBOIA**,
+  produz os boletins/avisos/cartas no dia a dia.
+- **SMM** (Serviço Meteorológico Marinho) — avisos de mau tempo, cartas sinóticas,
+  Meteoromarinha, previsões especiais.
+- **BNDO** (Banco Nacional de Dados Oceanográficos) — maré, dados oceanográficos
+  (temperatura, salinidade, correntes), estações maregráficas/fluviométricas;
+  acesso sob pedido.
+- **IDEM-DHN** (Infraestrutura de Dados Espaciais Marinhos) — catálogo de
+  metadados geoespaciais, `https://idem.marinha.mil.br/` (há também referências a
+  `idem.dhn.mar.mil.br/geonetwork/...` para registros individuais — parece ser um
+  GeoNetwork; não confirmado se expõe WMS/WFS consultável).
+- **NAD-DHN** (Norma de Acesso aos Dados e Informações Abertos da DHN, Portaria
+  nº13/2018) — política de dados abertos que cobre **27 tipos** de dados/produtos
+  "ostensivos" (não sigilosos) sob custódia da DHN, acesso livre. PDF oficial:
+  `https://www.marinha.mil.br/dhn/sites/www.marinha.mil.br.dhn/files/Port13-2018-DHN-Aprova-NAD-DHN.pdf`
+  (redireciona para `assets.marinha.mil.br/dhn/...`) — **deu HTTP 503 nas duas
+  tentativas de leitura nesta sessão**, não chegamos a extrair a lista completa
+  dos 27 itens; vale tentar de novo depois (pode ser instabilidade pontual do
+  servidor, não bloqueio).
+
+### Bloqueio técnico transversal encontrado nesta sessão
+
+Todo o domínio `marinha.mil.br` está atrás de **Cloudflare com desafio anti-robô
+ativo** (`cf-mitigated: challenge` confirmado via `curl -I` com User-Agent de
+navegador comum) — toda tentativa de leitura automatizada nesta sessão retornou
+**HTTP 403**, em várias páginas diferentes (avisos de mau tempo, BNDO, tábuas de
+maré, página inicial do CHM). É mais rígido que a proteção do INMET (que um
+Chrome real resolve sozinho, sem ação nossa — ver seção INMET acima); **ainda não
+sabemos se um Chrome/Selenium real também resolve o desafio da Marinha** —
+precisa ser testado a partir do servidor de produção (HostGator), não deste
+ambiente de desenvolvimento.
+
+Dois subdomínios relevantes (`pam.dhn.mar.mil.br` e `idem.dhn.mar.mil.br`) nem
+chegaram a ser testados: o proxy de saída deste ambiente **bloqueia por política
+qualquer domínio `.mar.mil.br`** (erro `connect_rejected`). Precisam ser
+validados a partir da máquina de produção, que tem saída de internet normal.
+
+### 1. Avisos de mau tempo — prioridade alta
+
+- Página: `https://www.marinha.mil.br/chm/dados-do-smm-avisos-de-mau-tempo/avisos-de-mau-tempo`.
+  Organiza os avisos pela **METAREA V** (águas do Atlântico Sul sob
+  responsabilidade do Brasil), subdividida em áreas A–H, N, S num mapa SVG
+  interativo. Mostra timestamp de atualização (ex.: "30/09/2026 - 11:57" no
+  teste desta sessão) — parece atualizar várias vezes ao dia.
+- Conteúdo é texto de boletim (padrão OMM/IMO para avisos marítimos: vento muito
+  forte, mar muito grosso, ressaca, com velocidades/alturas), não achamos
+  JSON/XML/RSS estruturado na página.
+- **Canal oficial de distribuição real desses avisos é via satélite Inmarsat
+  SafetyNET**, pela estação terrena de Tanguá (AOR-E), em inglês, 2x/dia
+  (0730Z e 1930Z) + imediato quando há aviso novo. O Brasil não opera NAVTEX
+  próprio nessa área (avisos costeiros vão por SafetyNET). Isso é relevante
+  porque pode existir mirror/agregador internacional desses boletins de texto
+  (sites de meteorologia marítima para veleiros costumam agregar boletins
+  SafetyNET/high-seas) — não investigado a fundo ainda, é uma pista a seguir
+  se o acesso direto ao site continuar bloqueado.
+- **Qual subárea cobre o litoral do RJ** (A? B?) não foi confirmado nesta
+  pesquisa — precisa abrir o mapa com navegador real.
+- Canais alternativos não estruturados: página do Facebook do SMM
+  (`facebook.com/servicometeorologicomb`) e app Android "Boletim ao Mar"
+  (parceria Marinha + Instituto Rumo ao Mar/RUMAR) — úteis como verificação
+  manual/fallback, não como fonte automatizável.
+
+### 2. Cartas sinóticas
+
+- Produzidas pelo CHM/SMM, formato imagem (há um PDF de simbologia oficial em
+  `https://www.marinha.mil.br/chm/sites/www.marinha.mil.br.chm/files/chm_simbologia.pdf`).
+  É produto gráfico (mapa de isóbaras/frentes), não dado estruturado — no
+  painel só entraria como imagem estática/embed, não como camada de dados.
+- **Atalho possível:** o INMET também publica regularmente cartas sinóticas em
+  `https://portal.inmet.gov.br/cartasinotica` (achado durante esta pesquisa) —
+  como o projeto já tem conector INMET funcionando e aquele domínio não
+  apresentou o mesmo bloqueio Cloudflare da Marinha nas pesquisas feitas, vale
+  avaliar usar o mirror do INMET em vez de brigar com a proteção da Marinha
+  para este item especificamente. Precisa confirmar se o conteúdo é o mesmo
+  mapa (cobertura Atlântico Sul) ou uma versão diferente.
+
+### 3. Boletim Meteoromarinha / Previsões especiais
+
+- `https://www.marinha.mil.br/chm/dados-do-smm-previsoes-especiais` — boletim de
+  até 48h de condições atmosféricas/oceânicas na área de responsabilidade
+  marítima do Brasil, formato texto padrão OMM, voltado à navegação. Mesmo
+  bloqueio Cloudflare impediu inspeção detalhada do conteúdo atual nesta
+  sessão.
+
+### 4. Boias climáticas — PNBOIA — prioridade alta (boia "Itaguaí" é perto do RJ)
+
+- **PNBOIA** (Programa Nacional de Boias, Resolução CIRM nº001/97) é gerenciado
+  pelo CHM: boias fixas (fundeadas) e de deriva + flutuadores ARGO, transmissão
+  quase em tempo real via satélite (CLS-ARGOS / Inmarsat IDP), ~10 parâmetros
+  oceanográficos/meteorológicos coletados (tipicamente: vento, temp. do ar,
+  pressão, umidade, temp. da superfície do mar, altura/período/direção de
+  onda, corrente). Dados também alimentam o **GTS** (Global Telecommunication
+  System) — ou seja, podem já estar entrando indiretamente nos modelos que o
+  INMET/CPTEC consomem; vale perguntar isso no mesmo contato que já existe com
+  o INMET/COPREM (ver `docs/email-inmet-rascunho.md`).
+- **A boia "Itaguaí" é explicitamente descrita pela própria Marinha como usada
+  para validar os avisos de mar grosso/ressaca do litoral do RJ** — é a boia
+  mais relevante para este painel.
+- **Catálogo/metadados:** lista de boias fixas em
+  `https://idem.marinha.mil.br/` (menu PNBOIA > Boias Fixas, segundo achado via
+  busca — não confirmado visualmente por causa do bloqueio de domínio
+  `.mar.mil.br` neste ambiente).
+- **Visualizações em tempo real possivelmente existentes** (achadas como itens
+  de menu, não abertas): `https://www.marinha.mil.br/chm/views-dados-do-smm-mapa-ondogramas`
+  (ondogramas) e `https://www.marinha.mil.br/chm/meteogramas_mapa` (meteogramas)
+  — podem ser, como no caso do painel GridLab/CEMADEN-RJ, só HTML renderizado
+  no servidor sem endpoint JSON por trás; precisa inspecionar com navegador
+  real a partir da produção.
+- **Caminho institucional confirmado — formulário de solicitação de dados do
+  BNDO:** `https://www.marinha.mil.br/chm/form/formulario-de-solicitacao-de-dad`,
+  permite pedir dados por tipo (ex.: ID 20 = meteorológico, ID 26 =
+  propriedades físico-químicas), período e área geográfica. Esse é o mesmo
+  padrão de acesso institucional que já funcionou para o CEMADEN-RJ/GridLab
+  neste projeto (contato direto).
+
+### 5. Dados de maré
+
+- **Tábuas de Maré** — publicação anual em PDF por porto (não dado estruturado):
+  `https://www.marinha.mil.br/chm/tabuas-de-mare` (2025) e
+  `https://www.marinha.mil.br/chm/tabuas-de-mare-6` (2026). Cobertura nacional:
+  44 portos + ilhas + barras; **quais portos do RJ exatamente estão na lista
+  não foi confirmado** (a tabela completa está dentro do PDF, não lido nesta
+  sessão por causa do bloqueio).
+- **BNDO — Acesso a Dados e Produtos:**
+  `https://www.marinha.mil.br/chm/dados-do-bndo/acesso-dados-e-produtos`
+  (também referenciado como `/chm/bndo/acesso`) — segundo resumos de busca,
+  oferece download gratuito direto no site para previsão de maré, estações
+  maregráficas e fluviométricas; dados mais detalhados (constantes
+  harmônicas, observações de maré, previsões horárias de máx/mín) são só por
+  e-mail, sob pedido. FAQ em
+  `https://www.marinha.mil.br/chm/bndo/duvidas-frequentes`. Nenhuma dessas
+  páginas foi lida com sucesso nesta sessão (403 Cloudflare).
+- **Terceiros que já resolveram esse problema (candidatos a atalho, não
+  oficiais — avaliar com a mesma cautela já aplicada ao Weather Underground):**
+  - `github.com/Ddiidev/tabua_mare_convert_pdf2db` — projeto open-source que
+    converte os PDFs de tábua de maré da Marinha para um formato
+    consultável/API própria. Precisa avaliar licença, atividade recente e
+    confiabilidade antes de depender dele.
+  - `mareagora.com.br` e `tabuasdemare.com.br` — sites que dizem usar "dados
+    oficiais da DHN" para dezenas/~96 portos com interface web e gráfico por
+    porto. Se algum dia for necessário, o mesmo método já validado para o
+    Alerta Rio (ler as chamadas de rede que o próprio site faz para se
+    alimentar, sem tocar em proteção nenhuma) poderia revelar um endpoint
+    JSON mais simples que brigar com o Cloudflare da Marinha — não
+    investigado ainda.
+
+### 6. Dados abertos institucionais — NAD-DHN e dados.gov.br
+
+- **dados.gov.br, organização "marinha-do-brasil":**
+  `https://dados.gov.br/dataset?organization=marinha-do-brasil` — o portal
+  mudou de plataforma e a **API (CKAN, `/api/3/action/package_search`) agora
+  exige autenticação Bearer** (confirmado nesta sessão: HTTP 401 +
+  `www-authenticate: Bearer` mesmo numa busca anônima simples, que antes era
+  pública). **Próximo passo simples:** criar uma conta gratuita em
+  dados.gov.br, gerar um token de API (mesmo padrão de autoatendimento já
+  usado para a chave do Weather Underground) e repetir a consulta
+  `package_search?q=organization:marinha-do-brasil` com o token — deve
+  revelar o catálogo completo de conjuntos de dados publicados pela Marinha,
+  incluindo possivelmente maré, boias e normas da autoridade marítima (um
+  dataset chamado "Normas da Autoridade Marítima" já apareceu numa busca).
+
+### Recomendações e próximos passos (ordem sugerida)
+
+1. **Testar as páginas bloqueadas a partir do servidor de produção (HostGator)
+   com Selenium/Chrome real** — mesmo caminho que já funcionou para o INMET —
+   para saber se o desafio Cloudflare da Marinha é resolvido por um navegador
+   de verdade ou se é um desafio interativo que de fato impede automação.
+   Cobre: avisos de mau tempo, BNDO, tábuas de maré, `pam.dhn.mar.mil.br`,
+   `idem.marinha.mil.br`.
+2. **Criar conta e token em dados.gov.br** e consultar o catálogo real da
+   organização "marinha-do-brasil" com autenticação.
+3. **Preencher o formulário de solicitação de dados do BNDO** pedindo, em um
+   único contato institucional (mesmo padrão que já destravou o CEMADEN-RJ/
+   GridLab): (a) dados da boia PNBOIA "Itaguaí" em quase-tempo-real (IDs 20
+   meteorológico e 26 físico-químico); (b) tábua de maré dos portos do RJ em
+   formato estruturado (CSV/planilha, não só PDF); (c) confirmar se existe
+   algum feed não-HTML para avisos de mau tempo/cartas sinóticas.
+4. **Avaliar usar o mirror de cartas sinóticas do INMET**
+   (`portal.inmet.gov.br/cartasinotica`) em vez de depender do CHM para esse
+   item específico, já que o projeto já tem conector INMET.
+5. **Investigar `pam.dhn.mar.mil.br` (Previsão Ambiental Marinha) com navegador
+   real** — parece ser um portal mais novo e dedicado a previsão
+   ambiental marinha (provavelmente onda/vento/corrente por modelo numérico);
+   se tiver mapa com camadas consultáveis, é o maior valor agregado em
+   potencial para o painel entre tudo que foi levantado aqui — mas não pôde
+   ser nem acessado nesta sessão (domínio bloqueado pela política de saída
+   deste ambiente).
+6. **Avaliar o projeto de terceiros `Ddiidev/tabua_mare_convert_pdf2db`**
+   (licença, atividade, confiabilidade) como atalho temporário para maré,
+   com a mesma ressalva de "fonte não-oficial" já aplicada ao Weather
+   Underground neste documento.
+7. **Não tentar contornar a proteção anti-robô da Marinha** (é órgão federal/
+   militar, mais sensível que o INMET) — qualquer automação deve ficar restrita
+   a abrir a página com navegador real sem forjar cabeçalhos/tokens/desafios,
+   exatamente a política já adotada neste projeto para o INMET.
+
+### Resumo — o que dá para usar hoje vs. o que precisa de mais trabalho
+
+| Necessidade do usuário | Fonte na Marinha | Status após este levantamento |
+|---|---|---|
+| Avisos de mau tempo | SMM, página de avisos (METAREA V) | Bloqueado por Cloudflare nesta sessão; conteúdo é texto, sem API visível; testar com Chrome real na produção |
+| Cartas sinóticas | SMM (CHM) | Produto gráfico, sem dado estruturado; mirror do INMET é alternativa mais simples |
+| Dados de maré | BNDO / Tábuas de Maré | PDF anual oficial + acesso institucional por e-mail/formulário; atalhos de terceiros existem mas não são oficiais |
+| Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | Caminho institucional claro (formulário BNDO, IDs 20/26); visualizações web ainda não confirmadas como tendo API |
+| Dados abertos em geral | NAD-DHN / dados.gov.br | Política de 27 tipos de dados existe; portal dados.gov.br exige conta+token agora; PDF da norma não pôde ser lido nesta sessão (503) |
+
 ## Ainda não iniciado (Fase 3 do plano)
 
-Marinha do Brasil (tábuas de maré/ondas), INPE/CPTEC (satélite), ANA
-(hidrologia de barragens/reservatórios), Defesas Civis municipais do
-interior do RJ — nenhum desses foi pesquisado ainda nesta sessão.
+INPE/CPTEC (satélite), ANA (hidrologia de barragens/reservatórios), Defesas
+Civis municipais do interior do RJ — nenhum desses foi pesquisado ainda nesta
+sessão.
