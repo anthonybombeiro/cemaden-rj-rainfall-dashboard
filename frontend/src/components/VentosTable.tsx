@@ -70,6 +70,23 @@ const FAIXAS_RAJADA: { min: number; faixa: FaixaRajada }[] = [
 const HORAS_ATRASO_VENTO = 3;
 const FAIXA_ATRASADA: FaixaRajada = { label: "Atrasada", bg: "#BEBEBE", text: "#1f2937", emoji: "⚪" };
 
+function formatNumeroPtBr(n: number): string {
+  return n.toFixed(1).replace(".", ",").replace(/,0$/, "");
+}
+
+// Rótulo da legenda COM o intervalo (ex: "Moderada 18,6–51,9 km/h") — mesmos
+// limiares de FAIXAS_RAJADA, nunca hardcoded separadamente (2026-10-01,
+// pedido do usuário: a legenda do card de compartilhar só tinha o nome da
+// faixa, sem dizer onde cada limiar começa e termina, igual o texto de
+// ajuda que já existe embaixo da tabela principal).
+function rotuloComFaixa(i: number): string {
+  const atual = FAIXAS_RAJADA[i];
+  if (i === 0) return `${atual.faixa.label} ≥ ${formatNumeroPtBr(atual.min)} km/h`;
+  if (i === FAIXAS_RAJADA.length - 1) return `${atual.faixa.label} < ${formatNumeroPtBr(FAIXAS_RAJADA[i - 1].min)} km/h`;
+  const superior = FAIXAS_RAJADA[i - 1].min - 0.1;
+  return `${atual.faixa.label} ${formatNumeroPtBr(atual.min)}–${formatNumeroPtBr(superior)} km/h`;
+}
+
 function estaAtrasadoVento(updated: string | null): boolean {
   if (!updated) return true;
   const horas = (Date.now() - new Date(updated).getTime()) / 3_600_000;
@@ -223,7 +240,7 @@ const VentosTable = forwardRef<
     // pedido do usuário: preencher o espaço em vez de sobrar card vazio) —
     // só o TEXTO (mais apertado pra ler no celular) fica limitado a 10, via
     // ShareData.limiteTexto abaixo.
-    const LINHAS_IMAGEM = 25;
+    const LINHAS_IMAGEM = 24;
     const LINHAS_TEXTO = 10;
     const estacoesImagem = sorted.slice(0, LINHAS_IMAGEM);
     const linhas = estacoesImagem.map((s) => {
@@ -281,7 +298,7 @@ const VentosTable = forwardRef<
       ],
       linhas,
       legenda: [
-        ...FAIXAS_RAJADA.slice().reverse().map(({ faixa }) => ({ cor: faixa.bg, rotulo: faixa.label })),
+        ...FAIXAS_RAJADA.map(({ faixa }, i) => ({ cor: faixa.bg, rotulo: rotuloComFaixa(i) })).reverse(),
         { cor: FAIXA_ATRASADA.bg, rotulo: `${FAIXA_ATRASADA.label} (> ${HORAS_ATRASO_VENTO}h sem atualizar)` },
       ],
       fonteTexto: "Fonte: INMET, REDEMET, Wunderground, Plugfield — CEMADEN-RJ/SEDEC",
@@ -459,7 +476,7 @@ const VentosTable = forwardRef<
         </span>
       </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
-        Fraca &lt; 18,6 km/h · Moderada 18,6–51,9 km/h · Forte 52–75,9 km/h · Muito forte ≥ 76 km/h. Estação sem
+        {FAIXAS_RAJADA.map((_, i) => rotuloComFaixa(i)).reverse().join(" · ")}. Estação sem
         leitura há mais de {HORAS_ATRASO_VENTO}h aparece cinza ("Atrasada") em vez da cor da rajada — dado velho
         não deve parecer dado do momento — e vai sempre pro fim da lista, em qualquer ordenação escolhida. Só
         aparecem aqui estações que reportam velocidade, rajada ou direção do vento. Vento é guardado em m/s e

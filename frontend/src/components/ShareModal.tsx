@@ -169,8 +169,14 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
             </div>
 
             {/* Corpo — ancorado no topo (cada tabela já manda tantas linhas
-                quanto couberem bem no card, ver VentosTable.compartilhar). */}
-            <div className="flex min-h-0 flex-1 flex-col justify-start px-4 py-3">
+                quanto couberem bem no card, ver VentosTable.compartilhar).
+                overflow-hidden AQUI (não só no card inteiro) é o que evita
+                a legenda vazar por cima do rodapé quando o conteúdo não
+                cabe direitinho (2026-10-01, achado pelo usuário): sem isso,
+                a tabela/legenda transbordam a altura que o flexbox alocou
+                pro corpo e pintam por cima do rodapé (que vem logo depois
+                no layout), em vez de simplesmente cortar o que não coube. */}
+            <div className="flex min-h-0 flex-1 flex-col justify-start overflow-hidden px-4 py-3">
               <table className="w-full table-fixed border-collapse text-[10.5px]">
                 {data.colunas.some((c) => c.larguraPct) && (
                   <colgroup>
