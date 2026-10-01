@@ -489,39 +489,60 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   propriedades físico-químicas), período e área geográfica. Esse é o mesmo
   padrão de acesso institucional que já funcionou para o CEMADEN-RJ/GridLab
   neste projeto (contato direto).
-- **ACHADO IMPORTANTE (01/10/2026) — existe uma API dedicada do PNBOIA, fora
-  do domínio `marinha.mil.br`, sem o bloqueio Cloudflare:** encontramos o
-  projeto open-source `github.com/soutobias/oceanobs` (pacote Python
-  "oceanoobsbrasil", autor Tobias Ferreira, pesquisador oceanógrafo afiliado
-  ao National Oceanography Centre/UK — achado pesquisando repositórios no
-  GitHub, não no Reddit). O README descreve explicitamente que agrega
-  **boias PNBOIA, marégrafos via CHM, avisos meteorológicos da Marinha e
-  cartas sinóticas** — ou seja, alguém já integrou exatamente as quatro
-  fontes que estamos atrás. O código-fonte (`oceanobs/buoys/pnboia.py`)
-  revela uma **API REST própria, dedicada, em
-  `http://52.67.222.63/v1/`** (IP AWS, não `marinha.mil.br`):
-  - `GET /v1/moored/buoys?token={token}&response_type=json` — lista de boias
-    fixas.
-  - `GET /v1/{identificador_da_boia}?start_date=...&end_date=...&token={token}`
-    — série temporal.
-  - **Testado nesta sessão: o IP responde normalmente** (sem bloqueio de
-    rede, nem Cloudflare) — só exige um `token` (`PNBOIA_TOKEN` no código),
-    cuja forma de obtenção não está documentada no repositório.
-  - Site público associado (mencionado em buscas, não confirmado
-    tecnicamente nesta sessão por problemas de conectividade do ambiente):
-    **oceano.live** — descrito como "usado pela própria Marinha como sistema
-    oficial de validação de avisos de mau tempo/ressaca", o que sugere que
-    não é um projeto hobby isolado, tem alguma legitimidade/uso
-    institucional real. O nome oficial do programa também aparece em
-    `goosbrasil.org/pnboia` (GOOS-Brasil), mas essa página não carregou
-    nesta sessão (instabilidade de conexão, não confirmado se é bloqueio).
-  - **Sem arquivo de licença visível no repositório** — não copiar o código
-    diretamente; usar só como referência de "é possível" e de onde fica a
-    API real. Para usar de verdade, o caminho mais seguro é **contatar o
-    autor (via GitHub) ou o GOOS-Brasil perguntando como obter um
-    `PNBOIA_TOKEN`** — pode ser tão simples quanto um cadastro, ou pode
-    precisar do mesmo tipo de contato institucional do formulário BNDO
-    acima.
+- **API real do PNBOIA — encontrada, conta criada, catálogo liberado, dados
+  ainda bloqueados (atualizado em 01/10/2026):**
+  - Achada via o projeto open-source `github.com/soutobias/oceanobs`
+    (pacote Python "oceanoobsbrasil", autor Tobias Ferreira, pesquisador
+    oceanógrafo afiliado ao National Oceanography Centre/UK). O README
+    descreve que agrega **boias PNBOIA, marégrafos via CHM, avisos
+    meteorológicos da Marinha e cartas sinóticas** — as quatro fontes que
+    estamos atrás, já resolvidas por outra pessoa.
+  - A API é a **"PNBoia API" v2.0.1**, em `http://52.67.222.63/` — projeto
+    maduro, com changelog próprio, Swagger público (`/docs`,
+    `/openapi.json`) e dezenas de endpoints `/v2/*` (boias fixas, boias de
+    deriva, gliders, sailbuoys, ARGO, dados qualificados/QARTOD). Faz parte
+    de um programa maior chamado **REMObs** ("REMO Observacional" — rede de
+    modelagem e observação oceanográfica, parceria Marinha + Petrobras).
+  - **Autenticação:** JWT Bearer emitido por um serviço separado,
+    `api-controle-usuarios.remobs.com.br` (também FastAPI, com Swagger
+    próprio). **Registro de conta é 100% self-service, sem convite:**
+    `POST /auth/register` só pede `username` + `password` (+ `institution`
+    opcional) e devolve 201 na hora. `POST /auth/login` devolve o JWT.
+  - **Fizemos o registro nesta sessão:** conta criada
+    (`username: cemadenrj.painel`, `institution: "CEMADEN-RJ (Defesa Civil
+    do Estado do Rio de Janeiro)"`, `id: 88`). Credenciais salvas só no
+    `.env` local (gitignored), nunca commitadas — ver
+    `PNBOIA_USERNAME`/`PNBOIA_PASSWORD` em `backend/.env.example`.
+  - **O que o JWT novo já libera:** `GET /v2/buoys` (catálogo público de
+    todas as boias, sem precisar de permissão especial) — confirmamos
+    **50 boias cadastradas**, incluindo a **METOCEAN WATCHKEEPER CABO
+    FRIO** (id 48, `-23.582, -42.1711`), que está **ativa agora
+    (`mode: "FUNDEADA"`, última leitura no dia do teste)** — melhor
+    candidata pro painel, mais perto do RJ e com dado recente de verdade.
+    Em contraste, a boia **"Itaguaí"** (id 8, mencionada pela própria
+    Marinha como referência pro litoral do RJ) aparece como
+    **`mode: "INOPERANTE"`, última leitura em 07/01/2020** — parece estar
+    fora de operação há anos; não é mais a aposta certa.
+  - **O que o JWT novo NÃO libera ainda:** dados de observação de verdade
+    (`/v2/moored/latest`, `/v2/moored/metadata`, `/v2/moored/timeseries`)
+    devolvem **403 "This JWT does not have permission for this
+    endpoint."** — o payload do JWT mostra `resource_access` zerado
+    (`buoys.read = {ids: [], all: false}`) por padrão em toda conta nova;
+    alguém do lado do REMObs precisa conceder acesso por boia/recurso
+    depois do cadastro (sistema de roles/permissions do
+    `api-controle-usuarios`). Ou seja: **o cadastro é instantâneo, mas o
+    acesso aos dados reais precisa de aprovação manual.**
+  - **Próximo passo:** contatar quem administra o REMObs pedindo a
+    liberação de `resource_access.buoys` pra conta `cemadenrj.painel`
+    (pelo menos a boia 48, Cabo Frio Watchkeeper, e idealmente qualquer
+    outra boia que opere perto do litoral do RJ). Caminhos possíveis, em
+    ordem de praticidade: (1) abrir uma issue no GitHub
+    `soutobias/oceanobs` explicando o pedido; (2) o mesmo formulário/
+    contato institucional do BNDO/CHM, já que REMObs é ligado à Marinha
+    via o programa REMO; (3) o site `remobs.com.br` (não acessível deste
+    ambiente de desenvolvimento, proxy de saída bloqueou — tentar de
+    novo a partir da produção ou do navegador do usuário) pode ter
+    contato direto.
 
 ### 5. Dados de maré
 
