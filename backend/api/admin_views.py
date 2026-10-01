@@ -244,6 +244,22 @@ class MigrateSuperuserView(APIView):
         return Response({"ok": True, "output": saida.getvalue()[-2000:]})
 
 
+class SyncAvisosMauTempoSuperuserView(APIView):
+    """POST /api/admin/sync-avisos-mau-tempo/ — sessão + CSRF, sem precisar
+    do segredo. Existe só pra testar/disparar manualmente pela sessão do
+    painel (o Cron Job de produção continua chamando /api/admin/run/ com
+    X-Admin-Secret, igual os outros sync_*) — ver
+    ingestion/connectors/marinha_avisos.py."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        from ingestion.connectors import marinha_avisos
+
+        resultado = marinha_avisos.sync()
+        return Response({"ok": True, "output": resultado.summary(), "erros": resultado.errors})
+
+
 class PopulateSireneRefSuperuserView(APIView):
     """POST /api/admin/populate-sirene-ref/ — mesma ideia da MigrateSuperuserView
     acima (sessão + CSRF, sem precisar do segredo X-Admin-Secret): preenche o

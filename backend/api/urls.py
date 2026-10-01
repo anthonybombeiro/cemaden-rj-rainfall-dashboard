@@ -8,6 +8,7 @@ from .admin_views import (
     MigrateSuperuserView,
     PopulateSireneRefSuperuserView,
     SetRiscoSireneSuperuserView,
+    SyncAvisosMauTempoSuperuserView,
 )
 from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeView, ProfileUpdateView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
@@ -36,6 +37,11 @@ urlpatterns = [
     path("admin/migrate/", MigrateSuperuserView.as_view(), name="admin-migrate"),
     path("admin/populate-sirene-ref/", PopulateSireneRefSuperuserView.as_view(), name="admin-populate-sirene-ref"),
     path("admin/set-risco-sirene/", SetRiscoSireneSuperuserView.as_view(), name="admin-set-risco-sirene"),
+    path(
+        "admin/sync-avisos-mau-tempo/",
+        SyncAvisosMauTempoSuperuserView.as_view(),
+        name="admin-sync-avisos-mau-tempo",
+    ),
     path(
         "admin/fix-sirenes-chuva-sobreposta/",
         FixSirenesChuvaSobrepostaSuperuserView.as_view(),
