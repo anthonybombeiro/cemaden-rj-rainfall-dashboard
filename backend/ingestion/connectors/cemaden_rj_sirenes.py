@@ -76,6 +76,21 @@ SOURCE_NAME = "CEMADEN-RJ — Sirenes/Alarme (GridLab)"
 # statusAcao != 4 e != 0).
 STATUS_ACAO_NORMAL = {0, 4}
 
+# Intervalo mínimo entre duas leituras de chuva aceitas pra UMA MESMA
+# estação (2026-10-01, achado comparando nosso acumulado de 24h com o do
+# painel oficial — "Coréia 1" mostrava 110mm aqui contra 58mm lá).
+# `tempo1` é documentado como "bucket 15min", mas na prática é uma JANELA
+# DESLIZANTE: durante chuva ativa, o portal manda `DataHora` com poucos
+# minutos de diferença (ex: 18:42, 18:45, 18:51 — chegamos a ver 6min),
+# cada uma já trazendo os últimos ~15min de chuva. Como cada `tempo1`
+# conta de novo a chuva que a leitura anterior, bem mais recente, já
+# tinha contado, somar todas (como fazemos em toda fonte "bucket" —
+# `PRECIPITACAO_BUCKET_SOURCES`) infla o acumulado várias vezes. Fora dos
+# surtos de chuva o portal já manda tudo certinho a cada 15min (ex: "Vila
+# Nova" nunca teve esse problema) — por isso o fix é só REJEITAR leituras
+# que cheguem cedo demais, não mudar como o resto do pipeline soma.
+INTERVALO_MINIMO_LEITURA_CHUVA = dt.timedelta(minutes=14)
+
 BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -120,6 +135,7 @@ def _to_float(valor) -> float | None:
 class SirenesSyncResult:
     stations_upserted: int = 0
     readings_created: int = 0
+    readings_skipped_sobrepostas: int = 0
     sirenes_tocando: int = 0
     eventos_criados: int = 0
     eventos_resolvidos: int = 0
@@ -127,7 +143,8 @@ class SirenesSyncResult:
 
     def summary(self) -> str:
         return (
-            f"estações: {self.stations_upserted} | leituras: +{self.readings_created} | "
+            f"estações: {self.stations_upserted} | leituras: +{self.readings_created} "
+            f"(sobrepostas ignoradas: {self.readings_skipped_sobrepostas}) | "
             f"sirenes tocando agora: {self.sirenes_tocando} "
             f"(novos eventos: {self.eventos_criados}, resolvidos: {self.eventos_resolvidos}) | "
             f"erros: {len(self.errors)}"
@@ -192,6 +209,18 @@ def sync() -> SirenesSyncResult:
     tipos = {t.codigo: t for t in SireneAcaoTipo.objects.all()}
     codigos_normais = STATUS_ACAO_NORMAL | {c for c, t in tipos.items() if t.categoria == "normal"}
 
+    # Última leitura de chuva JÁ GRAVADA por estação (pra rejeitar leitura
+    # nova demais — ver INTERVALO_MINIMO_LEITURA_CHUVA acima). Uma query só
+    # pra todas as 225, em vez de 1 por estação dentro do loop.
+    from django.db.models import Max
+
+    ultima_leitura_chuva = dict(
+        Reading.objects.filter(station__source=source, reading_type=Reading.ReadingType.CHUVA_MM)
+        .values("station_id")
+        .annotate(ultimo=Max("timestamp"))
+        .values_list("station_id", "ultimo")
+    )
+
     for registro in registros:
         tipo_equip = (registro.get("equipamento") or {}).get("tipoEquipamento", "")
         if "Sirene" not in tipo_equip and "Linímetro" not in tipo_equip:
@@ -247,14 +276,19 @@ def sync() -> SirenesSyncResult:
             valor = _to_float(pluv.get("tempo1"))
             timestamp = _parse_data_hora(pluv.get("DataHora", ""))
             if valor is not None and timestamp is not None:
-                _, criado = Reading.objects.get_or_create(
-                    station=station,
-                    reading_type=Reading.ReadingType.CHUVA_MM,
-                    timestamp=timestamp,
-                    defaults={"value": valor, "raw_payload": pluv},
-                )
-                if criado:
-                    result.readings_created += 1
+                ultima = ultima_leitura_chuva.get(station.id)
+                if ultima is not None and timestamp < ultima + INTERVALO_MINIMO_LEITURA_CHUVA:
+                    result.readings_skipped_sobrepostas += 1
+                else:
+                    _, criado = Reading.objects.get_or_create(
+                        station=station,
+                        reading_type=Reading.ReadingType.CHUVA_MM,
+                        timestamp=timestamp,
+                        defaults={"value": valor, "raw_payload": pluv},
+                    )
+                    if criado:
+                        result.readings_created += 1
+                        ultima_leitura_chuva[station.id] = timestamp
 
         # Igual ao portal (mapaFrame.jsp): só conta como acionada se a estação está ONLINE
         # (statusEstacao == 1) e a ação não é normal (0/4). Cada mudança de código

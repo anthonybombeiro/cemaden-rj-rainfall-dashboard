@@ -268,6 +268,24 @@ class SetRiscoSireneSuperuserView(APIView):
         return Response({"ok": True, "output": saida.getvalue()})
 
 
+class FixSirenesChuvaSobrepostaSuperuserView(APIView):
+    """POST /api/admin/fix-sirenes-chuva-sobreposta/ — sessão + CSRF, sem
+    precisar do segredo. Roda o management command de mesmo nome (ver seu
+    docstring): remove leituras de chuva (sirenes com pluviômetro) que
+    ficaram sobrepostas por causa de `tempo1` ser janela deslizante, não
+    bucket de verdade. Por padrão SÓ SIMULA (dry-run) — body
+    {"aplicar": true} pra remover de fato."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        aplicar = bool((request.data or {}).get("aplicar", False))
+        saida = io.StringIO()
+        kwargs = {"aplicar": True} if aplicar else {}
+        call_command("fix_sirenes_chuva_sobreposta", stdout=saida, stderr=saida, **kwargs)
+        return Response({"ok": True, "aplicado": aplicar, "output": saida.getvalue()})
+
+
 class EnvCheckView(APIView):
     """GET /api/admin/env-check/ — só superusuário. Diz SE segredos estão
     configurados (booleanos/tamanho), nunca o valor."""

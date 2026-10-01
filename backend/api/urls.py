@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .admin_views import (
     AdminOpsView,
     EnvCheckView,
+    FixSirenesChuvaSobrepostaSuperuserView,
     MigrateSuperuserView,
     PopulateSireneRefSuperuserView,
     SetRiscoSireneSuperuserView,
@@ -27,6 +28,11 @@ urlpatterns = [
     path("admin/migrate/", MigrateSuperuserView.as_view(), name="admin-migrate"),
     path("admin/populate-sirene-ref/", PopulateSireneRefSuperuserView.as_view(), name="admin-populate-sirene-ref"),
     path("admin/set-risco-sirene/", SetRiscoSireneSuperuserView.as_view(), name="admin-set-risco-sirene"),
+    path(
+        "admin/fix-sirenes-chuva-sobreposta/",
+        FixSirenesChuvaSobrepostaSuperuserView.as_view(),
+        name="admin-fix-sirenes-chuva-sobreposta",
+    ),
     path("admin/run/", AdminOpsView.as_view(), name="admin-run"),
     path("auth/csrf/", CsrfView.as_view(), name="auth-csrf"),
     path("auth/login/", LoginView.as_view(), name="auth-login"),
