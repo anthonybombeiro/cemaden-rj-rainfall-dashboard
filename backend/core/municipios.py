@@ -204,6 +204,61 @@ def assert_municipio_canonico(nome, contexto=""):
     return canonico
 
 
+import json as _json
+from pathlib import Path as _Path
+
+_GEOJSON_PATH = _Path(__file__).resolve().parent.parent / "ingestion" / "data" / "rj_municipios.geojson"
+_geojson_cache: list[dict] | None = None
+
+
+def _carrega_municipios_geojson() -> list[dict]:
+    global _geojson_cache
+    if _geojson_cache is None:
+        data = _json.loads(_GEOJSON_PATH.read_text(encoding="utf-8"))
+        _geojson_cache = data["features"]
+    return _geojson_cache
+
+
+def _ponto_no_anel(lon: float, lat: float, anel: list[list[float]]) -> bool:
+    """Ray casting padrão (PNPOLY) — anel é uma lista de [lon, lat]."""
+    dentro = False
+    n = len(anel)
+    j = n - 1
+    for i in range(n):
+        xi, yi = anel[i][0], anel[i][1]
+        xj, yj = anel[j][0], anel[j][1]
+        if ((yi > lat) != (yj > lat)) and (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi):
+            dentro = not dentro
+        j = i
+    return dentro
+
+
+def municipio_por_coordenada(lat: float, lon: float) -> str | None:
+    """Ponto-no-polígono contra a malha de município do IBGE
+    (`ingestion/data/rj_municipios.geojson`, mesma fonte da coloração do
+    mapa de risco) — devolve o nome canônico do município que CONTÉM essa
+    coordenada, ou None se não cair em nenhum (fora do RJ, ou ponto bem em
+    cima de uma fronteira/erro de precisão do polígono).
+
+    2026-10-01: extraído de `ingestion/connectors/inea.py` (onde foi usado
+    primeiro, pra estações do INEA que não vêm com município na fonte) pra
+    cá, pra ser reaproveitado também pelo Wunderground — achamos várias
+    estações PWS com `municipality` digitado errado à mão na planilha de
+    origem (ex: 5 estações "Resende" cadastradas com municipality=
+    "Itatiaia"), então point-in-polygon contra a geometria real do IBGE é
+    mais confiável que confiar no texto que a fonte (ou quem cadastrou)
+    informou. Geometria é sempre MultiPolygon nesse arquivo (cada
+    município pode ter ilhas)."""
+    for feature in _carrega_municipios_geojson():
+        geom = feature["geometry"]
+        poligonos = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+        for poligono in poligonos:
+            anel_externo = poligono[0]
+            if _ponto_no_anel(lon, lat, anel_externo):
+                return feature["properties"]["nome"]
+    return None
+
+
 def get_choices_municipios():
     """
     Retorna lista de tuplas (valor, label) para uso em model ChoiceField.

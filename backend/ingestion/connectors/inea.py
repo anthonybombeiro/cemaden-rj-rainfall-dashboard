@@ -52,17 +52,16 @@ dado, só a classificação do tipo de estação prioriza o nível).
 from __future__ import annotations
 
 import datetime as dt
-import json
 import logging
 import re
 import unicodedata
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
 import urllib3
 
 from core.models import Reading, Station
+from core.municipios import municipio_por_coordenada
 
 from .base import BaseConnector
 
@@ -84,9 +83,6 @@ BROWSER_HEADERS = {
         "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     ),
 }
-
-_GEOJSON_PATH = Path(__file__).resolve().parent.parent / "data" / "rj_municipios.geojson"
-_geojson_cache: list[dict] | None = None
 
 # Cache só pra evitar buscar a mesma fonte duas vezes dentro do MESMO
 # processo (fetch_stations() e fetch_readings() usam as duas fontes) —
@@ -113,41 +109,6 @@ def _parse_data_hora(valor: str) -> dt.datetime | None:
     except ValueError:
         return None
     return naive.replace(tzinfo=TZ_RJ).astimezone(dt.timezone.utc)
-
-
-def _carrega_municipios() -> list[dict]:
-    global _geojson_cache
-    if _geojson_cache is None:
-        data = json.loads(_GEOJSON_PATH.read_text(encoding="utf-8"))
-        _geojson_cache = data["features"]
-    return _geojson_cache
-
-
-def _ponto_no_anel(lon: float, lat: float, anel: list[list[float]]) -> bool:
-    """Ray casting padrão (PNPOLY) — anel é uma lista de [lon, lat]."""
-    dentro = False
-    n = len(anel)
-    j = n - 1
-    for i in range(n):
-        xi, yi = anel[i][0], anel[i][1]
-        xj, yj = anel[j][0], anel[j][1]
-        if ((yi > lat) != (yj > lat)) and (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi):
-            dentro = not dentro
-        j = i
-    return dentro
-
-
-def _municipio_de(lat: float, lon: float) -> str | None:
-    """Ponto-no-polígono contra a malha de município do IBGE. Geometria é
-    sempre MultiPolygon nesse arquivo (cada município pode ter ilhas)."""
-    for feature in _carrega_municipios():
-        geom = feature["geometry"]
-        poligonos = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
-        for poligono in poligonos:
-            anel_externo = poligono[0]
-            if _ponto_no_anel(lon, lat, anel_externo):
-                return feature["properties"]["nome"]
-    return None
 
 
 def _fetch_xml() -> str:
@@ -260,7 +221,7 @@ class INEAConnector(BaseConnector):
                     linha["nome"], linha["codigo"],
                 )
                 continue
-            municipio = _municipio_de(geo["lat"], geo["lon"]) or ""
+            municipio = municipio_por_coordenada(geo["lat"], geo["lon"]) or ""
             eh_hidrologica = linha["tipo"] == "Plu/Flu"
             stations.append(
                 {

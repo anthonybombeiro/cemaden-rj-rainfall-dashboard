@@ -35,6 +35,7 @@ import requests
 from django.conf import settings
 
 from core.models import Reading, Station
+from core.municipios import municipio_por_coordenada
 
 from .base import BaseConnector, bucket_from_running_daily
 
@@ -181,20 +182,31 @@ class WundergroundConnector(BaseConnector):
     description = "Estações PWS indicadas pelas Defesas Civis municipais (Rio das Ostras, Casimiro de Abreu, Macaé e região)."
 
     def fetch_stations(self) -> list[dict]:
-        return [
-            {
-                "external_id": s["external_id"],
-                "name": s["name"],
-                "municipality": s["municipality"],
-                "station_type": Station.StationType.METEOROLOGICA,
-                "status": Station.Status.DESCONHECIDO,
-                "latitude": s["latitude"],
-                "longitude": s["longitude"],
-                "altitude_m": None,
-                "raw_metadata": s,
-            }
-            for s in STATIONS_RJ
-        ]
+        estacoes = []
+        for s in STATIONS_RJ:
+            # Município da planilha de origem é digitado à mão e tem erro
+            # conhecido (2026-10-01, achado pelo usuário: várias estações
+            # "Resende" vinham com municipality="Itatiaia", fora do
+            # polígono real de Resende no mapa). Ponto-no-polígono contra
+            # a malha oficial do IBGE é a fonte confiável; só cai pro
+            # valor da planilha se a coordenada não bater em nenhum
+            # município (ex: estação fora do RJ ou bem em cima de uma
+            # fronteira com erro de precisão do polígono).
+            municipio_real = municipio_por_coordenada(s["latitude"], s["longitude"]) or s["municipality"]
+            estacoes.append(
+                {
+                    "external_id": s["external_id"],
+                    "name": s["name"],
+                    "municipality": municipio_real,
+                    "station_type": Station.StationType.METEOROLOGICA,
+                    "status": Station.Status.DESCONHECIDO,
+                    "latitude": s["latitude"],
+                    "longitude": s["longitude"],
+                    "altitude_m": None,
+                    "raw_metadata": {**s, "municipio_planilha": s["municipality"]},
+                }
+            )
+        return estacoes
 
     def fetch_readings(self, stations: list[dict]) -> list[dict]:
         api_key = getattr(settings, "WUNDERGROUND_API_KEY", "")
