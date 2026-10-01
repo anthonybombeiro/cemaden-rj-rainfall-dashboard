@@ -478,20 +478,43 @@ validados a partir da máquina de produção, que tem saída de internet normal.
     JSON mais simples que brigar com o Cloudflare da Marinha — não
     investigado ainda.
 
-### 6. Dados abertos institucionais — NAD-DHN e dados.gov.br
+### 6. Dados abertos institucionais — NAD-DHN e dados.gov.br — INVESTIGADO, SEM DADO ÚTIL (01/10/2026)
 
-- **dados.gov.br, organização "marinha-do-brasil":**
-  `https://dados.gov.br/dataset?organization=marinha-do-brasil` — o portal
-  mudou de plataforma e a **API (CKAN, `/api/3/action/package_search`) agora
-  exige autenticação Bearer** (confirmado nesta sessão: HTTP 401 +
-  `www-authenticate: Bearer` mesmo numa busca anônima simples, que antes era
-  pública). **Próximo passo simples:** criar uma conta gratuita em
-  dados.gov.br, gerar um token de API (mesmo padrão de autoatendimento já
-  usado para a chave do Weather Underground) e repetir a consulta
-  `package_search?q=organization:marinha-do-brasil` com o token — deve
-  revelar o catálogo completo de conjuntos de dados publicados pela Marinha,
-  incluindo possivelmente maré, boias e normas da autoridade marítima (um
-  dataset chamado "Normas da Autoridade Marítima" já apareceu numa busca).
+- O endpoint `/api/3/action/package_search` (CKAN clássico) **não é o usado
+  pelo site atual** — é outra API, por trás de um API Gateway que devolve
+  401 vazio (`www-authenticate: Bearer`, sem corpo) pra qualquer chamada,
+  autenticada ou não; parece legado/desativado. **Achado real:** inspecionando
+  o tráfego de rede do próprio portal (DevTools, feito pelo usuário), o site
+  usa um endpoint diferente e **público, sem token nenhum**:
+  `GET https://dados.gov.br/api/publico/busca/buscar?termo={termo}` — responde
+  200 direto do navegador, sem header `Authorization`. O usuário chegou a
+  gerar um token de API (JWT) pelo perfil do portal, mas **não foi
+  necessário usá-lo** — o endpoint certo nunca pediu autenticação.
+- **Esse endpoint está bloqueado para automação a partir deste ambiente de
+  desenvolvimento** (mesma assinatura de bloqueio de borda via CloudFront
+  vista em `marinha.mil.br`: 401 vazio mesmo replicando os headers exatos do
+  navegador) — mas funciona normalmente no navegador do usuário, então não é
+  um problema do endpoint, é do IP/ambiente daqui. Precisa rodar de um lugar
+  com saída de internet normal (produção/GitHub Actions) se algum dia for
+  automatizado.
+- **Resultado da busca (testada pelo usuário, termos: maré, boia, PNBOIA,
+  hidrografia, oceanográfico): nenhum dataset real da Marinha com dado
+  oceanográfico/meteorológico estruturado apareceu** — só retornos vazios ou
+  datasets administrativos sem relação (embarcações cadastradas, concursos,
+  carteira de amador etc., como "Marinha do Brasil - Embarcações" e "Formas
+  de Ingresso na Marinha" vistos na busca por "marinha").
+- O único dataset relacionado a normas que apareceu, **"Normas da Autoridade
+  Marítima"** (`dados.gov.br/dados/conjuntos-dados/normas-da-autoridade-maritima`),
+  **só disponibiliza um PDF/página HTML de normas regulatórias — não é dado
+  de maré/boia/aviso, é texto normativo.**
+- **Conclusão: dados.gov.br não é um caminho útil para avisos de mau tempo,
+  cartas sinóticas, maré ou boias.** O NAD-DHN (política de 27 tipos de dados
+  abertos) pode não estar de fato publicado nesse portal — ou está catalogado
+  sob outros termos de busca não tentados ainda (ex.: nome oficial de algum
+  produto específico, "DHN", "CHM" sem "marinha"). Não vale insistir mais
+  tempo aqui; os caminhos institucionais (BNDO, formulário de solicitação) e
+  o teste das páginas bloqueadas do CHM continuam sendo as apostas mais
+  prováveis.
 
 ### Recomendações e próximos passos (ordem sugerida)
 
@@ -501,8 +524,8 @@ validados a partir da máquina de produção, que tem saída de internet normal.
    de verdade ou se é um desafio interativo que de fato impede automação.
    Cobre: avisos de mau tempo, BNDO, tábuas de maré, `pam.dhn.mar.mil.br`,
    `idem.marinha.mil.br`.
-2. **Criar conta e token em dados.gov.br** e consultar o catálogo real da
-   organização "marinha-do-brasil" com autenticação.
+2. ~~Criar conta e token em dados.gov.br~~ — **feito em 01/10/2026, sem dado
+   útil encontrado** (ver seção 6 acima). Não repetir esse caminho.
 3. **Preencher o formulário de solicitação de dados do BNDO** pedindo, em um
    único contato institucional (mesmo padrão que já destravou o CEMADEN-RJ/
    GridLab): (a) dados da boia PNBOIA "Itaguaí" em quase-tempo-real (IDs 20
@@ -536,7 +559,7 @@ validados a partir da máquina de produção, que tem saída de internet normal.
 | Cartas sinóticas | SMM (CHM) | Produto gráfico, sem dado estruturado; mirror do INMET é alternativa mais simples |
 | Dados de maré | BNDO / Tábuas de Maré | PDF anual oficial + acesso institucional por e-mail/formulário; atalhos de terceiros existem mas não são oficiais |
 | Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | Caminho institucional claro (formulário BNDO, IDs 20/26); visualizações web ainda não confirmadas como tendo API |
-| Dados abertos em geral | NAD-DHN / dados.gov.br | Política de 27 tipos de dados existe; portal dados.gov.br exige conta+token agora; PDF da norma não pôde ser lido nesta sessão (503) |
+| Dados abertos em geral | NAD-DHN / dados.gov.br | **Investigado e descartado (01/10/2026)** — endpoint público existe (`api/publico/busca/buscar`) mas não tem dataset real de maré/boia/aviso da Marinha; só achado documento normativo em PDF |
 
 ## Ainda não iniciado (Fase 3 do plano)
 
