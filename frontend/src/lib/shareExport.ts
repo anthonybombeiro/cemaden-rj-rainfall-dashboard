@@ -41,6 +41,12 @@ export type ShareData = {
    * tabelas que não migraram pro formato novo. */
   agruparPor?: { chave: string; grupos: ShareGrupo[] };
   colunasTexto?: ShareColuna[];
+  /** Limita quantas das `linhas` (já ordenadas) entram no texto agrupado
+   * (2026-10-01, pedido do usuário: a IMAGEM pode ter quantas linhas
+   * couberem bem no card — mais do que cabe de forma legível num texto de
+   * WhatsApp/Telegram). Sem isso, usa todas as `linhas`. Não afeta a
+   * imagem/tabela, só o texto. */
+  limiteTexto?: number;
 };
 
 /** Texto WhatsApp-nativo: negrito (*texto*), emojis de círculo por grupo
@@ -50,9 +56,10 @@ function gerarTextoAgrupado(data: ShareData): string {
   const { chave, grupos } = data.agruparPor!;
   const colunas = data.colunasTexto ?? data.colunas;
   const linhas = [`*${data.titulo}*`, `🕐 Dados de: ${data.dataHora}`, ""];
+  const linhasFonte = data.limiteTexto ? data.linhas.slice(0, data.limiteTexto) : data.linhas;
 
   for (const grupo of grupos) {
-    const doGrupo = data.linhas.filter((l) => l.valores[chave] === grupo.chave);
+    const doGrupo = linhasFonte.filter((l) => l.valores[chave] === grupo.chave);
     if (doGrupo.length === 0) continue;
     linhas.push(`${grupo.emoji} *${grupo.rotulo}*`);
     for (const l of doGrupo) {

@@ -219,10 +219,14 @@ const VentosTable = forwardRef<
 
   const compartilhar = () => {
     if (!onShare) return;
-    // Só os 10 primeiros (pedido do usuário, 2026-10-01: card quadrado pra
-    // grupo, não dá pra caber 20 linhas de um jeito legível).
-    const top10 = sorted.slice(0, 10);
-    const linhas = top10.map((s) => {
+    // A IMAGEM leva quantas linhas couberem bem no card quadrado (2026-10-01,
+    // pedido do usuário: preencher o espaço em vez de sobrar card vazio) —
+    // só o TEXTO (mais apertado pra ler no celular) fica limitado a 10, via
+    // ShareData.limiteTexto abaixo.
+    const LINHAS_IMAGEM = 20;
+    const LINHAS_TEXTO = 10;
+    const estacoesImagem = sorted.slice(0, LINHAS_IMAGEM);
+    const linhas = estacoesImagem.map((s) => {
       const vento = valorDe(s, "vento_ms");
       const rajadaMs = valorDe(s, "vento_rajada_ms");
       const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
@@ -250,10 +254,10 @@ const VentosTable = forwardRef<
       };
     });
 
-    // Data/hora real do DADO (leitura mais recente entre as 10 estações do
+    // Data/hora real do DADO (leitura mais recente entre as estações do
     // card) — não "agora" (2026-10-01, pedido do usuário: a legenda não
     // pode sempre mostrar a hora em que alguém clicou em compartilhar).
-    const timestamps = top10.map((s) => mostRecentUpdate(s)).filter((t): t is string => t !== null);
+    const timestamps = estacoesImagem.map((s) => mostRecentUpdate(s)).filter((t): t is string => t !== null);
     const maisRecente = timestamps.length > 0 ? timestamps.reduce((a, b) => (b > a ? b : a)) : null;
     const dataHora = maisRecente ? formatTimestamp(maisRecente) : "sem dado recente";
 
@@ -288,6 +292,7 @@ const VentosTable = forwardRef<
         { chave: "estacao", rotulo: "Estação" },
         { chave: "rajadaTexto", rotulo: "Rajada" },
       ],
+      limiteTexto: LINHAS_TEXTO,
     };
     onShare(data);
   };

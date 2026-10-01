@@ -162,16 +162,15 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                 <h3 className="text-[15px] font-bold leading-tight text-white">{data.titulo}</h3>
                 <p className="mt-0.5 text-[11px] text-sedec-100">Dados de: {data.dataHora}</p>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded bg-white/90 px-1.5 py-1">
-                <img src="/logo-defesa-civil.png" alt="" className="h-8 w-auto" />
-                <img src="/logo-cemadenrj.png" alt="" className="h-8 w-auto" />
+              <div className="flex shrink-0 items-center gap-2">
+                <img src="/logo-defesa-civil.png" alt="" className="h-10 w-auto" />
+                <img src="/logo-cemadenrj.png" alt="" className="h-10 w-auto" />
               </div>
             </div>
 
-            {/* Corpo — centralizado verticalmente no espaço que sobra, pra
-                ficar bem composto mesmo quando o conteúdo (poucas linhas)
-                não enche o quadrado inteiro. */}
-            <div className="flex min-h-0 flex-1 flex-col justify-center px-4 py-3">
+            {/* Corpo — ancorado no topo (cada tabela já manda tantas linhas
+                quanto couberem bem no card, ver VentosTable.compartilhar). */}
+            <div className="flex min-h-0 flex-1 flex-col justify-start px-4 py-3">
               <table className="w-full table-fixed border-collapse text-[10.5px]">
                 <thead>
                   <tr>
