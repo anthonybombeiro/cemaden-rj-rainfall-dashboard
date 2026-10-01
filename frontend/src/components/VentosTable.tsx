@@ -14,7 +14,7 @@ import {
   Station,
 } from "@/lib/api";
 import { downloadCsv } from "@/lib/csvExport";
-import { ShareData } from "@/lib/shareExport";
+import { ShareData, ShareGrupo } from "@/lib/shareExport";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 
 /** Tabela dedicada só a vento (pedido do usuário, 2026-09-29) — separada da
@@ -39,12 +39,23 @@ function formatTimestamp(iso: string): string {
   }
 }
 
-type FaixaRajada = { label: string; bg: string; text: string };
+// Só hora:minuto — usado no card de compartilhar (2026-10-01), onde o
+// cabeçalho já mostra a data por extenso: repetir dd/mm em cada linha da
+// coluna "Atualizado em" só ocupava espaço à toa num card de 8 colunas.
+function formatHoraMinuto(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return iso;
+  }
+}
+
+type FaixaRajada = { label: string; bg: string; text: string; emoji: string };
 const FAIXAS_RAJADA: { min: number; faixa: FaixaRajada }[] = [
-  { min: 76, faixa: { label: "Muito forte", bg: "#c084fc", text: "#3b0764" } },
-  { min: 52, faixa: { label: "Forte", bg: "#f87171", text: "#7f1d1d" } },
-  { min: 18.6, faixa: { label: "Moderada", bg: "#f0a868", text: "#7c2d12" } },
-  { min: 0, faixa: { label: "Fraca", bg: "#dcfce7", text: "#166534" } },
+  { min: 76, faixa: { label: "Muito forte", bg: "#c084fc", text: "#3b0764", emoji: "🟣" } },
+  { min: 52, faixa: { label: "Forte", bg: "#f87171", text: "#7f1d1d", emoji: "🔴" } },
+  { min: 18.6, faixa: { label: "Moderada", bg: "#f0a868", text: "#7c2d12", emoji: "🟠" } },
+  { min: 0, faixa: { label: "Fraca", bg: "#dcfce7", text: "#166534", emoji: "🟢" } },
 ];
 // Estação atrasada (pedido do usuário, 2026-09-30: leitura de vento de
 // horas atrás não pode aparecer colorida como se fosse dado do momento —
@@ -57,7 +68,7 @@ const FAIXAS_RAJADA: { min: number; faixa: FaixaRajada }[] = [
 // leituras. Mesmo cinza/rótulo "Atrasada" já usado nas outras tabelas
 // (ver getChuva1hFaixa em lib/api.ts), só que aplicado à rajada aqui.
 const HORAS_ATRASO_VENTO = 3;
-const FAIXA_ATRASADA: FaixaRajada = { label: "Atrasada", bg: "#BEBEBE", text: "#1f2937" };
+const FAIXA_ATRASADA: FaixaRajada = { label: "Atrasada", bg: "#BEBEBE", text: "#1f2937", emoji: "⚪" };
 
 function estaAtrasadoVento(updated: string | null): boolean {
   if (!updated) return true;
@@ -208,48 +219,75 @@ const VentosTable = forwardRef<
 
   const compartilhar = () => {
     if (!onShare) return;
-    const top20 = sorted.slice(0, 20);
-    const linhas = top20.map((s) => {
+    // Só os 10 primeiros (pedido do usuário, 2026-10-01: card quadrado pra
+    // grupo, não dá pra caber 20 linhas de um jeito legível).
+    const top10 = sorted.slice(0, 10);
+    const linhas = top10.map((s) => {
       const vento = valorDe(s, "vento_ms");
       const rajadaMs = valorDe(s, "vento_rajada_ms");
       const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
       const direcao = valorDe(s, "vento_dir_graus");
       const updated = mostRecentUpdate(s);
-      const faixa = faixaDaRajada(rajadaKmh, estaAtrasadoVento(updated));
+      const atrasado = estaAtrasadoVento(updated);
+      const faixa = faixaDaRajada(rajadaKmh, atrasado);
       return {
         valores: {
           municipio: s.municipality || "—",
           estacao: s.name,
-          atualizado: updated ? formatTimestamp(updated) : "—",
+          rajada: rajadaKmh !== null ? rajadaKmh.toFixed(1) : "—",
           vento: vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toFixed(1) : "—",
           direcao: direcao !== null ? `${Math.round(direcao)}° ${pontoCardeal(direcao)}` : "—",
-          rajada: rajadaKmh !== null ? rajadaKmh.toFixed(1) : "—",
+          redec: redecOf(s.municipality) || "—",
           situacao: faixa?.label ?? "—",
+          atualizado: updated ? formatHoraMinuto(updated) : "—",
+          // Só pro texto agrupado (ShareGrupo usa isso pra filtrar, não
+          // aparece como coluna visível).
+          _faixaChave: faixa?.label ?? "—",
+          rajadaTexto: rajadaKmh !== null ? `${rajadaKmh.toFixed(1)} km/h` : "sem dado",
         },
         bg: faixa?.bg,
         text: faixa?.text,
       };
     });
-    const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+    // Data/hora real do DADO (leitura mais recente entre as 10 estações do
+    // card) — não "agora" (2026-10-01, pedido do usuário: a legenda não
+    // pode sempre mostrar a hora em que alguém clicou em compartilhar).
+    const timestamps = top10.map((s) => mostRecentUpdate(s)).filter((t): t is string => t !== null);
+    const maisRecente = timestamps.length > 0 ? timestamps.reduce((a, b) => (b > a ? b : a)) : null;
+    const dataHora = maisRecente ? formatTimestamp(maisRecente) : "sem dado recente";
+
+    const grupos: ShareGrupo[] = [
+      ...FAIXAS_RAJADA.map(({ faixa }) => ({ chave: faixa.label, rotulo: faixa.label, emoji: faixa.emoji })),
+      { chave: FAIXA_ATRASADA.label, rotulo: FAIXA_ATRASADA.label, emoji: FAIXA_ATRASADA.emoji },
+    ];
+
     const data: ShareData = {
-      titulo: "CEMADEN-RJ - Monitoramento de vento",
-      dataHora: agora,
+      titulo: "CEMADEN-RJ — Monitoramento de vento",
+      dataHora,
       colunas: [
         { chave: "municipio", rotulo: "Município" },
         { chave: "estacao", rotulo: "Estação" },
-        { chave: "atualizado", rotulo: "Último dado" },
-        { chave: "vento", rotulo: "Vento (km/h)", alinhamento: "right" },
+        { chave: "rajada", rotulo: "Rajada", alinhamento: "right" },
+        { chave: "vento", rotulo: "Vento", alinhamento: "right" },
         { chave: "direcao", rotulo: "Direção", alinhamento: "center" },
-        { chave: "rajada", rotulo: "Rajada (km/h)", alinhamento: "right" },
+        { chave: "redec", rotulo: "REDEC" },
         { chave: "situacao", rotulo: "Situação", alinhamento: "center" },
+        { chave: "atualizado", rotulo: "Atualizado", alinhamento: "center" },
       ],
       linhas,
       legenda: [
         ...FAIXAS_RAJADA.slice().reverse().map(({ faixa }) => ({ cor: faixa.bg, rotulo: faixa.label })),
         { cor: FAIXA_ATRASADA.bg, rotulo: `${FAIXA_ATRASADA.label} (> ${HORAS_ATRASO_VENTO}h sem atualizar)` },
       ],
-      fonteTexto: "Fonte dados: INMET, REDEMET, Wunderground, Plugfield — CEMADEN-RJ/SEDEC",
+      fonteTexto: "Fonte: INMET, REDEMET, Wunderground, Plugfield — CEMADEN-RJ/SEDEC",
       nomeArquivo: `cemaden-rj-ventos-${new Date().toISOString().slice(0, 10)}`,
+      agruparPor: { chave: "_faixaChave", grupos },
+      colunasTexto: [
+        { chave: "municipio", rotulo: "Município" },
+        { chave: "estacao", rotulo: "Estação" },
+        { chave: "rajadaTexto", rotulo: "Rajada" },
+      ],
     };
     onShare(data);
   };

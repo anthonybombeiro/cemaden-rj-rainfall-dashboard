@@ -3,25 +3,49 @@
 import { toPng } from "html-to-image";
 import { useRef, useState } from "react";
 
-import { copiarParaAreaDeTransferencia, gerarTextoCompartilhavel, ShareData } from "@/lib/shareExport";
+import {
+  copiarImagemParaAreaDeTransferencia,
+  copiarParaAreaDeTransferencia,
+  ehDispositivoMovel,
+  gerarTextoCompartilhavel,
+  ShareData,
+} from "@/lib/shareExport";
 
-/** Modal genérico de "Compartilhar" (pedido do usuário, 2026-09-29):
- * mostra o card já no layout final (logo+título+data, tabela curada,
- * legenda, rodapé — mesmo espírito do print "Monitoramento de vento" que
- * o usuário mandou de referência) e oferece as 2 saídas pedidas:
- * "modelo print" (imagem PNG via html-to-image, ou share nativo com
- * arquivo quando o navegador suporta — Android/iOS abrem direto o
- * WhatsApp/Telegram na lista de apps) e "modelo texto" (bloco
- * monoespaçado pronto pra colar, com botão de copiar e share nativo de
- * texto). Cada tabela só monta o `ShareData` (colunas/linhas já
- * curadas) — o modal em si não sabe nada de sirene/vento/chuva. */
+/** Modal genérico de "Compartilhar" (2026-09-29, redesenhado 2026-10-01 a
+ * partir do feedback do usuário sobre a tabela de Ventos):
+ *
+ *   - Card em formato QUADRADO (1:1), tamanho FIXO em pixels (não responsivo
+ *     ao viewport) — cada tabela tem um número variável de colunas/linhas, e
+ *     antes o card usava `w-full max-w-xl`: numa tela estreita a tabela
+ *     ficava mais larga que o card e a imagem gerada saía cortada na
+ *     lateral (o html-to-image só captura o retângulo do próprio elemento,
+ *     não o que transbordou dele). Fixo em pixels = mesmo resultado sempre,
+ *     e dá pra dimensionar as colunas pra caber de verdade.
+ *   - Cabeçalho AZUL (cor de marca do painel, sedec-600) com as duas logos e
+ *     título/data em branco — as logos (brancas/claras) ficavam invisíveis
+ *     no fundo branco do card antigo.
+ *   - "Copiar imagem" (Clipboard API) além de baixar/compartilhar nativo —
+ *     cola direto no WhatsApp Web/Telegram Desktop com Ctrl+V.
+ *   - Compartilhamento nativo (Web Share API) só aparece em
+ *     celular/tablet de verdade — em desktop o navegador até pode "suportar"
+ *     a API tecnicamente mas não tem pra onde mandar o arquivo.
+ *
+ * Cada tabela só monta o `ShareData` (colunas/linhas já curadas, e
+ * opcionalmente `agruparPor`/`colunasTexto` pro texto agrupado — ver
+ * shareExport.ts) — o modal em si não sabe nada de sirene/vento/chuva. */
+
+const LARGURA_CARD = 760;
+const ALTURA_CARD = 760;
+
 export default function ShareModal({ data, onClose }: { data: ShareData; onClose: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [gerandoImagem, setGerandoImagem] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [imagemCopiada, setImagemCopiada] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const texto = gerarTextoCompartilhavel(data);
+  const mostrarShareNativo = ehDispositivoMovel();
 
   const gerarPng = async (): Promise<Blob | null> => {
     if (!cardRef.current) return null;
@@ -49,9 +73,26 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
     }
   };
 
-  // Web Share API com arquivo — onde suportado (Chrome Android, Safari iOS),
-  // abre direto a folha de compartilhamento do sistema com WhatsApp/Telegram
-  // já na lista, sem precisar baixar e anexar manualmente.
+  const copiarImagem = async () => {
+    setErro(null);
+    setGerandoImagem(true);
+    try {
+      const blob = await gerarPng();
+      if (!blob) return;
+      const ok = await copiarImagemParaAreaDeTransferencia(blob);
+      setImagemCopiada(ok);
+      if (ok) setTimeout(() => setImagemCopiada(false), 2500);
+      else setErro("Copiar imagem não é suportado neste navegador — use \"Baixar imagem\".");
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro ao copiar imagem");
+    } finally {
+      setGerandoImagem(false);
+    }
+  };
+
+  // Web Share API com arquivo — só mostrado em celular/tablet (ver
+  // ehDispositivoMovel): abre direto a folha de compartilhamento do
+  // sistema com WhatsApp/Telegram já na lista.
   const compartilharImagemNativo = async () => {
     setErro(null);
     setGerandoImagem(true);
@@ -102,63 +143,88 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto p-4">
-          {/* Card no layout final — é ESSE elemento que vira a imagem. */}
-          <div ref={cardRef} className="mx-auto w-full max-w-xl border border-gray-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-base font-bold text-gray-900">{data.titulo}</h3>
-                <p className="text-xs text-gray-500">Data - Hora: {data.dataHora}</p>
+        <div className="min-h-0 flex-1 overflow-auto bg-gray-100 p-4">
+          {/* Card no layout final — é ESSE elemento que vira a imagem.
+              Tamanho FIXO em pixels (não w-full/max-w-*) de propósito — ver
+              docstring do componente. Em tela estreita o preview rola na
+              horizontal (overflow-auto do container pai); a imagem
+              exportada usa sempre o mesmo tamanho real, não o que coube na
+              tela de quem está olhando o modal. */}
+          <div
+            ref={cardRef}
+            className="mx-auto flex flex-col overflow-hidden bg-white shadow"
+            style={{ width: LARGURA_CARD, height: ALTURA_CARD }}
+          >
+            {/* Cabeçalho azul — logos sempre visíveis, independente do
+                fundo (pedido do usuário, 2026-10-01). */}
+            <div className="flex shrink-0 items-center justify-between gap-3 bg-sedec-600 px-5 py-4">
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-bold leading-tight text-white">{data.titulo}</h3>
+                <p className="mt-0.5 text-[11px] text-sedec-100">Dados de: {data.dataHora}</p>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <img src="/logo-defesa-civil.png" alt="" className="h-9 w-auto" />
-                <img src="/logo-cemadenrj.png" alt="" className="h-9 w-auto" />
+              <div className="flex shrink-0 items-center gap-1.5 rounded bg-white/90 px-1.5 py-1">
+                <img src="/logo-defesa-civil.png" alt="" className="h-8 w-auto" />
+                <img src="/logo-cemadenrj.png" alt="" className="h-8 w-auto" />
               </div>
             </div>
 
-            <table className="mt-3 w-full border-collapse text-[11px]">
-              <thead>
-                <tr>
-                  {data.colunas.map((c) => (
-                    <th
-                      key={c.chave}
-                      className="border border-gray-300 bg-gray-100 px-1.5 py-1 text-left font-bold uppercase tracking-wide text-gray-600"
-                      style={{ textAlign: c.alinhamento ?? "left" }}
-                    >
-                      {c.rotulo}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.linhas.map((l, i) => (
-                  <tr key={i}>
+            {/* Corpo — centralizado verticalmente no espaço que sobra, pra
+                ficar bem composto mesmo quando o conteúdo (poucas linhas)
+                não enche o quadrado inteiro. */}
+            <div className="flex min-h-0 flex-1 flex-col justify-center px-4 py-3">
+              <table className="w-full table-fixed border-collapse text-[10.5px]">
+                <thead>
+                  <tr>
                     {data.colunas.map((c) => (
-                      <td
+                      <th
                         key={c.chave}
-                        className="border border-gray-200 px-1.5 py-1"
-                        style={{ backgroundColor: l.bg ?? "#ffffff", color: l.text ?? "#1f2937", textAlign: c.alinhamento ?? "left" }}
+                        className="truncate border border-gray-300 bg-gray-100 px-1 py-1 font-bold uppercase tracking-tight text-gray-600"
+                        style={{ textAlign: c.alinhamento ?? "left" }}
                       >
-                        {l.valores[c.chave] ?? ""}
-                      </td>
+                        {c.rotulo}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.linhas.map((l, i) => (
+                    <tr key={i}>
+                      {data.colunas.map((c) => (
+                        <td
+                          key={c.chave}
+                          className="truncate border border-gray-200 px-1 py-1"
+                          style={{
+                            backgroundColor: l.bg ?? "#ffffff",
+                            color: l.text ?? "#1f2937",
+                            textAlign: c.alinhamento ?? "left",
+                          }}
+                        >
+                          {l.valores[c.chave] ?? ""}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            {data.legenda && data.legenda.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-gray-600">
-                {data.legenda.map((leg) => (
-                  <span key={leg.rotulo} className="flex items-center gap-1">
-                    <span className="inline-block h-2.5 w-2.5 rounded-sm border border-black/10" style={{ backgroundColor: leg.cor }} />
-                    {leg.rotulo}
-                  </span>
-                ))}
-              </div>
-            )}
+              {data.legenda && data.legenda.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[9.5px] text-gray-600">
+                  {data.legenda.map((leg) => (
+                    <span key={leg.rotulo} className="flex items-center gap-1">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-sm border border-black/10"
+                        style={{ backgroundColor: leg.cor }}
+                      />
+                      {leg.rotulo}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
 
-            <p className="mt-2 text-[10px] text-gray-400">{data.fonteTexto}</p>
+            <p className="shrink-0 border-t border-gray-100 px-4 py-2 text-center text-[9.5px] text-gray-400">
+              {data.fonteTexto}
+            </p>
           </div>
         </div>
 
@@ -173,7 +239,15 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
             >
               🖼️ Baixar imagem
             </button>
-            {typeof navigator !== "undefined" && !!navigator.share && (
+            <button
+              type="button"
+              onClick={copiarImagem}
+              disabled={gerandoImagem}
+              className="rounded border border-sedec-300 px-3 py-1.5 text-xs font-medium text-sedec-700 hover:bg-sedec-50 disabled:opacity-50"
+            >
+              {imagemCopiada ? "✓ Imagem copiada!" : "📋 Copiar imagem"}
+            </button>
+            {mostrarShareNativo && (
               <button
                 type="button"
                 onClick={compartilharImagemNativo}
@@ -190,7 +264,7 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
             >
               {copiado ? "✓ Copiado!" : "📋 Copiar texto"}
             </button>
-            {typeof navigator !== "undefined" && !!navigator.share && (
+            {mostrarShareNativo && (
               <button
                 type="button"
                 onClick={compartilharTextoNativo}
