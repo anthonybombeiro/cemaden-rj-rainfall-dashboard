@@ -6,7 +6,15 @@
  * (html-to-image sobre o card renderizado) e o texto (monoespaçado,
  * pronto pra colar). Ver ShareModal.tsx. */
 
-export type ShareColuna = { chave: string; rotulo: string; alinhamento?: "left" | "right" | "center" };
+export type ShareColuna = {
+  chave: string;
+  rotulo: string;
+  alinhamento?: "left" | "right" | "center";
+  /** Largura da coluna na IMAGEM, em % da tabela (2026-10-01, pedido do
+   * usuário: município/estação legíveis, o resto mais compacto). Sem
+   * isso, o ShareModal divide a largura igualmente entre as colunas. */
+  larguraPct?: number;
+};
 export type ShareLinha = {
   valores: Record<string, string>;
   /** Cor de fundo da linha (mesma lógica das tabelas, ex: faixa de chuva/vento/gatilho). */
@@ -41,6 +49,12 @@ export type ShareData = {
    * tabelas que não migraram pro formato novo. */
   agruparPor?: { chave: string; grupos: ShareGrupo[] };
   colunasTexto?: ShareColuna[];
+  /** Limita quantas das `linhas` (já ordenadas) entram no texto agrupado
+   * (2026-10-01, pedido do usuário: a IMAGEM pode ter quantas linhas
+   * couberem bem no card — mais do que cabe de forma legível num texto de
+   * WhatsApp/Telegram). Sem isso, usa todas as `linhas`. Não afeta a
+   * imagem/tabela, só o texto. */
+  limiteTexto?: number;
 };
 
 /** Texto WhatsApp-nativo: negrito (*texto*), emojis de círculo por grupo
@@ -50,9 +64,10 @@ function gerarTextoAgrupado(data: ShareData): string {
   const { chave, grupos } = data.agruparPor!;
   const colunas = data.colunasTexto ?? data.colunas;
   const linhas = [`*${data.titulo}*`, `🕐 Dados de: ${data.dataHora}`, ""];
+  const linhasFonte = data.limiteTexto ? data.linhas.slice(0, data.limiteTexto) : data.linhas;
 
   for (const grupo of grupos) {
-    const doGrupo = data.linhas.filter((l) => l.valores[chave] === grupo.chave);
+    const doGrupo = linhasFonte.filter((l) => l.valores[chave] === grupo.chave);
     if (doGrupo.length === 0) continue;
     linhas.push(`${grupo.emoji} *${grupo.rotulo}*`);
     for (const l of doGrupo) {

@@ -15,6 +15,9 @@ Deliberadamente uma lista BRANCA fixa de ações (nunca comando arbitrário):
   - "sync_risk_alerts": roda ingestion/connectors/cemaden_rj_alertas.py
     (alertas oficiais de risco da Defesa Civil-RJ — não é um conector
     Station/Reading, por isso não está no REGISTRY normal)
+  - "sync_avisos_mau_tempo": roda ingestion/connectors/marinha_avisos.py
+    (avisos de mau tempo da Marinha/SMM para as áreas CHARLIE e DELTA —
+    também fora do REGISTRY normal, mesmo motivo do sync_risk_alerts)
   - "sync_sirenes": roda ingestion/connectors/cemaden_rj_sirenes.py (as
     225 sirenes de alerta/alarme da CEMADEN-RJ, via API autenticada —
     também fora do REGISTRY normal, porque além de Station/Reading isso
@@ -69,6 +72,7 @@ ACOES_PERMITIDAS = {
     "collectstatic",
     "ingest",
     "sync_risk_alerts",
+    "sync_avisos_mau_tempo",
     "sync_sirenes",
     "delete_stations",
     "purge_readings",
@@ -124,6 +128,11 @@ class AdminOpsView(APIView):
                 from ingestion.connectors import cemaden_rj_alertas
 
                 resultado = cemaden_rj_alertas.sync()
+                saida.write(resultado.summary())
+            elif action == "sync_avisos_mau_tempo":
+                from ingestion.connectors import marinha_avisos
+
+                resultado = marinha_avisos.sync()
                 saida.write(resultado.summary())
             elif action == "normalize_municipios":
                 call_command("normalize_municipios", stdout=saida, stderr=saida)
@@ -233,6 +242,22 @@ class MigrateSuperuserView(APIView):
         saida = io.StringIO()
         call_command("migrate", interactive=False, stdout=saida, stderr=saida)
         return Response({"ok": True, "output": saida.getvalue()[-2000:]})
+
+
+class SyncAvisosMauTempoSuperuserView(APIView):
+    """POST /api/admin/sync-avisos-mau-tempo/ — sessão + CSRF, sem precisar
+    do segredo. Existe só pra testar/disparar manualmente pela sessão do
+    painel (o Cron Job de produção continua chamando /api/admin/run/ com
+    X-Admin-Secret, igual os outros sync_*) — ver
+    ingestion/connectors/marinha_avisos.py."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        from ingestion.connectors import marinha_avisos
+
+        resultado = marinha_avisos.sync()
+        return Response({"ok": True, "output": resultado.summary(), "erros": resultado.errors})
 
 
 class PopulateSireneRefSuperuserView(APIView):

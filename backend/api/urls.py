@@ -8,12 +8,20 @@ from .admin_views import (
     MigrateSuperuserView,
     PopulateSireneRefSuperuserView,
     SetRiscoSireneSuperuserView,
+    SyncAvisosMauTempoSuperuserView,
 )
 from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeView, ProfileUpdateView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetSateliteImageryView
 from .refresh_views import RefreshNowView
-from .views import AlertEventViewSet, PrevisaoViewSet, RiskAlertViewSet, SourceViewSet, StationViewSet
+from .views import (
+    AlertEventViewSet,
+    AvisoMauTempoViewSet,
+    PrevisaoViewSet,
+    RiskAlertViewSet,
+    SourceViewSet,
+    StationViewSet,
+)
 
 router = DefaultRouter()
 router.register("sources", SourceViewSet, basename="source")
@@ -21,6 +29,7 @@ router.register("stations", StationViewSet, basename="station")
 router.register("alerts", AlertEventViewSet, basename="alert")
 router.register("previsoes", PrevisaoViewSet, basename="previsao")
 router.register("risk-alerts", RiskAlertViewSet, basename="risk-alert")
+router.register("avisos-mau-tempo", AvisoMauTempoViewSet, basename="aviso-mau-tempo")
 
 urlpatterns = [
     path("ingest/status/", IngestStatusView.as_view(), name="ingest-status"),
@@ -29,6 +38,11 @@ urlpatterns = [
     path("admin/migrate/", MigrateSuperuserView.as_view(), name="admin-migrate"),
     path("admin/populate-sirene-ref/", PopulateSireneRefSuperuserView.as_view(), name="admin-populate-sirene-ref"),
     path("admin/set-risco-sirene/", SetRiscoSireneSuperuserView.as_view(), name="admin-set-risco-sirene"),
+    path(
+        "admin/sync-avisos-mau-tempo/",
+        SyncAvisosMauTempoSuperuserView.as_view(),
+        name="admin-sync-avisos-mau-tempo",
+    ),
     path(
         "admin/fix-sirenes-chuva-sobreposta/",
         FixSirenesChuvaSobrepostaSuperuserView.as_view(),

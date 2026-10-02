@@ -22,3 +22,17 @@ redis==5.0.8
 
 # Conversão de hexágonos H3 para lat/lon (ver ingestion/connectors/rio_chuva_bairro.py)
 h3==4.1.2
+
+# Parsing de HTML (ver ingestion/connectors/marinha_avisos.py) — 4.12.x é a
+# última série com suporte confirmado a Python 3.9 (produção no HostGator).
+# soupsieve (dependência do bs4) PRECISA ficar pinado também: a partir da
+# 2.6 ele usa `X | Y` numa base de classe genérica (`class
+# PseudoSelectorMap(UserDict[str, CSSPattern | ct.SelectorList])`), uma
+# expressão avaliada em tempo de execução da declaração da classe — NÃO
+# adiada por `from __future__ import annotations` (que só adia anotação de
+# função/variável, não base de classe) — quebra com
+# "TypeError: unsupported operand type(s) for |: 'type' and 'type'" em
+# Python < 3.10 (achado em produção, 2026-10-01). 2.5 é a última versão
+# sem esse padrão.
+beautifulsoup4==4.12.3
+soupsieve==2.5

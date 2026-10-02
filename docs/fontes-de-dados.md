@@ -422,11 +422,20 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   (`facebook.com/servicometeorologicomb`) e app Android "Boletim ao Mar"
   (parceria Marinha + Instituto Rumo ao Mar/RUMAR) — úteis como verificação
   manual/fallback, não como fonte automatizável.
-- **Próximo passo:** escrever o conector de verdade (`backend/ingestion/
-  connectors/`), parseando os avisos das ÁREAS CHARLIE e DELTA, com teste de
-  que o bloqueio por `curl`/ferramenta não afeta a biblioteca `requests` do
-  Python (ainda precisa validar que isso também funciona a partir do
-  servidor de produção HostGator, não só deste ambiente de desenvolvimento).
+- **IMPLEMENTADO (01/10/2026):** conector em
+  `backend/ingestion/connectors/marinha_avisos.py` (`sync()`), modelo
+  `AvisoMauTempo` em `core/models.py`, endpoint `GET /api/avisos-mau-tempo/`
+  (autenticado, como o resto da API — filtros `?area=` e `?ativo=`) e
+  disparo administrativo via `POST /api/admin/run/` com
+  `{"action": "sync_avisos_mau_tempo"}` (mesmo padrão do
+  `sync_risk_alerts`). Testado localmente ponta a ponta (fetch → parse →
+  upsert → API) com HTML real capturado nesta sessão — parseou
+  corretamente 2 avisos reais da ÁREA DELTA, inclusive um caso de virada de
+  mês (emitido 28/SET, válido até 01/OUT). **Ainda falta validar a partir
+  do servidor de produção HostGator** (só foi testado deste ambiente de
+  desenvolvimento) **e adicionar o Cron Job no cPanel** que chama
+  `/api/admin/run/` periodicamente (passo manual fora do controle de
+  versão, igual já é feito pros outros `sync_*`).
 
 ### 2. Cartas sinóticas
 
@@ -480,39 +489,60 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   propriedades físico-químicas), período e área geográfica. Esse é o mesmo
   padrão de acesso institucional que já funcionou para o CEMADEN-RJ/GridLab
   neste projeto (contato direto).
-- **ACHADO IMPORTANTE (01/10/2026) — existe uma API dedicada do PNBOIA, fora
-  do domínio `marinha.mil.br`, sem o bloqueio Cloudflare:** encontramos o
-  projeto open-source `github.com/soutobias/oceanobs` (pacote Python
-  "oceanoobsbrasil", autor Tobias Ferreira, pesquisador oceanógrafo afiliado
-  ao National Oceanography Centre/UK — achado pesquisando repositórios no
-  GitHub, não no Reddit). O README descreve explicitamente que agrega
-  **boias PNBOIA, marégrafos via CHM, avisos meteorológicos da Marinha e
-  cartas sinóticas** — ou seja, alguém já integrou exatamente as quatro
-  fontes que estamos atrás. O código-fonte (`oceanobs/buoys/pnboia.py`)
-  revela uma **API REST própria, dedicada, em
-  `http://52.67.222.63/v1/`** (IP AWS, não `marinha.mil.br`):
-  - `GET /v1/moored/buoys?token={token}&response_type=json` — lista de boias
-    fixas.
-  - `GET /v1/{identificador_da_boia}?start_date=...&end_date=...&token={token}`
-    — série temporal.
-  - **Testado nesta sessão: o IP responde normalmente** (sem bloqueio de
-    rede, nem Cloudflare) — só exige um `token` (`PNBOIA_TOKEN` no código),
-    cuja forma de obtenção não está documentada no repositório.
-  - Site público associado (mencionado em buscas, não confirmado
-    tecnicamente nesta sessão por problemas de conectividade do ambiente):
-    **oceano.live** — descrito como "usado pela própria Marinha como sistema
-    oficial de validação de avisos de mau tempo/ressaca", o que sugere que
-    não é um projeto hobby isolado, tem alguma legitimidade/uso
-    institucional real. O nome oficial do programa também aparece em
-    `goosbrasil.org/pnboia` (GOOS-Brasil), mas essa página não carregou
-    nesta sessão (instabilidade de conexão, não confirmado se é bloqueio).
-  - **Sem arquivo de licença visível no repositório** — não copiar o código
-    diretamente; usar só como referência de "é possível" e de onde fica a
-    API real. Para usar de verdade, o caminho mais seguro é **contatar o
-    autor (via GitHub) ou o GOOS-Brasil perguntando como obter um
-    `PNBOIA_TOKEN`** — pode ser tão simples quanto um cadastro, ou pode
-    precisar do mesmo tipo de contato institucional do formulário BNDO
-    acima.
+- **API real do PNBOIA — encontrada, conta criada, catálogo liberado, dados
+  ainda bloqueados (atualizado em 01/10/2026):**
+  - Achada via o projeto open-source `github.com/soutobias/oceanobs`
+    (pacote Python "oceanoobsbrasil", autor Tobias Ferreira, pesquisador
+    oceanógrafo afiliado ao National Oceanography Centre/UK). O README
+    descreve que agrega **boias PNBOIA, marégrafos via CHM, avisos
+    meteorológicos da Marinha e cartas sinóticas** — as quatro fontes que
+    estamos atrás, já resolvidas por outra pessoa.
+  - A API é a **"PNBoia API" v2.0.1**, em `http://52.67.222.63/` — projeto
+    maduro, com changelog próprio, Swagger público (`/docs`,
+    `/openapi.json`) e dezenas de endpoints `/v2/*` (boias fixas, boias de
+    deriva, gliders, sailbuoys, ARGO, dados qualificados/QARTOD). Faz parte
+    de um programa maior chamado **REMObs** ("REMO Observacional" — rede de
+    modelagem e observação oceanográfica, parceria Marinha + Petrobras).
+  - **Autenticação:** JWT Bearer emitido por um serviço separado,
+    `api-controle-usuarios.remobs.com.br` (também FastAPI, com Swagger
+    próprio). **Registro de conta é 100% self-service, sem convite:**
+    `POST /auth/register` só pede `username` + `password` (+ `institution`
+    opcional) e devolve 201 na hora. `POST /auth/login` devolve o JWT.
+  - **Fizemos o registro nesta sessão:** conta criada
+    (`username: cemadenrj.painel`, `institution: "CEMADEN-RJ (Defesa Civil
+    do Estado do Rio de Janeiro)"`, `id: 88`). Credenciais salvas só no
+    `.env` local (gitignored), nunca commitadas — ver
+    `PNBOIA_USERNAME`/`PNBOIA_PASSWORD` em `backend/.env.example`.
+  - **O que o JWT novo já libera:** `GET /v2/buoys` (catálogo público de
+    todas as boias, sem precisar de permissão especial) — confirmamos
+    **50 boias cadastradas**, incluindo a **METOCEAN WATCHKEEPER CABO
+    FRIO** (id 48, `-23.582, -42.1711`), que está **ativa agora
+    (`mode: "FUNDEADA"`, última leitura no dia do teste)** — melhor
+    candidata pro painel, mais perto do RJ e com dado recente de verdade.
+    Em contraste, a boia **"Itaguaí"** (id 8, mencionada pela própria
+    Marinha como referência pro litoral do RJ) aparece como
+    **`mode: "INOPERANTE"`, última leitura em 07/01/2020** — parece estar
+    fora de operação há anos; não é mais a aposta certa.
+  - **O que o JWT novo NÃO libera ainda:** dados de observação de verdade
+    (`/v2/moored/latest`, `/v2/moored/metadata`, `/v2/moored/timeseries`)
+    devolvem **403 "This JWT does not have permission for this
+    endpoint."** — o payload do JWT mostra `resource_access` zerado
+    (`buoys.read = {ids: [], all: false}`) por padrão em toda conta nova;
+    alguém do lado do REMObs precisa conceder acesso por boia/recurso
+    depois do cadastro (sistema de roles/permissions do
+    `api-controle-usuarios`). Ou seja: **o cadastro é instantâneo, mas o
+    acesso aos dados reais precisa de aprovação manual.**
+  - **Próximo passo:** contatar quem administra o REMObs pedindo a
+    liberação de `resource_access.buoys` pra conta `cemadenrj.painel`
+    (pelo menos a boia 48, Cabo Frio Watchkeeper, e idealmente qualquer
+    outra boia que opere perto do litoral do RJ). Caminhos possíveis, em
+    ordem de praticidade: (1) abrir uma issue no GitHub
+    `soutobias/oceanobs` explicando o pedido; (2) o mesmo formulário/
+    contato institucional do BNDO/CHM, já que REMObs é ligado à Marinha
+    via o programa REMO; (3) o site `remobs.com.br` (não acessível deste
+    ambiente de desenvolvimento, proxy de saída bloqueou — tentar de
+    novo a partir da produção ou do navegador do usuário) pode ter
+    contato direto.
 
 ### 5. Dados de maré
 
@@ -601,9 +631,9 @@ validados a partir da máquina de produção, que tem saída de internet normal.
    Chrome real.
 2. ~~Criar conta e token em dados.gov.br~~ — **feito em 01/10/2026, sem dado
    útil encontrado** (ver seção 6 acima). Não repetir esse caminho.
-3. **Escrever o conector de avisos de mau tempo (ÁREAS CHARLIE e DELTA)** —
-   tecnicamente resolvido (seção 1), só falta implementar de verdade em
-   `backend/ingestion/connectors/` e validar a partir da produção.
+3. ~~Escrever o conector de avisos de mau tempo (ÁREAS CHARLIE e DELTA)~~ —
+   **implementado em 01/10/2026** (seção 1). Falta só validar a partir da
+   produção e configurar o Cron Job no cPanel.
 4. **Contatar o autor do `oceanobs` (GitHub `soutobias`) e/ou o GOOS-Brasil
    (`goosbrasil.org`) para perguntar como obter um `PNBOIA_TOKEN`** —
    caminho mais direto para a API de boias (`52.67.222.63/v1/`) encontrada
@@ -638,7 +668,7 @@ validados a partir da máquina de produção, que tem saída de internet normal.
 
 | Necessidade do usuário | Fonte na Marinha | Status após este levantamento |
 |---|---|---|
-| Avisos de mau tempo | SMM, página de avisos (METAREA V) | **Resolvido (01/10/2026)** — `requests` puro + BeautifulSoup lê a página real; ÁREAS CHARLIE e DELTA cobrem o litoral do RJ; falta só implementar o conector |
+| Avisos de mau tempo | SMM, página de avisos (METAREA V) | **Implementado (01/10/2026)** — conector + modelo + API (`/api/avisos-mau-tempo/`) prontos e testados localmente; falta validar a partir da produção e configurar o Cron Job |
 | Cartas sinóticas | SMM (CHM) | Página continua bloqueada mesmo com `requests`; mirror do INMET é alternativa mais simples; projeto `oceanobs` também integra isso (não inspecionado o código ainda) |
 | Dados de maré | BNDO / Tábuas de Maré | Página continua bloqueada mesmo com `requests`; PDF anual oficial + acesso institucional por e-mail/formulário; atalhos de terceiros existem mas não são oficiais |
 | Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | **API real encontrada** (`52.67.222.63/v1/`, fora do bloqueio Cloudflare) — só falta o token; alternativa institucional via formulário BNDO continua valendo |
@@ -771,14 +801,15 @@ a `api_key` em 02/10/2026).
 - `REDEMET_API_KEY` (variável de ambiente, nunca commitada) fica só no
   backend — o frontend nunca vê a chave.
 - Frontend (`frontend/src/components/MapView.tsx`): botão flutuante
-  "Camada de imagem" (canto superior direito, mesmo padrão visual da
-  `LegendaFlutuante` já existente) com 3 opções — Nenhuma / Satélite /
-  Radar. A imagem escolhida é desenhada com `<ImageOverlay>` do
-  `react-leaflet`, opacidade 0,55 pra não esconder as estações por baixo,
-  usando os `bounds` que o proxy do backend já devolve prontos (convertidos
-  de `lat_min/lat_max/lon_min/lon_max` pro formato `[[lat_min,lon_min],
-  [lat_max,lon_max]]` que o Leaflet espera). Reconsulta a cada 3 minutos
-  enquanto uma camada estiver ativa (menor que o TTL do cache do backend).
+  "Satélite/Radar" (canto inferior esquerdo — o superior direito já é o
+  painel "Filtros" do Dashboard.tsx, aberto por padrão) com 3 opções —
+  Nenhuma / Satélite / Radar. A imagem escolhida é desenhada com
+  `<ImageOverlay>` do `react-leaflet`, opacidade 0,55 pra não esconder as
+  estações por baixo, usando os `bounds` que o proxy do backend já devolve
+  prontos (convertidos de `lat_min/lat_max/lon_min/lon_max` pro formato
+  `[[lat_min,lon_min],[lat_max,lon_max]]` que o Leaflet espera). Reconsulta
+  a cada 3 minutos enquanto uma camada estiver ativa (menor que o TTL do
+  cache do backend).
 - **Não implementado ainda:** animação (campo `anima`, até 15 quadros) —
   hoje só mostra a imagem mais recente de cada camada. Se o usuário quiser
   ver deslocamento de nuvens/chuva ao longo do tempo, dá pra adicionar um

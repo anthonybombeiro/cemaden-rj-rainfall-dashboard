@@ -70,6 +70,23 @@ const FAIXAS_RAJADA: { min: number; faixa: FaixaRajada }[] = [
 const HORAS_ATRASO_VENTO = 3;
 const FAIXA_ATRASADA: FaixaRajada = { label: "Atrasada", bg: "#BEBEBE", text: "#1f2937", emoji: "⚪" };
 
+function formatNumeroPtBr(n: number): string {
+  return n.toFixed(1).replace(".", ",").replace(/,0$/, "");
+}
+
+// Rótulo da legenda COM o intervalo (ex: "Moderada 18,6–51,9 km/h") — mesmos
+// limiares de FAIXAS_RAJADA, nunca hardcoded separadamente (2026-10-01,
+// pedido do usuário: a legenda do card de compartilhar só tinha o nome da
+// faixa, sem dizer onde cada limiar começa e termina, igual o texto de
+// ajuda que já existe embaixo da tabela principal).
+function rotuloComFaixa(i: number): string {
+  const atual = FAIXAS_RAJADA[i];
+  if (i === 0) return `${atual.faixa.label} ≥ ${formatNumeroPtBr(atual.min)} km/h`;
+  if (i === FAIXAS_RAJADA.length - 1) return `${atual.faixa.label} < ${formatNumeroPtBr(FAIXAS_RAJADA[i - 1].min)} km/h`;
+  const superior = FAIXAS_RAJADA[i - 1].min - 0.1;
+  return `${atual.faixa.label} ${formatNumeroPtBr(atual.min)}–${formatNumeroPtBr(superior)} km/h`;
+}
+
 function estaAtrasadoVento(updated: string | null): boolean {
   if (!updated) return true;
   const horas = (Date.now() - new Date(updated).getTime()) / 3_600_000;
@@ -219,10 +236,14 @@ const VentosTable = forwardRef<
 
   const compartilhar = () => {
     if (!onShare) return;
-    // Só os 10 primeiros (pedido do usuário, 2026-10-01: card quadrado pra
-    // grupo, não dá pra caber 20 linhas de um jeito legível).
-    const top10 = sorted.slice(0, 10);
-    const linhas = top10.map((s) => {
+    // A IMAGEM leva quantas linhas couberem bem no card quadrado (2026-10-01,
+    // pedido do usuário: preencher o espaço em vez de sobrar card vazio) —
+    // só o TEXTO (mais apertado pra ler no celular) fica limitado a 10, via
+    // ShareData.limiteTexto abaixo.
+    const LINHAS_IMAGEM = 24;
+    const LINHAS_TEXTO = 10;
+    const estacoesImagem = sorted.slice(0, LINHAS_IMAGEM);
+    const linhas = estacoesImagem.map((s) => {
       const vento = valorDe(s, "vento_ms");
       const rajadaMs = valorDe(s, "vento_rajada_ms");
       const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
@@ -234,8 +255,8 @@ const VentosTable = forwardRef<
         valores: {
           municipio: s.municipality || "—",
           estacao: s.name,
-          rajada: rajadaKmh !== null ? rajadaKmh.toFixed(1) : "—",
-          vento: vento !== null ? (Math.round(vento * 3.6 * 10) / 10).toFixed(1) : "—",
+          rajada: rajadaKmh !== null ? `${rajadaKmh.toFixed(1)} km/h` : "—",
+          vento: vento !== null ? `${(Math.round(vento * 3.6 * 10) / 10).toFixed(1)} km/h` : "—",
           direcao: direcao !== null ? `${Math.round(direcao)}° ${pontoCardeal(direcao)}` : "—",
           redec: redecOf(s.municipality) || "—",
           situacao: faixa?.label ?? "—",
@@ -250,10 +271,10 @@ const VentosTable = forwardRef<
       };
     });
 
-    // Data/hora real do DADO (leitura mais recente entre as 10 estações do
+    // Data/hora real do DADO (leitura mais recente entre as estações do
     // card) — não "agora" (2026-10-01, pedido do usuário: a legenda não
     // pode sempre mostrar a hora em que alguém clicou em compartilhar).
-    const timestamps = top10.map((s) => mostRecentUpdate(s)).filter((t): t is string => t !== null);
+    const timestamps = estacoesImagem.map((s) => mostRecentUpdate(s)).filter((t): t is string => t !== null);
     const maisRecente = timestamps.length > 0 ? timestamps.reduce((a, b) => (b > a ? b : a)) : null;
     const dataHora = maisRecente ? formatTimestamp(maisRecente) : "sem dado recente";
 
@@ -266,18 +287,18 @@ const VentosTable = forwardRef<
       titulo: "CEMADEN-RJ — Monitoramento de vento",
       dataHora,
       colunas: [
-        { chave: "municipio", rotulo: "Município" },
-        { chave: "estacao", rotulo: "Estação" },
-        { chave: "rajada", rotulo: "Rajada", alinhamento: "right" },
-        { chave: "vento", rotulo: "Vento", alinhamento: "right" },
-        { chave: "direcao", rotulo: "Direção", alinhamento: "center" },
-        { chave: "redec", rotulo: "REDEC" },
-        { chave: "situacao", rotulo: "Situação", alinhamento: "center" },
-        { chave: "atualizado", rotulo: "Atualizado", alinhamento: "center" },
+        { chave: "municipio", rotulo: "Município", larguraPct: 15 },
+        { chave: "estacao", rotulo: "Estação", larguraPct: 19 },
+        { chave: "rajada", rotulo: "Rajada", alinhamento: "right", larguraPct: 11 },
+        { chave: "vento", rotulo: "Vento", alinhamento: "right", larguraPct: 11 },
+        { chave: "direcao", rotulo: "Direção", alinhamento: "center", larguraPct: 10 },
+        { chave: "redec", rotulo: "REDEC", larguraPct: 13 },
+        { chave: "situacao", rotulo: "Situação", alinhamento: "center", larguraPct: 10 },
+        { chave: "atualizado", rotulo: "Atualizado", alinhamento: "center", larguraPct: 11 },
       ],
       linhas,
       legenda: [
-        ...FAIXAS_RAJADA.slice().reverse().map(({ faixa }) => ({ cor: faixa.bg, rotulo: faixa.label })),
+        ...FAIXAS_RAJADA.map(({ faixa }, i) => ({ cor: faixa.bg, rotulo: rotuloComFaixa(i) })).reverse(),
         { cor: FAIXA_ATRASADA.bg, rotulo: `${FAIXA_ATRASADA.label} (> ${HORAS_ATRASO_VENTO}h sem atualizar)` },
       ],
       fonteTexto: "Fonte: INMET, REDEMET, Wunderground, Plugfield — CEMADEN-RJ/SEDEC",
@@ -288,6 +309,7 @@ const VentosTable = forwardRef<
         { chave: "estacao", rotulo: "Estação" },
         { chave: "rajadaTexto", rotulo: "Rajada" },
       ],
+      limiteTexto: LINHAS_TEXTO,
     };
     onShare(data);
   };
@@ -454,7 +476,7 @@ const VentosTable = forwardRef<
         </span>
       </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
-        Fraca &lt; 18,6 km/h · Moderada 18,6–51,9 km/h · Forte 52–75,9 km/h · Muito forte ≥ 76 km/h. Estação sem
+        {FAIXAS_RAJADA.map((_, i) => rotuloComFaixa(i)).reverse().join(" · ")}. Estação sem
         leitura há mais de {HORAS_ATRASO_VENTO}h aparece cinza ("Atrasada") em vez da cor da rajada — dado velho
         não deve parecer dado do momento — e vai sempre pro fim da lista, em qualquer ordenação escolhida. Só
         aparecem aqui estações que reportam velocidade, rajada ou direção do vento. Vento é guardado em m/s e
