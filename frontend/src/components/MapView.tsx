@@ -217,10 +217,14 @@ function CamadaMeteorologica({ imagem }: { imagem: ImageryLayer | null }) {
   return <ImageOverlay key={imagem.image_url} url={imagem.image_url} bounds={imagem.bounds} opacity={0.55} zIndex={400} />;
 }
 
-/** Botão flutuante pra alternar a camada de satélite/radar — mesmo padrão
- * visual do `LegendaFlutuante` já existente, no canto oposto (topo
- * direito) pra não brigar com ele nem com o botão "Filtros" do
- * Dashboard.tsx. */
+/** Botão flutuante pra alternar a camada de satélite/radar. Canto inferior
+ * esquerdo — os outros 3 cantos já têm controle fixo: topo esquerdo é o
+ * zoom nativo do Leaflet, topo direito é o painel "Filtros" do
+ * Dashboard.tsx (vem ABERTO por padrão, confirmado visualmente — colidia
+ * com este seletor quando os dois tentavam ocupar o mesmo canto), e
+ * inferior direito já é a `LegendaFlutuante`. Recolhido por padrão (mesmo
+ * padrão de botão único que a `LegendaFlutuante` já usa) pra ocupar pouco
+ * espaço quando a camada está desligada (caso mais comum). */
 function SeletorCamadaMeteorologica({
   camada,
   onChange,
@@ -230,33 +234,45 @@ function SeletorCamadaMeteorologica({
   onChange: (c: CamadaImagem) => void;
   timestamp: string | null;
 }) {
+  const [aberto, setAberto] = useState(camada !== "nenhuma");
   const opcoes: { valor: CamadaImagem; label: string }[] = [
     { valor: "nenhuma", label: "Nenhuma" },
     { valor: "satelite", label: "Satélite" },
     { valor: "radar", label: "Radar" },
   ];
   return (
-    <div className="absolute right-3 top-3 z-[1000] rounded-md border border-gray-300 bg-white p-2 text-xs shadow-md">
-      <p className="mb-1.5 font-semibold text-gray-700">Camada de imagem</p>
-      <div className="flex gap-1">
-        {opcoes.map((o) => (
-          <button
-            key={o.valor}
-            type="button"
-            onClick={() => onChange(o.valor)}
-            className={`rounded px-2 py-1 font-medium ${
-              camada === o.valor ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-      {camada !== "nenhuma" && (
-        <p className="mt-1.5 text-[11px] text-gray-400">
-          {timestamp ? `Fonte: REDEMET · ${formatTimestamp(isoUtcFromRedemetTimestamp(timestamp))}` : "Carregando…"}
-        </p>
+    <div className="absolute bottom-3 left-3 z-[1000] max-w-[calc(100vw-1.5rem)]">
+      {aberto && (
+        <div className="mb-2 w-56 rounded-md border border-gray-200 bg-white p-3 text-xs shadow-lg">
+          <p className="mb-2 font-semibold text-gray-700">Camada de imagem</p>
+          <div className="flex gap-1">
+            {opcoes.map((o) => (
+              <button
+                key={o.valor}
+                type="button"
+                onClick={() => onChange(o.valor)}
+                className={`rounded px-2 py-1 font-medium ${
+                  camada === o.valor ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {camada !== "nenhuma" && (
+            <p className="mt-2 border-t border-gray-100 pt-2 text-[11px] text-gray-400">
+              {timestamp ? `Fonte: REDEMET · ${formatTimestamp(isoUtcFromRedemetTimestamp(timestamp))}` : "Carregando…"}
+            </p>
+          )}
+        </div>
       )}
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-md hover:bg-gray-50"
+      >
+        {aberto ? "Ocultar camada" : camada === "nenhuma" ? "Satélite/Radar" : `Camada: ${camada === "satelite" ? "Satélite" : "Radar"}`}
+      </button>
     </div>
   );
 }
