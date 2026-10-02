@@ -123,5 +123,9 @@ export function humanizarDescricao(descricaoOriginal: string, emitidoEmIso: stri
       : `vento de ${dirTraduzidas} — força ${forca}`;
   });
 
+  // Coordenada náutica (ex: "18s039w") — maiúsculo nos pontos cardeais é a
+  // convenção, "18S039W" lê melhor que o resto da frase em minúsculo deixou.
+  texto = texto.replace(/(\d+)([nsew])(\d+)([nsew])/gi, (_, a, dir1, b, dir2) => `${a}${dir1.toUpperCase()}${b}${dir2.toUpperCase()}`);
+
   return texto;
 }
