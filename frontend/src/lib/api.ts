@@ -696,3 +696,27 @@ export async function salvarPrevisao(p: PrevisaoInput, substituir = false): Prom
 
 /** Erro devolvido pelo servidor (409) quando já existe previsão da região/data. */
 export const PREVISAO_JA_EXISTE = "previsao_ja_existe";
+
+/** Avisos de mau tempo da Marinha (SMM/CHM, METAREA V — áreas Charlie e
+ * Delta, litoral do RJ). Ver backend/ingestion/connectors/marinha_avisos.py. */
+export type AvisoMauTempo = {
+  id: number;
+  numero_externo: string;
+  area: "CHARLIE" | "DELTA";
+  tipo: string;
+  /** Texto bruto da Marinha (maiúsculo, estilo náutico) — ver
+   * lib/avisosMauTempo.ts pra versão traduzida/legível. */
+  descricao: string;
+  /** ISO, UTC. */
+  emitido_em: string | null;
+  /** ISO, UTC. */
+  valido_ate: string | null;
+  fonte: string;
+};
+
+/** Só os avisos AINDA VÁLIDOS (`valido_ate` no futuro, ou sem `valido_ate`
+ * conhecido) — mesmo padrão de "situação atual" da Previsão do tempo, não
+ * um histórico completo. */
+export async function fetchAvisosMauTempo(): Promise<AvisoMauTempo[]> {
+  return fetchAllPages<AvisoMauTempo>("/avisos-mau-tempo/?ativo=true&limit=50");
+}

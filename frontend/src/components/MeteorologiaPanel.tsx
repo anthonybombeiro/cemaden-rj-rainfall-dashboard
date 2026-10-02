@@ -1,10 +1,11 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Droplets, Sunrise, Sunset, Wind } from "lucide-react";
+import { ChevronLeft, ChevronRight, Droplets, Sunrise, Sunset, Waves, Wind } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import PrevisaoForm from "@/components/PrevisaoForm";
-import { fetchDataUltimaPrevisao, fetchPrevisoes, Previsao, REDECS } from "@/lib/api";
+import { AvisoMauTempo, fetchAvisosMauTempo, fetchDataUltimaPrevisao, fetchPrevisoes, Previsao, REDECS } from "@/lib/api";
+import { formatarDataHoraLocalIso, humanizarDescricao } from "@/lib/avisosMauTempo";
 import { EMOJI_POR_ICONE, iconeSrc } from "@/lib/meteorologia";
 
 function hojeISO(): string {
@@ -211,8 +212,101 @@ function PrevisaoDiaria() {
   );
 }
 
+// Rótulo amigável do tipo (vem da fonte em CAIXA ALTA, ex: "VENTO FORTE") —
+// mesma lógica de "frase case" da descrição, só que pro título do card.
+function tipoLegivel(tipo: string): string {
+  const minusculo = tipo.toLowerCase();
+  return minusculo.charAt(0).toUpperCase() + minusculo.slice(1);
+}
+
+const AREA_LABEL: Record<string, string> = {
+  CHARLIE: "Área Charlie",
+  DELTA: "Área Delta",
+};
+
+function AvisoMauTempoCard({ aviso }: { aviso: AvisoMauTempo }) {
+  return (
+    <div className="flex flex-col rounded-lg border border-gray-200 border-t-4 border-t-sedec-600 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">{tipoLegivel(aviso.tipo)}</h3>
+        <Waves size={22} className="shrink-0 text-sedec-600" />
+      </div>
+      <span className="mt-1 w-fit rounded-full bg-sedec-50 px-2 py-0.5 text-[11px] font-semibold text-sedec-700">
+        {AREA_LABEL[aviso.area] ?? aviso.area} · Litoral do RJ
+      </span>
+
+      <p className="mt-3 text-sm leading-relaxed text-gray-700">{humanizarDescricao(aviso.descricao, aviso.emitido_em)}</p>
+
+      <dl className="mt-3 space-y-1 border-t border-gray-100 pt-2 text-xs text-gray-500">
+        <div className="flex justify-between gap-2">
+          <dt>Emitido em</dt>
+          <dd className="font-medium text-gray-700">{formatarDataHoraLocalIso(aviso.emitido_em)}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt>Válido até</dt>
+          <dd className="font-medium text-gray-700">{formatarDataHoraLocalIso(aviso.valido_ate)}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt>Boletim</dt>
+          <dd>NR {aviso.numero_externo}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function AvisosMauTempoPainel() {
+  const [avisos, setAvisos] = useState<AvisoMauTempo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    fetchAvisosMauTempo()
+      .then((r) => {
+        if (!cancelado) setAvisos(r);
+      })
+      .catch((e) => {
+        if (!cancelado) setError(e instanceof Error ? e.message : "Erro ao carregar avisos de mau tempo.");
+      })
+      .finally(() => {
+        if (!cancelado) setLoading(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  return (
+    <div className="h-full w-full overflow-auto bg-gray-50 p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h2 className="text-base font-bold text-gray-800">Avisos de mau tempo</h2>
+        <span className="text-xs text-gray-500">Marinha do Brasil — SMM/CHM, Áreas Charlie e Delta (litoral do RJ)</span>
+      </div>
+
+      {error && <div className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600">{error}</div>}
+
+      {loading ? (
+        <div className="p-6 text-center text-sm text-gray-400">Carregando…</div>
+      ) : avisos.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
+          <Waves size={28} className="text-gray-300" />
+          <p className="text-sm text-gray-500">Nenhum aviso de mau tempo ativo no momento para o litoral do RJ.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {avisos.map((a) => (
+            <AvisoMauTempoCard key={a.id} aviso={a} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SUBABAS = [
   { key: "previsao", label: "Previsão" },
+  { key: "avisos", label: "Avisos de mau tempo" },
   { key: "cadastro", label: "Cadastro" },
 ] as const;
 
@@ -234,7 +328,9 @@ export default function MeteorologiaPanel() {
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1">{sub === "previsao" ? <PrevisaoDiaria /> : <PrevisaoForm />}</div>
+      <div className="min-h-0 flex-1">
+        {sub === "previsao" ? <PrevisaoDiaria /> : sub === "avisos" ? <AvisosMauTempoPainel /> : <PrevisaoForm />}
+      </div>
     </div>
   );
 }
