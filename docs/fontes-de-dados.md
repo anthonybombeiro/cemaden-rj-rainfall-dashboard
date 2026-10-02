@@ -560,12 +560,39 @@ validados a partir da máquina de produção, que tem saída de internet normal.
   harmônicas, observações de maré, previsões horárias de máx/mín) são só por
   e-mail, sob pedido. FAQ em
   `https://www.marinha.mil.br/chm/bndo/duvidas-frequentes`. Nenhuma dessas
-  páginas foi lida com sucesso nesta sessão (403 Cloudflare) — **testado de
+  páginas foi lida com sucesso nesta sessão (403 Cloudflare) — testado de
   novo em 01/10/2026 com `requests` puro (a técnica que destravou os avisos
-  de mau tempo) e continua 403 "Just a moment..."** em todas elas (tábuas de
+  de mau tempo) e continua 403 "Just a moment..." em todas elas (tábuas de
   maré, BNDO, previsões especiais, cartas sinóticas, formulário). Essas
   páginas especificamente têm proteção mais forte que a de avisos de mau
   tempo.
+- **CONFIRMADO EM 02/10/2026 — é um desafio Cloudflare de verdade (Turnstile
+  interativo), não só falta de JS/cookie:** testamos com um **navegador
+  Chromium real (headless, via Playwright)**, não só `requests`/`curl` —
+  mesma técnica que já resolve sozinha a proteção do INMET neste projeto.
+  A resposta confirma: `cf-mitigated: challenge` no header, e o HTML
+  devolvido é a página de orquestração oficial do Cloudflare
+  (`/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1`), que faz
+  fingerprinting de automação. **Mesmo esperando 10s, o Chromium headless
+  não resolveu o desafio sozinho** (continuou em "Just a moment..." —
+  diferente do INMET, onde um Chrome real passa direto sem nenhuma ação
+  nossa). Isso é porque a Marinha configurou um nível de proteção mais
+  alto *especificamente* nessas rotas (tábua de maré, BNDO, cartas
+  sinóticas, previsões especiais, formulário) — não é o mesmo nível de
+  "avisos de mau tempo", que não tem esse desafio.
+  **Por política já adotada neste projeto, paramos aqui**: não vamos tentar
+  plugins de stealth, falsificar `navigator.webdriver`, resolver o
+  Turnstile automaticamente, nem qualquer técnica de evasão de detecção —
+  isso cruzaria a linha de "abrir a página com navegador normal" para
+  "contornar deliberadamente a proteção" de um órgão federal/militar.
+  **Conclusão prática: esse caminho direto está fechado.** As alternativas
+  reais que restam são: (a) o formulário institucional do BNDO (pedido
+  direto, mesmo caminho que já funcionou pro CEMADEN-RJ/GridLab); (b) os
+  atalhos de terceiros abaixo; (c) testar manualmente num navegador comum
+  (não automatizado) a partir da máquina de produção — um clique humano
+  real num Turnstile quase sempre passa, então pode ser viável abrir a
+  página manualmente de vez em quando e baixar o PDF à mão, só não dá pra
+  automatizar a coleta.
 - **Terceiros que já resolveram esse problema (candidatos a atalho, não
   oficiais — avaliar com a mesma cautela já aplicada ao Weather Underground):**
   - `github.com/Ddiidev/tabua_mare_convert_pdf2db` — projeto open-source que
@@ -620,15 +647,17 @@ validados a partir da máquina de produção, que tem saída de internet normal.
 
 ### Recomendações e próximos passos (ordem sugerida)
 
-1. ~~Testar as páginas bloqueadas com Chrome real/Selenium~~ — **parcialmente
-   resolvido em 01/10/2026 de forma mais simples:** não precisou de Selenium,
-   só trocar `curl` por `requests` (Python) resolveu a página de avisos de
-   mau tempo. **Ainda falta** aplicar/testar essa mesma técnica a partir do
-   servidor de produção (HostGator) — o que funcionou foi testado só deste
-   ambiente de desenvolvimento — e as páginas que continuam bloqueadas
-   mesmo com `requests` (BNDO, tábuas de maré, previsões especiais, cartas
-   sinóticas, `pam.dhn.mar.mil.br`) ainda precisam do teste com Selenium/
-   Chrome real.
+1. ~~Testar as páginas bloqueadas com Chrome real/Selenium~~ — **concluído.**
+   Avisos de mau tempo: resolvido de forma mais simples em 01/10/2026, só
+   trocando `curl` por `requests` (Python) — **ainda falta** confirmar que
+   isso também funciona a partir do servidor de produção (HostGator), só
+   testado deste ambiente de desenvolvimento até agora. Tábuas de maré/
+   BNDO/cartas sinóticas/previsões especiais: testado com Chromium real
+   (headless, Playwright) em 02/10/2026 — **confirmado desafio Cloudflare
+   interativo de verdade (Turnstile)**, nem o Chromium real resolveu
+   sozinho; decidimos não insistir com técnicas de evasão (ver seção 5).
+   `pam.dhn.mar.mil.br` continua não testado (domínio bloqueado pela
+   política de rede deste ambiente).
 2. ~~Criar conta e token em dados.gov.br~~ — **feito em 01/10/2026, sem dado
    útil encontrado** (ver seção 6 acima). Não repetir esse caminho.
 3. ~~Escrever o conector de avisos de mau tempo (ÁREAS CHARLIE e DELTA)~~ —
@@ -670,7 +699,7 @@ validados a partir da máquina de produção, que tem saída de internet normal.
 |---|---|---|
 | Avisos de mau tempo | SMM, página de avisos (METAREA V) | **Implementado (01/10/2026)** — conector + modelo + API (`/api/avisos-mau-tempo/`) prontos e testados localmente; falta validar a partir da produção e configurar o Cron Job |
 | Cartas sinóticas | SMM (CHM) | Página continua bloqueada mesmo com `requests`; mirror do INMET é alternativa mais simples; projeto `oceanobs` também integra isso (não inspecionado o código ainda) |
-| Dados de maré | BNDO / Tábuas de Maré | Página continua bloqueada mesmo com `requests`; PDF anual oficial + acesso institucional por e-mail/formulário; atalhos de terceiros existem mas não são oficiais |
+| Dados de maré | BNDO / Tábuas de Maré | **Caminho direto fechado (02/10/2026)** — confirmado desafio Cloudflare real (Turnstile), nem Chromium headless real resolve; não vamos tentar evasão. Resta: formulário institucional do BNDO, atalhos de terceiros, ou download manual via navegador humano |
 | Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | **API real encontrada** (`52.67.222.63/v1/`, fora do bloqueio Cloudflare) — só falta o token; alternativa institucional via formulário BNDO continua valendo |
 | Dados abertos em geral | NAD-DHN / dados.gov.br | **Investigado e descartado (01/10/2026)** — endpoint público existe (`api/publico/busca/buscar`) mas não tem dataset real de maré/boia/aviso da Marinha; só achado documento normativo em PDF |
 
