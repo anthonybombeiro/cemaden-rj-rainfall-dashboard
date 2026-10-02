@@ -2,11 +2,14 @@
 
 import L from "leaflet";
 import { useEffect, useMemo, useState } from "react";
-import { CircleMarker, GeoJSON, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
+import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 import {
   AlertEvent,
+  fetchRadarImagery,
+  fetchSateliteImagery,
+  ImageryLayer,
   READING_TYPE_LABELS,
   SOURCE_COLORS,
   SOURCE_LABELS,
@@ -149,6 +152,115 @@ function LegendaFlutuante({ sourcesPresentes }: { sourcesPresentes: string[] }) 
   );
 }
 
+type CamadaImagem = "nenhuma" | "satelite" | "radar";
+
+// A API-REDEMET atualiza essas imagens a cada ~10min (satélite) / poucos
+// minutos (radar); o backend já cacheia por 5min (ver
+// backend/api/redemet_imagery_views.py), então reconsultar a cada 3min
+// daqui (menor que o TTL do cache) garante que pegamos a imagem nova
+// pouco depois dela ficar disponível, sem bater direto na API-REDEMET a
+// cada maré de usuários abrindo o mapa.
+const INTERVALO_ATUALIZACAO_CAMADA_MS = 3 * 60 * 1000;
+
+/** Busca (e reconsulta periodicamente) a imagem de satélite/radar
+ * selecionada — estado fica aqui, em vez de dentro do `<ImageOverlay>`,
+ * porque tanto o overlay no mapa quanto o seletor flutuante (que mostra o
+ * horário da imagem) precisam do mesmo dado. */
+function useCamadaMeteorologica(camada: CamadaImagem): ImageryLayer | null {
+  const [imagem, setImagem] = useState<ImageryLayer | null>(null);
+
+  useEffect(() => {
+    // "nenhuma" não dispara busca nenhuma — o valor de `imagem` acumulado
+    // antes simplesmente não é retornado (ver `return` abaixo), sem
+    // precisar de um setState síncrono aqui dentro do efeito só para
+    // zerá-lo.
+    if (camada === "nenhuma") return;
+    let cancelado = false;
+    const buscar = () => {
+      const promessa = camada === "satelite" ? fetchSateliteImagery("realcada") : fetchRadarImagery("maxcappi", "pc");
+      promessa
+        .then((img) => {
+          if (!cancelado) setImagem(img);
+        })
+        .catch(() => {
+          if (!cancelado) setImagem(null);
+        });
+    };
+    buscar();
+    const id = setInterval(buscar, INTERVALO_ATUALIZACAO_CAMADA_MS);
+    return () => {
+      cancelado = true;
+      clearInterval(id);
+    };
+  }, [camada]);
+
+  return camada === "nenhuma" ? null : imagem;
+}
+
+/** A REDEMET devolve o timestamp como "AAAA-MM-DD HH:MM:SS" em UTC, sem
+ * indicação de fuso (confirmado comparando com o horário real no teste de
+ * 02/10/2026) — sem o "Z", `new Date(...)` interpretaria como hora local
+ * do navegador, errando o horário exibido. */
+function isoUtcFromRedemetTimestamp(timestamp: string): string {
+  return `${timestamp.replace(" ", "T")}Z`;
+}
+
+/** Camada opcional de satélite (REDEMET/DECEA) ou radar meteorológico —
+ * pedido do usuário (01/10/2026): mostrar imagem de satélite/radar no
+ * mapa, do jeito que a maioria dos painéis de monitoramento faz. A
+ * REDEMET devolve a imagem (PNG, servida direto por um host estático
+ * público, sem precisar da nossa chave) e os limites geográficos dela —
+ * `ImageOverlay` do Leaflet desenha a imagem exatamente nesses limites,
+ * sem precisar calcular nada aqui. */
+function CamadaMeteorologica({ imagem }: { imagem: ImageryLayer | null }) {
+  if (!imagem || !imagem.bounds) return null;
+  return <ImageOverlay key={imagem.image_url} url={imagem.image_url} bounds={imagem.bounds} opacity={0.55} zIndex={400} />;
+}
+
+/** Botão flutuante pra alternar a camada de satélite/radar — mesmo padrão
+ * visual do `LegendaFlutuante` já existente, no canto oposto (topo
+ * direito) pra não brigar com ele nem com o botão "Filtros" do
+ * Dashboard.tsx. */
+function SeletorCamadaMeteorologica({
+  camada,
+  onChange,
+  timestamp,
+}: {
+  camada: CamadaImagem;
+  onChange: (c: CamadaImagem) => void;
+  timestamp: string | null;
+}) {
+  const opcoes: { valor: CamadaImagem; label: string }[] = [
+    { valor: "nenhuma", label: "Nenhuma" },
+    { valor: "satelite", label: "Satélite" },
+    { valor: "radar", label: "Radar" },
+  ];
+  return (
+    <div className="absolute right-3 top-3 z-[1000] rounded-md border border-gray-300 bg-white p-2 text-xs shadow-md">
+      <p className="mb-1.5 font-semibold text-gray-700">Camada de imagem</p>
+      <div className="flex gap-1">
+        {opcoes.map((o) => (
+          <button
+            key={o.valor}
+            type="button"
+            onClick={() => onChange(o.valor)}
+            className={`rounded px-2 py-1 font-medium ${
+              camada === o.valor ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {camada !== "nenhuma" && (
+        <p className="mt-1.5 text-[11px] text-gray-400">
+          {timestamp ? `Fonte: REDEMET · ${formatTimestamp(isoUtcFromRedemetTimestamp(timestamp))}` : "Carregando…"}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function MapView({
   stations,
   activeAlertEvents = [],
@@ -167,6 +279,9 @@ export default function MapView({
   municipalityFilter?: string[];
 }) {
   const estacoesTocandoIds = new Set(activeAlertEvents.map((e) => e.station));
+
+  const [camadaImagem, setCamadaImagem] = useState<CamadaImagem>("nenhuma");
+  const imagemAtual = useCamadaMeteorologica(camadaImagem);
 
   const [redecGeo, setRedecGeo] = useState<GeoJsonFeatureCollection | null>(null);
   const [municipioGeo, setMunicipioGeo] = useState<GeoJsonFeatureCollection | null>(null);
@@ -201,6 +316,7 @@ export default function MapView({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <CamadaMeteorologica imagem={imagemAtual} />
       {/* Divisões administrativas (pedido do usuário, 2026-09-27): municípios
           primeiro (mais fino, fica por baixo) e REDECs por cima (mais
           grosso) — nenhuma das duas intercepta clique (`interactive:
@@ -271,6 +387,11 @@ export default function MapView({
         );
       })}
       <LegendaFlutuante sourcesPresentes={sourcesPresentes} />
+      <SeletorCamadaMeteorologica
+        camada={camadaImagem}
+        onChange={setCamadaImagem}
+        timestamp={imagemAtual?.timestamp ?? null}
+      />
     </MapContainer>
   );
 }

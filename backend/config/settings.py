@@ -222,6 +222,13 @@ CEMADEN_NACIONAL_BASE_URL = os.environ.get(
     "CEMADEN_NACIONAL_BASE_URL", "http://150.163.255.240/CEMADEN/resources/parceiros"
 )
 
+# Chave PESSOAL obtida por autoatendimento em
+# api-redemet.decea.mil.br/cadastro-api/ (ver docs/redemet-cadastro-rascunho.md).
+# Usada pelo RedemetConnector (METAR dos aeródromos do RJ) e pelas views de
+# proxy de imagem de satélite/radar em api/redemet_imagery_views.py — NUNCA
+# exposta ao frontend, só o backend chama a API-REDEMET diretamente.
+REDEMET_API_KEY = os.environ.get("REDEMET_API_KEY", "")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

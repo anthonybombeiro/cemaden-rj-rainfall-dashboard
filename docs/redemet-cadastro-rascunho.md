@@ -1,5 +1,12 @@
 # Cadastro da API-REDEMET — passo a passo e texto pronto
 
+**Status: CONCLUÍDO em 02/10/2026.** O usuário se cadastrou e recebeu a
+`api_key` **imediatamente** (aprovação automática/na hora, não manual) — a
+chave já está configurada e os conectores/camadas já foram implementados
+(ver `docs/fontes-de-dados.md`, seção REDEMET). Este passo a passo fica
+registrado como referência caso seja preciso gerar uma segunda chave no
+futuro (ex: outra conta institucional).
+
 Diferente do INMET (que não tem autoatendimento e depende de e-mail, ver
 `docs/email-inmet-rascunho.md`), a REDEMET **não usa e-mail** para pedir
 acesso — é um formulário web de autoatendimento. Não há e-mail institucional

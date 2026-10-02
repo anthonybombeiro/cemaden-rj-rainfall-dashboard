@@ -8,6 +8,7 @@ from .inmet import InmetConnector
 from .macae_ufrj import MacaeUfrjConnector
 from .niteroi import NiteroiConnector
 from .plugfield import PlugfieldConnector
+from .redemet import RedemetConnector
 from .rio_chuva_bairro import RioChuvaBairroConnector
 from .wunderground import WundergroundConnector
 
@@ -32,6 +33,7 @@ REGISTRY: dict[str, type[BaseConnector]] = {
     INEAConnector.slug: INEAConnector,
     EcowittParacambiConnector.slug: EcowittParacambiConnector,
     MacaeUfrjConnector.slug: MacaeUfrjConnector,
+    RedemetConnector.slug: RedemetConnector,
 }
 
 

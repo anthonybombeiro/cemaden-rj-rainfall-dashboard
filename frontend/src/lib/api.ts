@@ -328,6 +328,28 @@ export async function fetchHidrologicas(): Promise<HidrologicaStation[]> {
   return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
+/** Camada de satélite/radar da REDEMET (ver backend/api/redemet_imagery_views.py
+ * e docs/fontes-de-dados.md) — `bounds` já vem pronto no formato que o
+ * Leaflet `ImageOverlay` espera: [[lat_min, lon_min], [lat_max, lon_max]]. */
+export type ImageryLayer = {
+  tipo: string;
+  area?: string;
+  timestamp: string;
+  image_url: string;
+  bounds: [[number, number], [number, number]] | null;
+};
+
+export async function fetchSateliteImagery(tipo: "ir" | "realcada" | "vis" = "realcada"): Promise<ImageryLayer> {
+  return getJson<ImageryLayer>(`/imagery/satelite/?tipo=${tipo}`);
+}
+
+export async function fetchRadarImagery(
+  tipo: "maxcappi" | "10km" | "07km" | "05km" | "03km" = "maxcappi",
+  area = "pc",
+): Promise<ImageryLayer> {
+  return getJson<ImageryLayer>(`/imagery/radar/?tipo=${tipo}&area=${area}`);
+}
+
 /** "Consulta por estações" só das sirenes (pedido do usuário, 2026-09-23:
  * mesma ideia da tela de mesmo nome do portal do CBMERJ) — ver
  * `StationViewSet.sirenes` no backend. `status_estacao` vem direto de
@@ -551,6 +573,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   inea: "INEA — Alerta de Cheias",
   ecowitt_paracambi: "Paracambi (Defesa Civil)",
   macae_ufrj: "Macaé (Defesa Civil/UFRJ)",
+  redemet: "REDEMET (Aeronáutica)",
 };
 
 /** Uma cor fixa por fonte, pra dar pra distinguir de relance numa tabela
@@ -578,6 +601,7 @@ export const SOURCE_COLORS: Record<string, string> = {
   cemaden_rj_sirenes: "#dc2626",
   ecowitt_paracambi: "#0EA5E9", // emprestado da cor do SIMGE lá
   macae_ufrj: "#7C3AED", // emprestado da cor do CEMADEN-MG lá
+  redemet: "#1E3A8A", // azul-marinho — remete à farda/identidade da Aeronáutica
 };
 
 /** Faixas de atraso (tempo desde a última leitura) e cor associada — mesma
