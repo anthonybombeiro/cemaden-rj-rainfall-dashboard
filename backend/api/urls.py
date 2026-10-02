@@ -12,6 +12,7 @@ from .admin_views import (
 )
 from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeView, ProfileUpdateView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
+from .redemet_imagery_views import RedemetRadarImageryView, RedemetSateliteImageryView
 from .refresh_views import RefreshNowView
 from .views import (
     AlertEventViewSet,
@@ -55,4 +56,6 @@ urlpatterns = [
     path("auth/profile/", ProfileUpdateView.as_view(), name="auth-profile"),
     path("auth/change-password/", ChangePasswordView.as_view(), name="auth-change-password"),
     path("refresh/", RefreshNowView.as_view(), name="refresh-now"),
+    path("imagery/satelite/", RedemetSateliteImageryView.as_view(), name="imagery-satelite"),
+    path("imagery/radar/", RedemetRadarImageryView.as_view(), name="imagery-radar"),
 ] + router.urls

@@ -674,15 +674,15 @@ validados a partir da máquina de produção, que tem saída de internet normal.
 | Boias climáticas (PNBOIA) | CHM/PNBOIA, boia Itaguaí | **API real encontrada** (`52.67.222.63/v1/`, fora do bloqueio Cloudflare) — só falta o token; alternativa institucional via formulário BNDO continua valendo |
 | Dados abertos em geral | NAD-DHN / dados.gov.br | **Investigado e descartado (01/10/2026)** — endpoint público existe (`api/publico/busca/buscar`) mas não tem dataset real de maré/boia/aviso da Marinha; só achado documento normativo em PDF |
 
-## REDEMET (DECEA/Força Aérea) — API confirmada, cobre estações + satélite + radar (01/10/2026)
+## REDEMET (DECEA/Força Aérea) — estações da Aeronáutica + satélite + radar — IMPLEMENTADO (02/10/2026)
 
 Levantamento feito a pedido do usuário: (1) como inserir no mapa uma camada de
 imagem de satélite/radar, do jeito que a maioria dos painéis de monitoramento
 faz; (2) verificar se dá pra agregar as estações meteorológicas da
-Aeronáutica (aeródromos). **Boa notícia: as duas coisas vêm da mesma fonte.**
-REDEMET (Rede de Meteorologia do Comando da Aeronáutica, operada pelo DECEA)
-tem uma API pública dedicada que cobre METAR, satélite e radar num só
-cadastro.
+Aeronáutica (aeródromos). **As duas coisas vêm da mesma fonte** — REDEMET
+(Rede de Meteorologia do Comando da Aeronáutica, operada pelo DECEA) — e já
+estão implementadas e testadas com dado real (usuário se cadastrou e obteve
+a `api_key` em 02/10/2026).
 
 ### Acesso
 
@@ -690,137 +690,137 @@ cadastro.
   `redemet.aer.mil.br` faz 301 pra esse). Página "O que é a API-REDEMET":
   `https://ajuda.decea.mil.br/base-de-conhecimento/api-redemet-o-que-e/`.
 - **Base da API:** `https://api-redemet.decea.mil.br`
-- **Cadastro obrigatório, mas simples e aparentemente gratuito:**
-  `https://api-redemet.decea.mil.br/cadastro-api/` — formulário com nome,
-  sobrenome, e-mail e "motivo de uso da API" (até 1.500 caracteres), botão
-  "Enviar solicitação". Não achamos documentação pública sobre preço, prazo
-  de aprovação ou limite de requisições — precisa cadastrar pra descobrir
-  (mesmo padrão de "contato institucional" que já funcionou pro
-  CEMADEN-RJ/GridLab neste projeto). **Próximo passo prático: o usuário (ou
-  quem for operar a conta) preenche esse formulário pra conseguir a
-  `api_key`.**
-- Autenticação: `api_key` como query param em toda chamada (confirmado
-  também por teste direto: `GET /mensagens/metar/SBGL` sem chave devolveu
-  `401 Unauthorized`, o que confirma que o endpoint existe e exige a chave).
+- **Cadastro:** `https://api-redemet.decea.mil.br/cadastro-api/` — formulário
+  com nome, sobrenome, e-mail e "motivo de uso da API" (até 1.500
+  caracteres). **Confirmado: cadastro é aprovado na hora** (o usuário
+  recebeu a `api_key` imediatamente após enviar, sem espera) — ver passo a
+  passo e texto pronto em `docs/redemet-cadastro-rascunho.md`.
+- Autenticação: header `X-Api-Key` (ordem de precedência da própria REDEMET
+  sobre o query param `api_key` — usamos o header pra não vazar a chave em
+  log de acesso/URL). Confirmado funcionando com chamadas reais.
+- **Instabilidade de conexão observada (01-02/10/2026):** a API-REDEMET
+  resetou a conexão no meio de algumas respostas, tanto via `curl` quanto
+  via `requests` puro do Python — diferente do caso da Marinha (bloqueio por
+  ferramenta), aqui parece só instabilidade mesmo (funcionou normalmente na
+  tentativa seguinte). Os conectores (`RedemetConnector` e as views de proxy
+  de imagem) já tratam isso com retry simples (até 3-4 tentativas, backoff
+  curto) — ver `_get_with_retry`/`_get_com_retentativa` no código.
 
-### Estações da Aeronáutica (METAR) — para agregar ao mapa de estações
+### Estações da Aeronáutica (METAR) — IMPLEMENTADO
 
-- Endpoint (padrão por analogia com os outros confirmados, e validado como
-  rota real pelo 401 acima): `GET /mensagens/metar/{icao}?api_key=...`.
-  A API também expõe categorias "Aeródromos", "Aeródromos Status",
-  "Aeródromos Info" (lista/metadados de estação) e mensagens TAF, SIGMET,
-  GAMET, PILOT, TEMP, avisos de aeródromo e meteogramas — mesma família de
-  endpoints, mesmo padrão de autenticação.
-- **Aeródromos no RJ com METAR confirmados nesta pesquisa** (via fontes
-  aeronáuticas abertas, não via chamada autenticada — falta validar contra a
-  lista oficial da API assim que tivermos a chave): `SBGL` (Galeão),
-  `SBRJ` (Santos Dumont), `SBAF` (Campo dos Afonsos), `SBME` (Macaé),
-  `SBCB` (Cabo Frio), `SBCP` (Campos dos Goytacazes/Bartolomeu Lisandro).
-  Pode haver mais (bases militares como Santa Cruz/SBSC, Resende/SBVR) —
-  confirmar com o endpoint de aeródromos assim que a chave chegar, filtrando
-  por UF/estado RJ do mesmo jeito que já fazemos pro INMET.
-- Dado histórico disponível desde 01/01/2006, segundo a doc oficial.
+- `backend/ingestion/connectors/redemet.py` (`RedemetConnector`, slug
+  `redemet`, já no `REGISTRY` — roda via `python manage.py ingest redemet`,
+  via `/api/refresh/` e entra automaticamente no cron geral de ingestão).
+- `GET /aerodromos` (sem filtro por país/UF na própria API — lista global de
+  ~4.200 aeródromos) filtrado aqui por `pais` == Brazil/Brasil e `cidade`
+  terminando em "RJ" → popula `Station` (tipo `meteorologica`).
+- `GET /mensagens/metar/{icao}` → mensagem METAR mais recente do dia
+  corrente (UTC); decodificada com regex simples pra extrair vento
+  (direção/velocidade/rajada, convertido de nós pra m/s), temperatura,
+  ponto de orvalho e QNH (guardado como `pressao_nm_hpa`, já que QNH É a
+  pressão ao nível do mar). Fenômenos de tempo presente, visibilidade e
+  nuvens ficam só no texto bruto (`raw_payload`), sem campo próprio no
+  modelo ainda.
+- **Testado com dado real em 02/10/2026 — 17 estações no RJ**, bem mais que
+  o esperado pela pesquisa inicial (que só tinha achado os aeroportos
+  "óbvios"): além de `SBGL` (Galeão), `SBRJ` (Santos Dumont), `SBJR`
+  (Jacarepaguá), `SBSC` (Santa Cruz), `SBAF` (Campo dos Afonsos), `SBME`
+  (Macaé), `SBCB` (Cabo Frio), `SBCP` (Campos dos Goytacazes), `SBES` (São
+  Pedro da Aldeia), `SBMI` (Maricá) e `SBPW` (Porto do Açu), a lista trouxe
+  de bônus **5 plataformas marítimas de petróleo da Petrobras com METAR
+  próprio** (`SBEN` Enchova, `SBLB` Albacora, `SBLI` P-51, `SBMM` P-20,
+  `SBRC` P-52) — estações offshore que nenhuma outra fonte deste projeto
+  cobre, relevantes pro monitoramento costeiro que o usuário já tinha
+  interesse (ver seção Marinha/PNBOIA acima).
+- **No momento do teste, 11 das 17 tinham METAR fresco na hora** (`SBGL`,
+  `SBRJ`, `SBJR`, `SBME`, `SBMI`, `SBSC` + as 5 plataformas) com valores
+  plausíveis (temperatura 21-25°C, vento 0,5-9,3 m/s, QNH 1013-1017 hPa).
+  As outras (`SBAF`, `SBCB`, `SBCP`, `SBES`, `SBPW`) ficaram sem observação
+  na janela — comum em aeródromos sem torre 24h, não é erro do conector
+  (ele simplesmente pula a estação nesse ciclo e tenta de novo no próximo).
+- Dado histórico disponível desde 01/01/2006, segundo a doc oficial
+  (não implementado — só a leitura mais recente é ingerida).
 
-### Radar — camada pra mapa
+### Radar — camada pra mapa — IMPLEMENTADO
 
-- Endpoint: `GET /produtos/radar/{tipo}?area={codigo}&data={YYYYMMDDHH}&anima={1..15}&api_key=...`
-  (`data` e `anima` opcionais, default = agora / 1 imagem).
+- Endpoint: `GET /produtos/radar/{tipo}?area={codigo}&data={YYYYMMDDHH}&anima={1..15}`
+  (`data`/`anima` opcionais, default = agora / 1 imagem).
 - `tipo` = corte de altitude do eco: `maxcappi` (400km raio, composição de
-  toda a coluna), `10km`/`07km`/`05km`/`03km` (CAPPI em altitude fixa, 250km
-  de raio cada).
+  toda a coluna, o que o painel usa por padrão), `10km`/`07km`/`05km`/`03km`
+  (CAPPI em altitude fixa, 250km de raio cada).
 - `area` = 26 códigos de radar espalhados pelo Brasil. **O que cobre o RJ é
   `pc` = Pico do Couto (Petrópolis)** — é o único radar do estado na lista
   oficial da API.
-- **Ressalva importante, achada numa busca separada:** o radar de Pico do
-  Couto foi **desligado em 2016 por corte orçamentário** (junto com mais 4
-  radares do DECEA) e não achamos confirmação de que foi reativado — a
-  notícia mais recente sobre renovação da rede de radares do DECEA (contrato
-  RMT 0200 assinado em 2023) fala de instalações em Rio Branco/AC, Belém/PA,
-  Cachimbo/PA, Chapada dos Guimarães/MT e Vilhena/RO, **não menciona
-  Pico do Couto**. Ou seja: **a API provavelmente aceita `area=pc` mas pode
-  devolver imagem vazia/desatualizada**, porque o radar físico pode estar
-  fora do ar. **Isso só dá pra confirmar testando de verdade com a chave em
-  mãos** (ver se `data` do produto retornado é recente). Se `pc` estiver
-  morto, a imagem mais próxima que cobriria o RJ seria `st` (Santa
-  Teresa/MG, mais distante) ou nenhuma — nesse caso vale considerar a
-  alternativa global abaixo (RainViewer) como fallback visual, mesmo sendo
-  resolução mais grosseira.
-- Resposta é **JSON** com metadados + a imagem (caminho/arquivo), não um
-  tile WMS pronto — inclui limites geográficos (`lat_lon`) da imagem, o que
-  é exatamente o que o Leaflet precisa pra desenhar a imagem sobreposta no
-  lugar certo (ver seção de implementação abaixo).
+- **Ressalva de pesquisa anterior RESOLVIDA:** havia achado que esse radar
+  foi desligado em 2016 por corte orçamentário, sem confirmação de
+  reativação. **Testado de verdade em 02/10/2026: o radar está ATIVO**,
+  devolvendo imagem com timestamp de poucos minutos atrás no momento do
+  teste (`"data":"2026-10-02 00:06:50"`, testado às ~00:07 UTC) — ou foi
+  reativado em algum momento entre 2016 e agora, ou a notícia de 2016 não
+  se aplicava mais a esse radar especificamente. Não precisou de fallback
+  (RainViewer ou outro).
+- Resposta é **JSON** com metadados + caminho da imagem, incluindo limites
+  geográficos (`lat_min`/`lat_max`/`lon_min`/`lon_max`) dentro do objeto do
+  próprio radar retornado — usados para montar o `bounds` do
+  `ImageOverlay` do Leaflet.
+- Proxy: `GET /api/imagery/radar/?tipo=maxcappi&area=pc` (ver
+  `backend/api/redemet_imagery_views.py`).
 
-### Satélite — camada pra mapa
+### Satélite — camada pra mapa — IMPLEMENTADO
 
-- Endpoint: `GET /produtos/satelite/{tipo}?data={YYYYMMDDHH}&anima={1..15}&api_key=...`
+- Endpoint: `GET /produtos/satelite/{tipo}?data={YYYYMMDDHH}&anima={1..15}`
 - `tipo`: `ir` (infravermelho), `realcada` (infravermelho colorida/realçada,
-  a mais usada em painéis por ser mais legível), `vis` (visível, só útil de
-  dia).
-- Mesmo formato de resposta do radar: JSON com `lat_lon` (limites
-  geográficos), caminho da imagem e timestamp — cobre o Brasil/América do
-  Sul inteiro (não é recortado por estado), então uma imagem só já serve
-  pro painel inteiro, sem precisar escolher "área" como no radar.
-- Cobertura nacional/continental quer dizer que esta camada **não depende**
-  do problema de radar desligado acima — é a aposta mais segura de "imagem
-  de satélite sempre disponível" pro painel.
+  a usada por padrão no painel por ser mais legível), `vis` (visível, só
+  útil de dia).
+- Testado com dado real: resposta traz `lat_lon` com os limites geográficos
+  no nível raiz do objeto `data` (cobertura Brasil/América do Sul inteira:
+  `lat -56 a 12,52`, `lon -100 a -25,24`) — não recortado por estado, então
+  uma imagem só já serve pro painel inteiro.
+- Proxy: `GET /api/imagery/satelite/?tipo=realcada` (mesmo arquivo de views
+  acima).
 
-### Carta SIGWX (bônus, menor prioridade)
+### Carta SIGWX (não implementado, baixa prioridade)
 
 - `GET /produtos/sigwx?api_key=...` — devolve só a URL da carta mais recente
   (PNG), sem parâmetro de data (não dá pra pegar histórico). Baixa
   prioridade — é carta de tempo significativo em altitude, mais voltada pra
-  navegação aérea do que pro monitoramento de chuva/risco deste painel.
+  navegação aérea do que pro monitoramento de chuva/risco deste painel. Não
+  implementado.
 
-### Como isso se encaixa no mapa (Leaflet) — padrão usado pela maioria dos painéis
+### Como foi implementado no mapa (Leaflet)
 
-O `MapView.tsx` atual (`frontend/src/components/MapView.tsx`) só tem um
-`<TileLayer>` fixo do OpenStreetMap como base, sem nenhum overlay
-meteorológico ainda. O padrão comum em painéis de monitoramento (Windy,
-RainViewer, os próprios sites da Marinha/INMET) pra uma imagem de
-satélite/radar que não é um tileset próprio (como é o caso do REDEMET, que
-devolve uma imagem única georreferenciada, não um `{z}/{x}/{y}.png`) é:
+- As imagens PNG (satélite até ~1,3MB, radar bem menor) ficam num host
+  estático público, `estatico-redemet.decea.mil.br`, que **não exige a
+  `api_key`** (confirmado baixando uma imagem real sem nenhum header de
+  autenticação) — só o endpoint que diz "qual é a imagem mais recente e
+  quais são os limites geográficos dela" precisa da chave. Por isso o
+  backend só faz proxy do JSON pequeno (`backend/api/redemet_imagery_views.py`,
+  `RedemetSateliteImageryView`/`RedemetRadarImageryView`, cache de 5min via
+  `django.core.cache`) — o navegador do usuário carrega o PNG **direto** do
+  host da REDEMET, sem gastar banda/CPU do nosso servidor.
+- `REDEMET_API_KEY` (variável de ambiente, nunca commitada) fica só no
+  backend — o frontend nunca vê a chave.
+- Frontend (`frontend/src/components/MapView.tsx`): botão flutuante
+  "Satélite/Radar" (canto inferior esquerdo — o superior direito já é o
+  painel "Filtros" do Dashboard.tsx, aberto por padrão) com 3 opções —
+  Nenhuma / Satélite / Radar. A imagem escolhida é desenhada com
+  `<ImageOverlay>` do `react-leaflet`, opacidade 0,55 pra não esconder as
+  estações por baixo, usando os `bounds` que o proxy do backend já devolve
+  prontos (convertidos de `lat_min/lat_max/lon_min/lon_max` pro formato
+  `[[lat_min,lon_min],[lat_max,lon_max]]` que o Leaflet espera). Reconsulta
+  a cada 3 minutos enquanto uma camada estiver ativa (menor que o TTL do
+  cache do backend).
+- **Não implementado ainda:** animação (campo `anima`, até 15 quadros) —
+  hoje só mostra a imagem mais recente de cada camada. Se o usuário quiser
+  ver deslocamento de nuvens/chuva ao longo do tempo, dá pra adicionar um
+  player simples depois, reaproveitando o mesmo endpoint com `anima=15`.
 
-1. Buscar o JSON do produto (radar ou satélite) num endpoint do nosso
-   próprio backend (proxy — a `api_key` da REDEMET não deve ir pro
-   frontend/navegador do usuário final, mesmo padrão já usado com outras
-   chaves deste projeto, ex. `WUNDERGROUND_API_KEY`).
-2. No frontend, usar `L.imageOverlay(urlDaImagem, bounds)` do Leaflet (ou o
-   componente `<ImageOverlay>` do `react-leaflet`, já que o projeto já usa
-   essa lib) — `bounds` vem direto do `lat_lon` que a REDEMET retorna no
-   JSON, sem precisar calcular nada.
-3. Expor isso como camada opcional/toggle (`<LayersControl>` do
-   react-leaflet, ou um botão flutuante como o `LegendaFlutuante` que já
-   existe no `MapView.tsx`), com opacidade reduzida (~0.5-0.6) pra não
-   esconder as estações por baixo — é o padrão visual de praticamente todo
-   painel de chuva com radar/satélite.
-4. Para animação (campo `anima`, até 15 quadros), um player simples
-   (ciclar a cada ~500ms entre as imagens retornadas) replica o que a
-   maioria dos painéis faz pra mostrar deslocamento de nuvens/chuva.
-5. Cache: como a REDEMET atualiza essas imagens periodicamente (não a cada
-   request), o proxy do backend pode cachear por alguns minutos (mesmo
-   princípio já usado no `.htaccess` do projeto pra outras APIs, ver commit
-   "Corrige .htaccess: cache de 24h estava pegando respostas da API" — aqui
-   o TTL teria que ser bem mais curto, minutos, não 24h, por ser imagem que
-   muda com frequência).
+### Configuração necessária
 
-### Próximos passos
-
-1. **Usuário preenche o cadastro** em
-   `https://api-redemet.decea.mil.br/cadastro-api/` pra obter a `api_key`.
-2. Com a chave em mãos, testar de verdade: (a) `produtos/radar/maxcappi?area=pc`
-   pra confirmar se Pico do Couto está mesmo fora do ar ou se já foi
-   reativado; (b) `produtos/satelite/realcada` pra confirmar formato real da
-   resposta/`lat_lon`; (c) `mensagens/metar/SBGL` e os outros códigos ICAO
-   do RJ listados acima, e consultar o endpoint de "Aeródromos" pra pegar a
-   lista oficial completa (lat/lon, status) em vez da lista montada por
-   busca nesta sessão.
-3. Escrever `backend/ingestion/connectors/redemet.py` (estações METAR, igual
-   padrão INMET: metadados + última leitura) e um endpoint de proxy
-   `backend/api/` pra radar/satélite (não é ingestão agendada tipo
-   `Reading`, é mais parecido com um proxy de imagem sob demanda, com
-   cache).
-4. No frontend, adicionar `<ImageOverlay>`/`<LayersControl>` em
-   `MapView.tsx` consumindo esse proxy.
+- `REDEMET_API_KEY` no `.env` do backend (ver `backend/.env.example`) — já
+  preenchido no ambiente local desta sessão pra validar a implementação;
+  **falta configurar no servidor de produção (HostGator)** pra ingestão e
+  camadas funcionarem lá também.
 
 ## Ainda não iniciado (Fase 3 do plano)
 
