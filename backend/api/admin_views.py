@@ -254,15 +254,10 @@ class SyncAvisosMauTempoSuperuserView(APIView):
     def post(self, request):
         if not request.user.is_superuser:
             return Response({"detail": "Apenas administradores."}, status=403)
-        import traceback
+        from ingestion.connectors import marinha_avisos
 
-        try:
-            from ingestion.connectors import marinha_avisos
-
-            resultado = marinha_avisos.sync()
-            return Response({"ok": True, "output": resultado.summary(), "erros": resultado.errors})
-        except Exception as exc:  # noqa: BLE001 — debug: expõe traceback só pro superusuário chamando.
-            return Response({"ok": False, "erro": str(exc), "traceback": traceback.format_exc()}, status=500)
+        resultado = marinha_avisos.sync()
+        return Response({"ok": True, "output": resultado.summary(), "erros": resultado.errors})
 
 
 class PopulateSireneRefSuperuserView(APIView):
