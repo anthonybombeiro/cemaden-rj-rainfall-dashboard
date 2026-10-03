@@ -481,3 +481,60 @@ class AvisoMauTempo(models.Model):
 
     def __str__(self):
         return f"{self.area} · {self.tipo} · NR {self.numero_externo}"
+
+
+class AcumuladoOficial(models.Model):
+    """Acumulado de chuva informado PRONTO pela própria fonte (03/10/2026).
+
+    Existe pra comparar com o nosso acumulado, calculado somando os baldes que
+    gravamos em `Reading` — que perde chuva quando uma rodada de ingestão
+    falha ou a fonte publica mais rápido que o cron (ver
+    docs/fontes-de-dados.md, "Auditoria de acumulados de chuva"). Hoje só o
+    CEMADEN Nacional (`getJson2.php`) alimenta isto; guarda 1 h, 24 h e 96 h,
+    uma vez por hora por estação (a 1ª leitura de cada hora), pra não inflar o
+    banco. O retrato completo (1…96 h) da última leitura fica em
+    `Station.raw_metadata["acumulados_oficiais"]`."""
+
+    station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name="acumulados_oficiais")
+    janela_h = models.PositiveSmallIntegerField(help_text="Janela do acumulado em horas (1, 24 ou 96).")
+    valor_mm = models.FloatField()
+    referencia = models.DateTimeField(help_text="Horário (UTC) da última leitura da estação a que o acumulado se refere.")
+    coletado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["station", "janela_h", "referencia"], name="unique_acumulado_oficial")
+        ]
+        indexes = [models.Index(fields=["station", "janela_h", "-referencia"])]
+        ordering = ["-referencia"]
+        verbose_name = "acumulado oficial da fonte"
+        verbose_name_plural = "acumulados oficiais da fonte"
+
+    def __str__(self):
+        return f"{self.station.name} · {self.janela_h}h = {self.valor_mm} @ {self.referencia:%Y-%m-%d %H:%M}"
+
+
+class LeituraQualidade(models.Model):
+    """Qualificação de uma leitura (03/10/2026, inspirada na coluna
+    "Qualificação: válido" da Rede Salvar do CEMADEN). Só se grava a exceção:
+    leitura SEM registro aqui foi avaliada e considerada válida (a regra só
+    existe a partir de 03/10/2026 e hoje só roda no CEMADEN Nacional; leituras
+    antigas ou de outras fontes não foram avaliadas). Regras em
+    `core/qualidade.py` — controle de qualidade PRÓPRIO (faixa física e data),
+    não o da Rede Salvar."""
+
+    class Qualidade(models.TextChoices):
+        SUSPEITO = "suspeito", "Suspeito"
+        INVALIDO = "invalido", "Inválido"
+
+    reading = models.OneToOneField(Reading, on_delete=models.CASCADE, related_name="qualidade")
+    qualidade = models.CharField(max_length=10, choices=Qualidade.choices)
+    motivo = models.CharField(max_length=120)
+    avaliado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "qualificação de leitura"
+        verbose_name_plural = "qualificações de leitura"
+
+    def __str__(self):
+        return f"{self.get_qualidade_display()} — {self.motivo}"

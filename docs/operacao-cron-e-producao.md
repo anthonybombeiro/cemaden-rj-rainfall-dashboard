@@ -28,7 +28,7 @@ memória local do assistente).
 | `6-59/15` | `ingest plugfield` | 25 s |
 | `8-59/15` | `ingest inmet` | 25 s |
 | `10-59/15` | `sync_risk_alerts` | 280 s |
-| `13-59/15` | `ingest cemaden_mctic` | 280 s |
+| **`3-59/5`** | `ingest cemaden_mctic` (alterado em 03/10/2026; antes `13-59/15`) | 120 s |
 | `14-59/15` | `ingest niteroi` | 280 s |
 | **`*/2`** | **`sync_sirenes`** (alterado pelo usuário no cPanel em 03/10/2026; antes `*/15`, 25 s) | 60 s |
 | `1-59/15` | `ingest inea` | 25 s |
@@ -48,8 +48,11 @@ memória local do assistente).
    `rio_chuva_bairro` (fonte possivelmente descontinuada). Macaé só atualizava no
    botão "Atualizar agora" (explicava o atraso/estações paradas). O REDEMET
    também é atualizado pelo painel aberto (a cada 15 min) como reforço.
-3. **`cemaden_mctic` a cada 15 min** com fonte de ~10 min: perde 1 de cada 3
-   baldes (confirmado nos intervalos de 10-70 min entre leituras guardadas).
+3. **`cemaden_mctic`** estava a cada 15 min com fonte de ~10 min (perdia baldes:
+   intervalos de 10-70 min entre leituras). **Passou a `3-59/5` em 03/10/2026**
+   (aplicado com a autorização do usuário e verificado no `fetchcron`: 13 jobs).
+   Cada rodada baixa 1 JSON (~395 estações) e grava só leituras novas; os
+   acumulados oficiais 1/24/96 h vão para `AcumuladoOficial` 1×/hora.
 4. Todos os comandos usam `> /dev/null 2>&1`: falha de cron é **silenciosa**
    (por isso a salvaguarda de status das sirenes, abaixo).
 5. Os minutos estão escalonados (0-14) de propósito para não rodar vários CGI
@@ -110,9 +113,7 @@ para não coincidir com o `sync_sirenes` (minutos pares) nem com os demais
 existentes): `curl -s -m 120 -X POST https://cemadenrj.preserve.rio.br/api/admin/run/
 -H "X-Admin-Secret: <segredo>" -H "Content-Type: application/json"
 -d '{"action":"ingest","source":"<slug>"}' > /dev/null 2>&1`.
-| `ingest cemaden_mctic`: `13-59/15` → a cada 5 min | fonte de 10 min |
-
-(As três últimas dependem da decisão do usuário por fonte.)
+| ~~`ingest cemaden_mctic`: `13-59/15` → a cada 5 min~~ **FEITO em 03/10/2026** (`3-59/5`, `-m 120`) | fonte de 10 min |
 
 ## 4. Salvaguardas das sirenes (implementadas em 03/10/2026)
 

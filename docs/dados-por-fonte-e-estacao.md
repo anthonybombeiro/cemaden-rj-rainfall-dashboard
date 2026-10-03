@@ -59,7 +59,7 @@ Número de estações com cada dado (leitura nos últimos 3 dias):
 | Wunderground | Meteorológica | 121 | 108 | 103 | 104 | 104 | 103 | 103 | 103 | — |
 | Plugfield | Meteorológica | 19 | 17 | 17 | 17 | 17 | 17 | 17 | 17 | — |
 | Alerta Rio | Pluviométrica | 33 | 32 | 31 | 6 | 6 | 3 | 3 | 0 | — |
-| CEMADEN (MCTIC) | Pluviométrica | 356 | 227 | 227 | — | — | — | — | — | — |
+| CEMADEN (MCTIC) | Pluviométrica (+10 H, 26 G, só chuva) | 392 | 227* | 227* | — | — | — | — | — | — |
 | Niterói (Defesa Civil) | Pluviométrica | 30 | 30 | 30 | — | — | — | — | — | — |
 | INEA | Pluviométrica | 21 | 21 | 21 | — | — | — | — | — | — |
 | INEA | Hidrológica | 73 | 70 | 70 | — | — | — | — | — | 65 |
@@ -73,8 +73,10 @@ Leitura da tabela:
 - Estações "cadastradas" > "com leitura" = estação sem dado recente (sensor parado, offline ou sem comunicação).
 - INMET: 1 estação sem temperatura/umidade (Forte de Copacabana, A652) e 4 sem vento; INMET cadastra 26 estações do
   RJ, todas ativas.
-- CEMADEN nacional e Rio Chuva por Bairro estão implementados mas **sem estações em produção** (endpoint antigo
-  fora do ar / serviço fora do ar em 15/09).
+- *(atualizado 03/10/2026)* **CEMADEN Nacional está em produção** via `cemaden_mctic` (`getJson2.php`): 392 estações
+  (356 pluviométricas A/B, 10 hidrológicas H e 26 geotécnicas G, estas só com chuva); contagem de "com leitura"
+  acima é de antes da mudança. O endpoint antigo (IP de 2015) segue fora de uso. Rio Chuva por Bairro está **sem
+  estações** (serviço fora do ar em 15/09).
 - Sirenes: só as ~85 com pluviômetro acoplado geram chuva; as demais (140) só têm status/acionamento.
 
 ## 3. Matriz fonte × dado: o que a fonte tem e o que gravamos
@@ -149,8 +151,16 @@ Legenda: **✅** gravado · **⚠️** a fonte envia mas **não gravamos** · **
 - Grava chuva (`dado_ultimo`) e, **só nas "Plu/Flu"**, o nível do rio. Nas "Plu" o `nivel_rio` vem como texto e é ignorado.
 - Tipos: 73 hidrológicas (com nível) e 21 pluviométricas.
 
-### CEMADEN nacional e Rio Chuva por Bairro
-- Implementados, **sem estações hoje** (endpoint nacional antigo fora do ar; serviço do Rio fora do ar em 15/09).
+### CEMADEN Nacional (`cemaden_mctic`) — em produção desde 2026
+- `getJson2.php?uf=RJ`: ~10 min por estação; traz `ultimovalor` e acumulados oficiais `acc1hr…acc96hr`. Gravamos o
+  último valor como `chuva_mm` (balde de 10 min), o retrato dos acumulados oficiais no metadado da estação e o
+  histórico oficial de 1/24/96 h (1×/hora) em `AcumuladoOficial`. Cron a cada 5 min. Detalhes completos: `fontes-de-dados.md`
+  (seção "CEMADEN Nacional").
+- Hidrológicas (H) e geotécnicas (G) entram, mas só com chuva (sem nível do rio/umidade do solo).
+- Qualificação das leituras: `LeituraQualidade` (suspeito/inválido; ausência = válida).
+
+### Rio Chuva por Bairro
+- Implementado, **sem estações hoje** (serviço do Rio fora do ar em 15/09).
 
 ## 5. Pontos de atenção para fidelidade dos dados
 
@@ -160,7 +170,8 @@ Observados no código; alguns dependem de validação com a fonte:
    gravar `m15` (janela igual ao intervalo de coleta) e o histórico foi regravado a partir do `raw_payload`.
 2. **Alerta Rio, unidade do vento:** o código assume km/h e divide por 3,6, mas isso está anotado como não confirmado.
 3. **Acumulados por janela** (1 h, 24 h…) das tabelas de Precipitação são **calculados somando as leituras** que
-   gravamos. As janelas maiores que as fontes entregam prontas (24 h, 96 h, mês) não são usadas para conferência.
+   gravamos. Para o CEMADEN Nacional (desde 03/10/2026) os oficiais de 1/24/96 h também são gravados
+   (`AcumuladoOficial`) e a aba "CEMADEN Nacional" mostra os oficiais; para as demais fontes ainda não.
 4. **Extremos do INMET são por hora**, não do dia.
 
 ## 6. Sugestão (a decidir)

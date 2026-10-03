@@ -15,6 +15,7 @@ from core.models import (
     AlertEvent,
     AvisoMauTempo,
     GatilhoPluviometrico,
+    LeituraQualidade,
     Previsao,
     Reading,
     RiskAlert,
@@ -655,6 +656,63 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             data.append(entry)
 
         return data
+
+    @action(detail=False, methods=["get"])
+    def cemaden(self, request):
+        """Tabela "CEMADEN Nacional" (03/10/2026): estações da fonte
+        `cemaden_mctic` (pluviométricas A/B, hidrológicas H e geotécnicas G) com
+        os acumulados OFICIAIS da própria fonte (1, 3, 6, 12, 24, 48, 72 e 96 h,
+        do `getJson2.php` — mesmos números da Rede Salvar), o código oficial
+        da estação, a hora da última leitura e a qualificação dela. Traz
+        também os NOSSOS acumulados de 1/24/96 h (soma dos baldes gravados)
+        para comparar com os oficiais."""
+        stations = list(Station.objects.filter(source__slug="cemaden_mctic"))
+        ids = [s.id for s in stations]
+        nossos = {e["id"]: e for e in self._calcular_precipitacao(stations)}
+
+        # Qualificação da última leitura de cada estação (só exceções existem).
+        qualidade = {}
+        recentes = (
+            LeituraQualidade.objects.filter(
+                reading__station_id__in=ids,
+                reading__timestamp__gte=timezone.now() - datetime.timedelta(hours=6),
+            )
+            .order_by("reading__station_id", "-reading__timestamp")
+            .values("reading__station_id", "reading__timestamp", "qualidade", "motivo")
+        )
+        for q in recentes:
+            qualidade.setdefault(q["reading__station_id"], q)
+
+        data = []
+        for station in stations:
+            meta = station.raw_metadata or {}
+            snap = meta.get("acumulados_oficiais") or {}
+            acc = snap.get("acc") or {}
+            referencia = snap.get("referencia")
+            q = qualidade.get(station.id)
+            # Só vale como "qualificação da leitura atual" se for da própria
+            # última leitura; senão a leitura atual foi avaliada e é válida.
+            q_atual = q if (q and referencia and q["reading__timestamp"].isoformat() == referencia) else None
+            nosso = nossos.get(station.id) or {}
+            data.append(
+                {
+                    "id": station.id,
+                    "name": station.name,
+                    "municipality": canonico_ou_original(station.municipality),
+                    "tipo_cemaden": meta.get("tipo_cemaden") or "",
+                    "codigo": meta.get("cod_estacao") or "",
+                    "idestacao": meta.get("idestacao"),
+                    "referencia": referencia,
+                    "ultimo_mm": snap.get("ultimo"),
+                    "oficial": {j: acc.get(j) for j in ("1", "3", "6", "12", "24", "48", "72", "96")},
+                    "nosso_1h_mm": nosso.get("acumulado_1h_mm"),
+                    "nosso_24h_mm": nosso.get("acumulado_24h_mm"),
+                    "nosso_96h_mm": nosso.get("acumulado_96h_mm"),
+                    "qualidade": q_atual["qualidade"] if q_atual else ("valido" if referencia else None),
+                    "qualidade_motivo": q_atual["motivo"] if q_atual else "",
+                }
+            )
+        return Response(data)
 
     @action(detail=False, methods=["get"])
     def precipitacao(self, request):

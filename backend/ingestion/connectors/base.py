@@ -141,6 +141,13 @@ class BaseConnector:
     def fetch_readings(self, stations: list[dict]) -> list[dict]:
         raise NotImplementedError
 
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        """Gancho opcional (no-op por padrão), chamado ao fim de `run()` com as
+        estações gravadas (`external_id` → Station), os dicts originais de
+        `fetch_stations` e as leituras NOVAS criadas nesta rodada como pares
+        `(dict_da_leitura, Reading)`. Usado pelo CEMADEN Nacional para gravar
+        acumulados oficiais e qualificar leituras."""
+
     def run(self) -> IngestResult:
         # Import tardio para não acoplar o módulo de conectores ao Django
         # no momento da importação (facilita testar conectores isolados).
@@ -192,11 +199,12 @@ class BaseConnector:
             result.errors.append(f"fetch_readings: {exc}")
             reading_dicts = []
 
+        leituras_criadas: list = []
         for rd in reading_dicts:
             station = station_objs_by_external_id.get(rd["external_id"])
             if station is None:
                 continue
-            _, created = Reading.objects.get_or_create(
+            reading_obj, created = Reading.objects.get_or_create(
                 station=station,
                 reading_type=rd["reading_type"],
                 timestamp=rd["timestamp"],
@@ -204,8 +212,15 @@ class BaseConnector:
             )
             if created:
                 result.readings_created += 1
+                leituras_criadas.append((rd, reading_obj))
             else:
                 result.readings_skipped_duplicate += 1
+
+        try:
+            self.pos_ingestao(station_objs_by_external_id, station_dicts, leituras_criadas)
+        except Exception as exc:  # noqa: BLE001 - o gancho nunca pode derrubar a ingestão principal
+            logger.exception("Falha no pós-ingestão de %s", self.slug)
+            result.errors.append(f"pos_ingestao: {exc}")
 
         source.last_ingested_at = timezone.now()
         source.last_ingest_error = "; ".join(result.errors)

@@ -12,6 +12,7 @@ import Footer from "@/components/Footer";
 import HidrologicaTable from "@/components/HidrologicaTable";
 import MeteorologiaPanel from "@/components/MeteorologiaPanel";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
+import CemadenNacionalTable from "@/components/CemadenNacionalTable";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
 import SirenesTable from "@/components/SirenesTable";
@@ -26,6 +27,7 @@ import {
   fetchActiveAlertEvents,
   fetchHidrologicas,
   fetchMunicipioRedecMap,
+  fetchCemadenNacional,
   fetchPrecipitacao,
   fetchSirenes,
   fetchSirenesStatus,
@@ -35,6 +37,7 @@ import {
   SirenesStatus,
   HidrologicaStation,
   normalizeMunicipioName,
+  CemadenNacionalStation,
   PrecipitacaoStation,
   REDECS,
   SireneStation,
@@ -59,7 +62,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // Estações/Contatos) — 5 itens principais cabem bem tanto no menu
 // horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
 type ViewMode = "mapa" | "meteorologia" | "dados" | "sirenes" | "alertas";
-type DadosSub = "precipitacao" | "meteorologico" | "hidrologico" | "ventos";
+type DadosSub = "precipitacao" | "cemaden" | "meteorologico" | "hidrologico" | "ventos";
 
 const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "mapa", label: "Mapa", Icone: Map },
@@ -71,6 +74,7 @@ const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
 
 const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "precipitacao", label: "Precipitação" },
+  { key: "cemaden", label: "CEMADEN Nacional" },
   { key: "meteorologico", label: "Meteorológicos" },
   { key: "hidrologico", label: "Hidrológicos" },
   { key: "ventos", label: "Ventos" },
@@ -97,6 +101,7 @@ export default function Dashboard({
   // usuário, 2026-09-23: "Exportar CSV" saiu de dentro de cada tabela pra
   // economizar altura — ver FilterToggleBar.tsx/tableExportHandle.ts).
   const precipitacaoTableRef = useRef<TableExportHandle>(null);
+  const cemadenTableRef = useRef<TableExportHandle>(null);
   const meteorologicoTableRef = useRef<TableExportHandle>(null);
   const hidrologicoTableRef = useRef<TableExportHandle>(null);
   const ventosTableRef = useRef<TableExportHandle>(null);
@@ -154,6 +159,12 @@ export default function Dashboard({
   const [precipitacaoLoading, setPrecipitacaoLoading] = useState(false);
   const [precipitacaoError, setPrecipitacaoError] = useState<string | null>(null);
   const [precipitacaoLoaded, setPrecipitacaoLoaded] = useState(false);
+
+  // Aba "CEMADEN Nacional" (03/10/2026): acumulados oficiais da fonte.
+  const [cemadenNac, setCemadenNac] = useState<CemadenNacionalStation[]>([]);
+  const [cemadenNacLoading, setCemadenNacLoading] = useState(false);
+  const [cemadenNacError, setCemadenNacError] = useState<string | null>(null);
+  const [cemadenNacLoaded, setCemadenNacLoaded] = useState(false);
 
   // Aba dedicada de estações HIDROLÓGICAS (nível de rio) — pedido do
   // usuário (2026-09-23): nível primeiro, chuva depois, mesmos filtros
@@ -339,6 +350,28 @@ export default function Dashboard({
   }, [viewMode, dadosSub, precipitacaoLoaded]);
 
   useEffect(() => {
+    if (viewMode !== "dados" || dadosSub !== "cemaden" || cemadenNacLoaded) return;
+    let cancelled = false;
+    setCemadenNacLoading(true);
+    fetchCemadenNacional()
+      .then((data) => {
+        if (!cancelled) {
+          setCemadenNac(data);
+          setCemadenNacLoaded(true);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setCemadenNacError(err instanceof Error ? err.message : "Erro desconhecido");
+      })
+      .finally(() => {
+        if (!cancelled) setCemadenNacLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, dadosSub, cemadenNacLoaded]);
+
+  useEffect(() => {
     if (viewMode !== "dados" || dadosSub !== "hidrologico" || hidrologicasLoaded) return;
     let cancelled = false;
     setHidrologicasLoading(true);
@@ -426,6 +459,16 @@ export default function Dashboard({
           (redecFilter.length === 0 || redecFilter.includes(redecOf(s.municipality))),
       ),
     [precipitacao, municipalityFilter, typeFilter, sourceFilter, redecFilter, municipioRedecMap],
+  );
+
+  const filteredCemadenNac = useMemo(
+    () =>
+      cemadenNac.filter(
+        (s) =>
+          (municipalityFilter.length === 0 || municipalityFilter.includes(s.municipality)) &&
+          (redecFilter.length === 0 || redecFilter.includes(redecOf(s.municipality))),
+      ),
+    [cemadenNac, municipalityFilter, redecFilter, municipioRedecMap],
   );
 
   const filteredHidrologicas = useMemo(
@@ -576,6 +619,10 @@ export default function Dashboard({
         ? precipitacaoLoading
           ? "Carregando precipitação…"
           : `${filteredPrecipitacao.length} estações pluviométricas`
+        : dadosSub === "cemaden"
+          ? cemadenNacLoading
+            ? "Carregando CEMADEN Nacional…"
+            : `${filteredCemadenNac.length} estações do CEMADEN Nacional`
         : dadosSub === "hidrologico"
           ? hidrologicasLoading
             ? "Carregando estações hidrológicas…"
@@ -595,6 +642,7 @@ export default function Dashboard({
   const handleRefreshDone = () => {
     if (viewMode === "dados") {
       if (dadosSub === "precipitacao") fetchPrecipitacao().then(setPrecipitacao).catch(() => {});
+      else if (dadosSub === "cemaden") fetchCemadenNacional().then(setCemadenNac).catch(() => {});
       else if (dadosSub === "meteorologico" || dadosSub === "ventos") reloadStations();
       else if (dadosSub === "hidrologico") fetchHidrologicas().then(setHidrologicas).catch(() => {});
     } else if (viewMode === "sirenes") fetchSirenes().then(setSirenes).catch(() => {});
@@ -739,6 +787,7 @@ export default function Dashboard({
             onRefreshDone={handleRefreshDone}
             onExport={() => {
               if (dadosSub === "precipitacao") precipitacaoTableRef.current?.exportar();
+              else if (dadosSub === "cemaden") cemadenTableRef.current?.exportar();
               else if (dadosSub === "meteorologico") meteorologicoTableRef.current?.exportar();
               else if (dadosSub === "hidrologico") hidrologicoTableRef.current?.exportar();
               else if (dadosSub === "ventos") ventosTableRef.current?.exportar();
@@ -754,6 +803,11 @@ export default function Dashboard({
                 {precipitacaoError && (
                   <div className="mt-2 w-full rounded bg-red-50 p-2 text-xs text-red-600">
                     Não foi possível carregar precipitação ({precipitacaoError}).
+                  </div>
+                )}
+                {cemadenNacError && (
+                  <div className="mt-2 w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                    Não foi possível carregar o CEMADEN Nacional ({cemadenNacError}).
                   </div>
                 )}
                 {hidrologicasError && (
@@ -879,6 +933,14 @@ export default function Dashboard({
                   <PrecipitationTable
                     ref={precipitacaoTableRef}
                     stations={filteredPrecipitacao}
+                    municipioRedecMap={municipioRedecMap}
+                    onOpenStation={setPainelEstacaoId}
+                  />
+                )}
+                {dadosSub === "cemaden" && (
+                  <CemadenNacionalTable
+                    ref={cemadenTableRef}
+                    stations={filteredCemadenNac}
                     municipioRedecMap={municipioRedecMap}
                     onOpenStation={setPainelEstacaoId}
                   />

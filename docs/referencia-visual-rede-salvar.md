@@ -151,6 +151,8 @@ tínhamos sobre o tipo `4` (antes registrada como "unclear" no docstring do
 conector) está resolvida: é **Agrometeorológica**, não geotécnica nem
 hidrológica — não precisamos incluir no filtro de chuva mesmo assim.
 
+**Atualização 03/10/2026:** o filtro do conector deixou de ser só `tipoestacao==1`: agora entram também `3` (H, 10 estações) e `10` (G, 26), só com chuva (o JSON não traz nível de rio nem umidade do solo); `4` (3 estações) segue ignorada por não ter nenhum dado. A tabela "CEMADEN Nacional" do painel (aba Dados) espelha esta tabela da Salvar sem as colunas Rede e UF — ver `fontes-de-dados.md`, seção "CEMADEN Nacional".
+
 ## 7. Indicador "monitorado" (ícone de olho)
 
 Ícone `glyphicon-eye-open` mostrado SÓ quando `monitorado == true`, com

@@ -70,6 +70,7 @@ import datetime as dt
 import json
 import logging
 import re
+import time
 import unicodedata
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -89,6 +90,30 @@ URL_CEMADEN_RJ = f"{BASE_URL}?cmd=dadosPluviometros"
 # raspada do portal do CBMERJ — ver docstring do módulo).
 URL_CEMADEN_NACIONAL_JSON = "https://resources.cemaden.gov.br/graficos/interativo/getJson2.php?uf=RJ"
 TIPOESTACAO_PLUVIOMETRICA = 1
+
+# `tipoestacao` do getJson2.php do CEMADEN Nacional -> (sufixo que a Rede Salvar
+# usa no nome, tipo de estacao nosso). Confirmado em 03/10/2026 nas 395
+# estacoes do RJ: 1 = pluviometrica (356, "[A/B]"), 3 = hidrologica (10, "[H]"),
+# 10 = geotecnica (26, "[G]"), 4 = 3 estacoes sem nenhum dado (ignoradas).
+# Estacoes H e G tambem medem chuva (tem `ultimovalor`/`acc*`), mas NAO trazem
+# nivel de rio nesse JSON - por isso entram como `outro` (nao poluem a aba
+# Hidrologicos, que depende de nivel), identificadas por `raw_metadata`.
+TIPOS_CEMADEN = {
+    1: ("A/B", Station.StationType.PLUVIOMETRICA),
+    3: ("H", Station.StationType.OUTRO),
+    10: ("G", Station.StationType.OUTRO),
+}
+# Janelas de acumulado oficial que o JSON entrega (nao ha 120 h aqui, so na
+# Rede Salvar autenticada).
+JANELAS_OFICIAIS_H = (1, 3, 6, 12, 24, 48, 72, 96)
+# Janelas guardadas em `AcumuladoOficial` (historico, 1x por hora por estacao).
+JANELAS_HISTORICO_H = (1, 24, 96)
+
+# O codigo oficial da estacao (ex.: "330580209A") NAO vem no getJson2 - so na
+# API publica do mapa interativo, 1 chamada por estacao. E estavel, entao e
+# buscado aos poucos (orcamento de tempo por rodada) e guardado no metadata.
+URL_MAPSERVICES_ESTACAO = "https://mapservices.cemaden.gov.br/MapaInterativoWS/resources/horario/{id}/1"
+ORCAMENTO_COD_S = 10.0
 
 TZ_RJ = ZoneInfo("America/Sao_Paulo")
 
@@ -223,7 +248,7 @@ def _fetch_cemaden_nacional_json() -> list[dict]:
     resp = requests.get(URL_CEMADEN_NACIONAL_JSON, headers=BROWSER_HEADERS, timeout=30)
     resp.raise_for_status()
     registros = resp.json()
-    linhas = [r for r in registros if r.get("tipoestacao") == TIPOESTACAO_PLUVIOMETRICA]
+    linhas = [r for r in registros if r.get("tipoestacao") in TIPOS_CEMADEN]
     _tabela_cache[URL_CEMADEN_NACIONAL_JSON] = linhas
     return linhas
 
@@ -288,39 +313,81 @@ class CemadenRJConnector(BaseConnector):
         return readings
 
 
+def _valor_oficial(x) -> float | None:
+    """O JSON usa "-" (ou null) quando a estacao nao tem o acumulado."""
+    if x is None or x == "" or x == "-":
+        return None
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def _buscar_cod_estacao(idestacao: int) -> str | None:
+    resp = requests.get(URL_MAPSERVICES_ESTACAO.format(id=idestacao), headers=BROWSER_HEADERS, timeout=6)
+    resp.raise_for_status()
+    return (resp.json().get("estacao") or {}).get("codEstacao")
+
+
 class CemadenMcticConnector(BaseConnector):
-    """CEMADEN Nacional/MCTIC — via API JSON pública e oficial
-    (`resources.cemaden.gov.br/graficos/interativo/getJson2.php`), não
-    mais a página raspada do portal de sirenes. Ver docstring do módulo
-    pra como essa fonte foi encontrada e por que é melhor."""
+    """CEMADEN Nacional/MCTIC - via API JSON publica e oficial
+    (`resources.cemaden.gov.br/graficos/interativo/getJson2.php`), nao
+    mais a pagina raspada do portal de sirenes. Ver docstring do modulo
+    pra como essa fonte foi encontrada e por que e melhor.
+
+    03/10/2026: passou a trazer tambem as estacoes hidrologicas (H) e
+    geotecnicas (G), guardar os acumulados OFICIAIS da fonte (retrato completo
+    em `raw_metadata["acumulados_oficiais"]` + historico de 1/24/96 h em
+    `AcumuladoOficial`), o codigo oficial da estacao e a qualificacao das
+    leituras (`LeituraQualidade`)."""
 
     slug = "cemaden_mctic"
     name = "CEMADEN Nacional/MCTIC"
     website = "https://resources.cemaden.gov.br/graficos/interativo/grafico_CEMADEN.php?uf=RJ"
-    description = "Pluviômetros do CEMADEN nacional em RJ, via API JSON pública oficial (getJson2.php)."
+    description = "Pluviometros do CEMADEN nacional em RJ, via API JSON publica oficial (getJson2.php)."
 
     def _external_id(self, registro: dict) -> str:
-        # idestacao é o ID numérico único e estável do CEMADEN nacional.
+        # idestacao e o ID numerico unico e estavel do CEMADEN nacional.
         return str(registro["idestacao"])
 
     def fetch_stations(self) -> list[dict]:
+        # Codigos oficiais ja descobertos em rodadas anteriores (o metadata e
+        # regravado a cada rodada, entao precisa ser carregado de volta).
+        codigos = {
+            s.external_id: (s.raw_metadata or {}).get("cod_estacao")
+            for s in Station.objects.filter(source__slug=self.slug)
+        }
+        inicio = time.monotonic()
+        busca_ativa = True
+
         stations: dict[str, dict] = {}
         for registro in _fetch_cemaden_nacional_json():
             codibge = registro.get("codibge")
             centro = _centroide_por_codibge(codibge) if codibge is not None else None
             if centro is None:
                 logger.warning(
-                    "%s: codibge %r sem centroide conhecido, estação '%s' (id %s) ignorada.",
+                    "%s: codibge %r sem centroide conhecido, estacao '%s' (id %s) ignorada.",
                     self.slug, codibge, registro.get("nomeestacao"), registro.get("idestacao"),
                 )
                 continue
             external_id = self._external_id(registro)
             lat, lon = centro
+            sufixo, tipo_nosso = TIPOS_CEMADEN[registro["tipoestacao"]]
+
+            cod = codigos.get(external_id)
+            if not cod and busca_ativa and time.monotonic() - inicio < ORCAMENTO_COD_S:
+                try:
+                    cod = _buscar_cod_estacao(registro["idestacao"])
+                except Exception as exc:  # noqa: BLE001 - sem codigo a tabela usa o id numerico
+                    logger.warning("%s: nao consegui buscar o codigo da estacao %s: %s", self.slug, external_id, exc)
+                    busca_ativa = False  # nao gasta o orcamento repetindo uma falha de rede/TLS
+
+            referencia = _parse_data_hora_utc(registro.get("datahoraUltimovalor", ""))
             stations[external_id] = {
                 "external_id": external_id,
                 "name": registro.get("nomeestacao") or f"PCD {registro['idestacao']}",
                 "municipality": registro.get("cidade", ""),
-                "station_type": Station.StationType.PLUVIOMETRICA,
+                "station_type": tipo_nosso,
                 "status": Station.Status.ATIVA,
                 "latitude": lat,
                 "longitude": lon,
@@ -330,6 +397,14 @@ class CemadenMcticConnector(BaseConnector):
                     "codibge": codibge,
                     "uf": registro.get("uf"),
                     "coordenadas_aproximadas": True,
+                    "tipoestacao": registro["tipoestacao"],
+                    "tipo_cemaden": sufixo,
+                    "cod_estacao": cod,
+                    "acumulados_oficiais": {
+                        "referencia": referencia.isoformat() if referencia else None,
+                        "ultimo": _valor_oficial(registro.get("ultimovalor")),
+                        "acc": {str(j): _valor_oficial(registro.get(f"acc{j}hr")) for j in JANELAS_OFICIAIS_H},
+                    },
                 },
             }
         return list(stations.values())
@@ -347,8 +422,44 @@ class CemadenMcticConnector(BaseConnector):
                     "reading_type": Reading.ReadingType.CHUVA_MM,
                     "value": float(valor),
                     "timestamp": timestamp,
-                    # raw_payload vai pra um JSONField — já é tudo str/int/float aqui.
+                    # raw_payload vai pra um JSONField - ja e tudo str/int/float aqui.
                     "raw_payload": registro,
                 }
             )
         return readings
+
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        from django.utils import timezone
+
+        from core.models import AcumuladoOficial, LeituraQualidade
+        from core.qualidade import qualificar_chuva_intervalo
+
+        # 1) Acumulados oficiais 1/24/96 h, uma vez por hora por estacao (a
+        # 1a leitura de cada hora, minuto < 10) - nao infla o banco.
+        for sd in station_dicts:
+            snap = (sd.get("raw_metadata") or {}).get("acumulados_oficiais") or {}
+            referencia = snap.get("referencia")
+            estacao = station_objs.get(sd["external_id"])
+            if not referencia or estacao is None:
+                continue
+            ref_dt = dt.datetime.fromisoformat(referencia)
+            if ref_dt.minute >= 10:
+                continue
+            for janela in JANELAS_HISTORICO_H:
+                valor = (snap.get("acc") or {}).get(str(janela))
+                if valor is None:
+                    continue
+                AcumuladoOficial.objects.get_or_create(
+                    station=estacao, janela_h=janela, referencia=ref_dt, defaults={"valor_mm": valor}
+                )
+
+        # 2) Qualificacao das leituras novas (so a excecao e gravada).
+        agora = timezone.now()
+        for rd, leitura in leituras_criadas:
+            if rd["reading_type"] != Reading.ReadingType.CHUVA_MM:
+                continue
+            q = qualificar_chuva_intervalo(rd["value"], rd["timestamp"], agora)
+            if q:
+                LeituraQualidade.objects.get_or_create(
+                    reading=leitura, defaults={"qualidade": q[0], "motivo": q[1]}
+                )

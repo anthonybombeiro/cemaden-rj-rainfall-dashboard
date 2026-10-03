@@ -308,6 +308,50 @@ export async function fetchPrecipitacao(): Promise<PrecipitacaoStation[]> {
   return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
+/** Linha da tabela "CEMADEN Nacional" (03/10/2026) — espelha a Rede Salvar:
+ * acumulados OFICIAIS da fonte (`getJson2.php`), não os nossos. `oficial` tem
+ * as janelas "1","3","6","12","24","48","72","96" (h). */
+export type CemadenNacionalStation = {
+  id: number;
+  name: string;
+  municipality: string;
+  /** "A/B" pluviométrica, "H" hidrológica, "G" geotécnica. */
+  tipo_cemaden: string;
+  codigo: string;
+  idestacao: number | null;
+  /** Hora (ISO, UTC) da última leitura da estação. */
+  referencia: string | null;
+  ultimo_mm: number | null;
+  oficial: Record<string, number | null>;
+  nosso_1h_mm: number | null;
+  nosso_24h_mm: number | null;
+  nosso_96h_mm: number | null;
+  qualidade: "valido" | "suspeito" | "invalido" | null;
+  qualidade_motivo: string;
+};
+
+export async function fetchCemadenNacional(): Promise<CemadenNacionalStation[]> {
+  const r = await getJson<CemadenNacionalStation[]>("/stations/cemaden/");
+  return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
+}
+
+/** Atraso da última leitura, com as MESMAS faixas da legenda da Rede Salvar:
+ * até 4 h normal; >4 h <120 h azul-escuro; >120 h <30 d oliva; >30 d roxo.
+ * Hora no futuro (> 10 min à frente) = "dado futuro" (relógio vermelho). */
+export function getDelayFaixaSalvar(iso: string | null): {
+  faixa: "ok" | "4h" | "120h" | "30d" | "futuro" | "sem";
+  color: string;
+  label: string;
+} {
+  if (!iso) return { faixa: "sem", color: "#6b7280", label: "Sem leitura" };
+  const diffMin = (Date.now() - new Date(iso).getTime()) / 60000;
+  if (diffMin < -10) return { faixa: "futuro", color: "#dc2626", label: "Data/hora no futuro (dado futuro)" };
+  if (diffMin <= 240) return { faixa: "ok", color: "#111827", label: "Atualizado (até 4 h)" };
+  if (diffMin <= 120 * 60) return { faixa: "4h", color: "#1e3a8a", label: "Atrasado: mais de 4 h e menos de 120 h" };
+  if (diffMin <= 30 * 24 * 60) return { faixa: "120h", color: "#808000", label: "Atrasado: mais de 120 h e menos de 30 dias" };
+  return { faixa: "30d", color: "#7e22ce", label: "Atrasado: mais de 30 dias" };
+}
+
 /** Estação HIDROLÓGICA (nível de rio) — pedido do usuário (2026-09-23):
  * tabela dedicada, nível primeiro, chuva depois. Tem TODAS as mesmas
  * janelas de chuva de `PrecipitacaoStation` (reaproveitadas do backend,

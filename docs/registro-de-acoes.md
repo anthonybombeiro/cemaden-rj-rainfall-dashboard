@@ -68,10 +68,14 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 
 | Verificação da execução dos novos crons após os horários 06:50 (Macaé), 06:52 (REDEMET) e 06:54 (Ecowitt) UTC | produção | **Ecowitt**: última leitura passou de 03:31 para 03:53 BRT (cron rodou). **REDEMET**: de 03:34 para 03:48 BRT (METAR novo coletado). **Macaé**: sem leitura nova porque o portal não tinha dado mais recente que 02:58 BRT (ingestão manual posterior: +0 leituras, 71 duplicadas) — o cron foi criado e validado no crontab, mas a execução não é comprovável por dados novos |
 
+| **CEMADEN Nacional — pacote de fidelidade (03/10/2026):** (1) cron `ingest cemaden_mctic` `13-59/15` → `3-59/5` (`-m 120`) via API2, autorizado pelo usuário; (2) conector ampliado: inclui hidrológicas (H, 10) e geotécnicas (G, 26) só com chuva, guarda código oficial da estação (API pública `mapservices`) e os acumulados oficiais 1/3/6/12/24/48/72/96 h; (3) novos modelos `AcumuladoOficial` (histórico oficial 1/24/96 h, 1×/hora) e `LeituraQualidade` + migração 0016 aplicada em produção; (4) `core/qualidade.py` (válido/suspeito/inválido; só exceção gravada) e gancho `pos_ingestao` em `BaseConnector`; (5) endpoint `GET /api/stations/cemaden/`; (6) bug `name 'time' is not defined` na 1ª ingestão, corrigido e reimplantado | `models.py`, `migrations/0016…`, `qualidade.py`, `base.py`, `cemaden_rj_pluviometros.py`, `views.py`; crontab | ingestão sem erros; 392 estações; 246 códigos já preenchidos (restante nas próximas rodadas); 14 leituras "no futuro" = estações com relógio vermelho na Salvar; crontab relido (13 jobs) |
+| **Aba Dados → "CEMADEN Nacional"** (tabela espelhando a Rede Salvar: sem Rede/UF; ordenada por 1 h; cores de chuva do painel; atraso com 🕒 nas faixas da Salvar; REDEC, atualização e código por último; estação clicável; exportar CSV) | `CemadenNacionalTable.tsx`, `Dashboard.tsx`, `api.ts` | build OK, deploy SFTP (80 arquivos), verificado no navegador em produção (392 estações, códigos e relógio exibidos) |
+| Documentação da fonte CEMADEN Nacional reescrita (acesso, campos, H/G, ANA, qualificação, causa da divergência, cron) e demais `.md` corrigidos | `fontes-de-dados.md`, `dados-por-fonte-e-estacao.md`, `operacao-cron-e-producao.md`, `referencia-visual-rede-salvar.md` | — |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
-2. ~~Cron para Macaé/REDEMET/Ecowitt~~ — **criados**; falta decidir a cadência de `cemaden_mctic` (hoje 15 min, fonte de 10) e investigar quem alterou o cron de sirenes para `*/20`.
+2. ~~Cron para Macaé/REDEMET/Ecowitt~~ — **criados**; `cemaden_mctic` passou a 5 min; falta investigar quem alterou o cron de sirenes para `*/20`.
 3. Validar em campo os códigos de acionamento das sirenes (nomes de 5, 6 e 8) e
    consultar `SireneAcaoTipo` no Admin.
 4. Persistir acumulados e valores oficiais das fontes (CEMADEN, Alerta Rio,

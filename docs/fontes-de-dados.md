@@ -101,26 +101,99 @@ quem for negociar acessos institucionais.
   `https://cemaden.preservess.com.br/api/ingest/readings/`) e
   `INGEST_SHARED_SECRET` (mesmo valor do `.env` do backend em produção).
 
-## CEMADEN Nacional — documentado, não testável a partir deste ambiente
+## CEMADEN Nacional — fonte `cemaden_mctic` (reescrito em 03/10/2026)
 
-> **Atualização 03/10/2026 — o que está em produção hoje.** O IP do
-> WebService de 2015 (abaixo) segue sem uso (`cemaden_nacional.py` existe mas
-> não está no `REGISTRY`). A fonte ativa é `cemaden_mctic`
-> (`CemadenMcticConnector`, em `cemaden_rj_pluviometros.py`), que lê
-> `https://resources.cemaden.gov.br/graficos/interativo/getJson2.php?uf=RJ`
-> — JSON público, ~395 estações no RJ (356 pluviométricas, `tipoestacao == 1`),
-> `idestacao` como `external_id`, `codibge` exato; lat/lon só aproximadas
-> (centroide do município). É a rede "CEMADEN" da plataforma de estações
-> pluviométricas do CEMADEN.
-> **Divergência medida contra a plataforma (03/10/2026 ~02:40 UTC),
-> estação Casimiro de Abreu `G2-330130602a`:** plataforma 1h=5 / 3h=17 /
-> 6h=41 / 12h=79 / 24h=80 mm; nosso banco 1h=2,6 / 3h=8,0 / 6h=19,6 /
-> 12h=32,2 / 24h=33,2 mm (~40%). Causa: o conector grava só `ultimovalor`
-> (balde de ~10 min) de cada rodada de ingestão e descarta os acumulados
-> prontos que o JSON entrega (1h…96h); entre leituras guardadas da estação
-> 18790 há intervalos de 10 a 70 min (rodada irregular), cada balde de
-> 10 min não coletado é chuva perdida. Ver "Auditoria de acumulados de
-> chuva" no fim deste arquivo.
+> O IP do WebService de 2015 (seção abaixo, "legado") segue sem uso
+> (`cemaden_nacional.py` existe mas não está no `REGISTRY`). Esta seção
+> descreve **o que está em produção hoje**.
+
+### Fonte e acesso
+- **Rede Salvar** (`salvar.cemaden.gov.br`, restrita, exige login, com
+  limite de requisições) é a plataforma do CEMADEN que reúne 10 redes (CEMADEN,
+  ANA, INEA, INMET, etc.); a tabela dela traz Rede, UF, estação, últ., 1/3/6/12/24/48/72/96/120 h e
+  hora da atualização. **Não** consumimos a Rede Salvar (a pausa/limite foi
+  respeitado); a tabela "CEMADEN Nacional" do painel espelha só as estações da
+  rede CEMADEN, usando fontes públicas:
+  1. `https://resources.cemaden.gov.br/graficos/interativo/getJson2.php?uf=RJ`
+     — JSON público, **395 estações no RJ**: `tipoestacao 1` = 356
+     pluviométricas (`[A/B]`), `3` = 10 hidrológicas (`[H]`), `10` = 26
+     geotécnicas (`[G]`), `4` = 3 sem nenhum dado (ignoradas). Campos:
+     `idestacao`, `codibge`, `cidade`, `nomeestacao`, `ultimovalor` (balde de
+     ~10 min), `datahoraUltimovalor` (**UTC**, `dd/mm/aa HH:MM`),
+     `acc1hr, acc3hr, acc6hr, acc12hr, acc24hr, acc48hr, acc72hr, acc96hr`
+     (**acumulados oficiais calculados pela fonte**), `tipoestacao`, `status`.
+     **Não traz** 120 h, código da estação, qualificação do dado, nível do
+     rio nem umidade do solo; lat/lon só aproximadas (centroide do município).
+  2. `https://mapservices.cemaden.gov.br/MapaInterativoWS/resources/horario/{idestacao}/{n}`
+     — API pública do mapa interativo, 1 chamada por estação; devolve o
+     **código oficial** (`codEstacao`, ex.: `330580209A`), rede, tipo, cotas
+     e acumulados por hora. Usada só para obter o código (estável): buscado
+     aos poucos (orçamento de 10 s por rodada) e guardado em
+     `raw_metadata["cod_estacao"]`.
+- Conector: `CemadenMcticConnector`, em
+  `backend/ingestion/connectors/cemaden_rj_pluviometros.py`.
+- **Cron:** a cada **5 min** (`3-59/5`, `-m 120`) desde 03/10/2026 (era 15
+  min; a fonte atualiza a cada 10 min). Custo: ~395 estações por rodada, 1
+  download de JSON; sem sobrecarga medida.
+
+### Por que antes divergia (~40% do oficial) e o que mudou
+Medido em 03/10/2026 (Casimiro de Abreu `G2-330130602a`: plataforma 24 h =
+80 mm × nosso 33,2; Vieira: 1 h oficial 5,3 × nosso 2,17; 24 h 32,17 ×
+13,41; 96 h 55,74 × 20,22). Causa: gravávamos só `ultimovalor` (balde de 10
+min) a cada rodada de 15 min — intervalos de 10 a 70 min entre leituras, cada
+balde não coletado era chuva perdida — e descartávamos os acumulados prontos.
+Correções: (1) cron de 5 min; (2) o retrato completo dos acumulados oficiais
+fica em `Station.raw_metadata["acumulados_oficiais"]`; (3) o histórico de
+**1, 24 e 96 h oficiais** é gravado 1×/hora por estação na tabela
+`AcumuladoOficial` (`station`, `janela_h`, `valor_mm`, `referencia`,
+`coletado_em`; único por estação/janela/referência) para comparar com o que
+calculamos somando os baldes; (4) o acumulado passa a poder ser lido do oficial.
+
+### Estações hidrológicas (H) e geotécnicas (G)
+**Entram** (10 H + 26 G), mas como `station_type = outro` e identificadas por
+`raw_metadata["tipo_cemaden"]`, porque este JSON só traz **chuva** delas
+(H e G também têm pluviômetro). Não trazem nível do rio nem umidade do solo
+(isso só existe na Rede Salvar autenticada / mapa interativo). Por isso não
+poluem a aba Hidrológicos (que depende de nível). Aparecem na tabela "CEMADEN
+Nacional" com sufixo `[H]`/`[G]`.
+
+### ANA
+Na Rede Salvar a ANA aparece como mais uma rede, mas **pelo portal do CEMADEN
+não é viável consumi-la** (login + limite de requisições; não é API pública).
+A ANA tem fonte própria: API HidroWeb/Telemetria (`ana.gov.br/hidrowebservice`,
+requer cadastro de credencial) — alternativa recomendada, não implementada.
+
+### Qualificação do dado (válido / suspeito / inválido)
+A Rede Salvar marca cada leitura como válida ou não (relógio vermelho = "dado
+futuro", faixas de atraso). Implementação nossa (`backend/core/qualidade.py`),
+aplicada às **leituras novas** do `cemaden_mctic`; só a **exceção** é gravada
+(`LeituraQualidade`, 1:1 com `Reading`; ausência = válida):
+
+| Regra | Resultado |
+|---|---|
+| valor negativo | inválido |
+| balde de 10 min > 50 mm | inválido |
+| hora da leitura > 10 min à frente do relógio do servidor | inválido ("data/hora no futuro") |
+| balde de 10 min > 20 mm | suspeito |
+
+Validado: as 14 leituras marcadas "no futuro" correspondem às estações que a
+Salvar sinaliza com o relógio vermelho. **Limites:** não há comparação com
+estações vizinhas nem checagem de sensor travado (chuva constante); a Salvar
+tem critérios próprios não públicos. A qualificação **não** altera os
+acumulados oficiais exibidos (são da fonte).
+
+### Tabela "CEMADEN Nacional" (aba Dados)
+`GET /api/stations/cemaden/` → `CemadenNacionalTable.tsx`. Colunas: Estação
+`[A/B|H|G]` (clicável → histórico), Município, Últ., 1/3/6/12/24/48/72/96 h
+(oficiais), **REDEC**, **Atualizado em** (hora local; 🕒 e cor para atraso:
+>4 h <120 h azul-escuro, >120 h <30 d oliva, >30 d roxo, futuro vermelho), e
+**Código** por último. Linhas ordenadas pela chuva de 1 h (maior primeiro);
+cor da linha = faixas de chuva 1 h do painel (Atrasada/Fraca/Moderada/Forte/
+Muito Forte; "atrasada" = >1 h sem atualizar); ⚠ = leitura suspeita/inválida.
+Sem as colunas Rede e UF. Filtros globais Município/REDEC se aplicam; 392
+estações com coordenada conhecida.
+
+### Legado — WebService de 2015 (sem uso)
 
 Documento oficial "WebService – Disponibilização de dados da rede
 pluviométrica e Hidrológica Cemaden" (Cemaden, Grupo de Desenvolvimento de
@@ -1280,7 +1353,7 @@ ignoramos** · `—` = o fornecedor não oferece · `?` = a confirmar.
 |---|---|---|---|---|---|---|---|
 | **5 min** | Alerta Rio (Prefeitura RJ/GeoRio) | pluviógrafo basculante | 31 | `m15` (15 min deslizante) a cada rodada | `m05`, `h01`-`h04`, `h24`, `h96`, `mes` (**I**) | `read_at`, publicado ~5-10 min após | 0,2 mm |
 | **5 min** | Niterói (Defesa Civil/Tecal) | pluviômetro | 30 | `m15` a cada rodada | `m05`, `m10`, `m30`, `h01`…`h720`, `mes` (**I**) | `horaLeitura` (tz não tratada explicitamente) | ? |
-| **10 min** | CEMADEN Nacional (`cemaden_mctic`) | PCDs da rede nacional | 356 | `ultimovalor` (~10 min) a cada rodada | `acc1hr`…`acc96hr` (**I**) | `datahoraUltimovalor` em UTC | ? |
+| **10 min** | CEMADEN Nacional (`cemaden_mctic`) | PCDs A/B + hidrológicas H + geotécnicas G (só chuva) | 392 (356 A/B, 10 H, 26 G) | `ultimovalor` (~10 min), cron a cada **5 min** desde 03/10 | `acc1hr`…`acc96hr` — **retrato em `raw_metadata` + histórico 1/24/96 h em `AcumuladoOficial`** (03/10) | `datahoraUltimovalor` em UTC | qualificação válido/suspeito/inválido (`LeituraQualidade`) |
 | **15 min** | CEMADEN-RJ sirenes (GridLab) | pluviômetro + sirene | 85 com pluviômetro | `tempo1` (janela deslizante), mín. 14 min entre gravações | outras janelas (**I**) | `DataHora` (BRT→UTC) | ? |
 | **15 min** | INEA Alerta de Cheias | pluviômetro + linígrafo | 94 | `dado_ultimo` (15 min) | `chuva_1h/4h/24h/96h/30d` (**I**, por decisão) | `data_hora` (BRT→UTC) | ? |
 | **15 min** | Rio Chuva por Bairro (COR) | **produto agregado** por hexágono H3, não é ponto | hexágonos | `chuva_15min` | 30 min…96 h (**I**) | 1 carimbo global (BRT→UTC fixo) | ? |
@@ -1376,7 +1449,7 @@ lon, altitude_m, tipo, status, município)`.
 
 | Fonte | Validado contra | Resultado | Controle de qualidade hoje | Principais riscos | Melhoria proposta |
 |---|---|---|---|---|---|
-| CEMADEN (`cemaden_mctic`) | plataforma oficial, 03/10/2026 | **~40% do oficial** (24h 33,2 × 80 mm) | nenhum | baldes de 10 min perdidos (gaps 10-70 min) | gravar também `acc1hr…acc96hr` oficiais; ingestão a cada ≤5 min |
+| CEMADEN (`cemaden_mctic`) | plataforma oficial, 03/10/2026 | **~40% do oficial** (24h 33,2 × 80 mm) | nenhum | baldes de 10 min perdidos (gaps 10-70 min) | **FEITO em 03/10/2026:** `acc*` oficiais gravados (`AcumuladoOficial` + `raw_metadata`), cron de 5 min, tabela "CEMADEN Nacional" mostra os oficiais |
 | Alerta Rio | feed oficial, mesmo `read_at` | 1-24 h dentro de ~1-6%; 96 h/mês com excesso (Urca +13%) | nenhum | `m15` sobreposto; atraso de ~9 min é do feed | gravar `m05` + oficiais `h01…h96`; comparar diariamente |
 | Niterói | não validado | — | nenhum | só vale com ingestão exata de 15 min; antes de 25/09 gravava `m05` | usar `h01` como referência/reconciliação |
 | INEA | não validado | — | nenhum | janela de `dado_ultimo` presumida; `verify=False` no TLS; id por nome | guardar `chuva_1h/24h` oficiais; validar certificado |
@@ -1460,7 +1533,7 @@ Situação por fonte (lida no código; "não auditado" = ainda não verificado):
 |---|---|---|
 | Wunderground, Plugfield, Ecowitt Paracambi | total do dia → balde por diferença (`bucket_from_running_daily`, teto 150 mm) | Robusta: autocorrige |
 | CEMADEN-RJ sirenes (`cemaden_rj_sirenes`) | `tempo1` com intervalo mínimo de 14 min (corrigido 02/10) | Boa; 779 sobreposições antigas removidas |
-| CEMADEN Nacional (`cemaden_mctic`) | `ultimovalor` (~10 min) por rodada | **Frágil** — ~40% do oficial medido; API entrega 1h…96h prontos, descartados |
+| CEMADEN Nacional (`cemaden_mctic`) | `ultimovalor` (~10 min) por rodada | **Corrigido em 03/10/2026** — era ~40% do oficial; agora cron de 5 min, acumulados oficiais gravados e exibidos (tabela CEMADEN Nacional); `chuva_mm` ainda é balde, os acumulados oficiais são a referência |
 | Alerta Rio | `m15` por rodada, `read_at` em grade de 5-10 min | Conferido: 1-24 h dentro de ~1-6% do oficial; 96 h/mês com excesso em algumas estações (Urca +13%); atraso de ~9 min é do feed |
 | Niterói (`niteroi`) | `m15` de `horaLeitura` por rodada | Frágil; mesmo desenho do Alerta Rio |
 | INEA (`inea`) | `chuva_mm` da tabela por rodada | Frágil; janela do valor **não auditada** |
