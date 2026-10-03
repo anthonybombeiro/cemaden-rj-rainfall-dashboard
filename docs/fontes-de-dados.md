@@ -182,6 +182,54 @@ estações vizinhas nem checagem de sensor travado (chuva constante); a Salvar
 tem critérios próprios não públicos. A qualificação **não** altera os
 acumulados oficiais exibidos (são da fonte).
 
+### Calibração dos limites da qualificação — análise de 03/10/2026 (proposta adiada para o verão)
+
+**Origem dos limites atuais:** 20 mm (suspeito) e 50 mm (inválido) por balde de
+10 min foram escolhas conservadoras minhas (20 mm/10 min = 120 mm/h, extremo
+mas possível; 50 mm/10 min = 300 mm/h, implausível para pluviômetro basculante),
+**sem base oficial do CEMADEN e sem calibração com dados**. Por isso foi feita
+a análise abaixo.
+
+**Como foi feita:** ação somente leitura `analise_chuva_qc` em
+`POST /api/admin/run/` (`backend/api/admin_views.py`; parâmetros `source` e
+`dias`); não grava nada. Janela: 30 dias até 03/10/2026, fonte `cemaden_mctic`.
+O período teve pouca chuva forte e o histórico é curto (a coleta de 5 min só
+começou em 03/10), então **os números são indicativos, não definitivos**.
+
+| Medida | Resultado |
+|---|---|
+| Leituras / estações com leitura | 58.586 / 274 |
+| Leituras com chuva (> 0) | 16.379 |
+| Percentis (só com chuva) | mediana 0,2 mm; p90 0,6; p99 2,2; p99,9 8,2 |
+| Leituras acima de 5 / 8 / 10 / 12 / 15 / 20 / 30 / 50 mm | 40 / 18 / 8 / 4 / 2 / 2 / 1 / 1 |
+| Maiores valores | 11,8; 12,4; 13,1; 26,4; 51,4 mm |
+
+- O limite de 20 mm marca só 2 leituras em 58 mil; o de 50 mm marca 1 (51,4 mm,
+  claramente erro).
+- **Vizinhança** (mesmo município e mesmo horário de 10 min), leituras >= 8 mm:
+  18 no total; 1 com apoio de vizinha; 8 sem vizinha com dado no horário; 9
+  isoladas (vizinhas quase secas). Caso mais claro: Teresópolis, estação 987,
+  com 13,1 / 12,4 / 10,1 mm em horários próximos e vizinhas em 0. Chuva
+  convectiva é localizada, então "isolada" não prova erro; padrão repetido na
+  mesma estação é indício melhor.
+- **Sensor travado** (>= 6 leituras consecutivas iguais e > 0): 190 sequências,
+  **todas de 0,2 mm** (resolução do pluviômetro numa garoa constante). A regra
+  geraria falso alarme em massa e **não deve ser usada** nesse formato.
+
+**Proposta (NÃO implementada — decisão do usuário em 03/10/2026: reavaliar no
+verão, com mais dados e mais eventos de chuva forte):**
+1. Manter 50 mm como inválido.
+2. Baixar o limite de suspeito de 20 para 10 mm (hoje marcaria ~8 leituras em
+   30 dias).
+3. Regra de vizinhança, só como **suspeito** ("sem apoio de vizinhas"):
+   leitura >= 8 mm cujas vizinhas (mesmo município e horário) estejam abaixo de
+   10% do valor; só vale quando há vizinhas com dado.
+4. Não adotar a regra de sequências iguais.
+
+Enquanto isso, valem os limites atuais (`backend/core/qualidade.py`). Para
+refazer a análise: chamar `analise_chuva_qc` (ex.: `dias: 90`) e comparar com
+esta tabela.
+
 ### Tabela "CEMADEN Nacional" (aba Dados)
 `GET /api/stations/cemaden/` → `CemadenNacionalTable.tsx`. Colunas: Estação
 `[A/B|H|G]` (clicável → histórico), Município, Últ., 1/3/6/12/24/48/72/96 h
