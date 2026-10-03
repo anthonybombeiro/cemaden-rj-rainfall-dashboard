@@ -58,6 +58,64 @@ def _rodar_sirenes() -> str:
         return f"erro: {exc}"
 
 
+SIRENES_SOURCE_SLUG = "cemaden_rj_sirenes"
+# Piso entre dois syncs de sirene disparados por painéis abertos: cada sync faz
+# login completo no portal da GridLab, e vários painéis abertos ao mesmo tempo
+# não podem virar rajada de logins (risco de bloqueio da conta de serviço).
+SIRENES_INTERVALO_MIN_S = 90
+# Acima disso a tela avisa que o status de sirenes pode estar defasado.
+SIRENES_OBSOLETO_S = 300
+
+
+def _ultima_sincronizacao_sirenes():
+    from django.db.models import Max
+
+    from core.models import Station
+
+    return Station.objects.filter(source__slug=SIRENES_SOURCE_SLUG).aggregate(m=Max("updated_at"))["m"]
+
+
+class SirenesStatusView(APIView):
+    """Idade do último sync de sirenes (o `updated_at` das estações é regravado
+    a cada sync que chega ao fim). Existe porque o toque de sirene é dado de
+    segurança: se o sync parar (cron, portal fora, login recusado), o painel
+    mostraria "0 sirenes tocando" — um falso "tudo normal". A tela usa isto
+    para exibir um alerta vermelho quando `obsoleto` for verdadeiro."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.utils import timezone
+
+        ultima = _ultima_sincronizacao_sirenes()
+        idade = (timezone.now() - ultima).total_seconds() if ultima else None
+        return Response(
+            {
+                "ultima_sincronizacao": ultima,
+                "idade_s": idade,
+                "obsoleto": idade is None or idade > SIRENES_OBSOLETO_S,
+            }
+        )
+
+
+class RefreshSirenesView(APIView):
+    """Sync de sirenes disparado pelo painel aberto — reforço do Cron Job do
+    cPanel (que roda a cada 15 min; ver docs/operacao-cron-e-producao.md), não
+    substituição. Pula se o último sync tem menos de SIRENES_INTERVALO_MIN_S."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from django.utils import timezone
+
+        ultima = _ultima_sincronizacao_sirenes()
+        if ultima is not None:
+            idade = (timezone.now() - ultima).total_seconds()
+            if idade < SIRENES_INTERVALO_MIN_S:
+                return Response({"ok": True, "pulado": True, "idade_s": idade})
+        return Response({"ok": True, "pulado": False, "resultado": _rodar_sirenes()})
+
+
 class RefreshRedemetView(APIView):
     """Atualiza SÓ as estações da REDEMET (uma chamada em lote, poucos
     segundos). Chamado pelo próprio painel aberto a cada ~15min (Dashboard.tsx)

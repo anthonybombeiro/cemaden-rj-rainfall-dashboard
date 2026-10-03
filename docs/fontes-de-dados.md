@@ -353,10 +353,289 @@ o pedido original deste projeto desde a primeira conversa.
 O mesmo portal também tem um mapa autenticado (`MapaControle?cmd=
 consultaEstacoesAtualiza`) com as 225 estações da rede de sirenes (140
 sirenes + 85 pluviômetros acoplados), latitude/longitude exata, e status
-em tempo real — inclusive quando uma sirene está TOCANDO. O diretor vai
-gerar um login/senha dedicados pra essa parte (ainda não integrada; exige
-sessão autenticada, diferente da tabela pública). Isso é operacionalmente
-importante: mostrar acionamento de sirene no mapa em tempo real.
+em tempo real — inclusive quando uma sirene está TOCANDO. **Integrado em
+23/09/2026** com um login de serviço dedicado — a documentação completa
+(acesso, campos, pluviômetros, toques de sirene, gatilhos, validações e
+limitações) está na seção **"CEMADEN-RJ — Rede de Sirenes e Pluviômetros
+(GridLab)"** logo abaixo.
+
+## CEMADEN-RJ — Rede de Sirenes e Pluviômetros (GridLab) — documentação completa (03/10/2026)
+
+Fonte `cemaden_rj_sirenes` — a **rede própria do CEMADEN-RJ**: 225 sirenes
+de alerta/alarme sonoro, das quais 85 têm pluviômetro acoplado. É a única
+fonte do projeto que diz se uma **sirene está tocando** e a única com a
+chuva dos pluviômetros que **parametrizam os acionamentos**. Código:
+`backend/ingestion/connectors/cemaden_rj_sirenes.py` (função `sync()`, não
+é um `BaseConnector`), modelos em `backend/core/models.py`, gatilhos em
+`backend/core/gatilhos.py`, tela em `SirenesTable.tsx`.
+
+### 1. Origem, institucional e acesso
+
+- Sistema "Sistema de Alerta e Alarme Sonoro" em
+  `http://sirene.cbmerj.rj.gov.br:8080/sirenesestadorj/` — domínio e
+  servidor do CBMERJ, mas **operado pela GridLab** (rodapé da tela de login)
+  — a mesma empresa do painel comercial `painelcemadenrj.defesacivil.rj.gov.br`.
+  O diretor do CEMADEN-RJ confirmou que a rede é do CEMADEN-RJ e que as 85
+  estações pluviométricas existem "para parametrizar os acionamentos das
+  225" sirenes.
+- **Login de serviço** criado pelo diretor só para esta automação
+  (`CEMADEN_RJ_SIRENES_USERNAME` / `_PASSWORD` no `.env`; nunca a conta
+  pessoal dele). Plain HTTP (sem TLS) na porta 8080.
+- Fluxo (achado lendo o JS de `mapaFrame.jsp`, não é scraping de HTML):
+  1. `POST /LoginControle?cmd=validandologin` (form: `usuario`, `senha`,
+     `Login=Login`) → 302 + cookie `JSESSIONID`. Login errado **não** dá
+     401/403: devolve de novo a tela (texto fixo `IDENTIFIQUE-SE`), é isso
+     que o código testa.
+  2. `GET /MapaControle?cmd=consultaEstacoesAtualiza` (mesma sessão) → JSON
+     com todos os registros (229). ~1,2-1,3 s por chamada, sem degradação em
+     3 chamadas seguidas.
+- Cada sync faz **login completo** (não há token reutilizável) — por isso não
+  se roda a cada minuto: ~1.440 logins/dia contra o sistema deles poderiam
+  acionar defesa antiabuso ou bloquear a conta de serviço, justamente numa
+  emergência.
+- **Cadência do sync — CONFIRMADA no crontab em 03/10/2026:** o cron
+  `sync_sirenes` roda em **`*/15 * * * *`** (a cada 15 min, minutos
+  0/15/30/45), com `curl -m 25`. Em 23/09 ele havia sido criado a cada 2 min;
+  alguém/algo o reduziu para 15 (motivo não registrado). O sync leva ~1,4-1,7 s
+  (medido 3 vezes em 03/10), então 2 min é seguro — a troca no cPanel ficou
+  **pendente** (o classificador de permissões bloqueou a alteração do cron;
+  ver `docs/operacao-cron-e-producao.md`). **Salvaguardas já ativas
+  (03/10):** o painel aberto pede um sync a cada 2 min
+  (`POST /api/refresh/sirenes/`, com piso de 90 s no servidor) e a tela
+  mostra alerta âmbar se o último sync tiver mais de 5 min
+  (`GET /api/sirenes/status/`). Detalhes de impacto: seção 4/7.
+- Fonte pública antiga (`ConsultaPluviometros?cmd=dadosPluviometros`, HTML
+  sem login, 85 linhas, centroide do município) foi **retirada** em 23/09:
+  é subconjunto exato desta (mesmos 85 `external_id`) sem coordenada
+  exata, sem as 140 sirenes sem pluviômetro e sem acionamento. **Mas ela
+  continua no ar e traz acumulados oficiais** (seção 3).
+
+### 2. O que a API devolve por registro
+
+Composição dos 229 registros (`equipamento.tipoEquipamento`): 140 "Sirene"
+pura + 83 "Pluviômetro/Sirene" + 2 "Linímetro/Pluviômetro/Sirene" = **225
+sirenes**; 3 "Cancela" + 1 "Repetidora" ficam de fora (não são sirenes).
+Por REDEC (nas 225): Serrana I 53, Serrana II 44, Baixada Fluminense 40,
+Metropolitana 33, Sul I 25, Costa Verde 20, Sul II 10.
+
+| Campo | Significado | Uso |
+|---|---|---|
+| `idEstacao` | id local **não único** (só 36 valores distintos nas 225; escopado por grupo/cidade) | só referência (`raw_metadata.id_estacao_origem`) |
+| `nomeEstacao`, `descricaoEstacao`, `rua`, `numero`, `bairro`, `cidade`, `estado` | endereço | gravado em `raw_metadata` / `name` / `municipality` |
+| `latitude`, `longitude` | **coordenada exata** | gravado |
+| `nomeRedec`, `grupo{idGrupo,nomeGrupo}` | regional e grupo (26 grupos, alguns cruzam cidades) | `raw_metadata` |
+| `equipamento.tipoEquipamento` | tipo do equipamento | filtro + `tem_pluviometro` |
+| `logStatusEstacaoTemp.fk_idStatusEstacao` | 1 = online/normal; 2 e 3 = offline/manutenção (ícone `offlinemnt*.png`) | `Station.status` (ativa se =1, senão inativa) |
+| `logStatusEstacaoTemp.fk_idStatusAcaoEstacao` | **código de acionamento** (seção 4) | gera `AlertEvent` |
+| `motivoManutencao.motivoManutencao` | texto livre do motivo (vazio nas amostras) | **ignorado** |
+| `pluviometro.*` (só se `idPluviometro != 0`; 85 de 229) | seção 3 | `chuva_mm` |
+| Estações "Linímetro" (2) | têm campos de linímetro | **nível não é ingerido** |
+
+**Chave da estação:** como `idEstacao` não é único e `idGrupo` também não
+resolve, o `external_id` é `"{cidade normalizada}|{nome normalizado}"` —
+único nas 225 (conferido). Mesma estratégia do conector público antigo.
+
+### 3. Pluviômetros (85 estações) — o que fornecem e como gravamos
+
+Campos de `pluviometro`: `idPluviometro`, `tempo1`, `tempo2`, `intervalo`,
+`flagOffLine`, `DataHora` (e `modelo`, que traz uma data aparentemente
+reaproveitada por bug do sistema — **não confiar; usar sempre `DataHora`**).
+
+| Campo | Semântica (memória de 23/09 + código) | Gravado? |
+|---|---|---|
+| `tempo1` | chuva dos "últimos 15 min" — **na prática janela deslizante** (ver abaixo) | **Sim**: `chuva_mm` |
+| `tempo2` | chuva da última 1 h | **Não (ignorado)** |
+| `intervalo` | 15 (confirma a cadência nominal de 15 min) | não |
+| `flagOffLine` | pluviômetro offline | não (só o status da estação é usado) |
+| `DataHora` | hora da última leitura, formato `dd/mm/aaaa HH:MM:SS`, **hora local (BRT)** | sim, convertido p/ UTC |
+
+**Problema da janela deslizante (corrigido em 01/10/2026):** `tempo1` é
+documentado como balde de 15 min, mas durante chuva ativa o portal manda
+`DataHora` com poucos minutos de diferença (18:42, 18:45, 18:51 — vimos 6
+min), cada uma já trazendo os últimos ~15 min. Somar todas (como em toda
+fonte "balde") contava a mesma chuva várias vezes (Coréia 1: 110 mm aqui
+contra 58 mm no painel oficial, achado ao comparar o acumulado de 24 h).
+Correção (commit `a1b26cd`): `INTERVALO_MINIMO_LEITURA_CHUVA = 14 min` —
+leitura que chegue menos de 14 min depois da última **gravada** daquela
+estação é descartada (`readings_skipped_sobrepostas` no resumo do sync); e
+o comando `fix_sirenes_chuva_sobreposta` (endpoint
+`/api/admin/fix-sirenes-chuva-sobreposta/`, dry-run por padrão, `--aplicar`)
+reaplicou a regra ao histórico: **779 leituras sobrepostas removidas**.
+Efeito colateral conhecido: dentro de um surto, mantém-se a primeira
+leitura de cada grupo e **descarta as seguintes, que já continham chuva
+nova** — a chuva entre a leitura mantida e a próxima aceita (≥14 min)
+fica de fora (subamostragem).
+
+**Atraso inerente (hipótese consistente com os dados):** o `DataHora` de
+cada leitura tem segundos 02-04 (HH:30:03) e nosso sync roda no mesmo
+instante (HH:30:04), quando o portal ainda serve a leitura de HH:15 — a
+leitura nova só aparece no ciclo seguinte. Atraso observado nas leituras gravadas: **25-28 min
+em 03/10** (mediana 28 min). Uma estação ou outra (ex.: "Parque Uruguaiana -
+83", 01:00) fica horas parada no portal.
+
+**Acumulados — verificação contra o painel oficial (03/10/2026, comparação
+com a página pública às 02:30 BRT; nosso último dado: 02:15 BRT, 1 ciclo
+atrás):**
+
+| Estação | 24 h oficial | 24 h nosso | + balde 15 min de 02:30 | Resultado 24 h | 96 h oficial / nosso | 1 mês oficial / nosso |
+|---|---|---|---|---|---|---|
+| Gentio1 (Petrópolis) | 18,6 | 17,0 | +1,6 | fecha | 78,0 / 41,6 | 195,4 / 48,2 |
+| Quinta do Lebrão 1 | 25,0 | 23,6 | +1,4 | fecha | 101,8 / 82,8 | 270,2 / 93,4 |
+| Coréia 1 | 51,4 | 50,6 | +0,8 | fecha | 136,6 / 117,6 | 358,0 / 161,0 |
+| Independência-Taquara | 67,2 | 65,8 | +1,4 | fecha | 88,4 / 86,8 | 419,8 / 154,0 |
+| Vale da Revolta 1 | 41,4 | 40,6 | +0,8 | fecha | 98,0 / 83,2 | 304,0 / 114,2 |
+| Maringá (N. Friburgo) | 36,8 | 36,6 | +0,2 | fecha | 64,2 / 64,0 | 257,4 / 73,6 |
+| Arsenal (S. Gonçalo) | 14,6 | 14,0 | +0,6 | fecha | 29,6 / 29,0 | 212,0 / 37,2 |
+| Cantagalo (Angra) | 35,8 | 35,8 | +0,0 | fecha | 83,6 / 83,6 | 296,2 / 101,2 |
+| Buraco do Sapo 1 | 24,0 | 22,4 | +1,6 | fecha | 94,8 / 67,2 | 262,6 / 74,8 |
+| São Sebastião1-Vital | 72,6 | 63,8 | +1,2 | **faltam 7,6** | 103,8 / 88,0 | 475,6 / 169,8 |
+| Santa Rita do Bracuí | 38,0 | 35,0 | +0,0 | **faltam 3,0** | 103,0 / 100,0 | 381,6 / 116,2 |
+| Caleme 1 | 18,8 | 16,4 | +1,0 | **faltam 1,4** | 94,0 / 85,8 | 230,2 / 93,4 |
+
+Leitura: **até 24 h o nosso acumulado bate com o oficial** (9 de 12
+estações fecham exatamente quando se soma o balde de 15 min que ainda não
+tínhamos; as 3 restantes perderam baldes, 1,4 a 7,6 mm). **Em 96 h e "1
+mês" há déficit grande** (ex.: Gentio1 96 h 53% do oficial; 1 mês 25%).
+Causas: (1) o histórico só existe desde 23/09 (≈10 dias; a janela de 1 mês
+nunca esteve completa); (2) a subamostragem em surtos e a limpeza de 01/10
+removeram baldes com chuva real; (3) execuções do sync perdidas. A
+definição exata de "1 Mês" do portal (corrido de 30 dias ou calendário) não
+foi confirmada.
+
+**O que o portal oferece e nós não guardamos:** a página pública
+`ConsultaPluviometros?cmd=dadosPluviometros` (tabela `#chuva-limits`,
+ISO-8859-1, sem login) traz por pluviômetro **acumulados oficiais** de 3
+min, 15 min, 1 h, 4 h, 12 h, 24 h, 48 h, 72 h, 96 h e 1 mês, com
+`Data e Hora` da última leitura — exatamente a verdade-terreno que
+falta para auditar e para reconciliar o nosso acumulado. Também existe
+`tempo2` (1 h) no JSON autenticado.
+
+**Sirenes sem pluviômetro (140):** os gatilhos usam uma **estação de
+referência (REF)** — pré-preenchida pelo comando `populate_sirene_ref` com a
+estação pluviométrica/meteorológica (ou sirene com pluviômetro) mais
+próxima **num raio de 2 km** (editável no Admin). Em 03/10: 120 das 140
+têm REF; **20 ficam sem referência** (sem chuva para gatilho).
+
+### 4. Toques de sirene (acionamento)
+
+Fonte do dado: `logStatusEstacaoTemp.fk_idStatusAcaoEstacao` +
+`fk_idStatusEstacao`. Regra herdada da lógica de ícone do próprio portal
+(`mapaFrame.jsp`): **4 e 0 = normal / retorno à normalidade**; **1 =
+estação mobilizada** (o portal conta "Estações Mobilizadas" com
+`statusAcao == 1`); **qualquer outro código com a estação ONLINE
+(`fk_idStatusEstacao == 1`) = ícone "tocando"**. Os nomes dos demais
+códigos (Aviso de Chuva, Teste de Manutenção etc.) **não estão** no portal
+acessível com o login de serviço.
+
+- **Regra no código (`sync()`):** `tocando = online AND acao ∉ normais`. Cada
+  mudança de código fecha o `AlertEvent` aberto (`resolved_at`) e abre outro
+  — `AlertEvent.value` guarda o **código**. Eventos ligados à `AlertRule`
+  "guarda-chuva" **"Sirene de alarme tocando"** (severidade `alerta_maximo`;
+  `reading_type/threshold` do modelo são exigidos mas não usados).
+- **`SireneAcaoTipo`** (editável no Admin: "Tipos de acionamento de
+  sirene"): `codigo`, `nome`, `categoria` (normal / aviso / teste /
+  mobilização / outro), `observacao`. Códigos novos são **criados sozinhos**
+  pelo sync como "Acionamento código N (nome a confirmar)". Seed: 0 e 4
+  normais, 1 mobilização; 2 e 3 vieram como "nome a confirmar". **Não
+  consegui ler a tabela em produção** — os nomes atuais dos códigos 5, 6 e 8
+  precisam ser conferidos no Admin.
+- **Validação operacional:** a leitura dos códigos é do JS do portal; o
+  diretor autorizou seguir (23/09) **sem validação linha a linha**. Ainda
+  em aberto: testar/simular um acionamento e ver o código mudar, ou
+  perguntar o significado de cada código.
+- **Não chamar comandos de acionamento do portal** (regra de segurança do
+  projeto: só leitura).
+- **O que existe em produção (23/09 a 02/10/2026):** 108 eventos, 72
+  estações diferentes; por código:
+
+| Código | Eventos | Duração observada (mín / média / máx) | Observação |
+|---|---|---|---|
+| 1 (mobilização) | 8 | 6 / 50 / 67 min | |
+| 5 | 23 | 2 / 7 / 30 min | nome a confirmar |
+| 6 | 76 | 5 / 13 / 19 min | nome a confirmar; 70% dos eventos |
+| 8 | 1 | 15 min | nome a confirmar |
+
+  Por dia: 23/09 14, 24/09 2, 25/09 5, 28/09 1, 29/09 14, 30/09 25, 01/10 46,
+  02/10 1. Hoje (03/10) há 0 sirenes tocando e 9 das 225 estão inativas (5
+  delas com pluviômetro).
+- **Limitação importante de tempo:** `triggered_at` é o **horário em que o
+  nosso sync viu** o código (`auto_now_add`), não o horário em que o portal
+  acionou; `resolved_at` idem. Com sync de ~15 min, a duração tem erro de
+  até ±15 min, e **toques mais curtos que o intervalo do sync podem não ser
+  vistos** (os eventos de 2 min provavelmente vêm de syncs manuais). Para
+  registro histórico fiel do toque, o ideal é sync de 1-2 min (o que a
+  cadência de 23/09 pretendia) ou buscar o histórico de acionamento no
+  portal.
+- **Exibição:** ícone no mapa (pulsa em vermelho quando tocando),
+  **banner global** no topo (atualiza a cada 1 min via `/api/alerts/`),
+  **push do navegador** (`Notification API`, só com o painel aberto e
+  permissão concedida) e aba "Sirenes".
+- **Endpoint `GET /api/stations/sirenes/`:** por sirene devolve
+  `tocando`, `tocando_desde`, `acao_codigo/nome/categoria`,
+  `ultimo_acionamento_nome/fim`, `status_estacao`, `chuva_1h/24h/96h/30d_mm`
+  (da própria estação ou do REF; `chuva_1h_mm = null` = sem leitura na
+  última hora), `ultima_chuva_mm/em`, `tipo_sirene`, `risco_sirene`,
+  `ref_*`, `gatilho_definido` e `gatilhos` (GI-GIV).
+
+### 5. Gatilhos pluviométricos de acionamento (GI-GIV) e campos manuais
+
+- **Gatilhos** (planilha da Defesa Civil, 29/09/2026), tabela
+  `GatilhoPluviometrico` por município — **só 13 municípios** com gestão;
+  os demais ficam "--" (não "normal"): GI = chuva 1 h; GII = 1 h **e** 24 h;
+  GIII = 1 h **e** 96 h; GIV = 1 h **e** 30 dias (avaliados de forma
+  independente). Bandas (`core/gatilhos.py`): **condicionado** (amarelo)
+  entre 95% e 110% do limite; **obrigatório** (laranja) ≥ 110%;
+  **acionado** (vermelho) = sobreposição do estado real "tocando".
+- **Consequência da qualidade dos dados:** as entradas são os acumulados
+  1 h/24 h/96 h/30 d calculados por nós a partir de `tempo1`. Pelas
+  medições acima, **GI e GII (1 h / 24 h) são confiáveis; GIII (96 h) e
+  sobretudo GIV (30 dias) tendem a subestimar** — o histórico só tem ≈10
+  dias e houve perda de baldes. Um gatilho GIV pode deixar de aparecer
+  por falta de histórico, não por falta de chuva. Convém alimentar 96 h e
+  30 d com os acumulados oficiais do portal (seção 3).
+- **Campos manuais por sirene** (`Station`): `tipo_sirene` (EAA /
+  EAA+P derivados automaticamente por ter ou não pluviômetro; EAA+H e
+  EAA+M atribuídos à mão quando existirem — hoje 140 EAA e 85 EAA+P);
+  `risco_sirene` (geo / hidro / geo+hidro — **classificação real ainda não
+  feita**: as 225 estão com o padrão "geo" aplicado em massa em 29/09 pelo
+  comando `set_risco_sirene_padrao`, para ir ajustando no Admin);
+  `sirene_ref` (REF, acima).
+
+### 6. Linha do tempo das mudanças nesta fonte
+
+- **23/09** — achado da API autenticada e conector `cemaden_rj_sirenes`
+  (commit `1f71c9f`); cron de 2 min; ícone no mapa + banner; conector público
+  `cemaden_rj` retirado (3.447 objetos órfãos apagados em produção).
+- **24-25/09** — aba "Sirenes"; códigos de acionamento editáveis
+  (`SireneAcaoTipo`); sync passa a seguir o portal (só "acionada" se online),
+  um `AlertEvent` por código; coluna "Chuva 1h".
+- **29/09** — gatilhos GI-GIV, `tipo_sirene`, `risco_sirene`, REF e
+  acumulados 24 h/96 h/30 d na tabela.
+- **01/10** — correção da chuva inflada por sobreposição (`tempo1`
+  deslizante): intervalo mínimo de 14 min + limpeza de 779 leituras.
+- **03/10** — esta auditoria (cadência efetiva ≈15 min; déficit em 96 h/30
+  d; ver abaixo).
+
+### 7. Limitações, riscos e perguntas em aberto
+
+1. **Significado dos códigos de acionamento** não validado em campo; nomes
+   de 5, 6 e 8 desconhecidos (conferir `SireneAcaoTipo`).
+2. **Cadência do sync** (≈15 min observados × 2 min planejados): define o
+   erro de tempo de todos os toques. Conferir o crontab.
+3. **Histórico de chuva curto** (desde 23/09) e **perda de baldes** em surtos
+   e execuções falhas: 96 h e 30 d subestimados.
+4. **`tempo1` é janela deslizante** — o contador oficial de 15 min não é
+   reproduzível por soma simples; a página pública já traz os acumulados
+   oficiais.
+5. **`tempo2` (1 h), `flagOffLine`, `motivoManutencao` e a data
+   `modelo`** não são usados; o nível das 2 estações com linímetro não é
+   ingerido.
+6. **20 sirenes sem REF** e **225 sirenes com risco "geo"** por padrão
+   (classificação real pendente).
+7. **Sem validação de qualidade** (faixa/persistência) nas leituras de chuva;
+   pluviômetro offline é percebido pelo atraso, não por flag.
+8. **Transporte em HTTP puro (8080)** e login em cada sync; credencial de
+   serviço única — se bloqueada, perde-se também o alerta de toque.
 
 ## Marinha do Brasil (CHM/DHN) — plano de obtenção de dados (levantamento em 01/10/2026)
 

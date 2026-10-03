@@ -28,8 +28,11 @@ import {
   fetchMunicipioRedecMap,
   fetchPrecipitacao,
   fetchSirenes,
+  fetchSirenesStatus,
   fetchStations,
   refreshRedemet,
+  refreshSirenes,
+  SirenesStatus,
   HidrologicaStation,
   normalizeMunicipioName,
   PrecipitacaoStation,
@@ -235,6 +238,43 @@ export default function Dashboard({
   }, [pushEnabled]);
 
   const reloadStations = () => fetchStations().then(setStations).catch(() => {});
+
+  // Segurança do toque de sirene (pedido do usuário, 03/10/2026: "NUNCA podem
+  // falhar — salva vidas"). (1) O painel aberto pede um sync de sirenes a cada
+  // 2 min como REFORÇO do cron do cPanel (que roda a cada 15 min); o servidor
+  // limita a frequência real. (2) Consulta a idade do último sync a cada 1 min
+  // e, se estiver velha (ou o servidor não responder), mostra alerta
+  // vermelho — senão "0 sirenes tocando" seria um falso "tudo normal".
+  const [sirenesStatus, setSirenesStatus] = useState<SirenesStatus | null>(null);
+  const [sirenesStatusErro, setSirenesStatusErro] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const consultar = () =>
+      fetchSirenesStatus()
+        .then((s) => {
+          if (cancelled) return;
+          setSirenesStatus(s);
+          setSirenesStatusErro(false);
+        })
+        .catch(() => {
+          if (!cancelled) setSirenesStatusErro(true);
+        });
+    const reforcar = () => {
+      refreshSirenes()
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) consultar();
+        });
+    };
+    reforcar();
+    const idConsulta = setInterval(consultar, 60_000);
+    const idReforco = setInterval(reforcar, 120_000);
+    return () => {
+      cancelled = true;
+      clearInterval(idConsulta);
+      clearInterval(idReforco);
+    };
+  }, []);
 
   // Sem Cron Job pra REDEMET no cPanel (o usuário não consegue adicionar), o
   // próprio painel aberto dispara a ingestão a cada 15min — METAR sai de
@@ -626,6 +666,17 @@ export default function Dashboard({
             </button>
           </div>
         </div>
+        {(sirenesStatusErro || sirenesStatus?.obsoleto) && (
+          <div className="bg-amber-500 px-4 py-1.5 text-sm font-bold text-black">
+            ⚠ ATENÇÃO: o status das sirenes está DESATUALIZADO
+            {sirenesStatus?.idade_s != null
+              ? ` há ${Math.round(sirenesStatus.idade_s / 60)} min`
+              : sirenesStatusErro
+                ? " (sem resposta do servidor)"
+                : ""}
+            . O painel pode NÃO estar mostrando toques de sirene — confirme pelo portal do CBMERJ.
+          </div>
+        )}
         {activeAlertEvents.length > 0 && (
           <div className="animate-pulse bg-red-600 px-4 py-1.5 text-sm font-bold text-white">
             🔊 {activeAlertEvents.length === 1 ? "1 sirene tocando agora" : `${activeAlertEvents.length} sirenes tocando agora`}

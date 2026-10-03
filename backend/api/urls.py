@@ -14,7 +14,7 @@ from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeV
 from .inea_radar_views import INEARadarImageryView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetSateliteImageryView
-from .refresh_views import RefreshNowView, RefreshRedemetView
+from .refresh_views import RefreshNowView, RefreshRedemetView, RefreshSirenesView, SirenesStatusView
 from .views import (
     AlertEventViewSet,
     AvisoMauTempoViewSet,
@@ -58,6 +58,8 @@ urlpatterns = [
     path("auth/change-password/", ChangePasswordView.as_view(), name="auth-change-password"),
     path("refresh/", RefreshNowView.as_view(), name="refresh-now"),
     path("refresh/redemet/", RefreshRedemetView.as_view(), name="refresh-redemet"),
+    path("refresh/sirenes/", RefreshSirenesView.as_view(), name="refresh-sirenes"),
+    path("sirenes/status/", SirenesStatusView.as_view(), name="sirenes-status"),
     path("imagery/satelite/", RedemetSateliteImageryView.as_view(), name="imagery-satelite"),
     path("imagery/radar/", RedemetRadarImageryView.as_view(), name="imagery-radar"),
     path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),

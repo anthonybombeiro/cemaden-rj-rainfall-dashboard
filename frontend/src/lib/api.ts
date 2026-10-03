@@ -57,6 +57,22 @@ export async function refreshRedemet(): Promise<{ ok: boolean; resultado: string
   return postComCsrf("/refresh/redemet/", {});
 }
 
+/** Reforço do cron: o painel aberto pede um sync de sirenes (o servidor pula
+ * se o último tem menos de ~90 s). */
+export async function refreshSirenes(): Promise<{ ok: boolean; pulado: boolean }> {
+  return postComCsrf("/refresh/sirenes/", {});
+}
+
+export interface SirenesStatus {
+  ultima_sincronizacao: string | null;
+  idade_s: number | null;
+  obsoleto: boolean;
+}
+
+export async function fetchSirenesStatus(): Promise<SirenesStatus> {
+  return getJson<SirenesStatus>("/sirenes/status/");
+}
+
 /** Chamado 1x antes de mostrar a tela de login, só pra garantir que o
  * cookie `csrftoken` existe (necessário mais tarde pro logout). */
 export async function ensureCsrfCookie(): Promise<void> {
