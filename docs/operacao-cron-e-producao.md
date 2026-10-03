@@ -19,7 +19,7 @@ memória local do assistente).
   usuário — vendorizar por SFTP em `~/.local/lib/python3.9/site-packages`
   ou embutir o arquivo no projeto (foi o caso do bundle de CA do INEA).
 
-## 2. Crontab lido em 03/10/2026 (via API2 do cPanel, segredo omitido)
+## 2. Crontab (lido via API2 do cPanel, segredo omitido; reconferido em 03/10/2026 após a alteração do usuário)
 
 | Minuto | Comando (`/api/admin/run/`) | Timeout curl |
 |---|---|---|
@@ -30,15 +30,16 @@ memória local do assistente).
 | `10-59/15` | `sync_risk_alerts` | 280 s |
 | `13-59/15` | `ingest cemaden_mctic` | 280 s |
 | `14-59/15` | `ingest niteroi` | 280 s |
-| **`*/15`** | **`sync_sirenes`** | 25 s |
+| **`*/2`** | **`sync_sirenes`** (alterado pelo usuário no cPanel em 03/10/2026; antes `*/15`, 25 s) | 60 s |
 | `1-59/15` | `ingest inea` | 25 s |
 | `0,30` | `sync_avisos_mau_tempo` | 25 s |
 
 ### Achados do crontab
 
-1. **`sync_sirenes` está a cada 15 min** (planejado: 2 min desde 23/09). O sync
-   dura ~1,5 s. Toques mais curtos que 15 min podem passar despercebidos e todo
-   `triggered_at`/`resolved_at` tem erro de até ±15 min.
+1. **`sync_sirenes` estava a cada 15 min** (planejado: 2 min desde 23/09) —
+   **corrigido para `*/2` pelo usuário em 03/10/2026** e verificado: sync às
+   06:16:03 e 06:18:03 UTC com o painel fechado. O sync dura ~1,5 s. Agora o
+   erro de tempo de `triggered_at`/`resolved_at` cai para ~2 min.
 2. **Sem cron**: `macae_ufrj`, `redemet`, `ecowitt_paracambi`,
    `rio_chuva_bairro`. Macaé só atualiza no botão "Atualizar agora" (explica o
    atraso/estações paradas). REDEMET passou a ser atualizado pelo painel aberto
@@ -74,7 +75,7 @@ memória local do assistente, nome do token "cemadenrjpreserveriobr").
 
 | Ação | Motivo |
 |---|---|
-| `sync_sirenes`: `*/15` → **`*/2`**, `curl -m 60` | toque de sirene salva vidas; sync de 1,5 s |
+| ~~`sync_sirenes`: `*/15` → `*/2`, `curl -m 60`~~ **FEITO em 03/10/2026** | toque de sirene salva vidas; sync de 1,5 s |
 | Criar `ingest macae_ufrj` (ex.: `5-59/15`, `-m 280`) | Macaé sem cron |
 | Criar `ingest redemet` (ex.: `7-59/15`) | histórico de METAR |
 | Criar `ingest ecowitt_paracambi` (ex.: `9-59/15`) | sem cron |
@@ -95,8 +96,7 @@ sirenes tocando" — um falso "tudo normal".
    sync (`max(Station.updated_at)` da fonte). Se `> 300 s` (ou o servidor não
    responde) o topo do painel mostra faixa âmbar: "status das sirenes está
    DESATUALIZADO… confirme pelo portal do CBMERJ".
-3. Limite conhecido: com o painel **fechado**, vale só o cron (15 min até a
-   alteração pendente acima).
+3. Com o painel **fechado** vale só o cron, agora a cada 2 min (verificado).
 
 Ideias ainda não feitas: sync de sirenes também por GitHub Actions
 (redundância fora do HostGator); gravar `ultimo_sync_ok`/`ultimo_erro` num

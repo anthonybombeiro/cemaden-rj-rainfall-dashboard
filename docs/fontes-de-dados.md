@@ -393,13 +393,14 @@ chuva dos pluviômetros que **parametrizam os acionamentos**. Código:
   se roda a cada minuto: ~1.440 logins/dia contra o sistema deles poderiam
   acionar defesa antiabuso ou bloquear a conta de serviço, justamente numa
   emergência.
-- **Cadência do sync — CONFIRMADA no crontab em 03/10/2026:** o cron
-  `sync_sirenes` roda em **`*/15 * * * *`** (a cada 15 min, minutos
-  0/15/30/45), com `curl -m 25`. Em 23/09 ele havia sido criado a cada 2 min;
-  alguém/algo o reduziu para 15 (motivo não registrado). O sync leva ~1,4-1,7 s
-  (medido 3 vezes em 03/10), então 2 min é seguro — a troca no cPanel ficou
-  **pendente** (o classificador de permissões bloqueou a alteração do cron;
-  ver `docs/operacao-cron-e-producao.md`). **Salvaguardas já ativas
+- **Cadência do sync — conferida no crontab em 03/10/2026:** o cron
+  `sync_sirenes` estava em `*/15` (a cada 15 min, `curl -m 25`); em 23/09 havia
+  sido criado a cada 2 min e alguém/algo o reduziu para 15 (motivo não
+  registrado). O sync leva ~1,4-1,7 s (medido 3 vezes). **O usuário alterou
+  para `*/2` (`curl -m 60`) direto no cPanel em 03/10/2026 e o assistente
+  verificou**: crontab correto e syncs às 06:16:03 e 06:18:03 UTC com o painel
+  fechado (a alteração pelo assistente havia sido bloqueada pelo classificador
+  de permissões; ver `docs/operacao-cron-e-producao.md`). **Salvaguardas ativas
   (03/10):** o painel aberto pede um sync a cada 2 min
   (`POST /api/refresh/sirenes/`, com piso de 90 s no servidor) e a tela
   mostra alerta âmbar se o último sync tiver mais de 5 min

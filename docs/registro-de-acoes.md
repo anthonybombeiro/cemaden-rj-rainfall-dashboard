@@ -59,9 +59,11 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | Copiadas do `.env` do C: para o do H: (gitignored) 4 variáveis ausentes: `CEMADEN_RJ_SIRENES_USERNAME/PASSWORD`, `ECOWITT_PARACAMBI_API_KEY/APPLICATION_KEY` | `backend/.env` (local) | só nomes conferidos; valores não exibidos |
 | Autorização do usuário: o token do cPanel (memória local) pode ser usado para gerenciar cron | memória local | uso de leitura funcionou; escrita bloqueada (acima) |
 
+| O **usuário alterou o cron de sirenes para `*/2` (`-m 60`) direto no cPanel**; o assistente **conferiu** via `fetchcron` (cron correto, demais crons intactos, aspas do `-d` íntegras) e **verificou a execução** com o painel fechado: syncs às 06:16:03 e 06:18:03 UTC (cadência de 2 min) | cPanel; `operacao-cron-e-producao.md` | confirmado |
+
 ## Pendências abertas (03/10/2026)
 
-1. Aplicar `sync_sirenes` a cada 2 min no cron (bloqueado por permissão).
+1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
 2. Decidir, por fonte, cron para Macaé/REDEMET/Ecowitt e cadência de `cemaden_mctic`.
 3. Validar em campo os códigos de acionamento das sirenes (nomes de 5, 6 e 8) e
    consultar `SireneAcaoTipo` no Admin.
