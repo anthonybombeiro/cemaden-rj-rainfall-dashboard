@@ -13,6 +13,7 @@ psycopg2-binary==2.9.9
 # config/settings.py.
 PyMySQL==1.1.1
 requests==2.32.3
+certifi==2025.1.31
 python-dotenv==1.0.1
 # celery/redis: só o pacote precisa existir (config/__init__.py importa
 # config.celery no boot do Django). Não roda worker/beat no HostGator —

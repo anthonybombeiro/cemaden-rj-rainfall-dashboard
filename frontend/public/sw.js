@@ -12,7 +12,7 @@
  * "esqueleto" do app (HTML/JS/CSS/ícones) é cacheado, nunca dado.
  */
 
-const CACHE_VERSION = "cemadenrj-v1";
+const CACHE_VERSION = "cemadenrj-v2";
 const APP_SHELL = ["/", "/manifest.json", "/favicon.ico", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -36,6 +36,21 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+
+  // Nunca interceptar requisição de outra origem (pedido do usuário,
+  // 02/10/2026: integrações com APIs públicas de terceiros — radar de
+  // Niterói, Alerta Rio, INEA — chamadas DIRETO do navegador). Bug real
+  // encontrado: sem esse corte, a regra "network-first com fallback pro
+  // cache" lá embaixo também capturava essas chamadas; se o
+  // `cache.put()` de uma resposta cross-origin falhasse (comum —
+  // respostas "opacas"/sem CORS liberado não podem ser cacheadas), o
+  // `.catch()` caía no fallback `caches.match("/")` e devolvia o HTML do
+  // NOSSO painel no lugar da resposta da API externa — o fetch() da
+  // página recebia "sucesso" (200) com HTML em vez do JSON esperado, o
+  // `.json()` falhava silenciosamente e nenhuma imagem aparecia, sem
+  // nenhum erro visível de rede. Cross-origin passa direto pro navegador,
+  // sem passar pelo Service Worker.
+  if (url.origin !== self.location.origin) return;
 
   // Só GET faz sentido cachear; POST (login, refresh, etc.) sempre direto
   // pra rede.

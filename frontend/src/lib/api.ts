@@ -53,6 +53,10 @@ export async function refreshNow(): Promise<{ ok: boolean; resultados: Record<st
   return postComCsrf("/refresh/", {});
 }
 
+export async function refreshRedemet(): Promise<{ ok: boolean; resultado: string }> {
+  return postComCsrf("/refresh/redemet/", {});
+}
+
 /** Chamado 1x antes de mostrar a tela de login, só pra garantir que o
  * cookie `csrftoken` existe (necessário mais tarde pro logout). */
 export async function ensureCsrfCookie(): Promise<void> {

@@ -29,6 +29,7 @@ import {
   fetchPrecipitacao,
   fetchSirenes,
   fetchStations,
+  refreshRedemet,
   HidrologicaStation,
   normalizeMunicipioName,
   PrecipitacaoStation,
@@ -122,7 +123,7 @@ export default function Dashboard({
   // Painel de filtros flutuante sobre o mapa — pedido do usuário: no mapa o
   // filtro precisa ficar sobre o mapa (não empurrando layout), escondível
   // por um botão que funcione em mouse (desktop) e touch (celular/tablet).
-  const [mapFiltersOpen, setMapFiltersOpen] = useState(true);
+  const [mapFiltersOpen, setMapFiltersOpen] = useState(false);
   // Sub-abas da aba Mapa (pedido do usuário, 2026-09-24): "Estações" (mapa
   // antigo) e "Contatos" (mapa de REDECs com contatos de prefeitos/gestores).
   const [mapaSub, setMapaSub] = useState<"estacoes" | "contatos">("estacoes");
@@ -234,6 +235,26 @@ export default function Dashboard({
   }, [pushEnabled]);
 
   const reloadStations = () => fetchStations().then(setStations).catch(() => {});
+
+  // Sem Cron Job pra REDEMET no cPanel (o usuário não consegue adicionar), o
+  // próprio painel aberto dispara a ingestão a cada 15min — METAR sai de
+  // hora em hora, então é mais que suficiente — e recarrega as estações.
+  useEffect(() => {
+    let cancelled = false;
+    const atualizar = () =>
+      refreshRedemet()
+        .then(() => {
+          if (!cancelled) reloadStations();
+        })
+        .catch(() => {});
+    atualizar();
+    const intervalo = setInterval(atualizar, 15 * 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalo);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

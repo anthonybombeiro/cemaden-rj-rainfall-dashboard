@@ -58,6 +58,21 @@ def _rodar_sirenes() -> str:
         return f"erro: {exc}"
 
 
+class RefreshRedemetView(APIView):
+    """Atualiza SÓ as estações da REDEMET (uma chamada em lote, poucos
+    segundos). Chamado pelo próprio painel aberto a cada ~15min (Dashboard.tsx)
+    — a REDEMET não tinha Cron Job no cPanel (que o usuário não controla pra
+    adicionar), então só rodava no "atualizar agora" manual: 1 única leitura
+    guardada por estação desde o início, sem histórico (pedido do usuário,
+    02/10/2026). Como o conector busca as últimas 3h de METAR e grava com
+    get_or_create, chamar de vários painéis ao mesmo tempo é inofensivo."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        return Response({"ok": True, "resultado": _rodar_conector("redemet")})
+
+
 class RefreshNowView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -11,9 +11,10 @@ from .admin_views import (
     SyncAvisosMauTempoSuperuserView,
 )
 from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeView, ProfileUpdateView
+from .inea_radar_views import INEARadarImageryView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetSateliteImageryView
-from .refresh_views import RefreshNowView
+from .refresh_views import RefreshNowView, RefreshRedemetView
 from .views import (
     AlertEventViewSet,
     AvisoMauTempoViewSet,
@@ -56,6 +57,8 @@ urlpatterns = [
     path("auth/profile/", ProfileUpdateView.as_view(), name="auth-profile"),
     path("auth/change-password/", ChangePasswordView.as_view(), name="auth-change-password"),
     path("refresh/", RefreshNowView.as_view(), name="refresh-now"),
+    path("refresh/redemet/", RefreshRedemetView.as_view(), name="refresh-redemet"),
     path("imagery/satelite/", RedemetSateliteImageryView.as_view(), name="imagery-satelite"),
     path("imagery/radar/", RedemetRadarImageryView.as_view(), name="imagery-radar"),
+    path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),
 ] + router.urls

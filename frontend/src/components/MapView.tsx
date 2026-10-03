@@ -154,13 +154,25 @@ function LegendaFlutuante({ sourcesPresentes }: { sourcesPresentes: string[] }) 
 
 type CamadaImagem = "nenhuma" | "satelite" | "radar";
 type TipoSatelite = "realcada" | "ir" | "vis";
-type TipoRadar = "maxcappi" | "10km" | "07km" | "05km" | "03km";
+type TipoRadar =
+  | "maxcappi"
+  | "10km"
+  | "07km"
+  | "05km"
+  | "03km"
+  | "niteroi"
+  | "inea-mosaic"
+  | "inea-gua"
+  | "inea-mac"
+  | "inea-mdn"
+  | "inea-sumare";
 
 interface ConfigCamada {
   tipo: CamadaImagem;
   tipoSatelite: TipoSatelite;
   tipoRadar: TipoRadar;
   animacao: boolean;
+  mostrarEstacoes: boolean;
 }
 
 interface AnimacaoFrame {
@@ -174,59 +186,166 @@ interface AnimacaoState {
   isPlaying: boolean;
 }
 
-// A API-REDEMET atualiza essas imagens a cada ~10min (satélite) / poucos
-// minutos (radar); o backend já cacheia por 5min (ver
-// backend/api/redemet_imagery_views.py), então reconsultar a cada 3min
-// daqui (menor que o TTL do cache) garante que pegamos a imagem nova
-// pouco depois dela ficar disponível, sem bater direto na API-REDEMET a
-// cada maré de usuários abrindo o mapa.
-const INTERVALO_ATUALIZACAO_CAMADA_MS = 3 * 60 * 1000;
-const INTERVALO_FRAME_ANIMACAO_MS = 500; // 500ms entre frames
+// A API-REDEMET só gera imagem nova a cada ~10-15min (satélite) / ~5min
+// (radar) — pedido do usuário (02/10/2026): reconsultar a cada 3min era
+// desperdício de requisição sem ganho real (a maioria vinha batendo no
+// mesmo quadro). 10min cobre a cadência real; quem quiser algo mais fresco
+// na hora usa o botão "atualizar agora" ao lado do play/pause.
+const INTERVALO_ATUALIZACAO_CAMADA_MS = 10 * 60 * 1000;
+// 500ms piscava a cada troca de quadro (ImageOverlay remontando no DOM a
+// cada frame) — 1.2s dá tempo do PNG (até ~1,3MB) carregar antes de trocar
+// de novo, e fica num ritmo visualmente mais lento/legível.
+const INTERVALO_FRAME_ANIMACAO_MS = 1200;
+
+// Radar próprio da Prefeitura de Niterói (radar.niteroi.rj.gov.br) —
+// pedido do usuário (02/10/2026). API pública sem autenticação, achada
+// inspecionando o bundle JS do site oficial (sem doc publicada). Chamada
+// DIRETO do navegador (não pelo nosso backend): o CORS da API permite
+// (`fetch` cross-origin funciona, testado), mas o nosso servidor
+// (hospedagem compartilhada) não consegue abrir conexão de saída pra essa
+// porta não-padrão (3337) — tentativa via backend voltava 502. IDs fixos
+// porque só existe 1 radar e 1 tipo de produto público (MAXDISPLAY).
+const NITEROI_RADAR_API_BASE = "https://radar.niteroi.rj.gov.br:3337";
+const NITEROI_RADAR_ID = "b35bf5fe-a016-4516-81bb-681088e72ce7";
+const NITEROI_RADAR_TYPE_ID = "a57c0a09-e9f0-461c-84b9-65ea856cc90c"; // MAXDISPLAY
+// Bounds fixos do radar (raio 100km a partir de Niterói, devolvidos por
+// `GET /radars`) — formato Leaflet [[lat_min, lon_min], [lat_max, lon_max]].
+const NITEROI_RADAR_BOUNDS: [[number, number], [number, number]] = [
+  [-23.828487624961028, -44.063540906953534],
+  [-22.029734127406552, -42.11079267870416],
+];
+
+interface NiteroiRadarProduto {
+  datetime: string;
+  images: { path: string }[];
+}
+
+/** Busca os produtos de radar de Niterói e devolve no mesmo formato que o
+ * backend já devolve pra REDEMET (`{frames}` quando animado, `{image_url,
+ * timestamp}` quando não) — assim o resto do hook trata as duas fontes sem
+ * precisar saber de onde vieram. */
+async function buscarRadarNiteroi(numFrames: number) {
+  const params = new URLSearchParams({
+    type_id: NITEROI_RADAR_TYPE_ID,
+    cutoff_datetime: String(Date.now()),
+    amount: String(numFrames),
+  });
+  const produtos: NiteroiRadarProduto[] = await fetch(
+    `${NITEROI_RADAR_API_BASE}/radars/${NITEROI_RADAR_ID}/products?${params}`,
+  ).then((r) => r.json());
+
+  // A API devolve do mais recente pro mais antigo — inverte pra ficar igual
+  // ao padrão já usado pro satélite/radar da REDEMET (mais antigo primeiro).
+  const frames: AnimacaoFrame[] = [...produtos]
+    .reverse()
+    .filter((p) => p.images && p.images.length > 0)
+    .map((p) => ({
+      data: new Date(Number(p.datetime)).toISOString().slice(0, 19).replace("T", " "),
+      path: `${NITEROI_RADAR_API_BASE}${p.images[0].path}`,
+    }));
+
+  if (numFrames > 1) {
+    return { tipo: "niteroi", frames, bounds: NITEROI_RADAR_BOUNDS, total_frames: frames.length };
+  }
+  const ultimo = frames[frames.length - 1];
+  return { tipo: "niteroi", timestamp: ultimo?.data, image_url: ultimo?.path, bounds: NITEROI_RADAR_BOUNDS };
+}
 
 /** Busca (e reconsulta periodicamente) a imagem de satélite/radar
  * selecionada com suporte a animação — estado fica aqui, em vez de dentro
  * do `<ImageOverlay>`, porque tanto o overlay no mapa quanto o seletor
  * flutuante precisam do mesmo dado. */
-function useCamadaMeteorologica(config: ConfigCamada, isPlaying: boolean = true): { imagem: ImageryLayer | null; animacao: AnimacaoState | null } {
+function useCamadaMeteorologica(
+  config: ConfigCamada,
+  isPlaying: boolean = true,
+): { imagem: ImageryLayer | null; animacao: AnimacaoState | null; atualizando: boolean; atualizarAgora: () => void } {
   const [imagem, setImagem] = useState<ImageryLayer | null>(null);
   const [animacao, setAnimacao] = useState<AnimacaoState | null>(null);
   const [frameAtual, setFrameAtual] = useState(0);
+  const [atualizando, setAtualizando] = useState(false);
+  // Incrementado pelo botão "atualizar agora" (item 4 do pedido do usuário:
+  // além da atualização automática, dar um jeito de forçar na hora) — como
+  // entra nas deps do efeito de busca, qualquer mudança reexecuta `buscar`
+  // imediatamente sem esperar o próximo tick do setInterval.
+  const [forcarAtualizacaoEm, setForcarAtualizacaoEm] = useState(0);
+
+  // Limpa o quadro/animação anterior IMEDIATAMENTE ao trocar satélite↔radar
+  // (ou de tipo de satélite/radar) — pedido do usuário (02/10/2026): trocar
+  // de satélite pra radar quebrava a página. Causa raiz: sem isso, a
+  // animação antiga (do tipo anterior) continuava rodando seu próprio
+  // intervalo e sobrescrevendo `imagem` por cima da troca de tipo até a
+  // nova busca terminar, deixando o `<ImageOverlay>` remontando com dados
+  // de fontes misturadas enquanto o Leaflet ainda processava a remoção da
+  // camada antiga — essa corrida que derrubava o layer do Leaflet.
+  useEffect(() => {
+    setImagem(null);
+    setAnimacao(null);
+    setFrameAtual(0);
+  }, [config.tipo, config.tipoSatelite, config.tipoRadar]);
 
   useEffect(() => {
     if (config.tipo === "nenhuma") {
-      setImagem(null);
-      setAnimacao(null);
       return;
     }
 
     let cancelado = false;
     const buscar = () => {
-      const promessa =
+      setAtualizando(true);
+      // Niterói é buscado DIRETO do navegador (ver `buscarRadarNiteroi`),
+      // não pelo nosso backend — o resto é `fetch` pro nosso `/api/imagery/`
+      // de sempre. Uniformiza os dois em `Promise<any>` já com o JSON
+      // resolvido, pra cair no mesmo `.then(data => ...)` abaixo.
+      const promessa: Promise<ImageryLayer | { frames: AnimacaoFrame[]; bounds: unknown; tipo: string; total_frames: number }> =
         config.tipo === "satelite"
-          ? fetch(`/api/imagery/satelite/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=15" : ""}`)
-          : fetch(`/api/imagery/radar/?tipo=${config.tipoRadar}&area=pc${config.animacao ? "&anima=15" : ""}`);
+          ? fetch(`/api/imagery/satelite/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=15" : ""}`).then((r) => r.json())
+          : config.tipoRadar === "niteroi"
+            ? // Radar próprio de Niterói: histórico real de 15 quadros (5min
+              // cada), diferente do limite de 8 da REDEMET.
+              buscarRadarNiteroi(config.animacao ? 15 : 1)
+            : config.tipoRadar.startsWith("inea-")
+              ? // Radar Tool do INEA (mosaico + Guaratiba/Macaé/Mendanha/
+                // Sumaré) — passa pelo NOSSO backend (CORS bloqueia
+                // `frames.php` direto do navegador, testado); o código
+                // depois do "inea-" é o `tipo` que o backend espera.
+                fetch(
+                  `/api/imagery/radar-inea/?tipo=${config.tipoRadar.replace("inea-", "")}${config.animacao ? "&anima=15" : ""}`,
+                ).then((r) => r.json())
+              : // Radar REDEMET só tem histórico real pra 8 quadros no site
+                // oficial (slider 0-7, confirmado em redemet.decea.mil.br em
+                // 02/10/2026 — o satélite vai até 14, ou seja, 15 quadros).
+                // Pedir 15 pro radar só fazia a REDEMET repetir o último
+                // quadro disponível pra completar a conta.
+                fetch(`/api/imagery/radar/?tipo=${config.tipoRadar}&area=pc${config.animacao ? "&anima=8" : ""}`).then((r) => r.json());
 
       promessa
-        .then((r) => r.json())
-        .then((data) => {
+        .then((data: any) => {
           if (cancelado) return;
 
-          if (config.animacao && data.data && data.data[config.tipo === "satelite" ? "satelite" : "radar"]) {
-            const frames = data.data[config.tipo === "satelite" ? "satelite" : "radar"];
-            const framesArray = Array.isArray(frames[0]) ? frames[0] : frames; // radar agrupa em array de arrays
+          if (config.animacao && data.frames && Array.isArray(data.frames) && data.frames.length > 0) {
+            // A REDEMET completa o pedido de N quadros repetindo o último
+            // disponível quando não há histórico suficiente ainda (comum
+            // pro radar, que só acumula ~20min de quadros novos por vez) —
+            // sem isso a animação "trava" visualmente nos últimos quadros
+            // repetidos. Remove repetições consecutivas (preserva a ordem).
+            const framesArray: AnimacaoFrame[] = data.frames.filter(
+              (f: AnimacaoFrame, i: number, arr: AnimacaoFrame[]) => i === 0 || f.path !== arr[i - 1].path,
+            );
             setAnimacao({
               frames: framesArray,
-              frameAtual: 0,
+              frameAtual: framesArray.length - 1,
               isPlaying: true,
             });
-            // Mostrar a imagem mais recente também no overlay sem animação
+            // Mostrar o quadro mais recente como padrão (não o mais antigo).
             const ultimoFrame = framesArray[framesArray.length - 1];
-            setImagem({
-              ...data,
-              image_url: ultimoFrame.path,
-              timestamp: ultimoFrame.data,
-            });
-            setFrameAtual(0);
+            if (ultimoFrame && data.bounds) {
+              setImagem({
+                tipo: data.tipo,
+                image_url: ultimoFrame.path,
+                timestamp: ultimoFrame.data,
+                bounds: data.bounds,
+              });
+            }
+            setFrameAtual(framesArray.length - 1);
           } else {
             // Sem animação: exibição simples
             setImagem(data);
@@ -238,6 +357,9 @@ function useCamadaMeteorologica(config: ConfigCamada, isPlaying: boolean = true)
             setImagem(null);
             setAnimacao(null);
           }
+        })
+        .finally(() => {
+          if (!cancelado) setAtualizando(false);
         });
     };
 
@@ -247,7 +369,7 @@ function useCamadaMeteorologica(config: ConfigCamada, isPlaying: boolean = true)
       cancelado = true;
       clearInterval(id);
     };
-  }, [config.tipo, config.tipoSatelite, config.tipoRadar, config.animacao]);
+  }, [config.tipo, config.tipoSatelite, config.tipoRadar, config.animacao, forcarAtualizacaoEm]);
 
   // Player de animação
   useEffect(() => {
@@ -262,21 +384,26 @@ function useCamadaMeteorologica(config: ConfigCamada, isPlaying: boolean = true)
 
   // Atualizar imagem exibida durante animação
   useEffect(() => {
-    if (animacao && animacao.frames.length > 0) {
-      const frame = animacao.frames[frameAtual];
-      setImagem((prev) =>
-        prev
-          ? {
-              ...prev,
-              image_url: frame.path,
-              timestamp: frame.data,
-            }
-          : null,
-      );
-    }
+    if (!animacao || animacao.frames.length === 0) return;
+    const frame = animacao.frames[frameAtual];
+    if (!frame) return;
+    setImagem((prev) =>
+      prev
+        ? {
+            ...prev,
+            image_url: frame.path,
+            timestamp: frame.data,
+          }
+        : null,
+    );
   }, [frameAtual, animacao]);
 
-  return { imagem, animacao: animacao ? { ...animacao, frameAtual, isPlaying } : null };
+  return {
+    imagem,
+    animacao: animacao ? { ...animacao, frameAtual, isPlaying } : null,
+    atualizando,
+    atualizarAgora: () => setForcarAtualizacaoEm((v) => v + 1),
+  };
 }
 
 /** A REDEMET devolve o timestamp como "AAAA-MM-DD HH:MM:SS" em UTC, sem
@@ -296,7 +423,15 @@ function isoUtcFromRedemetTimestamp(timestamp: string): string {
  * sem precisar calcular nada aqui. */
 function CamadaMeteorologica({ imagem }: { imagem: ImageryLayer | null }) {
   if (!imagem || !imagem.bounds) return null;
-  return <ImageOverlay key={imagem.image_url} url={imagem.image_url} bounds={imagem.bounds} opacity={0.55} zIndex={400} />;
+  // `key` fixo (por tipo) em vez de `imagem.image_url` — chavear pela URL
+  // forçava o React a desmontar e remontar o `<ImageOverlay>` do zero a
+  // CADA quadro da animação (o Leaflet larga a imagem antiga e cria outra
+  // do nada), o que piscava a tela e, combinado com a troca de tipo, podia
+  // derrubar o layer no meio do processo (item 2/6 do pedido do usuário,
+  // 02/10/2026). Mantendo a mesma instância, o react-leaflet só chama
+  // `setUrl`/`setBounds` na camada já existente — troca suave, sem piscar,
+  // e só remonta de verdade quando a fonte muda de fato (satélite↔radar).
+  return <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={0.55} zIndex={400} />;
 }
 
 /** Botão flutuante pra alternar a camada de satélite/radar. Canto inferior
@@ -313,14 +448,20 @@ function SeletorCamadaMeteorologica({
   timestamp,
   animacao,
   onPlayPause,
+  atualizando,
+  onAtualizarAgora,
 }: {
   config: ConfigCamada;
   onConfigChange: (c: ConfigCamada) => void;
   timestamp: string | null;
   animacao: AnimacaoState | null;
   onPlayPause?: (play: boolean) => void;
+  atualizando: boolean;
+  onAtualizarAgora: () => void;
 }) {
-  const [aberto, setAberto] = useState(config.tipo !== "nenhuma");
+  const [aberto, setAberto] = useState(false);
+  const [tipoAbertoSatelite, setTipoAbertoSatelite] = useState(false);
+  const [tipoAbertoRadar, setTipoAbertoRadar] = useState(false);
 
   const opcoes: { valor: CamadaImagem; label: string }[] = [
     { valor: "nenhuma", label: "Nenhuma" },
@@ -340,6 +481,21 @@ function SeletorCamadaMeteorologica({
     { valor: "07km", label: "CAPPI 7km" },
     { valor: "05km", label: "CAPPI 5km" },
     { valor: "03km", label: "CAPPI 3km" },
+    // Radar próprio da Prefeitura de Niterói (radar.niteroi.rj.gov.br) —
+    // pedido do usuário (02/10/2026). Atualiza a cada 5min (contra ~20min
+    // do MAXCAPPI) e cobre raio de 100km a partir de Niterói — menor área
+    // que o MAXCAPPI (400km), mas cobre o RJ todo na prática.
+    { valor: "niteroi", label: "Niterói (local, 5min)" },
+    // Radar Tool do INEA (radartool.inea.rj.gov.br) — pedido do usuário
+    // (02/10/2026): re-hospeda os radares de Guaratiba/Macaé/Mendanha/
+    // Sumaré (os 2 últimos também cobrem o pedido de Alerta Rio, cujo site
+    // próprio tem proteção anti-robô que bloqueia acesso automatizado) e
+    // ainda tem um mosaico combinando os 6 radares do estado.
+    { valor: "inea-mosaic", label: "INEA — Mosaico (todos os radares)" },
+    { valor: "inea-gua", label: "INEA — Guaratiba" },
+    { valor: "inea-mac", label: "INEA — Macaé" },
+    { valor: "inea-mdn", label: "INEA — Mendanha" },
+    { valor: "inea-sumare", label: "INEA — Sumaré" },
   ];
 
   return (
@@ -354,7 +510,11 @@ function SeletorCamadaMeteorologica({
               <button
                 key={o.valor}
                 type="button"
-                onClick={() => onConfigChange({ ...config, tipo: o.valor })}
+                onClick={() => {
+                  onConfigChange({ ...config, tipo: o.valor });
+                  setTipoAbertoSatelite(false);
+                  setTipoAbertoRadar(false);
+                }}
                 className={`rounded px-2 py-1 font-medium text-xs ${
                   config.tipo === o.valor ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
@@ -364,79 +524,119 @@ function SeletorCamadaMeteorologica({
             ))}
           </div>
 
-          {/* Seleção de tipo (satélite/radar) */}
+          {/* Dropdown de tipo para Satélite */}
           {config.tipo === "satelite" && (
             <div className="mb-3 pb-3 border-b border-gray-100">
-              <p className="mb-1.5 font-medium text-gray-600">Tipo de satélite:</p>
-              <div className="flex flex-col gap-1">
-                {tiposSatelite.map((t) => (
-                  <button
-                    key={t.valor}
-                    type="button"
-                    onClick={() => onConfigChange({ ...config, tipoSatelite: t.valor })}
-                    className={`text-left px-2 py-1 rounded text-xs ${
-                      config.tipoSatelite === t.valor
-                        ? "bg-blue-100 text-blue-700 font-medium"
-                        : "bg-gray-50 text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => setTipoAbertoSatelite(!tipoAbertoSatelite)}
+                className="w-full text-left px-2 py-1.5 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 font-medium text-xs text-gray-700 flex items-center justify-between"
+              >
+                {tiposSatelite.find((t) => t.valor === config.tipoSatelite)?.label || "Selecionar"}
+                <span className={`transform transition-transform ${tipoAbertoSatelite ? "rotate-180" : ""}`}>▾</span>
+              </button>
+              {tipoAbertoSatelite && (
+                <div className="mt-1 border border-gray-200 rounded bg-white shadow">
+                  {tiposSatelite.map((t) => (
+                    <button
+                      key={t.valor}
+                      type="button"
+                      onClick={() => {
+                        onConfigChange({ ...config, tipoSatelite: t.valor });
+                        setTipoAbertoSatelite(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs ${
+                        config.tipoSatelite === t.valor
+                          ? "bg-blue-100 text-blue-700 font-medium"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
+          {/* Dropdown de tipo para Radar */}
           {config.tipo === "radar" && (
             <div className="mb-3 pb-3 border-b border-gray-100">
-              <p className="mb-1.5 font-medium text-gray-600">Tipo de radar:</p>
-              <div className="flex flex-col gap-1">
-                {tiposRadar.map((t) => (
-                  <button
-                    key={t.valor}
-                    type="button"
-                    onClick={() => onConfigChange({ ...config, tipoRadar: t.valor })}
-                    className={`text-left px-2 py-1 rounded text-xs ${
-                      config.tipoRadar === t.valor
-                        ? "bg-blue-100 text-blue-700 font-medium"
-                        : "bg-gray-50 text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => setTipoAbertoRadar(!tipoAbertoRadar)}
+                className="w-full text-left px-2 py-1.5 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 font-medium text-xs text-gray-700 flex items-center justify-between"
+              >
+                {tiposRadar.find((t) => t.valor === config.tipoRadar)?.label || "Selecionar"}
+                <span className={`transform transition-transform ${tipoAbertoRadar ? "rotate-180" : ""}`}>▾</span>
+              </button>
+              {tipoAbertoRadar && (
+                <div className="mt-1 border border-gray-200 rounded bg-white shadow">
+                  {tiposRadar.map((t) => (
+                    <button
+                      key={t.valor}
+                      type="button"
+                      onClick={() => {
+                        onConfigChange({ ...config, tipoRadar: t.valor });
+                        setTipoAbertoRadar(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs ${
+                        config.tipoRadar === t.valor
+                          ? "bg-blue-100 text-blue-700 font-medium"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Toggle de animação */}
+          {/* Animação com player play/pause + atualizar agora — botão de
+              atualizar é só o ícone (mesmo tamanho do play/pause), colado
+              ao lado dele, pra não aumentar a altura do painel (pedido do
+              usuário, 02/10/2026). */}
           {config.tipo !== "nenhuma" && (
             <div className="mb-3 pb-3 border-b border-gray-100">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.animacao}
-                  onChange={(e) => onConfigChange({ ...config, animacao: e.target.checked })}
-                  className="w-3 h-3"
-                />
-                <span className="font-medium text-gray-600">Animar histórico (15 quadros)</span>
-              </label>
-              {animacao && animacao.frames.length > 0 && (
-                <div className="mt-2 flex items-center gap-2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.animacao}
+                    onChange={(e) => onConfigChange({ ...config, animacao: e.target.checked })}
+                    className="w-3 h-3"
+                  />
+                  <span className="font-medium text-gray-600">Animar histórico</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={onAtualizarAgora}
+                  disabled={atualizando}
+                  title="Atualizar imagens agora"
+                  className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <span className={atualizando ? "animate-spin inline-block" : "inline-block"}>⟳</span>
+                </button>
+              </div>
+              {config.animacao && animacao && animacao.frames.length > 0 && (
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => onPlayPause?.(!animacao.isPlaying)}
-                    className="px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 font-medium text-xs"
+                    className="px-2.5 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium text-xs flex-shrink-0"
+                    title={animacao.isPlaying ? "Pausar" : "Reproduzir"}
                   >
                     {animacao.isPlaying ? "⏸" : "▶"}
                   </button>
                   <div className="flex-1 bg-gray-200 rounded h-2 relative">
                     <div
-                      className="bg-blue-600 h-full rounded"
+                      className="bg-blue-600 h-full rounded transition-all"
                       style={{ width: `${((animacao.frameAtual + 1) / animacao.frames.length) * 100}%` }}
                     />
                   </div>
-                  <span className="text-gray-600">
+                  <span className="text-gray-600 text-xs whitespace-nowrap">
                     {animacao.frameAtual + 1}/{animacao.frames.length}
                   </span>
                 </div>
@@ -444,12 +644,38 @@ function SeletorCamadaMeteorologica({
             </div>
           )}
 
-          {/* Info timestamp */}
+          {/* Info timestamp — fonte muda conforme a camada: Niterói e INEA
+              têm radar próprio, o resto (satélite e demais radares) vem
+              da REDEMET/DECEA. */}
           {config.tipo !== "nenhuma" && (
-            <p className="border-t border-gray-100 pt-2 text-[11px] text-gray-400">
-              {timestamp ? `Fonte: REDEMET · ${formatTimestamp(isoUtcFromRedemetTimestamp(timestamp))}` : "Carregando…"}
+            <p className="text-[11px] text-gray-400">
+              {timestamp
+                ? `${formatTimestamp(isoUtcFromRedemetTimestamp(timestamp))} · ${
+                    config.tipo === "radar" && config.tipoRadar === "niteroi"
+                      ? "Niterói"
+                      : config.tipo === "radar" && config.tipoRadar.startsWith("inea-")
+                        ? "INEA"
+                        : "REDEMET"
+                  }`
+                : "Carregando…"}
             </p>
           )}
+
+          {/* Camada das estações — separada da camada de imagem; item 5 do
+              pedido do usuário (02/10/2026): estava sem referência dentro
+              do painel de imagem e sem efeito real no mapa. */}
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <p className="mb-2 font-semibold text-gray-700">Camada das estações</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.mostrarEstacoes}
+                onChange={(e) => onConfigChange({ ...config, mostrarEstacoes: e.target.checked })}
+                className="w-3 h-3"
+              />
+              <span className="font-medium text-gray-600">Mostrar estações no mapa</span>
+            </label>
+          </div>
         </div>
       )}
       <button
@@ -457,7 +683,7 @@ function SeletorCamadaMeteorologica({
         onClick={() => setAberto((v) => !v)}
         className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-md hover:bg-gray-50"
       >
-        {aberto ? "Ocultar" : config.tipo === "nenhuma" ? "Satélite/Radar" : `Camada: ${config.tipo === "satelite" ? "Satélite" : "Radar"}`}
+        {aberto ? "Ocultar" : "Opções"}
       </button>
     </div>
   );
@@ -487,10 +713,16 @@ export default function MapView({
     tipoSatelite: "realcada",
     tipoRadar: "maxcappi",
     animacao: false,
+    mostrarEstacoes: true,
   });
   const [animacaoPlaying, setAnimacaoPlaying] = useState(true);
 
-  const { imagem: imagemAtual, animacao } = useCamadaMeteorologica(config, animacaoPlaying);
+  const {
+    imagem: imagemAtual,
+    animacao,
+    atualizando,
+    atualizarAgora,
+  } = useCamadaMeteorologica(config, animacaoPlaying);
 
   const [redecGeo, setRedecGeo] = useState<GeoJsonFeatureCollection | null>(null);
   const [municipioGeo, setMunicipioGeo] = useState<GeoJsonFeatureCollection | null>(null);
@@ -544,7 +776,7 @@ export default function MapView({
         redecFilter={redecFilter}
         municipalityFilter={municipalityFilter}
       />
-      {stations.map((station) => {
+      {config.mostrarEstacoes && stations.map((station) => {
         const tocando = estacoesTocandoIds.has(station.id);
         const cor = SOURCE_COLORS[station.source] ?? "#6b7280";
         return (
@@ -602,6 +834,8 @@ export default function MapView({
         timestamp={imagemAtual?.timestamp ?? null}
         animacao={config.animacao ? animacao : null}
         onPlayPause={setAnimacaoPlaying}
+        atualizando={atualizando}
+        onAtualizarAgora={atualizarAgora}
       />
     </MapContainer>
   );
