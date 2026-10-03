@@ -76,9 +76,19 @@ memória local do assistente, nome do token "cemadenrjpreserveriobr").
 | Ação | Motivo |
 |---|---|
 | ~~`sync_sirenes`: `*/15` → `*/2`, `curl -m 60`~~ **FEITO em 03/10/2026** | toque de sirene salva vidas; sync de 1,5 s |
-| Criar `ingest macae_ufrj` (ex.: `5-59/15`, `-m 280`) | Macaé sem cron |
-| Criar `ingest redemet` (ex.: `7-59/15`) | histórico de METAR |
-| Criar `ingest ecowitt_paracambi` (ex.: `9-59/15`) | sem cron |
+| Criar `ingest macae_ufrj` em `5-59/15` (`-m 120`) | Macaé sem cron |
+| Criar `ingest redemet` em `7-59/15` (`-m 120`) | histórico de METAR |
+| Criar `ingest ecowitt_paracambi` em `9-59/15` (`-m 120`) | sem cron |
+
+**Testes de 03/10/2026 (cada ingestão rodada uma vez em produção):** `macae_ufrj`
+1,2 s (26 estações atualizadas, +13 leituras), `redemet` 2,3 s (17 estações,
+470 leituras já existentes), `ecowitt_paracambi` 2,5 s (2 estações, +12
+leituras) — todas sem erro, então `-m 120` basta. Minutos ímpares escolhidos
+para não coincidir com o `sync_sirenes` (minutos pares) nem com os demais
+(0, 1, 2, 4, 6, 8, 10, 13, 14). Comando de cada linha (mesmo formato dos
+existentes): `curl -s -m 120 -X POST https://cemadenrj.preserve.rio.br/api/admin/run/
+-H "X-Admin-Secret: <segredo>" -H "Content-Type: application/json"
+-d '{"action":"ingest","source":"<slug>"}' > /dev/null 2>&1`.
 | `ingest cemaden_mctic`: `13-59/15` → a cada 5 min | fonte de 10 min |
 
 (As três últimas dependem da decisão do usuário por fonte.)

@@ -61,6 +61,8 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 
 | O **usuário alterou o cron de sirenes para `*/2` (`-m 60`) direto no cPanel**; o assistente **conferiu** via `fetchcron` (cron correto, demais crons intactos, aspas do `-d` íntegras) e **verificou a execução** com o painel fechado: syncs às 06:16:03 e 06:18:03 UTC (cadência de 2 min) | cPanel; `operacao-cron-e-producao.md` | confirmado |
 
+| Testadas em produção, uma vez cada, as ingestões de Macaé, REDEMET e Ecowitt (admin/run) para dimensionar os crons que faltam | produção | Macaé 1,2 s; REDEMET 2,3 s; Ecowitt 2,5 s; todas sem erro. Crons propostos (`5-59/15`, `7-59/15`, `9-59/15`, `-m 120`) em `operacao-cron-e-producao.md` — **criação pendente** (nova alteração de cron via API não foi tentada após o bloqueio anterior) |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
