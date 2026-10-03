@@ -37,7 +37,7 @@ from django.conf import settings
 from core.models import Reading, Station
 from core.municipios import municipio_por_coordenada
 
-from .base import BaseConnector, bucket_from_running_daily
+from .base import BaseConnector, bucket_from_running_daily_detalhe
 
 logger = logging.getLogger("ingestion")
 
@@ -182,6 +182,13 @@ class WundergroundConnector(BaseConnector):
     description = "Estações PWS indicadas pelas Defesas Civis municipais (Rio das Ostras, Casimiro de Abreu, Macaé e região)."
 
     def fetch_stations(self) -> list[dict]:
+        # `observacao_oficial` (última observação da fonte, gravada em
+        # `pos_ingestao`) precisa sobreviver ao `update_or_create` desta rodada,
+        # senão estação que não respondeu (204) perderia o dado.
+        anteriores = {
+            st.external_id: (st.raw_metadata or {}).get("observacao_oficial")
+            for st in Station.objects.filter(source__slug=self.slug)
+        }
         estacoes = []
         for s in STATIONS_RJ:
             # Município da planilha de origem é digitado à mão e tem erro
@@ -203,7 +210,11 @@ class WundergroundConnector(BaseConnector):
                     "latitude": s["latitude"],
                     "longitude": s["longitude"],
                     "altitude_m": None,
-                    "raw_metadata": {**s, "municipio_planilha": s["municipality"]},
+                    "raw_metadata": {
+                        **s,
+                        "municipio_planilha": s["municipality"],
+                        "observacao_oficial": anteriores.get(s["external_id"]),
+                    },
                 }
             )
         return estacoes
@@ -215,6 +226,7 @@ class WundergroundConnector(BaseConnector):
             return []
 
         readings: list[dict] = []
+        self._obs: dict[str, dict] = {}
         for st in stations:
             codigo = st["external_id"]
             try:
@@ -247,18 +259,33 @@ class WundergroundConnector(BaseConnector):
 
             metric = obs.get("metric") or {}
 
-            def add(reading_type, valor):
+            def add(reading_type, valor, qc_hint=None):
                 if valor is None:
                     return
-                readings.append(
-                    {
-                        "external_id": codigo,
-                        "reading_type": reading_type,
-                        "value": float(valor),
-                        "timestamp": timestamp,
-                        "raw_payload": obs,
-                    }
-                )
+                leitura = {
+                    "external_id": codigo,
+                    "reading_type": reading_type,
+                    "value": float(valor),
+                    "timestamp": timestamp,
+                    "raw_payload": obs,
+                }
+                if qc_hint:
+                    leitura["qc_hint"] = qc_hint
+                readings.append(leitura)
+
+            # Retrato OFICIAL da observação (03/10/2026), p/ a tabela da fonte:
+            # `precipTotal` é o total do dia da própria estação (referência p/
+            # conferir nosso "Hoje"), `qcStatus` é o controle de qualidade do
+            # Weather Company (1 = aprovado, 0 = reprovado, -1 = não avaliado).
+            self._obs[codigo] = {
+                "referencia": timestamp.isoformat(),
+                "precip_total_mm": (obs.get("metric") or {}).get("precipTotal"),
+                "precip_rate_mm_h": (obs.get("metric") or {}).get("precipRate"),
+                "qc_status": obs.get("qcStatus"),
+                "software": obs.get("softwareType"),
+                "bairro": obs.get("neighborhood"),
+                "elevacao_m": (obs.get("metric") or {}).get("elev"),
+            }
 
             # Filtro de plausibilidade (2026-09-28, faixa ampliada no mesmo dia após
             # feedback do usuário): a estação "Itatiaia" (IITATI4) chegou a reportar
@@ -282,7 +309,18 @@ class WundergroundConnector(BaseConnector):
             # PRECIPITACAO_BUCKET_SOURCES em api/views.py).
             precip_total = metric.get("precipTotal")
             if precip_total is not None:
-                add(Reading.ReadingType.CHUVA_MM, bucket_from_running_daily("wunderground", codigo, float(precip_total)))
+                balde, ja_registrado = bucket_from_running_daily_detalhe("wunderground", codigo, float(precip_total))
+                hint = None
+                if ja_registrado is None:
+                    hint = ("ok", "1a leitura do dia: o balde é o total desde 00h")
+                elif obs.get("qcStatus") == 0:
+                    hint = ("suspeito", "reprovado no controle de qualidade do Wunderground (qcStatus 0)")
+                elif ja_registrado is not None and float(precip_total) < ja_registrado - 0.5:
+                    hint = (
+                        "suspeito",
+                        f"total do dia regrediu ({ja_registrado:.1f} -> {float(precip_total):.1f} mm): contador reiniciou?",
+                    )
+                add(Reading.ReadingType.CHUVA_MM, balde, qc_hint=hint)
             add(Reading.ReadingType.VENTO_DIR_GRAUS, obs.get("winddir"))
             # Extras (2026-09-25). A pressão do Weather Company é ao NÍVEL DO MAR (ex.: 1016 hPa
             # numa estação a 1729 m); o endpoint "current" não traz máxima/mínima.
@@ -310,6 +348,21 @@ class WundergroundConnector(BaseConnector):
                 add(Reading.ReadingType.VENTO_RAJADA_MS, rajada_kmh / 3.6)
 
         return readings
+
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        from django.utils import timezone
+
+        from core.qualidade import registrar_qualidade_chuva
+
+        for codigo, obs in getattr(self, "_obs", {}).items():
+            estacao = station_objs.get(codigo)
+            if estacao is None:
+                continue
+            meta = dict(estacao.raw_metadata or {})
+            meta["observacao_oficial"] = obs
+            estacao.raw_metadata = meta
+            estacao.save(update_fields=["raw_metadata"])
+        registrar_qualidade_chuva(leituras_criadas, timezone.now())
 
 
 def _parse_timestamp(valor: str | None) -> dt.datetime | None:

@@ -13,6 +13,7 @@ import HidrologicaTable from "@/components/HidrologicaTable";
 import MeteorologiaPanel from "@/components/MeteorologiaPanel";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import CemadenNacionalTable from "@/components/CemadenNacionalTable";
+import RedeTable from "@/components/RedeTable";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
 import SirenesTable from "@/components/SirenesTable";
@@ -28,6 +29,7 @@ import {
   fetchHidrologicas,
   fetchMunicipioRedecMap,
   fetchCemadenNacional,
+  fetchRede,
   fetchPrecipitacao,
   fetchSirenes,
   fetchSirenesStatus,
@@ -38,6 +40,8 @@ import {
   HidrologicaStation,
   normalizeMunicipioName,
   CemadenNacionalStation,
+  RedeSource,
+  RedeStation,
   PrecipitacaoStation,
   REDECS,
   SireneStation,
@@ -62,7 +66,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // Estações/Contatos) — 5 itens principais cabem bem tanto no menu
 // horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
 type ViewMode = "mapa" | "meteorologia" | "dados" | "sirenes" | "alertas";
-type DadosSub = "precipitacao" | "cemaden" | "meteorologico" | "hidrologico" | "ventos";
+type DadosSub = "precipitacao" | "cemaden" | "plugfield" | "macae" | "wunderground" | "meteorologico" | "hidrologico" | "ventos";
 
 const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "mapa", label: "Mapa", Icone: Map },
@@ -72,9 +76,24 @@ const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "alertas", label: "Alertas", Icone: AlertTriangle },
 ];
 
+// Abas de rede com tabela individual (03/10/2026) -> fonte no backend.
+const REDE_DE_SUB: Partial<Record<DadosSub, RedeSource>> = {
+  plugfield: "plugfield",
+  macae: "macae_ufrj",
+  wunderground: "wunderground",
+};
+const NOME_REDE: Record<RedeSource, string> = {
+  plugfield: "Plugfield",
+  macae_ufrj: "Macaé",
+  wunderground: "Wunderground",
+};
+
 const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "precipitacao", label: "Precipitação" },
   { key: "cemaden", label: "CEMADEN Nacional" },
+  { key: "plugfield", label: "Plugfield" },
+  { key: "macae", label: "Macaé" },
+  { key: "wunderground", label: "Wunderground" },
   { key: "meteorologico", label: "Meteorológicos" },
   { key: "hidrologico", label: "Hidrológicos" },
   { key: "ventos", label: "Ventos" },
@@ -102,6 +121,7 @@ export default function Dashboard({
   // economizar altura — ver FilterToggleBar.tsx/tableExportHandle.ts).
   const precipitacaoTableRef = useRef<TableExportHandle>(null);
   const cemadenTableRef = useRef<TableExportHandle>(null);
+  const redeTableRef = useRef<TableExportHandle>(null);
   const meteorologicoTableRef = useRef<TableExportHandle>(null);
   const hidrologicoTableRef = useRef<TableExportHandle>(null);
   const ventosTableRef = useRef<TableExportHandle>(null);
@@ -165,6 +185,12 @@ export default function Dashboard({
   const [cemadenNacLoading, setCemadenNacLoading] = useState(false);
   const [cemadenNacError, setCemadenNacError] = useState<string | null>(null);
   const [cemadenNacLoaded, setCemadenNacLoaded] = useState(false);
+
+  // Abas Plugfield / Macaé / Wunderground: uma tabela por rede, carregada sob demanda.
+  const redeSourceAtual: RedeSource | null = REDE_DE_SUB[dadosSub] ?? null;
+  const [rede, setRede] = useState<Partial<Record<RedeSource, RedeStation[]>>>({});
+  const [redeLoading, setRedeLoading] = useState(false);
+  const [redeError, setRedeError] = useState<string | null>(null);
 
   // Aba dedicada de estações HIDROLÓGICAS (nível de rio) — pedido do
   // usuário (2026-09-23): nível primeiro, chuva depois, mesmos filtros
@@ -371,6 +397,27 @@ export default function Dashboard({
     };
   }, [viewMode, dadosSub, cemadenNacLoaded]);
 
+  const redeAtualCarregada = redeSourceAtual ? rede[redeSourceAtual] !== undefined : false;
+  useEffect(() => {
+    if (viewMode !== "dados" || !redeSourceAtual || redeAtualCarregada) return;
+    let cancelled = false;
+    setRedeLoading(true);
+    setRedeError(null);
+    fetchRede(redeSourceAtual)
+      .then((data) => {
+        if (!cancelled) setRede((prev) => ({ ...prev, [redeSourceAtual]: data }));
+      })
+      .catch((err) => {
+        if (!cancelled) setRedeError(err instanceof Error ? err.message : "Erro desconhecido");
+      })
+      .finally(() => {
+        if (!cancelled) setRedeLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, redeSourceAtual, redeAtualCarregada]);
+
   useEffect(() => {
     if (viewMode !== "dados" || dadosSub !== "hidrologico" || hidrologicasLoaded) return;
     let cancelled = false;
@@ -469,6 +516,16 @@ export default function Dashboard({
           (redecFilter.length === 0 || redecFilter.includes(redecOf(s.municipality))),
       ),
     [cemadenNac, municipalityFilter, redecFilter, municipioRedecMap],
+  );
+
+  const filteredRede = useMemo(
+    () =>
+      (redeSourceAtual ? (rede[redeSourceAtual] ?? []) : []).filter(
+        (s) =>
+          (municipalityFilter.length === 0 || municipalityFilter.includes(s.municipality)) &&
+          (redecFilter.length === 0 || redecFilter.includes(redecOf(s.municipality))),
+      ),
+    [rede, redeSourceAtual, municipalityFilter, redecFilter, municipioRedecMap],
   );
 
   const filteredHidrologicas = useMemo(
@@ -619,6 +676,10 @@ export default function Dashboard({
         ? precipitacaoLoading
           ? "Carregando precipitação…"
           : `${filteredPrecipitacao.length} estações pluviométricas`
+        : redeSourceAtual
+          ? redeLoading
+            ? `Carregando ${NOME_REDE[redeSourceAtual]}…`
+            : `${filteredRede.length} estações — ${NOME_REDE[redeSourceAtual]}`
         : dadosSub === "cemaden"
           ? cemadenNacLoading
             ? "Carregando CEMADEN Nacional…"
@@ -643,6 +704,10 @@ export default function Dashboard({
     if (viewMode === "dados") {
       if (dadosSub === "precipitacao") fetchPrecipitacao().then(setPrecipitacao).catch(() => {});
       else if (dadosSub === "cemaden") fetchCemadenNacional().then(setCemadenNac).catch(() => {});
+      else if (redeSourceAtual)
+        fetchRede(redeSourceAtual)
+          .then((d) => setRede((prev) => ({ ...prev, [redeSourceAtual]: d })))
+          .catch(() => {});
       else if (dadosSub === "meteorologico" || dadosSub === "ventos") reloadStations();
       else if (dadosSub === "hidrologico") fetchHidrologicas().then(setHidrologicas).catch(() => {});
     } else if (viewMode === "sirenes") fetchSirenes().then(setSirenes).catch(() => {});
@@ -788,6 +853,7 @@ export default function Dashboard({
             onExport={() => {
               if (dadosSub === "precipitacao") precipitacaoTableRef.current?.exportar();
               else if (dadosSub === "cemaden") cemadenTableRef.current?.exportar();
+              else if (redeSourceAtual) redeTableRef.current?.exportar();
               else if (dadosSub === "meteorologico") meteorologicoTableRef.current?.exportar();
               else if (dadosSub === "hidrologico") hidrologicoTableRef.current?.exportar();
               else if (dadosSub === "ventos") ventosTableRef.current?.exportar();
@@ -803,6 +869,11 @@ export default function Dashboard({
                 {precipitacaoError && (
                   <div className="mt-2 w-full rounded bg-red-50 p-2 text-xs text-red-600">
                     Não foi possível carregar precipitação ({precipitacaoError}).
+                  </div>
+                )}
+                {redeError && redeSourceAtual && (
+                  <div className="mt-2 w-full rounded bg-red-50 p-2 text-xs text-red-600">
+                    Não foi possível carregar {NOME_REDE[redeSourceAtual]} ({redeError}).
                   </div>
                 )}
                 {cemadenNacError && (
@@ -933,6 +1004,16 @@ export default function Dashboard({
                   <PrecipitationTable
                     ref={precipitacaoTableRef}
                     stations={filteredPrecipitacao}
+                    municipioRedecMap={municipioRedecMap}
+                    onOpenStation={setPainelEstacaoId}
+                  />
+                )}
+                {redeSourceAtual && (
+                  <RedeTable
+                    key={redeSourceAtual}
+                    ref={redeTableRef}
+                    source={redeSourceAtual}
+                    stations={filteredRede}
                     municipioRedecMap={municipioRedecMap}
                     onOpenStation={setPainelEstacaoId}
                   />

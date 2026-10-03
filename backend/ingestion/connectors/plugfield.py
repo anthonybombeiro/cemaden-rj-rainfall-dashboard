@@ -54,7 +54,7 @@ from django.conf import settings
 
 from core.models import Reading, Station
 
-from .base import BaseConnector, bucket_from_running_daily
+from .base import BaseConnector, bucket_from_running_daily_detalhe
 
 logger = logging.getLogger("ingestion")
 
@@ -194,18 +194,19 @@ class PlugfieldConnector(BaseConnector):
 
         readings = []
 
-        def add(reading_type, valor):
+        def add(reading_type, valor, qc_hint=None):
             if valor is None:
                 return
-            readings.append(
-                {
-                    "external_id": external_id,
-                    "reading_type": reading_type,
-                    "value": float(valor),
-                    "timestamp": timestamp,
-                    "raw_payload": dashboard,
-                }
-            )
+            leitura = {
+                "external_id": external_id,
+                "reading_type": reading_type,
+                "value": float(valor),
+                "timestamp": timestamp,
+                "raw_payload": dashboard,
+            }
+            if qc_hint:
+                leitura["qc_hint"] = qc_hint
+            readings.append(leitura)
 
         add(Reading.ReadingType.TEMPERATURA_C, dashboard.get("temp"))
         add(Reading.ReadingType.UMIDADE_PCT, dashboard.get("humi"))
@@ -216,7 +217,16 @@ class PlugfieldConnector(BaseConnector):
         # wunderground.py — pedido do usuário, 2026-09-23).
         rain_day = dashboard.get("rainDay")
         if rain_day is not None:
-            add(Reading.ReadingType.CHUVA_MM, bucket_from_running_daily("plugfield", external_id, float(rain_day)))
+            balde, ja_registrado = bucket_from_running_daily_detalhe("plugfield", external_id, float(rain_day))
+            hint = None
+            if ja_registrado is None:
+                hint = ("ok", "1a leitura do dia: o balde é o total desde 00h")
+            elif float(rain_day) < ja_registrado - 0.5:
+                hint = (
+                    "suspeito",
+                    f"total do dia regrediu ({ja_registrado:.1f} -> {float(rain_day):.1f} mm): contador reiniciou?",
+                )
+            add(Reading.ReadingType.CHUVA_MM, balde, qc_hint=hint)
         add(Reading.ReadingType.VENTO_DIR_GRAUS, dashboard.get("dire"))
 
         # Extras (2026-09-25): tempMax/tempMin são os extremos do DIA até agora.
@@ -241,6 +251,13 @@ class PlugfieldConnector(BaseConnector):
             add(Reading.ReadingType.VENTO_RAJADA_MS, float(rajada_kmh) / 3.6)
 
         return readings
+
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        from django.utils import timezone
+
+        from core.qualidade import registrar_qualidade_chuva
+
+        registrar_qualidade_chuva(leituras_criadas, timezone.now())
 
 
 def _parse_timestamp(valor: str | None) -> dt.datetime | None:

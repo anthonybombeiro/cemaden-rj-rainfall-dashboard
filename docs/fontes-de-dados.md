@@ -1380,8 +1380,12 @@ a `api_key` em 02/10/2026).
      03/10/2026, passou de 45 s sem responder — o servidor corta o pedido.
      Macaé faz login + 3 chamadas em série (timeout 30 s cada) e é suspeito
      de ser dos mais lentos, mas não foi medido isolado.
-- Possível caminho (não investigado): endpoint de histórico/gráfico do
-  portal (`monitoramentoIndividual/{id}`) para recuperar baldes perdidos.
+- **Atualização 03/10/2026 — problema resolvido:** o portal tem histórico
+  (`POST /Leituras/getEstatisticasLeiturasJson`, escala de minuto) e a última
+  leitura traz os acumulados oficiais (`volume_acumulado_1h/24h/96h`). O conector
+  passou a gravar a chuva minuto a minuto e os oficiais. Detalhes, validação e
+  inventário por estação em `redes-sensiveis-plugfield-macae-wunderground.md`.
+  A tabela "Macaé" em Dados mostra os oficiais.
 
 ## Catálogo comparativo das fontes — o que recebemos, o que gravamos, o que falta (03/10/2026)
 
@@ -1406,10 +1410,10 @@ ignoramos** · `—` = o fornecedor não oferece · `?` = a confirmar.
 | **15 min** | INEA Alerta de Cheias | pluviômetro + linígrafo | 94 | `dado_ultimo` (15 min) | `chuva_1h/4h/24h/96h/30d` (**I**, por decisão) | `data_hora` (BRT→UTC) | ? |
 | **15 min** | Rio Chuva por Bairro (COR) | **produto agregado** por hexágono H3, não é ponto | hexágonos | `chuva_15min` | 30 min…96 h (**I**) | 1 carimbo global (BRT→UTC fixo) | ? |
 | **Horária** | INMET (estações automáticas) | rede nacional, padrão OMM | 26 | `CHUVA` (acumulado da hora) | — | hora de medição (UTC) | ? |
-| **Total corrido do dia** (cadência do dispositivo) | Wunderground (PWS) | colaborativa, **sem calibração** | 106 ativas (~125 cadastradas) | total do dia → balde por diferença (`D`) | `precipRate` (**I**) | `obsTimeUtc` | ? |
-| **Total corrido do dia** | Plugfield (parceiros municipais) | estações de Defesas Civis | 19 | `rainDay` → balde por diferença (`D`) | `rainMonth` (**I**) | `lastUpdateTimestamp` do aparelho | ? |
+| **Total corrido do dia** (cadência do dispositivo) | Wunderground (PWS) | colaborativa, **sem calibração** | 121 cadastradas, 106 respondem | total do dia → balde por diferença (`D`); **`precipTotal`/`precipRate`/`qcStatus` oficiais guardados em `raw_metadata` (03/10)** | histórico de ~5 min `observations/all/1day`, `history/hourly` (**I**) | `obsTimeUtc` | 0,01 mm (varia por equipamento) |
+| **Total corrido do dia** | Plugfield (parceiros municipais) | estações de Defesas Civis | 19 (17 ativas) | `rainDay` → balde por diferença (`D`); **`rainDay/Month/Year` oficiais no `raw_metadata`** | `/data/hourly`, `/data/daily`, `lastRainfall` (pulsos de 5 min) (**I**) | `lastUpdateTimestamp` do aparelho | 0,11 mm |
 | **Total corrido do dia** | Ecowitt Paracambi | 2 estações GW3000B | 2 | `rainfall.daily` → balde (`D`) | taxa, hora, semana, mês, evento (**I**) | `time` do campo | ? |
-| **Irregular** (só "última leitura") | Macaé UFRJ | telemetria própria | 12 | `volume_chuva` da última leitura | — (não há histórico no endpoint usado) | `datahora` (BRT→UTC) | ? |
+| **1 min** (histórico por minuto) | Macaé UFRJ | telemetria própria | 26 internas (11 com dado) | **histórico por minuto do portal** (corrigido em 03/10; antes `volume_chuva` da última leitura = ~3% da chuva); **`volume_acumulado_1h/24h/96h` oficiais** em `AcumuladoOficial` | `ESCALA_HORA/DIA` (**I**) | `datahora` (BRT→UTC) | 0,34 mm |
 
 Leitura rápida: quem nos entrega janelas oficiais prontas (Alerta Rio,
 CEMADEN, INEA, Niterói) é quem mais perde com o desenho "um valor por
@@ -1425,7 +1429,7 @@ estações saem sem acumulados na tabela mesmo gravando baldes.
 | **Horária** | INMET | G | G (extremos da hora) | G | G | G | — | G | G | G | G | D (kJ/m²→W/m²) | — | I |
 | **Horária** | REDEMET METAR | G | — | — | — | — | D (QNH) | G | D (kt→m/s) | G (VRB descartado) | D | — | — | — |
 | **5 min** | Alerta Rio (estações met.) | G | G (`max`/`min` informados) | G | — | G | — | — | D (km/h assumido→m/s) | D (cardinal→graus) | — | — | — | — |
-| **Irregular** | Macaé UFRJ | G | — | G | — | G | — | — | D (km/h→m/s) | G | G | — | — | — |
+| **1 min** | Macaé UFRJ | G | — | G | — | G | — | — | D (km/h→m/s) | G | **G (histórico por minuto)** | — | — | — |
 | **Dispositivo** | Plugfield | G | G (extremo do dia até agora) | G | — | G | G | G (filtrado) | D (km/h→m/s) | G | D | I (unidade desconhecida) | G | G |
 | **Dispositivo** | Wunderground | G | — (endpoint atual não tem) | G | — | — | G | G (filtrado) | D (km/h→m/s) | G | D | G | G | I (`heatIndex`, `windChill`) |
 | **Dispositivo** | Ecowitt Paracambi | G | — | G | — | I (absoluta) | G | G | G | G | G | G | G | G |
@@ -1504,10 +1508,10 @@ lon, altitude_m, tipo, status, município)`.
 | CEMADEN-RJ sirenes | revisão de sobreposição (779 removidas) | corrigido | intervalo mínimo 14 min | janela deslizante subamostra chuva intensa | usar janela oficial maior (1 h) como referência |
 | INMET | — | — | faixas físicas (T -10..50, UR 0..100, chuva 0..300, vento 0..80, P 300..1100 …) | extremos de rede no limite; rate-limit devolve HTTP 200 texto | adicionar teste de passo (T), persistência (vento/pressão) e consistência T ≥ Td |
 | REDEMET METAR | — | horário real do METAR já usado | nenhum além do parsing | QNH ≠ pressão de estação; ventos VRB perdidos; nuvens/visibilidade fora da base | guardar visibilidade, teto, tempo presente estruturados |
-| Wunderground | — | — | faixas T/UR/P/Td/rad; teto 150 mm/balde | PWS sem calibração (T 60 °C, P 900 hPa, contador de chuva que não zera) | marcar como "não-operacional" (flag) e **nunca** misturar em estatística oficial |
-| Plugfield | — | — | filtro de Td; teto de balde | unidade da radiação desconhecida; timestamp do painel errado | confirmar unidades com o fornecedor; guardar `updateDateTime` correto |
+| Wunderground | `qcStatus` do Weather Company guardado (03/10) | — | faixas T/UR/P/Td/rad; teto 150 mm/balde; **qualificação de chuva (03/10)**: total do dia regrediu e `qcStatus` 0 → suspeito | PWS sem calibração (T 60 °C, P 900 hPa, contador de chuva que não zera — ex.: IMARIC14) | marcar como "não-operacional" (flag) e **nunca** misturar em estatística oficial |
+| Plugfield | — | — | filtro de Td; teto de balde; **qualificação de chuva (03/10)**: total do dia regrediu → suspeito | unidade da radiação desconhecida; timestamp do painel errado; 2 estações de Cambuci paradas há meses | confirmar unidades com o fornecedor; manutenção das estações paradas |
 | Ecowitt | — | — | **nenhum** | sem QC; fora do conjunto de fontes de balde | aplicar as mesmas faixas do Wunderground |
-| Macaé UFRJ | — | — | nenhum | só última leitura; estações paradas por horas | investigar endpoint de histórico; flag de "dado velho" |
+| Macaé UFRJ | acumulados oficiais 1/24/96 h (03/10) | — | balde > 20 mm/min → suspeito (03/10) | 15 das 26 internas sem dado; 3 offline com leitura velha | contato com a UFRJ/Defesa Civil; alerta de estação parada |
 
 Referências de método para o controle de qualidade e metadados:
 WMO-No. 8 (Guide to Instruments and Methods of Observation), WMO-No. 100
@@ -1579,13 +1583,13 @@ Situação por fonte (lida no código; "não auditado" = ainda não verificado):
 
 | Fonte | Valor gravado | Robustez a rodadas perdidas |
 |---|---|---|
-| Wunderground, Plugfield, Ecowitt Paracambi | total do dia → balde por diferença (`bucket_from_running_daily`, teto 150 mm) | Robusta: autocorrige |
+| Wunderground, Plugfield, Ecowitt Paracambi | total do dia → balde por diferença (`bucket_from_running_daily`, teto 150 mm) | Robusta: autocorrige (medido em 03/10/2026: Plugfield 17/17 e Wunderground 95/96 batem com o total oficial; ver `redes-sensiveis-plugfield-macae-wunderground.md`) |
 | CEMADEN-RJ sirenes (`cemaden_rj_sirenes`) | `tempo1` com intervalo mínimo de 14 min (corrigido 02/10) | Boa; 779 sobreposições antigas removidas |
 | CEMADEN Nacional (`cemaden_mctic`) | `ultimovalor` (~10 min) por rodada | **Corrigido em 03/10/2026** — era ~40% do oficial; agora cron de 5 min, acumulados oficiais gravados e exibidos (tabela CEMADEN Nacional); `chuva_mm` ainda é balde, os acumulados oficiais são a referência |
 | Alerta Rio | `m15` por rodada, `read_at` em grade de 5-10 min | Conferido: 1-24 h dentro de ~1-6% do oficial; 96 h/mês com excesso em algumas estações (Urca +13%); atraso de ~9 min é do feed |
 | Niterói (`niteroi`) | `m15` de `horaLeitura` por rodada | Frágil; mesmo desenho do Alerta Rio |
 | INEA (`inea`) | `chuva_mm` da tabela por rodada | Frágil; janela do valor **não auditada** |
-| Macaé UFRJ | `volume_chuva` da última leitura | Frágil; 1 leitura por rodada |
+| Macaé UFRJ | histórico por minuto do portal (desde 03/10/2026) | **Corrigido:** antes ~3% do oficial (3,4 × 90,8 mm em 24 h); agora igual ao oficial |
 | Rio Chuva por Bairro | por rodada | Frágil; não auditado |
 | INMET | `CHUVA` (última hora) | Depende de pegar toda hora; não auditado em detalhe |
 

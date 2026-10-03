@@ -58,6 +58,13 @@ TETO_PLAUSIVEL_BALDE_MM = 150.0
 
 
 def bucket_from_running_daily(source_slug: str, external_id: str, valor_atual_hoje: float) -> float | None:
+    """Versão simples de `bucket_from_running_daily_detalhe` (só o balde)."""
+    return bucket_from_running_daily_detalhe(source_slug, external_id, valor_atual_hoje)[0]
+
+
+def bucket_from_running_daily_detalhe(
+    source_slug: str, external_id: str, valor_atual_hoje: float
+) -> tuple[float | None, float | None]:
     """Deriva um valor tipo "balde" (chuva NESSE intervalo) a partir de um
     total corrido desde a meia-noite local (ex: Wunderground `precipTotal`,
     Plugfield `rainDay`) — `valor_atual_hoje` é esse total como a fonte
@@ -97,6 +104,7 @@ def bucket_from_running_daily(source_slug: str, external_id: str, valor_atual_ho
         reading_type=Reading.ReadingType.CHUVA_MM,
         timestamp__gte=inicio_hoje_local,
     )
+    ja_registrado_hoje = None
     if not leituras_hoje.exists():
         balde = valor_atual_hoje
     else:
@@ -109,8 +117,8 @@ def bucket_from_running_daily(source_slug: str, external_id: str, valor_atual_ho
             "provável sensor com defeito (comum em PWS residenciais tipo Wunderground), leitura descartada.",
             source_slug, external_id, balde, TETO_PLAUSIVEL_BALDE_MM,
         )
-        return None
-    return balde
+        return None, ja_registrado_hoje
+    return balde, ja_registrado_hoje
 
 
 @dataclass

@@ -162,6 +162,11 @@ Legenda: **✅** gravado · **⚠️** a fonte envia mas **não gravamos** · **
 ### Rio Chuva por Bairro
 - Implementado, **sem estações hoje** (serviço do Rio fora do ar em 15/09).
 
+> **Atualização 03/10/2026:** Plugfield, Macaé (UFRJ) e Wunderground têm levantamento
+> próprio, validação contra o valor oficial e tabela individual na aba Dados —
+> ver `redes-sensiveis-plugfield-macae-wunderground.md`. **Macaé** passou a gravar a chuva
+> por minuto (antes ~3% do oficial).
+
 ## 5. Pontos de atenção para fidelidade dos dados
 
 Observados no código; alguns dependem de validação com a fonte:

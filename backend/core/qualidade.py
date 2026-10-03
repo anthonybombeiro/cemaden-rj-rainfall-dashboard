@@ -34,3 +34,31 @@ def qualificar_chuva_intervalo(
     if valor_mm > LIMITE_SUSPEITO_MM:
         return ("suspeito", f"> {LIMITE_SUSPEITO_MM:g} mm no intervalo (extremo)")
     return None
+
+
+def registrar_qualidade_chuva(leituras_criadas: list, agora: dt.datetime) -> int:
+    """Qualifica as leituras de chuva NOVAS de uma rodada (pares
+    `(dict_da_leitura, Reading)` do gancho `pos_ingestao`) e grava só as
+    exceções em `LeituraQualidade` (ausência = válida). Além das regras de
+    `qualificar_chuva_intervalo`, aceita uma dica do conector no dict da
+    leitura (`qc_hint = (qualidade, motivo)`), usada para sinais próprios da
+    fonte (ex.: total do dia que regrediu, `qcStatus` do Wunderground). Uma
+    regra de "inválido" nunca é rebaixada pela dica. Devolve quantas gravou."""
+    from core.models import LeituraQualidade, Reading
+
+    gravadas = 0
+    for rd, leitura in leituras_criadas:
+        if rd["reading_type"] != Reading.ReadingType.CHUVA_MM:
+            continue
+        hint = rd.get("qc_hint")
+        if hint and hint[0] == "ok":
+            continue  # dica ("ok", motivo): 1a leitura do dia de fonte de total corrido (balde = total desde 00h)
+        q = qualificar_chuva_intervalo(rd["value"], rd["timestamp"], agora)
+        if hint and (q is None or q[0] != "invalido"):
+            q = hint
+        if q:
+            _, criada = LeituraQualidade.objects.get_or_create(
+                reading=leitura, defaults={"qualidade": q[0], "motivo": q[1][:120]}
+            )
+            gravadas += int(criada)
+    return gravadas

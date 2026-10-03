@@ -80,6 +80,8 @@ ACOES_PERMITIDAS = {
     "normalize_municipios",
     "populate_sirene_ref",
     "analise_chuva_qc",
+    "snapshot_precip",
+    "analise_funcionamento",
 }
 
 
@@ -291,6 +293,88 @@ class AdminOpsView(APIView):
                         travadas.append((sid, ant, run + 1))
                 rel["sequencias_iguais_ge_6"] = {"quantidade": len(travadas), "amostra(id,valor,tamanho)": travadas[:10]}
                 saida.write(json_module.dumps(rel, ensure_ascii=False, default=str))
+            elif action == "snapshot_precip":
+                # SOMENTE LEITURA: nossos acumulados (os mesmos da tabela de
+                # Precipitação) por estação de uma fonte, p/ comparar com o oficial.
+                import json as json_module
+
+                from api.views import StationViewSet
+                from core.models import Reading, Station
+
+                source = (request.data or {}).get("source")
+                if not source:
+                    return Response({"detail": "snapshot_precip exige 'source'."}, status=400)
+                estacoes = list(Station.objects.filter(source__slug=source))
+                calc = {e["id"]: e for e in StationViewSet()._calcular_precipitacao(estacoes)}
+                linhas = []
+                for st in estacoes:
+                    c = calc.get(st.id) or {}
+                    n = Reading.objects.filter(station=st, reading_type="chuva_mm").count()
+                    linhas.append(
+                        {
+                            "id": st.id, "ext": st.external_id, "nome": st.name, "mun": st.municipality,
+                            "atualizado": c.get("updated_at"), "n_leituras_chuva": n,
+                            "agora": c.get("chuva_agora_mm"), "1h": c.get("acumulado_1h_mm"),
+                            "24h": c.get("acumulado_24h_mm"), "96h": c.get("acumulado_96h_mm"),
+                            "hoje": c.get("acumulado_hoje_mm"),
+                        }
+                    )
+                saida.write(json_module.dumps(linhas, ensure_ascii=False, default=str))
+            elif action == "analise_funcionamento":
+                # SOMENTE LEITURA: funcionamento real das estações de uma fonte
+                # (última leitura, cobertura nos últimos N dias, maior lacuna,
+                # variáveis presentes).
+                import datetime as dt_module
+                import json as json_module
+                from collections import defaultdict
+
+                from django.db.models import Count
+                from django.utils import timezone
+
+                from core.models import Reading, Station
+
+                source = (request.data or {}).get("source")
+                dias = int((request.data or {}).get("dias") or 7)
+                if not source:
+                    return Response({"detail": "analise_funcionamento exige 'source'."}, status=400)
+                agora = timezone.now()
+                desde = agora - dt_module.timedelta(days=dias)
+                estacoes = {st.id: st for st in Station.objects.filter(source__slug=source)}
+                tipos = defaultdict(dict)
+                for sid, rt, n in (
+                    Reading.objects.filter(station_id__in=list(estacoes), timestamp__gte=desde)
+                    .values_list("station_id", "reading_type")
+                    .annotate(n=Count("id"))
+                ):
+                    tipos[sid][rt] = n
+                ts_por = defaultdict(list)
+                for sid, ts in Reading.objects.filter(
+                    station_id__in=list(estacoes), timestamp__gte=desde, reading_type__in=["temperatura_c", "chuva_mm"]
+                ).values_list("station_id", "timestamp"):
+                    ts_por[sid].append(ts)
+                linhas = []
+                for sid, st in estacoes.items():
+                    ts = sorted(set(ts_por.get(sid, [])))
+                    gaps = [(b - a).total_seconds() / 60 for a, b in zip(ts, ts[1:])]
+                    ultima = (
+                        Reading.objects.filter(station_id=sid).order_by("-timestamp").values_list("timestamp", flat=True).first()
+                    )
+                    primeira = (
+                        Reading.objects.filter(station_id=sid).order_by("timestamp").values_list("timestamp", flat=True).first()
+                    )
+                    mediana = sorted(gaps)[len(gaps) // 2] if gaps else None
+                    linhas.append(
+                        {
+                            "id": sid, "ext": st.external_id, "nome": st.name, "mun": st.municipality,
+                            "status": st.status, "primeira": primeira, "ultima": ultima,
+                            "idade_ultima_h": round((agora - ultima).total_seconds() / 3600, 1) if ultima else None,
+                            "instantes_%dd" % dias: len(ts),
+                            "intervalo_mediano_min": round(mediana, 1) if mediana else None,
+                            "maior_lacuna_h": round(max(gaps) / 60, 1) if gaps else None,
+                            "tipos": tipos.get(sid, {}),
+                        }
+                    )
+                saida.write(json_module.dumps(linhas, ensure_ascii=False, default=str))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 

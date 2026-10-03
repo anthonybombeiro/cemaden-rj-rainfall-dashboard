@@ -33,7 +33,7 @@ memória local do assistente).
 | **`*/2`** | **`sync_sirenes`** (alterado pelo usuário no cPanel em 03/10/2026; antes `*/15`, 25 s) | 60 s |
 | `1-59/15` | `ingest inea` | 25 s |
 | `0,30` | `sync_avisos_mau_tempo` | 25 s |
-| `5-59/15` | `ingest macae_ufrj` (criado em 03/10/2026) | 120 s |
+| `5-59/15` | `ingest macae_ufrj` (criado em 03/10/2026; passou a baixar o histórico por minuto, 4-10 s por rodada) | 120 s |
 | `7-59/15` | `ingest redemet` (criado em 03/10/2026) | 120 s |
 | `9-59/15` | `ingest ecowitt_paracambi` (criado em 03/10/2026) | 120 s |
 
@@ -160,3 +160,17 @@ diferem trazem apenas versões **antigas** das mesmas rotinas (nenhum conteúdo
 exclusivo do C: faltava no H:). Único acerto: 4 variáveis do `.env` local
 (`CEMADEN_RJ_SIRENES_*` e `ECOWITT_PARACAMBI_*`) copiadas do C: para o H:.
 Detalhes em `docs/registro-de-acoes.md`.
+
+## Ações administrativas somente leitura (03/10/2026)
+
+Além de `migrate`, `ingest`, etc., `POST /api/admin/run/` (header `X-Admin-Secret`)
+aceita três ações **que não gravam nada**, criadas para auditar as fontes:
+
+| Ação | Corpo | Devolve |
+|---|---|---|
+| `analise_chuva_qc` | `{"source": "cemaden_mctic", "dias": 30}` | distribuição dos baldes de chuva, vizinhança e sequências iguais (calibração da qualificação) |
+| `snapshot_precip` | `{"source": "<slug>"}` | nossos acumulados (1/24/96 h, hoje) por estação, para comparar com o oficial da fonte |
+| `analise_funcionamento` | `{"source": "<slug>", "dias": 7}` | por estação: primeira/última leitura, idade, instantes, intervalo mediano, maior lacuna e variáveis presentes |
+
+Observação: o servidor responde 406 a requisições com o `User-Agent` padrão do
+Python; use o do `curl` (ou `curl`) ao chamar de scripts.

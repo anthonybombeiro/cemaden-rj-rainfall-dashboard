@@ -335,6 +335,41 @@ export async function fetchCemadenNacional(): Promise<CemadenNacionalStation[]> 
   return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
+/** Redes com tabela individual (03/10/2026): fonte (slug do backend) das abas
+ * Plugfield, Macaé e Wunderground em Dados. */
+export type RedeSource = "plugfield" | "macae_ufrj" | "wunderground";
+
+/** Linha da tabela de uma rede. `oficial` depende da fonte: Macaé
+ * {"1","24","96"}; Plugfield {"hoje","mes","ano"}; Wunderground {"hoje","taxa"}.
+ * `nosso` são os acumulados calculados somando o que gravamos. */
+export type RedeStation = {
+  id: number;
+  name: string;
+  municipality: string;
+  codigo: string;
+  referencia: string | null;
+  ultima_leitura: string | null;
+  oficial: Record<string, number | null>;
+  nosso: Record<string, number | null>;
+  atual: {
+    temp?: number;
+    umid?: number;
+    vento_ms?: number;
+    rajada_ms?: number;
+    pressao_nm?: number;
+    pressao?: number;
+  };
+  extra: Record<string, string | number | boolean | null | undefined>;
+  qualidade: "suspeito" | "invalido" | null;
+  qualidade_motivo: string;
+  qualidade_em: string | null;
+};
+
+export async function fetchRede(source: RedeSource): Promise<RedeStation[]> {
+  const r = await getJson<RedeStation[]>(`/stations/rede/?source=${source}`);
+  return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
+}
+
 /** Atraso da última leitura, com as MESMAS faixas da legenda da Rede Salvar:
  * até 4 h normal; >4 h <120 h azul-escuro; >120 h <30 d oliva; >30 d roxo.
  * Hora no futuro (> 10 min à frente) = "dado futuro" (relógio vermelho). */

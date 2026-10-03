@@ -714,6 +714,120 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             )
         return Response(data)
 
+    REDES_TABELA = ("plugfield", "macae_ufrj", "wunderground")
+
+    @action(detail=False, methods=["get"])
+    def rede(self, request):
+        """Tabela individual por fonte (03/10/2026) para as redes sensíveis
+        Plugfield, Macaé (UFRJ) e Wunderground — `GET /api/stations/rede/?source=<slug>`.
+        Mesmo desenho do `cemaden`: valores OFICIAIS da fonte ao lado dos NOSSOS
+        acumulados (soma dos baldes gravados), última observação, variáveis
+        meteorológicas atuais, qualificação e código da estação.
+
+        `oficial` depende da fonte: Macaé = {"1","24","96"} (portal);
+        Plugfield = {"hoje","mes","ano"} (`rainDay/rainMonth/rainYear`);
+        Wunderground = {"hoje","taxa"} (`precipTotal`, `precipRate`)."""
+        slug = request.query_params.get("source", "")
+        if slug not in self.REDES_TABELA:
+            return Response({"detail": f"source deve ser um de {list(self.REDES_TABELA)}"}, status=400)
+        stations = list(Station.objects.filter(source__slug=slug))
+        ids = [st.id for st in stations]
+        nossos = {e["id"]: e for e in self._calcular_precipitacao(stations)}
+        agora = timezone.now()
+
+        tipos_atuais = {
+            "temperatura_c": "temp",
+            "umidade_pct": "umid",
+            "vento_ms": "vento_ms",
+            "vento_rajada_ms": "rajada_ms",
+            "pressao_nm_hpa": "pressao_nm",
+            "pressao_hpa": "pressao",
+        }
+        atuais: dict = {}
+        for sid, rt, valor in (
+            Reading.objects.filter(
+                station_id__in=ids, reading_type__in=list(tipos_atuais), timestamp__gte=agora - datetime.timedelta(hours=6)
+            )
+            .order_by("timestamp")
+            .values_list("station_id", "reading_type", "value")
+        ):
+            atuais.setdefault(sid, {})[tipos_atuais[rt]] = valor  # ordem crescente: a última vence
+
+        ultima_leitura = {
+            r["station_id"]: r["m"]
+            for r in Reading.objects.filter(station_id__in=ids).values("station_id").annotate(m=Max("timestamp"))
+        }
+
+        qualidade: dict = {}
+        for q in (
+            LeituraQualidade.objects.filter(
+                reading__station_id__in=ids, reading__timestamp__gte=agora - datetime.timedelta(hours=24)
+            )
+            .order_by("reading__station_id", "-reading__timestamp")
+            .values("reading__station_id", "reading__timestamp", "qualidade", "motivo")
+        ):
+            qualidade.setdefault(q["reading__station_id"], q)
+
+        data = []
+        for st in stations:
+            meta = st.raw_metadata or {}
+            referencia = None
+            oficial: dict = {}
+            extra: dict = {}
+            codigo = st.external_id
+            if slug == "macae_ufrj":
+                snap = meta.get("acumulados_oficiais") or {}
+                referencia = snap.get("referencia")
+                oficial = {j: (snap.get("acc") or {}).get(j) for j in ("1", "24", "96")}
+                codigo = meta.get("codigo") or st.external_id
+                extra = {"online": (meta.get("estacao") or {}).get("online")}
+            elif slug == "plugfield":
+                dash = meta.get("dashboard") or {}
+                ts_ms = meta.get("lastUpdateTimestamp")
+                if ts_ms:
+                    referencia = datetime.datetime.fromtimestamp(ts_ms / 1000, tz=datetime.timezone.utc).isoformat()
+                oficial = {"hoje": dash.get("rainDay"), "mes": dash.get("rainMonth"), "ano": dash.get("rainYear")}
+                codigo = str(meta.get("serialNumber") or st.external_id)
+                extra = {"bateria_pct": dash.get("bat"), "intervalo_s": meta.get("refreshInterval"), "modelo": meta.get("stationModel")}
+            else:  # wunderground
+                obs = meta.get("observacao_oficial") or {}
+                referencia = obs.get("referencia")
+                oficial = {"hoje": obs.get("precip_total_mm"), "taxa": obs.get("precip_rate_mm_h")}
+                extra = {"qc_status": obs.get("qc_status"), "software": obs.get("software"), "bairro": obs.get("bairro")}
+            if not referencia and ultima_leitura.get(st.id):
+                referencia = ultima_leitura[st.id].isoformat()
+            n = nossos.get(st.id) or {}
+            q = qualidade.get(st.id)
+            data.append(
+                {
+                    "id": st.id,
+                    "name": st.name,
+                    "municipality": canonico_ou_original(st.municipality),
+                    "codigo": codigo,
+                    "referencia": referencia,
+                    "ultima_leitura": ultima_leitura[st.id].isoformat() if ultima_leitura.get(st.id) else None,
+                    "oficial": oficial,
+                    "nosso": {
+                        "1": n.get("acumulado_1h_mm"),
+                        "3": n.get("acumulado_3h_mm"),
+                        "6": n.get("acumulado_6h_mm"),
+                        "12": n.get("acumulado_12h_mm"),
+                        "24": n.get("acumulado_24h_mm"),
+                        "48": n.get("acumulado_48h_mm"),
+                        "72": n.get("acumulado_72h_mm"),
+                        "96": n.get("acumulado_96h_mm"),
+                        "hoje": n.get("acumulado_hoje_mm"),
+                        "mes": n.get("acumulado_mes_mm"),
+                    },
+                    "atual": atuais.get(st.id, {}),
+                    "extra": extra,
+                    "qualidade": q["qualidade"] if q else None,
+                    "qualidade_motivo": q["motivo"] if q else "",
+                    "qualidade_em": q["reading__timestamp"].isoformat() if q else None,
+                }
+            )
+        return Response(data)
+
     @action(detail=False, methods=["get"])
     def precipitacao(self, request):
         """Estações pluviométricas com chuva acumulada em várias janelas —
