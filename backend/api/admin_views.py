@@ -79,6 +79,7 @@ ACOES_PERMITIDAS = {
     "create_user",
     "normalize_municipios",
     "populate_sirene_ref",
+    "analise_chuva_qc",
 }
 
 
@@ -205,6 +206,91 @@ class AdminOpsView(APIView):
                     station__source__slug=source, reading_type=reading_type, timestamp__gte=since
                 ).delete()
                 saida.write(f"leituras apagadas: {apagadas}")
+            elif action == "analise_chuva_qc":
+                # SOMENTE LEITURA (03/10/2026): distribuição dos baldes de chuva
+                # de uma fonte p/ calibrar os limites de core/qualidade.py.
+                import datetime as dt_module
+                import json as json_module
+                import statistics
+                from collections import defaultdict
+
+                from django.utils import timezone
+
+                from core.models import Reading
+
+                source = (request.data or {}).get("source") or "cemaden_mctic"
+                dias = int((request.data or {}).get("dias") or 30)
+                desde = timezone.now() - dt_module.timedelta(days=dias)
+                linhas = list(
+                    Reading.objects.filter(
+                        station__source__slug=source, reading_type="chuva_mm", timestamp__gte=desde
+                    ).values_list("station_id", "station__municipality", "timestamp", "value")
+                )
+                valores = sorted(v for _, _, _, v in linhas)
+                n = len(valores)
+
+                def pct(q):
+                    return valores[min(n - 1, int(q * n))] if n else None
+
+                nao_zero = [v for v in valores if v > 0]
+                rel = {
+                    "leituras": n,
+                    "periodo_dias": dias,
+                    "estacoes": len({sid for sid, _, _, _ in linhas}),
+                    "nao_zero": len(nao_zero),
+                    "percentis_todos": {q: pct(q) for q in (0.5, 0.9, 0.99, 0.999)},
+                    "percentis_chuva_nao_zero": {
+                        q: (nao_zero[min(len(nao_zero) - 1, int(q * len(nao_zero)))] if nao_zero else None)
+                        for q in (0.5, 0.9, 0.99, 0.999)
+                    },
+                    "maior": valores[-5:] if n else [],
+                    "acima_de": {str(t): sum(1 for v in valores if v > t) for t in (5, 8, 10, 12, 15, 20, 30, 50)},
+                }
+                # Vizinhança: leituras >= 8 mm comparadas com a mediana das demais
+                # estações do MESMO município e MESMO horário (arredondado a 10 min).
+                por_mun_hora = defaultdict(list)
+                for sid, mun, ts, v in linhas:
+                    chave = (mun, ts.replace(minute=ts.minute - ts.minute % 10, second=0, microsecond=0))
+                    por_mun_hora[chave].append((sid, v))
+                isolados, com_apoio, sem_vizinha = [], 0, 0
+                for sid, mun, ts, v in linhas:
+                    if v < 8:
+                        continue
+                    chave = (mun, ts.replace(minute=ts.minute - ts.minute % 10, second=0, microsecond=0))
+                    outras = [x for s2, x in por_mun_hora[chave] if s2 != sid]
+                    if not outras:
+                        sem_vizinha += 1
+                    elif statistics.median(outras) >= 0.3 * v or max(outras) >= 0.5 * v:
+                        com_apoio += 1
+                    else:
+                        isolados.append((sid, mun, ts.isoformat(), v, round(max(outras), 1)))
+                rel["vizinhanca_ge_8mm"] = {
+                    "total": sum(1 for *_, v in linhas if v >= 8),
+                    "com_apoio_de_vizinha": com_apoio,
+                    "sem_vizinha_no_horario": sem_vizinha,
+                    "isoladas": len(isolados),
+                    "amostra_isoladas(id,mun,ts,valor,max_vizinhas)": isolados[:15],
+                }
+                # Sensor travado: >= 6 leituras consecutivas iguais e > 0 numa estação.
+                por_est = defaultdict(list)
+                for sid, mun, ts, v in linhas:
+                    por_est[sid].append((ts, v))
+                travadas = []
+                for sid, seq in por_est.items():
+                    seq.sort()
+                    run, ant = 0, None
+                    for ts, v in seq:
+                        if v > 0 and v == ant:
+                            run += 1
+                        else:
+                            if run >= 5:
+                                travadas.append((sid, ant, run + 1))
+                            run = 0
+                        ant = v
+                    if run >= 5:
+                        travadas.append((sid, ant, run + 1))
+                rel["sequencias_iguais_ge_6"] = {"quantidade": len(travadas), "amostra(id,valor,tamanho)": travadas[:10]}
+                saida.write(json_module.dumps(rel, ensure_ascii=False, default=str))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 

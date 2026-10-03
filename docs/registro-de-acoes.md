@@ -72,6 +72,8 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | **Aba Dados → "CEMADEN Nacional"** (tabela espelhando a Rede Salvar: sem Rede/UF; ordenada por 1 h; cores de chuva do painel; atraso com 🕒 nas faixas da Salvar; REDEC, atualização e código por último; estação clicável; exportar CSV) | `CemadenNacionalTable.tsx`, `Dashboard.tsx`, `api.ts` | build OK, deploy SFTP (80 arquivos), verificado no navegador em produção (392 estações, códigos e relógio exibidos) |
 | Documentação da fonte CEMADEN Nacional reescrita (acesso, campos, H/G, ANA, qualificação, causa da divergência, cron) e demais `.md` corrigidos | `fontes-de-dados.md`, `dados-por-fonte-e-estacao.md`, `operacao-cron-e-producao.md`, `referencia-visual-rede-salvar.md` | — |
 
+| **Análise para calibrar os limites da qualificação** (ação nova, somente leitura, `analise_chuva_qc` em `/api/admin/run/`): 30 dias do `cemaden_mctic` = 58.586 baldes de 10 min, 274 estações. Chuva > 0: mediana 0,2 mm, p99 2,2 mm, p99,9 8,2 mm. Acima de 10 mm: 8 leituras; 15 mm: 2; 20 mm: 2 (26,4 e 51,4); 50 mm: 1. Das 18 leituras ≥ 8 mm, só 1 teve apoio de estação vizinha (mesmo município e horário), 8 não tinham vizinha no horário e 9 estavam isoladas (ex.: Teresópolis, estação 987: 13,1 / 12,4 / 10,1 mm em horários próximos com vizinhas em 0). Sequências de ≥ 6 leituras iguais: 190, todas de 0,2 mm (resolução do pluviômetro, não indica sensor travado). **Conclusão:** limite de 20 mm marca só 2 de 58 mil; proposta (não implementada) de regra de vizinhança | `admin_views.py` | executado em produção; nada foi gravado |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
