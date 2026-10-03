@@ -176,15 +176,22 @@ Sistemas, v2.0, 2015), obtido em
 - **Achados de 03/10/2026 (nada corrigido ainda):** (1) as 31 estações com
   dado têm atraso uniforme de ~7 min (`updated_at` vs. agora) — o `read_at`
   do feed é o carimbo do intervalo e a publicação vem depois, somado ao
-  nosso ciclo de ingestão. (2) Gravamos o `m15` (chuva dos últimos 15 min,
-  janela deslizante) com `read_at` numa grade de 10 min (ex.: Rocinha
-  22:55, 23:15, 23:25, 23:35, 23:45, 23:55) — janelas de 15 min a cada
-  10 min se sobrepõem e a soma tende a inflar (Rocinha: 24h = 86 mm no
-  nosso banco; não deu pra conferir contra o `h24` oficial porque o
-  `websempre` não libera CORS no navegador). Mesma família do bug da
-  `tempo1` das sirenes. Alternativa: gravar `m05` (5 min, sem sobreposição)
-  ou usar `h01`/`h24` do próprio feed como referência. O conector do
-  Niterói (`m15` de `horaLeitura`) tem o mesmo desenho.
+  nosso ciclo de ingestão: conferido em 03/10/2026 04:34 UTC — o feed
+  oficial tinha `read_at` 04:25 UTC (9 min antes) e o nosso banco já estava
+  nesse mesmo `read_at`, ou seja, **o atraso é do feed, não do nosso
+  ciclo**. (2) Gravamos o `m15` (chuva dos últimos 15 min, janela
+  deslizante). **Comparação com o feed oficial no mesmo `read_at`
+  (03/10/2026 04:25 UTC), nosso banco × oficial:** Vidigal 1h 8,8×8,6 /
+  3h 15,6×14,8 / 24h 33,6×33,4 / 96h 45,6×43,8; Rocinha 1h 9,4×9,8 /
+  3h 18,0×18,2 / 24h 97,8×99,2 / 96h 113,2×113,4; Urca 1h 1,6×1,8 /
+  24h 17,4×18,6 / **96h 43,8×38,6 (+13%)**. Ou seja, de 1 h a 24 h fica
+  dentro de ~1-6% (hipótese anterior de "inflar muito" NÃO se confirmou
+  nessas janelas), mas há excesso nas janelas longas de algumas estações
+  (Urca 96 h e mês), compatível com sobreposição de `m15` em períodos
+  antigos. O feed também entrega `m05`, `h01`…`h04`, `h24`, `h96` e `mes`
+  prontos, que servem de verdade-terreno para auditar. O conector do
+  Niterói (`m15` de `horaLeitura`) tem o mesmo desenho e ainda não foi
+  comparado.
 - Esse achado veio de um arquivo de pesquisa (.md) que o usuário baixou de
   outra ferramenta e nos passou — não foi engenharia reversa de proteção
   nenhuma, foi literalmente ler o código-fonte público de um projeto no
@@ -975,6 +982,184 @@ a `api_key` em 02/10/2026).
 - Possível caminho (não investigado): endpoint de histórico/gráfico do
   portal (`monitoramentoIndividual/{id}`) para recuperar baldes perdidos.
 
+## Catálogo comparativo das fontes — o que recebemos, o que gravamos, o que falta (03/10/2026)
+
+Visão de meteorologia observacional/instrumental, climatologia e sinótica
+sobre o que o sistema recebe hoje, para orientar decisões por fonte e o
+desenho futuro de um dashboard de apoio a gestor e meteorologista. Baseado
+na leitura do código dos conectores e em comparações medidas em
+03/10/2026. Nada aqui foi implementado: é diagnóstico e proposta.
+
+**Legenda das células:** `G` = consumido e **gravado** no banco · `D` =
+gravado após conversão/derivação · `I` = o fornecedor **oferece e nós
+ignoramos** · `—` = o fornecedor não oferece · `?` = a confirmar.
+
+### 1. Chuva — agrupada por frequência de atualização do fornecedor
+
+| Grupo (cadência) | Fonte | Rede / natureza | Estações | Valor que gravamos (`chuva_mm`) | Janelas prontas que o fornecedor oferece (e ignoramos) | Carimbo de tempo | Resolução |
+|---|---|---|---|---|---|---|---|
+| **5 min** | Alerta Rio (Prefeitura RJ/GeoRio) | pluviógrafo basculante | 31 | `m15` (15 min deslizante) a cada rodada | `m05`, `h01`-`h04`, `h24`, `h96`, `mes` (**I**) | `read_at`, publicado ~5-10 min após | 0,2 mm |
+| **5 min** | Niterói (Defesa Civil/Tecal) | pluviômetro | 30 | `m15` a cada rodada | `m05`, `m10`, `m30`, `h01`…`h720`, `mes` (**I**) | `horaLeitura` (tz não tratada explicitamente) | ? |
+| **10 min** | CEMADEN Nacional (`cemaden_mctic`) | PCDs da rede nacional | 356 | `ultimovalor` (~10 min) a cada rodada | `acc1hr`…`acc96hr` (**I**) | `datahoraUltimovalor` em UTC | ? |
+| **15 min** | CEMADEN-RJ sirenes (GridLab) | pluviômetro + sirene | 85 com pluviômetro | `tempo1` (janela deslizante), mín. 14 min entre gravações | outras janelas (**I**) | `DataHora` (BRT→UTC) | ? |
+| **15 min** | INEA Alerta de Cheias | pluviômetro + linígrafo | 94 | `dado_ultimo` (15 min) | `chuva_1h/4h/24h/96h/30d` (**I**, por decisão) | `data_hora` (BRT→UTC) | ? |
+| **15 min** | Rio Chuva por Bairro (COR) | **produto agregado** por hexágono H3, não é ponto | hexágonos | `chuva_15min` | 30 min…96 h (**I**) | 1 carimbo global (BRT→UTC fixo) | ? |
+| **Horária** | INMET (estações automáticas) | rede nacional, padrão OMM | 26 | `CHUVA` (acumulado da hora) | — | hora de medição (UTC) | ? |
+| **Total corrido do dia** (cadência do dispositivo) | Wunderground (PWS) | colaborativa, **sem calibração** | 106 ativas (~125 cadastradas) | total do dia → balde por diferença (`D`) | `precipRate` (**I**) | `obsTimeUtc` | ? |
+| **Total corrido do dia** | Plugfield (parceiros municipais) | estações de Defesas Civis | 19 | `rainDay` → balde por diferença (`D`) | `rainMonth` (**I**) | `lastUpdateTimestamp` do aparelho | ? |
+| **Total corrido do dia** | Ecowitt Paracambi | 2 estações GW3000B | 2 | `rainfall.daily` → balde (`D`) | taxa, hora, semana, mês, evento (**I**) | `time` do campo | ? |
+| **Irregular** (só "última leitura") | Macaé UFRJ | telemetria própria | 12 | `volume_chuva` da última leitura | — (não há histórico no endpoint usado) | `datahora` (BRT→UTC) | ? |
+
+Leitura rápida: quem nos entrega janelas oficiais prontas (Alerta Rio,
+CEMADEN, INEA, Niterói) é quem mais perde com o desenho "um valor por
+rodada"; as fontes de total corrido do dia (Wunderground, Plugfield,
+Ecowitt) se autocorrigem. **Defeito achado:** `ecowitt_paracambi` não
+consta em `PRECIPITACAO_BUCKET_SOURCES` (`api/views.py`), então suas 2
+estações saem sem acumulados na tabela mesmo gravando baldes.
+
+### 2. Variáveis atmosféricas de superfície — por frequência
+
+| Grupo | Fonte | T | Tmáx / Tmín | UR | UR máx/mín | P estação | P nível do mar | T orvalho | Vento vel. | Dir. | Rajada | Radiação | UV | Sensação |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **Horária** | INMET | G | G (extremos da hora) | G | G | G | — | G | G | G | G | D (kJ/m²→W/m²) | — | I |
+| **Horária** | REDEMET METAR | G | — | — | — | — | D (QNH) | G | D (kt→m/s) | G (VRB descartado) | D | — | — | — |
+| **5 min** | Alerta Rio (estações met.) | G | G (`max`/`min` informados) | G | — | G | — | — | D (km/h assumido→m/s) | D (cardinal→graus) | — | — | — | — |
+| **Irregular** | Macaé UFRJ | G | — | G | — | G | — | — | D (km/h→m/s) | G | G | — | — | — |
+| **Dispositivo** | Plugfield | G | G (extremo do dia até agora) | G | — | G | G | G (filtrado) | D (km/h→m/s) | G | D | I (unidade desconhecida) | G | G |
+| **Dispositivo** | Wunderground | G | — (endpoint atual não tem) | G | — | — | G | G (filtrado) | D (km/h→m/s) | G | D | G | G | I (`heatIndex`, `windChill`) |
+| **Dispositivo** | Ecowitt Paracambi | G | — | G | — | I (absoluta) | G | G | G | G | G | G | G | G |
+
+O que cada fonte oferece além do que consumimos (observação): INMET —
+`PRE_MAX/MIN`, `PTO_MAX/MIN` (**I**); REDEMET METAR — visibilidade,
+nebulosidade (tipo, altura da base), teto, tempo presente (RA, TSRA, FG…),
+tendência/RMK (todos só no `raw_payload`, sem campo estruturado); Alerta
+Rio — nada além do que já lemos; Wunderground — `qcStatus` (**I**).
+
+### 3. Hidrologia, oceano e avisos
+
+| Tema | Fonte | Frequência | O que recebemos | Gravamos | Observação |
+|---|---|---|---|---|---|
+| Nível de rio | INEA Alerta de Cheias | 15 min | `nivel_rio` (73 estações "Plu/Flu" têm nível; 21 são só "Plu") | `nivel_m` (G); sem unidade explícita (limiares em cm → ×100) | Sem bacia/rio na fonte; cotas por `CotaHidrologica` (estático, planilha INEA/CPRM) |
+| Nível de rio | ANA / CEMADEN hidrológica | — | — | **Nenhum conector** (só código ANA no inventário) | Lacuna para séries históricas de vazão/cota |
+| Maré / boias / ondas | Marinha (PNBOIA, tábua) | — | — | **Nada** (só avisos de mau tempo) | Lacuna oceânica; tábua/BNDO atrás de Cloudflare |
+| Avisos de mau tempo | Marinha (CHM/SMM, áreas Charlie e Delta) | irregular | texto do aviso, validade | `AvisoMauTempo` (não é `Reading`) | Só texto PT; sem geometria |
+| Risco hidro/geo/meteoro/incêndio | CEMADEN-RJ (Power BI da Defesa Civil) | por boletim | nível por REDEC/município | `RiskAlert` (G) | Só o estado mais recente |
+| Sirenes | CEMADEN-RJ (GridLab) | 15 min | status e acionamento por sirene | `AlertEvent`, `SireneAcaoTipo` | Semântica do acionamento não validada em campo |
+| Previsão do tempo | Painel legado (11 REDECs) | diária | Tmáx/Tmín, UR, vento, ícone, comentário | `Previsao` (~22,7 mil registros desde 2010) | Previsão **manual**; não guardamos previsão numérica |
+| Gatilhos pluviométricos | Regra interna (13 municípios) | — | limiares 1h/24h/96h/30d | `GatilhoPluviometrico` | Base para alertas, não é observação |
+
+### 4. Sensoriamento remoto (radar e satélite) — hoje só visualização
+
+| Produto | Fonte | Cadência / histórico real | Cobertura | Variável | Gravamos |
+|---|---|---|---|---|---|
+| Radar MAXCAPPI e CAPPI 3/5/7/10 km | REDEMET (Pico do Couto) | ~20 min, **8 quadros** | raio 400 km (CAPPI 250 km) | refletividade | **Nada** (PNG como camada) |
+| Radar MAXDISPLAY | Prefeitura de Niterói | 5 min, 15 quadros | raio 100 km | refletividade máx. | Nada |
+| Radar Guaratiba / Macaé | INEA Radar Tool | 5 min, 15 quadros | raio 250 km | refletividade | Nada |
+| Radar Mendanha / Sumaré | INEA Radar Tool | 5 min (Mendanha sem imagem nas últimas 6 h) | 100 km / 139 km | refletividade | Nada |
+| Mosaico dos radares do estado | INEA | 10 min, 15 quadros | todo o RJ | refletividade | Nada |
+| Satélite (IR, IR realçado, visível) | REDEMET | 10 min, 15 quadros | América do Sul | temperatura de brilho / reflectância | Nada |
+
+Nenhum valor numérico de radar/satélite é guardado: não dá para montar
+série de refletividade, estimativa de precipitação por município nem
+trajetória de células depois que o PNG some do servidor deles (8-15
+quadros).
+
+### 5. O que o banco guarda hoje (esquema) e suas lacunas
+
+`Reading(station, reading_type, value, timestamp UTC, raw_payload JSON)`,
+único por (estação, tipo, timestamp); `Station(source, external_id, lat,
+lon, altitude_m, tipo, status, município)`.
+
+- **Sem unidade no registro** (a unidade é implícita no `reading_type`);
+  sem **flag de qualidade**; sem **versão/valor original** quando houve
+  conversão; sem diferença entre **hora da observação** e **hora da coleta**
+  (para vários conectores o carimbo é de publicação).
+- **Sem janela do valor**: `chuva_mm` pode ser 5, 10, 15 min, 1 h ou balde
+  entre rodadas — o significado só está no código do conector. Falta
+  `intervalo_inicio/fim` (ou `janela_min`) por leitura.
+- **Sem metadados de sensor/estação** no padrão da OMM/WIGOS: tipo e
+  fabricante do sensor, resolução, altura/exposição (altura do pluviômetro,
+  do anemômetro), data de instalação/calibração, altitude (quase sempre
+  `None`), coordenada exata × aproximada (CEMADEN usa centroide do
+  município; Rio Chuva por Bairro usa centroide do hexágono).
+- `get_or_create`: um valor corrigido pela fonte depois **não** atualiza o
+  registro; `raw_payload` por leitura incha o banco (já estoura o
+  hospedeiro em consultas grandes) e repete o mesmo JSON para cada variável.
+- **Sem agregados persistidos** (horário/diário/mensal), sem completude
+  por período, sem climatologia, sem arquivo das previsões emitidas.
+- Conversões assumidas e não confirmadas: vento do Alerta Rio em km/h;
+  pressão do Alerta Rio (estação ou nível do mar?); `nivel_rio` do INEA em
+  metros; `rainDay` do Plugfield (e `updateDateTime`, que vem 3 h
+  deslocado — o código usa o timestamp do aparelho).
+
+### 6. Veracidade — o que foi medido e o que melhorar
+
+| Fonte | Validado contra | Resultado | Controle de qualidade hoje | Principais riscos | Melhoria proposta |
+|---|---|---|---|---|---|
+| CEMADEN (`cemaden_mctic`) | plataforma oficial, 03/10/2026 | **~40% do oficial** (24h 33,2 × 80 mm) | nenhum | baldes de 10 min perdidos (gaps 10-70 min) | gravar também `acc1hr…acc96hr` oficiais; ingestão a cada ≤5 min |
+| Alerta Rio | feed oficial, mesmo `read_at` | 1-24 h dentro de ~1-6%; 96 h/mês com excesso (Urca +13%) | nenhum | `m15` sobreposto; atraso de ~9 min é do feed | gravar `m05` + oficiais `h01…h96`; comparar diariamente |
+| Niterói | não validado | — | nenhum | só vale com ingestão exata de 15 min; antes de 25/09 gravava `m05` | usar `h01` como referência/reconciliação |
+| INEA | não validado | — | nenhum | janela de `dado_ultimo` presumida; `verify=False` no TLS; id por nome | guardar `chuva_1h/24h` oficiais; validar certificado |
+| CEMADEN-RJ sirenes | revisão de sobreposição (779 removidas) | corrigido | intervalo mínimo 14 min | janela deslizante subamostra chuva intensa | usar janela oficial maior (1 h) como referência |
+| INMET | — | — | faixas físicas (T -10..50, UR 0..100, chuva 0..300, vento 0..80, P 300..1100 …) | extremos de rede no limite; rate-limit devolve HTTP 200 texto | adicionar teste de passo (T), persistência (vento/pressão) e consistência T ≥ Td |
+| REDEMET METAR | — | horário real do METAR já usado | nenhum além do parsing | QNH ≠ pressão de estação; ventos VRB perdidos; nuvens/visibilidade fora da base | guardar visibilidade, teto, tempo presente estruturados |
+| Wunderground | — | — | faixas T/UR/P/Td/rad; teto 150 mm/balde | PWS sem calibração (T 60 °C, P 900 hPa, contador de chuva que não zera) | marcar como "não-operacional" (flag) e **nunca** misturar em estatística oficial |
+| Plugfield | — | — | filtro de Td; teto de balde | unidade da radiação desconhecida; timestamp do painel errado | confirmar unidades com o fornecedor; guardar `updateDateTime` correto |
+| Ecowitt | — | — | **nenhum** | sem QC; fora do conjunto de fontes de balde | aplicar as mesmas faixas do Wunderground |
+| Macaé UFRJ | — | — | nenhum | só última leitura; estações paradas por horas | investigar endpoint de histórico; flag de "dado velho" |
+
+Referências de método para o controle de qualidade e metadados:
+WMO-No. 8 (Guide to Instruments and Methods of Observation), WMO-No. 100
+(Guide to Climatological Practices), WMO-No. 1192 (WIGOS Metadata Standard)
+e os testes clássicos de QC de superfície — limite físico, **passo**
+(variação máxima entre leituras), **persistência** (valor travado),
+**consistência interna** (T ≥ Td, rajada ≥ vento médio, UR ≤ 100) e
+**consistência espacial** (comparação com vizinhas). Convém gravar o
+resultado como **flag** por leitura (0 = ok, 1 = suspeito, 2 = rejeitado,
+9 = não testado) em vez de descartar o dado, para poder auditar depois.
+
+### 7. O que guardar para o dashboard (gestor e meteorologista)
+
+Princípio: **bruto imutável + camadas derivadas + metadados**, com tudo em
+UTC e com a janela de cada valor explícita.
+
+| Camada | Conteúdo proposto | Para quê |
+|---|---|---|
+| Observação bruta (`Reading`) | + `unidade`, `janela_min`, `hora_observacao` e `hora_coleta`, `flag_qc`, `fonte_valor_original`; `raw_payload` só 1 por rodada/estação | auditoria, reprocessamento, comparação entre fontes |
+| Metadados de estação/sensor | altura do sensor, exposição, resolução, fabricante, instalação/calibração, altitude exata, tipo de coordenada (exata/aproximada), rede (operacional × colaborativa) | padronização, calibração, ponderação por confiabilidade |
+| Acumulados de chuva por estação | 5 min…96 h, 7 d, 30 d, mês, ano hidrológico, **gravados** a cada ingestão + completude (% de baldes presentes) | consulta por SQL, alertas, comparação com valores oficiais |
+| Referência oficial da fonte | acumulados e extremos que a própria fonte informa (CEMADEN, Alerta Rio, INEA, Niterói) | verdade-terreno para medir o erro da nossa soma |
+| Agregados horários e diários | Tméd/Tmáx/Tmín e amplitude, UR média, vento médio vetorial e rajada máx., pressão média, **tendência de pressão 3 h**, T − Td, chuva horária/diária, contagem de amostras | diagnóstico do estado atual, início de séries climatológicas |
+| Sinótica / termodinâmica | variação de pressão ao nível do mar, convergência de vento entre estações, T − Td, e (futuro) índices de **radiossondagem** (CAPE, CIN, K, TT, LI, água precipitável); candidata: sondagem do Galeão (WMO 83746, disponibilidade a confirmar) | previsão de curto prazo e instabilidade |
+| Radar e satélite derivados | por município/REDEC: refletividade máx., área acima de limiares (ex.: ≥35 dBZ), taxa de chuva estimada (relação Z–R), temperatura de brilho mínima (IR) e série temporal; centroide e deslocamento de células | nowcasting 0-3 h; hoje some com o PNG |
+| Oceano | PNBOIA/boias (altura e período de onda, direção, T do mar, vento, pressão) e maré (tábua + residual) | previsão costeira e ressaca |
+| Climatologia | normais (OMM, período 1991-2020), percentis, extremos absolutos e por mês, desvio-padrão, **anomalia** = valor − normal, SPI, dias com chuva ≥1/10/50 mm, dias secos consecutivos, R95p/Rx1day (índices ETCCDI) | variabilidade sazonal, tendência e mudanças climáticas |
+| Previsões emitidas | arquivar a previsão (valor, data de emissão, prazo) e a observação correspondente | verificação: viés, erro médio absoluto, acerto de chuva |
+| Eventos e impactos | sirenes acionadas, avisos (Marinha, CEMADEN-RJ), ocorrências | correlacionar tempo × impacto |
+
+Para as **décadas** de histórico (a nossa base só começa em set/2026), as
+fontes candidatas — **não pesquisadas neste levantamento** — são séries
+históricas do INMET (BDMEP), CEMADEN, ANA (Hidroweb), INEA e Alerta Rio, e
+produtos de grade/reanálise (ERA5, CHIRPS, MERGE/CPTEC, IMERG) para
+preencher lacunas e calcular normais. Qualquer série longa exige
+padronizar horário (UTC), unidade, janela do acumulado e política de
+valores ausentes antes de comparar redes diferentes.
+
+### 8. Prioridades sugeridas (impacto × esforço, para você decidir por fonte)
+
+| # | Ação | Impacto | Esforço |
+|---|---|---|---|
+| 1 | Cadência de ingestão ≤5 min (ex.: GitHub Actions → `/api/admin/run/`) | alto (corrige perda de baldes em todas as fontes de "último valor") | baixo |
+| 2 | Gravar acumulados oficiais das fontes (CEMADEN, Alerta Rio, INEA, Niterói) como referência | alto (mede o erro e destrava auditoria) | médio |
+| 3 | Tabela de acumulados por estação/janela gravada a cada ingestão | alto (consulta por SQL e histórico) | médio |
+| 4 | Campos `unidade`, `janela_min`, `flag_qc` em `Reading` + QC de passo/persistência/consistência | alto (veracidade) | médio |
+| 5 | Incluir `ecowitt_paracambi` no conjunto de fontes de balde; aplicar QC a Ecowitt | médio | baixo |
+| 6 | Arquivar métricas derivadas de radar/satélite por município | alto para nowcasting | alto |
+| 7 | Agregados horários/diários + completude; início da climatologia | alto (dashboard e estatística) | médio |
+| 8 | Metadados de sensor/estação (padrão OMM/WIGOS) | médio-alto (calibração e ponderação) | médio |
+| 9 | Conectores faltantes: ANA, boias/maré, radiossondagem | médio | alto |
+| 10 | Rotacionar credenciais do Plugfield já commitadas no passado | segurança | baixo |
+
 ## Auditoria de acumulados de chuva — como é calculado e guardado (03/10/2026)
 
 **Nenhum acumulado é gravado no banco.** Só existem leituras brutas
@@ -996,7 +1181,7 @@ Situação por fonte (lida no código; "não auditado" = ainda não verificado):
 | Wunderground, Plugfield, Ecowitt Paracambi | total do dia → balde por diferença (`bucket_from_running_daily`, teto 150 mm) | Robusta: autocorrige |
 | CEMADEN-RJ sirenes (`cemaden_rj_sirenes`) | `tempo1` com intervalo mínimo de 14 min (corrigido 02/10) | Boa; 779 sobreposições antigas removidas |
 | CEMADEN Nacional (`cemaden_mctic`) | `ultimovalor` (~10 min) por rodada | **Frágil** — ~40% do oficial medido; API entrega 1h…96h prontos, descartados |
-| Alerta Rio | `m15` por rodada, `read_at` em grade de 10 min | **Frágil + janelas sobrepostas** (infla); atraso ~7 min |
+| Alerta Rio | `m15` por rodada, `read_at` em grade de 5-10 min | Conferido: 1-24 h dentro de ~1-6% do oficial; 96 h/mês com excesso em algumas estações (Urca +13%); atraso de ~9 min é do feed |
 | Niterói (`niteroi`) | `m15` de `horaLeitura` por rodada | Frágil; mesmo desenho do Alerta Rio |
 | INEA (`inea`) | `chuva_mm` da tabela por rodada | Frágil; janela do valor **não auditada** |
 | Macaé UFRJ | `volume_chuva` da última leitura | Frágil; 1 leitura por rodada |
