@@ -33,6 +33,9 @@ memória local do assistente).
 | **`*/2`** | **`sync_sirenes`** (alterado pelo usuário no cPanel em 03/10/2026; antes `*/15`, 25 s) | 60 s |
 | `1-59/15` | `ingest inea` | 25 s |
 | `0,30` | `sync_avisos_mau_tempo` | 25 s |
+| `5-59/15` | `ingest macae_ufrj` (criado em 03/10/2026) | 120 s |
+| `7-59/15` | `ingest redemet` (criado em 03/10/2026) | 120 s |
+| `9-59/15` | `ingest ecowitt_paracambi` (criado em 03/10/2026) | 120 s |
 
 ### Achados do crontab
 
@@ -40,10 +43,11 @@ memória local do assistente).
    **corrigido para `*/2` pelo usuário em 03/10/2026** e verificado: sync às
    06:16:03 e 06:18:03 UTC com o painel fechado. O sync dura ~1,5 s. Agora o
    erro de tempo de `triggered_at`/`resolved_at` cai para ~2 min.
-2. **Sem cron**: `macae_ufrj`, `redemet`, `ecowitt_paracambi`,
-   `rio_chuva_bairro`. Macaé só atualiza no botão "Atualizar agora" (explica o
-   atraso/estações paradas). REDEMET passou a ser atualizado pelo painel aberto
-   (a cada 15 min) como paliativo.
+2. **Sem cron (até 03/10/2026)**: `macae_ufrj`, `redemet`, `ecowitt_paracambi`
+   — **criados em 03/10/2026** (tabela acima); continua sem cron
+   `rio_chuva_bairro` (fonte possivelmente descontinuada). Macaé só atualizava no
+   botão "Atualizar agora" (explicava o atraso/estações paradas). O REDEMET
+   também é atualizado pelo painel aberto (a cada 15 min) como reforço.
 3. **`cemaden_mctic` a cada 15 min** com fonte de ~10 min: perde 1 de cada 3
    baldes (confirmado nos intervalos de 10-70 min entre leituras guardadas).
 4. Todos os comandos usam `> /dev/null 2>&1`: falha de cron é **silenciosa**
@@ -67,18 +71,35 @@ memória local do assistente, nome do token "cemadenrjpreserveriobr").
   e **sempre** reconfira com `fetchcron` depois.
 - **Em 03/10/2026 o classificador de permissões do Claude Code bloqueou
   `add_line`/`remove_line`** (alteração de configuração persistente), mesmo com
-  autorização do usuário no chat. Leitura (`fetchcron`) funciona. Para alterar o
-  cron é preciso o usuário liberar a regra de permissão correspondente ou
-  fazer a alteração.
+  autorização do usuário no chat. **Solução:** o usuário adicionou a regra
+  `Bash(curl *preserve.rio.br:2083*)` em
+  `.claude/settings.local.json` (arquivo local, fora do git); a partir daí as
+  alterações pela API funcionam.
+- **Técnica que funcionou:** gravar o comando do cron num arquivo temporário e
+  passá-lo com `--data-urlencode "command@C:/caminho/arquivo.txt"` (evita
+  problema de aspas; o curl do Windows exige caminho no formato `C:/...`, não
+  `/tmp/...`). O `fetchcron` também devolve o segredo dentro do comando de cada
+  linha — nunca imprimir sem mascarar.
+
+### Incidente de 03/10/2026 — `sync_sirenes` voltou para `*/20`
+
+A conferência feita logo após a alteração do usuário mostrou `*/2`; cerca de
+30 min depois, ao reler o crontab para criar os 3 novos crons, a linha estava
+em `*/20` (a leitura anterior às minhas inclusões já mostrava `*/20`, então
+não foi efeito das minhas operações; origem da mudança desconhecida — edição
+manual ou outra sessão). Corrigido pelo assistente adicionando a linha
+`*/2` e removendo a antiga (`linekey` 2639992328), e relido: 13 jobs, uma só
+linha `sync_sirenes` em `*/2`. **Lição:** reconferir o crontab periodicamente;
+a tela já alerta (faixa âmbar) se o sync passar de 5 min.
 
 ### Alteração recomendada e pendente
 
 | Ação | Motivo |
 |---|---|
-| ~~`sync_sirenes`: `*/15` → `*/2`, `curl -m 60`~~ **FEITO em 03/10/2026** | toque de sirene salva vidas; sync de 1,5 s |
-| Criar `ingest macae_ufrj` em `5-59/15` (`-m 120`) | Macaé sem cron |
-| Criar `ingest redemet` em `7-59/15` (`-m 120`) | histórico de METAR |
-| Criar `ingest ecowitt_paracambi` em `9-59/15` (`-m 120`) | sem cron |
+| ~~`sync_sirenes`: `*/15` → `*/2`, `curl -m 60`~~ **FEITO em 03/10/2026** (reaplicado: ver incidente abaixo) | toque de sirene salva vidas; sync de 1,5 s |
+| ~~Criar `ingest macae_ufrj` em `5-59/15`~~ **FEITO** | Macaé sem cron |
+| ~~Criar `ingest redemet` em `7-59/15`~~ **FEITO** | histórico de METAR |
+| ~~Criar `ingest ecowitt_paracambi` em `9-59/15`~~ **FEITO** | sem cron |
 
 **Testes de 03/10/2026 (cada ingestão rodada uma vez em produção):** `macae_ufrj`
 1,2 s (26 estações atualizadas, +13 leituras), `redemet` 2,3 s (17 estações,

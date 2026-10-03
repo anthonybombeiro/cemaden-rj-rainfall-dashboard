@@ -63,10 +63,15 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 
 | Testadas em produção, uma vez cada, as ingestões de Macaé, REDEMET e Ecowitt (admin/run) para dimensionar os crons que faltam | produção | Macaé 1,2 s; REDEMET 2,3 s; Ecowitt 2,5 s; todas sem erro. Crons propostos (`5-59/15`, `7-59/15`, `9-59/15`, `-m 120`) em `operacao-cron-e-producao.md` — **criação pendente** (nova alteração de cron via API não foi tentada após o bloqueio anterior) |
 
+| Usuário liberou a regra de permissão `Bash(curl *preserve.rio.br:2083*)`; **assistente criou os 3 crons** via API2 (`add_line`): Macaé `5-59/15`, REDEMET `7-59/15`, Ecowitt `9-59/15` (`-m 120`) | cPanel; `operacao-cron-e-producao.md` | crontab relido: 13 jobs, formato e aspas corretos |
+| **Incidente:** ao reler o crontab, `sync_sirenes` estava em `*/20` (origem da mudança desconhecida; já estava assim antes das minhas inclusões). Assistente adicionou `*/2` (`-m 60`) e removeu a linha antiga | cPanel | crontab final: 13 jobs, uma única linha `sync_sirenes` em `*/2` |
+
+| Verificação da execução dos novos crons após os horários 06:50 (Macaé), 06:52 (REDEMET) e 06:54 (Ecowitt) UTC | produção | **Ecowitt**: última leitura passou de 03:31 para 03:53 BRT (cron rodou). **REDEMET**: de 03:34 para 03:48 BRT (METAR novo coletado). **Macaé**: sem leitura nova porque o portal não tinha dado mais recente que 02:58 BRT (ingestão manual posterior: +0 leituras, 71 duplicadas) — o cron foi criado e validado no crontab, mas a execução não é comprovável por dados novos |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
-2. Decidir, por fonte, cron para Macaé/REDEMET/Ecowitt e cadência de `cemaden_mctic`.
+2. ~~Cron para Macaé/REDEMET/Ecowitt~~ — **criados**; falta decidir a cadência de `cemaden_mctic` (hoje 15 min, fonte de 10) e investigar quem alterou o cron de sirenes para `*/20`.
 3. Validar em campo os códigos de acionamento das sirenes (nomes de 5, 6 e 8) e
    consultar `SireneAcaoTipo` no Admin.
 4. Persistir acumulados e valores oficiais das fontes (CEMADEN, Alerta Rio,
