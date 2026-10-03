@@ -103,6 +103,25 @@ quem for negociar acessos institucionais.
 
 ## CEMADEN Nacional — documentado, não testável a partir deste ambiente
 
+> **Atualização 03/10/2026 — o que está em produção hoje.** O IP do
+> WebService de 2015 (abaixo) segue sem uso (`cemaden_nacional.py` existe mas
+> não está no `REGISTRY`). A fonte ativa é `cemaden_mctic`
+> (`CemadenMcticConnector`, em `cemaden_rj_pluviometros.py`), que lê
+> `https://resources.cemaden.gov.br/graficos/interativo/getJson2.php?uf=RJ`
+> — JSON público, ~395 estações no RJ (356 pluviométricas, `tipoestacao == 1`),
+> `idestacao` como `external_id`, `codibge` exato; lat/lon só aproximadas
+> (centroide do município). É a rede "CEMADEN" da plataforma de estações
+> pluviométricas do CEMADEN.
+> **Divergência medida contra a plataforma (03/10/2026 ~02:40 UTC),
+> estação Casimiro de Abreu `G2-330130602a`:** plataforma 1h=5 / 3h=17 /
+> 6h=41 / 12h=79 / 24h=80 mm; nosso banco 1h=2,6 / 3h=8,0 / 6h=19,6 /
+> 12h=32,2 / 24h=33,2 mm (~40%). Causa: o conector grava só `ultimovalor`
+> (balde de ~10 min) de cada rodada de ingestão e descarta os acumulados
+> prontos que o JSON entrega (1h…96h); entre leituras guardadas da estação
+> 18790 há intervalos de 10 a 70 min (rodada irregular), cada balde de
+> 10 min não coletado é chuva perdida. Ver "Auditoria de acumulados de
+> chuva" no fim deste arquivo.
+
 Documento oficial "WebService – Disponibilização de dados da rede
 pluviométrica e Hidrológica Cemaden" (Cemaden, Grupo de Desenvolvimento de
 Sistemas, v2.0, 2015), obtido em
@@ -154,6 +173,18 @@ Sistemas, v2.0, 2015), obtido em
 - **Ressalva:** a unidade de velocidade do vento não está documentada
   publicamente — assumimos km/h (convenção comum em painéis de defesa
   civil no Brasil) e convertemos para m/s. Confirmar se possível.
+- **Achados de 03/10/2026 (nada corrigido ainda):** (1) as 31 estações com
+  dado têm atraso uniforme de ~7 min (`updated_at` vs. agora) — o `read_at`
+  do feed é o carimbo do intervalo e a publicação vem depois, somado ao
+  nosso ciclo de ingestão. (2) Gravamos o `m15` (chuva dos últimos 15 min,
+  janela deslizante) com `read_at` numa grade de 10 min (ex.: Rocinha
+  22:55, 23:15, 23:25, 23:35, 23:45, 23:55) — janelas de 15 min a cada
+  10 min se sobrepõem e a soma tende a inflar (Rocinha: 24h = 86 mm no
+  nosso banco; não deu pra conferir contra o `h24` oficial porque o
+  `websempre` não libera CORS no navegador). Mesma família do bug da
+  `tempo1` das sirenes. Alternativa: gravar `m05` (5 min, sem sobreposição)
+  ou usar `h01`/`h24` do próprio feed como referência. O conector do
+  Niterói (`m15` de `horaLeitura`) tem o mesmo desenho.
 - Esse achado veio de um arquivo de pesquisa (.md) que o usuário baixou de
   outra ferramenta e nos passou — não foi engenharia reversa de proteção
   nenhuma, foi literalmente ler o código-fonte público de um projeto no
@@ -743,6 +774,18 @@ a `api_key` em 02/10/2026).
 - `GET /aerodromos` (sem filtro por país/UF na própria API — lista global de
   ~4.200 aeródromos) filtrado aqui por `pais` == Brazil/Brasil e `cidade`
   terminando em "RJ" → popula `Station` (tipo `meteorologica`).
+- **Atualização 03/10/2026 — histórico e atraso corrigidos:** o conector
+  guardava só a mensagem mais recente por estação, com o horário de
+  *recebimento* (10-30 min depois da observação), numa chamada por estação;
+  como não há Cron Job do REDEMET no cPanel, só rodava no "atualizar agora"
+  manual (1 única leitura por estação desde o início). Agora:
+  `GET /mensagens/metar/SBGL,SBRJ,...?data_ini=&data_fim=` (todas as
+  estações numa chamada, janela de 3 h, formato `YYYYMMDDHH`), cada METAR
+  gravado com o horário real do grupo `DDHHMMZ` do texto, `get_or_create`
+  por (estação, tipo, timestamp); fallback pro modo por estação se o lote
+  falhar. O painel aberto chama `POST /api/refresh/redemet/` a cada 15 min
+  (Dashboard.tsx). Verificado: +400 leituras, SBJR com histórico 14h-17h.
+  Resta 1 leitura antiga por estação (carimbo de recebimento, 15:01).
 - `GET /mensagens/metar/{icao}` → mensagem METAR mais recente do dia
   corrente (UTC); decodificada com regex simples pra extrair vento
   (direção/velocidade/rajada, convertido de nós pra m/s), temperatura,
@@ -794,6 +837,14 @@ a `api_key` em 02/10/2026).
   `ImageOverlay` do Leaflet.
 - Proxy: `GET /api/imagery/radar/?tipo=maxcappi&area=pc` (ver
   `backend/api/redemet_imagery_views.py`).
+- **Animação (implementada 02/10/2026):** `anima=N` precisa ser repassado
+  à API-REDEMET (bug inicial: o proxy não repassava e fatiava 1 item).
+  Formato com `anima>1`: `radar` = 1 grupo POR QUADRO no tempo, cada um com
+  1 entrada por área (não 1 grupo com N quadros) — o proxy achata `g[0]`
+  de cada grupo. **Radar só tem 8 quadros reais** (slider 0-7 no site
+  oficial, ~20 min entre quadros no MAXCAPPI); pedir mais faz a REDEMET
+  repetir o último — o frontend pede `anima=8` e remove repetidos. Satélite:
+  15 quadros reais, 10 min entre quadros.
 
 ### Satélite — camada pra mapa — IMPLEMENTADO
 
@@ -839,10 +890,58 @@ a `api_key` em 02/10/2026).
   `[[lat_min,lon_min],[lat_max,lon_max]]` que o Leaflet espera). Reconsulta
   a cada 3 minutos enquanto uma camada estiver ativa (menor que o TTL do
   cache do backend).
-- **Não implementado ainda:** animação (campo `anima`, até 15 quadros) —
-  hoje só mostra a imagem mais recente de cada camada. Se o usuário quiser
-  ver deslocamento de nuvens/chuva ao longo do tempo, dá pra adicionar um
-  player simples depois, reaproveitando o mesmo endpoint com `anima=15`.
+- **Atualização 03/10/2026:** o botão passou a se chamar "Opções" (painel
+  "Camada de imagem" + "Camada das estações"), com dropdown de tipo,
+  animação (play/pause, barra, data/hora do quadro), botão de atualizar,
+  recarga automática a cada 10 min e quadros a cada 1,2 s. Fontes de radar
+  adicionais na seção "Radares adicionais" abaixo.
+
+### Radares adicionais — Niterói, INEA, Alerta Rio (investigado em 02/10/2026)
+
+- **Radar de Niterói (Defesa Civil de Niterói)** — `radar.niteroi.rj.gov.br`.
+  API REST pública, sem login, achada lendo o bundle JS (sem doc):
+  `https://radar.niteroi.rj.gov.br:3337` — `GET /radars` (1 radar,
+  `b35bf5fe-a016-4516-81bb-681088e72ce7`, raio 100 km, passo 5 min),
+  `GET /radars/product-types` (só MAXDISPLAY,
+  `a57c0a09-e9f0-461c-84b9-65ea856cc90c`),
+  `GET /radars/{id}/products?type_id=&cutoff_datetime={epoch_ms}&amount=N`
+  (mais recente primeiro; `datetime` em epoch ms; imagem em
+  `/uploads/<hash>.png`). 15 quadros reais distintos. CORS liberado →
+  chamado direto do navegador (`buscarRadarNiteroi` em `MapView.tsx`).
+  O backend NÃO alcança a porta 3337 (HostGator bloqueia saída em porta
+  não-padrão → 502). Opção "Niterói (local, 5min)" no radar.
+- **INEA Radar Tool** — `radartool.inea.rj.gov.br/radar-tool/` (iframe de
+  `alertadecheias.inea.rj.gov.br/radartool.php`). Agregador dos 6 radares
+  do estado (Guaratiba, Macaé, Mendanha, Niterói, Pico do Couto, Sumaré)
+  + mosaico. API (sem doc): `GET /radar-tool/frames.php?type=mosaic&product=zh&hours=N&max=M`
+  e `...?type=radar&radar={gua|mac|mdn|nit|sumare|picocouto}&product=zh&...`
+  (atenção: `type=gua` direto dá 400) → `{images, labels, step_min}`;
+  `labels` em hora local (BRT). Passo 5 min (radares) / 10 min (mosaico).
+  Bounds por radar no objeto `radars` de `radar-tool.js` (Guaratiba e Macaé
+  250 km; Mendanha/Niterói 100 km; Sumaré 138,9 km; mosaico estadual).
+  CORS bloqueia `frames.php` no navegador → proxy
+  `GET /api/imagery/radar-inea/?tipo=mosaic|gua|mac|mdn|sumare&anima=1..15`
+  (`backend/api/inea_radar_views.py`); PNGs carregados direto. **O servidor
+  do INEA não envia o certificado intermediário** (Sectigo DV R36):
+  `requests` falha com "unable to get local issuer certificate" (local e
+  produção; atualizar o `certifi` não resolve) — resolvido com bundle
+  próprio `backend/api/certs/inea-ca-bundle.pem` (certifi + intermediário).
+  Testado em produção: Macaé, Guaratiba, Sumaré e mosaico com 15 quadros;
+  **Mendanha sem imagem nas últimas 6 h** (radar sem publicar). Sem Cron:
+  proxy sob demanda, cache 2 min.
+- **Alerta Rio (Sumaré/Mendanha) direto — inviável:**
+  `sistema-alerta-rio.com.br` tem desafio JS de bot (`hcdn-cgi/jschallenge`)
+  e sem CORS. Os arquivos por trás: Sumaré `upload/Mapa/semfundo/radar001..020.png`
+  (sem timestamp por quadro; bounds `[-24.431567,-45.336972],[-21.478793,-41.159092]`)
+  e Mendanha `upload/Mapa_Mendanha/max_png/latest.json` (20 quadros com
+  timestamp no nome, bounds `[-23.72847,-44.49769],[-21.91973,-42.54871]`).
+  Os mesmos radares vêm do INEA sem essas barreiras.
+- **Bug do Service Worker (corrigido 03/10/2026):** `public/sw.js`
+  interceptava também requisições de outras origens e, se o `cache.put()`
+  falhasse, respondia com o HTML do próprio painel — `fetch().json()`
+  falhava em silêncio e nenhuma imagem aparecia. Agora ignora origem
+  diferente (`CACHE_VERSION` = `cemadenrj-v2`). Para testar versões novas é
+  preciso limpar o SW/cache do navegador.
 
 ### Configuração necessária
 
@@ -850,6 +949,72 @@ a `api_key` em 02/10/2026).
   preenchido no ambiente local desta sessão pra validar a implementação;
   **falta configurar no servidor de produção (HostGator)** pra ingestão e
   camadas funcionarem lá também.
+
+## Macaé — Rede de Telemetria UFRJ/Defesa Civil (`macae_ufrj`) — achados de 03/10/2026
+
+- Conector `backend/ingestion/connectors/macae_ufrj.py` (login de serviço
+  `MACAE_UFRJ_USERNAME/PASSWORD` no `.env`): `POST /Login` →
+  `GET /Estacoes/visualizarEstacoes` (IDs) →
+  `GET /Estacoes/getEstacoesGeoJson/volume_chuva/?ids=...&ativa=true`
+  (estação + **só a última leitura** — `ultimaLeitura`: temperatura,
+  umidade, vento, direção, `volume_chuva`, `payload` com rajada/pressão).
+  Só estações `tipo == "interna"` (as `weather.com` são PWS do Wunderground).
+- **Problemas observados (nada corrigido):**
+  1. Sem histórico: 1 leitura por estação por rodada; `volume_chuva` é
+     "balde" do intervalo do sensor, então rodada perdida = chuva perdida.
+  2. Estações paradas há horas na tabela de Precipitação (ex.: Imboassica
+     12:40, Centro 14:41, Bicuda pequena 15:41 enquanto outras estão em
+     23:48) — falta confirmar no portal se a estação parou de transmitir ou
+     se o portal serve leitura velha. O carimbo gravado é o `datahora` do
+     sensor (hora local → UTC).
+  3. "Failed to fetch" no botão "Atualizar agora": `POST /api/refresh/`
+     roda todos os conectores num único pedido (threads); testado em
+     03/10/2026, passou de 45 s sem responder — o servidor corta o pedido.
+     Macaé faz login + 3 chamadas em série (timeout 30 s cada) e é suspeito
+     de ser dos mais lentos, mas não foi medido isolado.
+- Possível caminho (não investigado): endpoint de histórico/gráfico do
+  portal (`monitoramentoIndividual/{id}`) para recuperar baldes perdidos.
+
+## Auditoria de acumulados de chuva — como é calculado e guardado (03/10/2026)
+
+**Nenhum acumulado é gravado no banco.** Só existem leituras brutas
+`Reading(reading_type=chuva_mm)`, uma por estação por timestamp
+(`get_or_create` em `BaseConnector.run`). Todos os acumulados da tabela de
+Precipitação (agora, 5/10/15/30 min, 1/2/3/4/6/12/24/36/48/72/96 h, hoje,
+168 h, 30 dias corridos, mês, pico) são calculados **na hora da consulta**
+em `StationViewSet._calcular_precipitacao` (`backend/api/views.py`): soma
+em Python das leituras `timestamp >= agora - janela` (até 96 h) e `Sum`/`Max`
+no banco para 168 h, 30 d, mês calendário e pico 24 h. Só fontes em
+`PRECIPITACAO_BUCKET_SOURCES` entram. Consequências: o acumulado só está
+certo se todo balde foi gravado uma vez; não há série histórica de
+acumulados consultável por SQL sem recalcular.
+
+Situação por fonte (lida no código; "não auditado" = ainda não verificado):
+
+| Fonte | Valor gravado | Robustez a rodadas perdidas |
+|---|---|---|
+| Wunderground, Plugfield, Ecowitt Paracambi | total do dia → balde por diferença (`bucket_from_running_daily`, teto 150 mm) | Robusta: autocorrige |
+| CEMADEN-RJ sirenes (`cemaden_rj_sirenes`) | `tempo1` com intervalo mínimo de 14 min (corrigido 02/10) | Boa; 779 sobreposições antigas removidas |
+| CEMADEN Nacional (`cemaden_mctic`) | `ultimovalor` (~10 min) por rodada | **Frágil** — ~40% do oficial medido; API entrega 1h…96h prontos, descartados |
+| Alerta Rio | `m15` por rodada, `read_at` em grade de 10 min | **Frágil + janelas sobrepostas** (infla); atraso ~7 min |
+| Niterói (`niteroi`) | `m15` de `horaLeitura` por rodada | Frágil; mesmo desenho do Alerta Rio |
+| INEA (`inea`) | `chuva_mm` da tabela por rodada | Frágil; janela do valor **não auditada** |
+| Macaé UFRJ | `volume_chuva` da última leitura | Frágil; 1 leitura por rodada |
+| Rio Chuva por Bairro | por rodada | Frágil; não auditado |
+| INMET | `CHUVA` (última hora) | Depende de pegar toda hora; não auditado em detalhe |
+
+Causa comum: cadência de ingestão irregular (gaps de 10-70 min medidos
+na estação CEMADEN 18790; sem Cron Job controlável pelo usuário no cPanel).
+
+**Opções levantadas (sem decisão do usuário; nada implementado):**
+agendar a ingestão a cada 5 min via GitHub Actions chamando
+`/api/admin/run/`; tabela de acumulados gravados por estação/janela a cada
+ingestão (consultável por SQL, com histórico); tabela com os acumulados
+oficiais das fontes que os entregam (CEMADEN 1h…96h; Alerta Rio
+`m05/m15/h01..h04/h24/h96/mes`) para referência e comparação; reconciliar
+déficit com leitura de "ajuste" marcada; trocar `m15` por `m05` (Alerta
+Rio/Niterói); um pedido de refresh por fonte em vez de `/api/refresh/`
+único. Decisão por estação e fonte fica com o usuário.
 
 ## Ainda não iniciado (Fase 3 do plano)
 
