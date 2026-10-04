@@ -3,7 +3,7 @@
 import { Check, Save } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import { fetchPrevisoes, Previsao, PREVISAO_JA_EXISTE, PrevisaoInput, REDECS, salvarPrevisao } from "@/lib/api";
+import { fetchPrevisoes, fetchSolDoDia, Previsao, PREVISAO_JA_EXISTE, PrevisaoInput, REDECS, salvarPrevisao, SolDoDia } from "@/lib/api";
 import { ICONES_TEMPO, iconeSrc, VENTOS } from "@/lib/meteorologia";
 
 type Campos = {
@@ -183,6 +183,9 @@ export default function PrevisaoForm() {
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [pendente, setPendente] = useState<PrevisaoInput | null>(null);
+  // Nascer/pôr do sol automáticos (tabela de referência por REDEC, 2026-2035).
+  const [sol, setSol] = useState<SolDoDia | null>(null);
+  const [solAuto, setSolAuto] = useState({ nascer: false, por: false });
 
   const porRegiao = useMemo(() => new Map(doDia.map((p) => [p.regiao, p])), [doDia]);
 
@@ -205,7 +208,36 @@ export default function PrevisaoForm() {
     setErro(null);
   }, [regiao, porRegiao]);
 
-  const set = (k: keyof Campos) => (v: string) => setC((atual) => ({ ...atual, [k]: v }));
+  useEffect(() => {
+    let cancelado = false;
+    fetchSolDoDia(data)
+      .then((r) => {
+        if (!cancelado) setSol(r);
+      })
+      .catch(() => {
+        if (!cancelado) setSol(null);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [data]);
+
+  // Preenche nascer/pôr do sol só quando estão vazios (nunca sobrescreve o que o
+  // operador digitou ou o que já estava gravado); o operador pode editar depois.
+  useEffect(() => {
+    const s = sol && sol.data === data ? sol.regioes[regiao] : undefined;
+    const reg = porRegiao.get(regiao);
+    setSolAuto({ nascer: !!s && !reg?.nascer_sol, por: !!s && !reg?.por_sol });
+    if (!s) return;
+    setC((atual) => ({ ...atual, nascer: atual.nascer || s.nascer, por: atual.por || s.por }));
+  }, [sol, data, regiao, porRegiao]);
+
+  const solAtual = sol && sol.data === data ? sol.regioes[regiao] : undefined;
+
+  const set = (k: keyof Campos) => (v: string) => {
+    if (k === "nascer" || k === "por") setSolAuto((a) => ({ ...a, [k]: false }));
+    setC((atual) => ({ ...atual, [k]: v }));
+  };
   const existente = porRegiao.get(regiao);
 
   function montar(): PrevisaoInput {
@@ -360,10 +392,36 @@ export default function PrevisaoForm() {
           <div>
             <label className={labelCls}>Nascer do sol</label>
             <input maxLength={5} placeholder="HH:MM" value={c.nascer} onChange={(e) => set("nascer")(e.target.value)} className={inputCls} />
+            {solAuto.nascer && <p className="mt-0.5 text-[10px] text-sky-700">Automático (tabela de referência) — pode editar.</p>}
+            {solAtual && c.nascer !== solAtual.nascer && (
+              <button
+                type="button"
+                onClick={() => {
+                  setC((a) => ({ ...a, nascer: solAtual.nascer }));
+                  setSolAuto((a) => ({ ...a, nascer: true }));
+                }}
+                className="mt-0.5 text-[10px] text-sky-700 underline"
+              >
+                Restaurar automático ({solAtual.nascer})
+              </button>
+            )}
           </div>
           <div>
             <label className={labelCls}>Pôr do sol</label>
             <input maxLength={5} placeholder="HH:MM" value={c.por} onChange={(e) => set("por")(e.target.value)} className={inputCls} />
+            {solAuto.por && <p className="mt-0.5 text-[10px] text-sky-700">Automático (tabela de referência) — pode editar.</p>}
+            {solAtual && c.por !== solAtual.por && (
+              <button
+                type="button"
+                onClick={() => {
+                  setC((a) => ({ ...a, por: solAtual.por }));
+                  setSolAuto((a) => ({ ...a, por: true }));
+                }}
+                className="mt-0.5 text-[10px] text-sky-700 underline"
+              >
+                Restaurar automático ({solAtual.por})
+              </button>
+            )}
           </div>
         </div>
 

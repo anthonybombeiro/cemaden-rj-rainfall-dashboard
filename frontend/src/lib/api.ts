@@ -806,6 +806,14 @@ export async function fetchPrevisoes(data: string): Promise<Previsao[]> {
   return r;
 }
 
+/** Nascer e pôr do sol (HH:MM) por REDEC no dia, da tabela de referência 2026-2035
+ * (`GET /previsoes/sol/`). Fora do período da tabela devolve {}. */
+export type SolDoDia = { data: string; regioes: Record<string, { nascer: string; por: string }> };
+
+export async function fetchSolDoDia(data: string): Promise<SolDoDia> {
+  return getJson<SolDoDia>(`/previsoes/sol/?data=${encodeURIComponent(data)}`);
+}
+
 /** Data mais recente com previsão cadastrada (null se ainda não há nenhuma). */
 export async function fetchDataUltimaPrevisao(): Promise<string | null> {
   const r = await getJson<Previsao[]>("/previsoes/ultima/");

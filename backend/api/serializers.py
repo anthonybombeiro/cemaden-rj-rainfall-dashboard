@@ -3,6 +3,7 @@ import re
 from rest_framework import serializers
 
 from core.municipios import canonico_ou_original
+from core.sol import sol_para
 from core.models import AlertEvent, AvisoMauTempo, Previsao, Reading, RiskAlert, Source, Station
 
 
@@ -142,6 +143,13 @@ class PrevisaoSerializer(serializers.ModelSerializer):
         quem = self.context["request"].user
         nome = quem.first_name or quem.username
         data, regiao = validated_data.pop("data"), validated_data.pop("regiao")
+        # Nascer/pôr do sol: se o operador não informou, entra automaticamente da
+        # tabela de referência por REDEC (2026-2035); o valor gravado segue editável.
+        if not validated_data.get("nascer_sol") or not validated_data.get("por_sol"):
+            sol = sol_para(regiao, data)
+            if sol:
+                validated_data["nascer_sol"] = validated_data.get("nascer_sol") or sol[0]
+                validated_data["por_sol"] = validated_data.get("por_sol") or sol[1]
         obj, criado = Previsao.objects.get_or_create(
             data=data, regiao=regiao,
             defaults={**validated_data, "criado_por": nome, "atualizado_por": nome},

@@ -1027,6 +1027,23 @@ class PrevisaoViewSet(viewsets.ModelViewSet):
         return super().create(request, *args, **kwargs)
 
     @action(detail=False, methods=["get"])
+    def sol(self, request):
+        """Nascer e pôr do sol por REDEC no dia (`?data=AAAA-MM-DD`; padrão hoje),
+        da tabela de referência 2026-2035 — usado para pré-preencher o
+        formulário de previsão. `?regiao=` filtra uma só. {} se fora da tabela."""
+        from core.sol import sol_do_dia
+
+        data = request.query_params.get("data") or timezone.localdate().isoformat()
+        try:
+            datetime.date.fromisoformat(data)
+        except ValueError:
+            return Response({"detail": "data inválida (use AAAA-MM-DD)."}, status=400)
+        dados = sol_do_dia(data)
+        if regiao := request.query_params.get("regiao"):
+            dados = {k: v for k, v in dados.items() if k == regiao.strip().upper()}
+        return Response({"data": data, "regioes": dados})
+
+    @action(detail=False, methods=["get"])
     def ultima(self, request):
         """Previsões da data mais recente cadastrada (uma por região)."""
         ultima = Previsao.objects.aggregate(d=Max("data"))["d"]
