@@ -83,6 +83,21 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 |---|---|---|
 | **Nascer e pôr do sol automáticos na previsão do tempo.** Tabela de referência do CEMADEN-RJ (`DADOS DE REFERENCIA/Meteorologia/tabela_nascer_por_sol_redecs_2026_2035.json`, 40.172 linhas = 11 REDECs x 3.652 dias, 01/01/2026 a 31/12/2035, horários locais do município-sede) convertida em arquivo compacto no repositório (`backend/core/data/sol_redecs_2026_2035.json`, 563 KB; ver `core/sol.py`). (1) `GET /api/previsoes/sol/?data=` devolve nascer/pôr das 11 REDECs; (2) ao **criar** previsão sem nascer/pôr, o backend preenche da tabela; (3) o formulário de cadastro preenche os campos vazios ao escolher data/região, mostra "Automático (tabela de referência) — pode editar" e o botão "Restaurar automático (HH:MM)" quando o operador altera. **Editável:** o valor gravado é do operador; edições posteriores não são refeitas. Fora de 2026-2035 não há preenchimento. A tabela de origem fica fora do repositório (Drive); para regenerar o arquivo compacto basta repetir a conversão (por região: data inicial + lista "HH:MM HH:MM"). | `core/sol.py`, `core/data/sol_redecs_2026_2035.json`, `api/views.py` (`sol`), `api/serializers.py`, `PrevisaoForm.tsx`, `api.ts` | Testado localmente: endpoint (11 regiões; fora da tabela `{}`; data inválida 400), criação sem horários preenchida, horário digitado preservado, edição posterior preservada; formulário no navegador local (05:31/17:52 em 04/10, edição → dica some e aparece o botão de restaurar). Publicado (backend por SFTP e frontend, 80 arquivos); em produção a rota responde 403 sem login (existe) |
 
+## 06/10/2026
+
+| Ação | Onde | Verificação |
+|---|---|---|
+| **Item 1 — cron de sirenes:** estava de novo em `*/20` (`linekey` 2639992328); nada no repositório mexe no cron. Reaplicado `*/2` (add + remove da linha antiga) | cPanel | crontab relido (13 jobs, aspas íntegras); leitura de sirenes às 22:45 UTC |
+| **Item 2 — dados em produção:** CEMADEN 392/392 códigos; Macaé continua igual ao oficial (mais estações offline hoje); sirenes ativas | produção | ações `analise_funcionamento`/`snapshot_precip` |
+| **Achado grave — Alerta Rio com sentinela −99,99:** 235 leituras negativas (21/09-06/10) distorciam acumulados (Grota Funda 96 h = −445,6 mm). Correção: `BaseConnector.run` não grava chuva negativa; consultas de chuva ignoram valores < 0 (`views.py`); nada foi apagado | `base.py`, `views.py`, nova ação `analise_negativos` | 0 janelas negativas após a correção; erro médio 24 h −0,6 mm |
+| Alerta Rio: 2 estações sem chuva desde sempre (`Barra/Barrinha`, `Barra/Riocentro`) — apelidos de nome | `alerta_rio.py` | passaram a gravar |
+| **Item 5 — acumulados oficiais** de Alerta Rio, Niterói e INEA em `raw_metadata` + `AcumuladoOficial` (1/24/96 h, 1×/hora); helper `gravar_acumulados_oficiais` | `base.py`, `alerta_rio.py`, `niteroi.py`, `inea.py` | teste local (2 rodadas) e produção sem erros |
+| Alerta Rio e Niterói passam a gravar **`m05`** (grade de 5 min) com **cron de 5 min** (`2-59/5` e `0-59/5`, autorizado nesta rodada, código e cron aplicados juntos) | conectores + cPanel | 13 jobs; reconferir 96 h em 24-48 h |
+| **Item 3 — saúde das fontes:** `GET /api/fontes/saude/` e `SaudeFontesBanner.tsx` | `saude_views.py`, `urls.py`, `Dashboard.tsx`, `api.ts` | faixa testada localmente (fonte atrasada + estações paradas); rota em produção responde 403 sem login |
+| **Item 4 — lacunas:** Wunderground recupera baldes de `observations/all/1day` (lacuna > 45 min); Plugfield `/data/hourly` não usado (4,4 × 3,3 mm) | `wunderground.py` | teste local com lacuna simulada: soma = oficial, idempotente |
+| **Tabelas individuais Alerta Rio e Niterói** na aba Dados (oficiais + colunas "Calc", REDEC, atualização e código por último) | `RedeTable.tsx`, `views.py` (`rede`), `Dashboard.tsx` | 33 e 30 linhas no navegador local; frontend publicado |
+| Documento novo `alerta-rio-niteroi-inea-e-saude-das-fontes.md` e demais `.md` atualizados | `docs/` | — |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
@@ -94,3 +109,4 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 5. Incluir `ecowitt_paracambi` em `PRECIPITACAO_BUCKET_SOURCES`.
 6. **Reavaliar a qualificação de chuva no verão** (limite de suspeito 20 para 10 mm e regra de vizinhança), com mais dados: ver "Calibração dos limites da qualificação" em `fontes-de-dados.md`. Decisão do usuário em 03/10/2026.
 7. **Macaé:** 15 das 26 estações internas sem dado; **Plugfield:** 2 estações de Cambuci paradas há meses e lacuna de 20 h em Areal; **Wunderground:** IMARIC14 (contador regrediu) e 15 estações sem dado — ver `redes-sensiveis-plugfield-macae-wunderground.md` §9.
+8. **Reconferir Alerta Rio e Niterói em 24-48 h** (96 h oficial × nosso após o `m05`); investigar o intervalo mediano de 60 min do CEMADEN; descobrir quem reescreve o cron de sirenes.

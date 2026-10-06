@@ -62,7 +62,52 @@ const METEO: Coluna[] = [
 
 const JANELAS_NOSSAS = ["1", "3", "6", "12", "24", "48", "72", "96"];
 
+const ctl = (j: string): Coluna => ({
+  key: `c${j}`,
+  label: `Calc ${j}h`,
+  titulo: `Controle: nosso cálculo (soma do que gravamos) — ${j} h`,
+  get: nosso(j),
+  tipo: "ctl",
+});
+const oficialH = (j: string, titulo?: string): Coluna => ({
+  key: `o${j}`,
+  label: `${j}h`,
+  titulo: titulo ?? `Acumulado OFICIAL da fonte — últimas ${j} h`,
+  get: oficial(j),
+  tipo: "mm",
+});
+
 const COLUNAS_CHUVA: Record<RedeSource, Coluna[]> = {
+  niteroi: [
+    { key: "om05", label: "5min", titulo: "OFICIAL da fonte — últimos 5 minutos", get: oficial("m05"), tipo: "mm" },
+    { key: "om15", label: "15min", titulo: "OFICIAL da fonte — últimos 15 minutos", get: oficial("m15"), tipo: "mm" },
+    oficialH("1"),
+    oficialH("6"),
+    oficialH("12"),
+    oficialH("24"),
+    oficialH("48"),
+    oficialH("72"),
+    oficialH("96"),
+    oficialH("168", "Acumulado OFICIAL da fonte — últimas 168 h (7 dias)"),
+    { key: "omes", label: "Mês", titulo: "Acumulado OFICIAL do mês corrente", get: oficial("mes"), tipo: "mm" },
+    ctl("1"),
+    ctl("24"),
+    ctl("96"),
+  ],
+  alerta_rio: [
+    { key: "om05", label: "5min", titulo: "OFICIAL da fonte — últimos 5 minutos", get: oficial("m05"), tipo: "mm" },
+    { key: "om15", label: "15min", titulo: "OFICIAL da fonte — últimos 15 minutos", get: oficial("m15"), tipo: "mm" },
+    oficialH("1"),
+    oficialH("2"),
+    oficialH("3"),
+    oficialH("4"),
+    oficialH("24"),
+    oficialH("96"),
+    { key: "omes", label: "Mês", titulo: "Acumulado OFICIAL do mês corrente", get: oficial("mes"), tipo: "mm" },
+    ctl("1"),
+    ctl("24"),
+    ctl("96"),
+  ],
   macae_ufrj: [
     { key: "o1", label: "1h", titulo: "Acumulado OFICIAL do portal da rede — última 1 h", get: oficial("1"), tipo: "mm" },
     { key: "o24", label: "24h", titulo: "Acumulado OFICIAL do portal — últimas 24 h", get: oficial("24"), tipo: "mm" },
@@ -98,23 +143,33 @@ const COLUNAS_CHUVA: Record<RedeSource, Coluna[]> = {
 };
 
 const COLUNA_1H: Record<RedeSource, (s: RedeStation) => number | null | undefined> = {
+  niteroi: oficial("1"),
+  alerta_rio: oficial("1"),
   macae_ufrj: oficial("1"),
   plugfield: nosso("1"),
   wunderground: nosso("1"),
 };
 const COLUNA_24H: Record<RedeSource, (s: RedeStation) => number | null | undefined> = {
+  niteroi: oficial("24"),
+  alerta_rio: oficial("24"),
   macae_ufrj: oficial("24"),
   plugfield: nosso("24"),
   wunderground: nosso("24"),
 };
 
 const TITULO_SITUACAO: Record<RedeSource, string> = {
+  niteroi: "Indicador de atraso informado pela própria fonte (is_delay)",
+  alerta_rio: "O feed do Alerta Rio não informa situação da estação",
   macae_ufrj: "Situação informada pelo portal (online/offline)",
   plugfield: "Bateria da estação (%)",
   wunderground: "Controle de qualidade do Weather Company (qcStatus): ✓ aprovado, ✗ reprovado, — não avaliado",
 };
 
 function situacaoTexto(source: RedeSource, s: RedeStation): { texto: string; cor?: string } {
+  if (source === "niteroi") {
+    return s.extra.atrasada_fonte ? { texto: "atraso", cor: "#b91c1c" } : { texto: "ok", cor: "#15803d" };
+  }
+  if (source === "alerta_rio") return { texto: "—" };
   if (source === "macae_ufrj") {
     return s.extra.online ? { texto: "online", cor: "#15803d" } : { texto: "offline", cor: "#b91c1c" };
   }
@@ -148,6 +203,8 @@ const W_DESKTOP: Record<string, number> = { estacao: 210, municipio: 130, num: 5
 const W_MOBILE: Record<string, number> = { estacao: 130, municipio: 100, num: 50, situacao: 62, redec: 110, atualizado: 120, codigo: 90 };
 
 const NOME_FONTE: Record<RedeSource, string> = {
+  niteroi: "Niterói (Defesa Civil)",
+  alerta_rio: "Alerta Rio",
   macae_ufrj: "Macaé (UFRJ)",
   plugfield: "Plugfield",
   wunderground: "Wunderground",
@@ -163,7 +220,11 @@ const RedeTable = forwardRef<
   }
 >(function RedeTable({ source, stations, municipioRedecMap = {}, onOpenStation }, ref) {
   const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths(`larguras-rede-${source}-v1`, W_DESKTOP, W_MOBILE);
-  const colunas = useMemo(() => [...COLUNAS_CHUVA[source], ...METEO], [source]);
+  // Niterói só tem pluviômetros; as demais redes trazem variáveis meteorológicas.
+  const colunas = useMemo(
+    () => (source === "niteroi" ? COLUNAS_CHUVA[source] : [...COLUNAS_CHUVA[source], ...METEO]),
+    [source],
+  );
   const get1h = COLUNA_1H[source];
   const get24h = COLUNA_24H[source];
 
@@ -280,7 +341,7 @@ const RedeTable = forwardRef<
               </th>
             ))}
             <th className={`${thBase} px-1`} onClick={() => toggleSort("situacao")} title={TITULO_SITUACAO[source]}>
-              {source === "macae_ufrj" ? "Status" : source === "plugfield" ? "Bat." : "QC"}
+              {source === "macae_ufrj" ? "Status" : source === "plugfield" ? "Bat." : source === "wunderground" ? "QC" : "Fonte"}
               {arrow("situacao")}
               {resizer("situacao")}
             </th>
@@ -436,6 +497,10 @@ const RedeTable = forwardRef<
         <span>⚠ = leitura de chuva suspeita/inválida nas últimas 24 h.</span>
       </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
+        {source === "niteroi" &&
+          "Niterói (Defesa Civil/Alerta Nit, Tecal): as colunas de chuva são os acumulados OFICIAIS da fonte; “Calc” (cinza, itálico) é o nosso cálculo, para conferir (gravamos o balde de 5 min a cada 5 min). “Fonte” mostra o indicador de atraso da própria rede."}
+        {source === "alerta_rio" &&
+          "Alerta Rio (Prefeitura do Rio/GeoRio): chuva = acumulados OFICIAIS do feed; “Calc” (cinza, itálico) é o nosso cálculo (balde de 5 min a cada 5 min). Temperatura, umidade, vento e pressão existem só nas estações meteorológicas. O feed publica com ~5-10 min de atraso; valores -99,99 do feed (estação sem dado) são descartados."}
         {source === "macae_ufrj" &&
           "Macaé (UFRJ/Defesa Civil): 1h, 24h e 96h são os acumulados OFICIAIS do portal da rede; as colunas “Calc” (cinza, itálico) são o nosso cálculo, para conferir. A chuva é gravada minuto a minuto a partir do histórico do portal (basculador de 0,34 mm). Estações offline mostram a última leitura que o portal tem."}
         {source === "plugfield" &&

@@ -63,7 +63,7 @@ import urllib3
 from core.models import Reading, Station
 from core.municipios import municipio_por_coordenada
 
-from .base import BaseConnector
+from .base import BaseConnector, gravar_acumulados_oficiais
 
 logger = logging.getLogger("ingestion")
 
@@ -159,7 +159,7 @@ def _fetch_leituras() -> dict[str, dict]:
         r"<nivel_rio>([^<]*)</nivel_rio>",
         xml,
     ):
-        codigo, tipo, nome, data_hora, dado_ultimo, chuva_1h, *_resto, nivel_rio = m.groups()
+        codigo, tipo, nome, data_hora, dado_ultimo, chuva_1h, chuva_4h, chuva_24h, chuva_96h, chuva_30d, nivel_rio = m.groups()
         nome_norm = _normaliza(nome)
         linhas[nome_norm] = {
             "codigo": codigo,
@@ -168,6 +168,14 @@ def _fetch_leituras() -> dict[str, dict]:
             "data_hora": _parse_data_hora(data_hora),
             "chuva_mm": _to_float(dado_ultimo),
             "nivel_m": _to_float(nivel_rio),
+            # acumulados OFICIAIS do XML (06/10/2026): guardados como referência
+            "acc": {
+                "1": _to_float(chuva_1h),
+                "4": _to_float(chuva_4h),
+                "24": _to_float(chuva_24h),
+                "96": _to_float(chuva_96h),
+                "720": _to_float(chuva_30d),
+            },
         }
     return linhas
 
@@ -237,6 +245,12 @@ class INEAConnector(BaseConnector):
                         "codigo_inea": linha["codigo"],
                         "tipo_inea": linha["tipo"],
                         "municipio_reconstruido": True,
+                        "acumulados_oficiais": {
+                            "referencia": linha["data_hora"].astimezone(dt.timezone.utc).isoformat()
+                            if linha["data_hora"]
+                            else None,
+                            "acc": {k: v for k, v in linha["acc"].items() if v is None or v >= 0},
+                        },
                     },
                 }
             )
@@ -269,3 +283,14 @@ class INEAConnector(BaseConnector):
                     }
                 )
         return readings
+
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        from django.utils import timezone
+
+        from core.qualidade import registrar_qualidade_chuva
+
+        snapshots = {
+            sd["external_id"]: (sd.get("raw_metadata") or {}).get("acumulados_oficiais") or {} for sd in station_dicts
+        }
+        gravar_acumulados_oficiais(station_objs, snapshots, {1: "1", 24: "24", 96: "96"})
+        registrar_qualidade_chuva(leituras_criadas, timezone.now())

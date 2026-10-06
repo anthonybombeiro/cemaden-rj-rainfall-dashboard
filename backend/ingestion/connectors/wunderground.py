@@ -37,11 +37,16 @@ from django.conf import settings
 from core.models import Reading, Station
 from core.municipios import municipio_por_coordenada
 
-from .base import BaseConnector, bucket_from_running_daily_detalhe
+from .base import TETO_PLAUSIVEL_BALDE_MM, BaseConnector, bucket_from_running_daily_detalhe
 
 logger = logging.getLogger("ingestion")
 
 CURRENT_URL = "https://api.weather.com/v2/pws/observations/current"
+# Observações de ~5 min do dia (cada uma com o `precipTotal` corrido) — usadas só para
+# recuperar lacunas de coleta (06/10/2026).
+ALL_1DAY_URL = "https://api.weather.com/v2/pws/observations/all/1day"
+LACUNA_MIN = dt.timedelta(minutes=45)  # intervalo sem leitura nossa que dispara a recuperação
+MAX_LACUNAS_POR_RODADA = 12  # limita as chamadas extras por rodada (cota da chave)
 
 # Passadas pelas Defesas Civis municipais (setembro/2026). Nome/município
 # confirmados consultando cada código nesta mesma API.
@@ -227,6 +232,7 @@ class WundergroundConnector(BaseConnector):
 
         readings: list[dict] = []
         self._obs: dict[str, dict] = {}
+        self._lacunas_buscadas = 0
         for st in stations:
             codigo = st["external_id"]
             try:
@@ -309,6 +315,10 @@ class WundergroundConnector(BaseConnector):
             # PRECIPITACAO_BUCKET_SOURCES em api/views.py).
             precip_total = metric.get("precipTotal")
             if precip_total is not None:
+                # Se ficamos > 45 min sem coletar esta estação hoje, recupera os baldes
+                # intermediários do histórico de 5 min da própria fonte ANTES de calcular
+                # o balde atual (assim a chuva não é "jogada" toda no horário da volta).
+                self._preencher_lacuna(api_key, codigo, timestamp)
                 balde, ja_registrado = bucket_from_running_daily_detalhe("wunderground", codigo, float(precip_total))
                 hint = None
                 if ja_registrado is None:
@@ -348,6 +358,61 @@ class WundergroundConnector(BaseConnector):
                 add(Reading.ReadingType.VENTO_RAJADA_MS, rajada_kmh / 3.6)
 
         return readings
+
+    def _preencher_lacuna(self, api_key: str, codigo: str, ts_atual: dt.datetime) -> int:
+        """Recupera baldes de chuva perdidos hoje a partir de `observations/all/1day`
+        (diferença entre `precipTotal` consecutivos, mesma lógica do balde corrido).
+        Idempotente; no máximo `MAX_LACUNAS_POR_RODADA` estações por rodada."""
+        from django.db.models import Sum
+        from django.utils import timezone
+
+        from core.models import Reading
+
+        if self._lacunas_buscadas >= MAX_LACUNAS_POR_RODADA:
+            return 0
+        estacao = Station.objects.filter(source__slug=self.slug, external_id=codigo).first()
+        if estacao is None:
+            return 0
+        inicio_hoje = timezone.localtime(timezone.now()).replace(hour=0, minute=0, second=0, microsecond=0)
+        hoje = Reading.objects.filter(
+            station=estacao, reading_type=Reading.ReadingType.CHUVA_MM, timestamp__gte=inicio_hoje
+        )
+        ultima = hoje.order_by("-timestamp").values_list("timestamp", flat=True).first()
+        if ultima is None or ts_atual - ultima < LACUNA_MIN:
+            return 0  # 1a leitura do dia (o balde já é o total) ou sem lacuna
+        self._lacunas_buscadas += 1
+        try:
+            resp = requests.get(
+                ALL_1DAY_URL,
+                params={"stationId": codigo, "format": "json", "units": "m", "numericPrecision": "decimal", "apiKey": api_key},
+                timeout=20,
+            )
+            if resp.status_code != 200:
+                return 0
+            observacoes = resp.json().get("observations") or []
+        except Exception:  # noqa: BLE001
+            logger.exception("Falha ao buscar histórico do dia do Wunderground de %s", codigo)
+            return 0
+        acumulado = hoje.aggregate(total=Sum("value"))["total"] or 0.0
+        criadas = 0
+        for o in sorted(observacoes, key=lambda x: x.get("epoch") or 0):
+            t = _parse_timestamp(o.get("obsTimeUtc"))
+            total = (o.get("metric") or {}).get("precipTotal")
+            if t is None or total is None or t <= ultima or t >= ts_atual:
+                continue
+            total = float(total)
+            if total > acumulado + 1e-9 and total - acumulado <= TETO_PLAUSIVEL_BALDE_MM:
+                _, nova = Reading.objects.get_or_create(
+                    station=estacao,
+                    reading_type=Reading.ReadingType.CHUVA_MM,
+                    timestamp=t,
+                    defaults={"value": round(total - acumulado, 4), "raw_payload": {"fonte": "historico_5min"}},
+                )
+                criadas += int(nova)
+                acumulado = total
+        if criadas:
+            logger.info("wunderground/%s: %d balde(s) recuperado(s) do histórico de 5 min.", codigo, criadas)
+        return criadas
 
     def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
         from django.utils import timezone

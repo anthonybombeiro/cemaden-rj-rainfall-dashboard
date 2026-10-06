@@ -14,7 +14,12 @@ diretor do CEMADEN-RJ, em setembro/2026).
 Autenticação: HTTP Basic (usuário/senha institucional, configurar em
 NITEROI_API_USERNAME/NITEROI_API_PASSWORD no `.env` — nunca no código).
 
-Guardamos "m15" (chuva acumulada nos últimos 15 min) como `chuva_mm`, tratada
+ATUALIZAÇÃO 06/10/2026: passou a gravar `m05` (balde de 5 min na grade de `horaLeitura`) com cron de
+5 min — `m15` é janela deslizante e, em coleta irregular, sobrepunha/perdia baldes (96 h nossas
+até ~10% acima das oficiais em 25 de 30 estações). O retrato dos acumulados OFICIAIS (m05..mes,
+`is_delay`) fica em `raw_metadata["acumulados_oficiais"]` e, 1x/hora, em `AcumuladoOficial`.
+
+(Texto histórico:) Guardamos "m15" (chuva acumulada nos últimos 15 min) como `chuva_mm`, tratada
 como "balde" (soma ao longo do tempo é válida) pro nosso cálculo de acumulados em
 `api/views.py` (`PRECIPITACAO_BUCKET_SOURCES`). ATENÇÃO: o balde só é válido se a
 janela gravada tiver o MESMO tamanho do intervalo entre coletas. A coleta é de 15 em
@@ -35,7 +40,7 @@ from django.conf import settings
 
 from core.models import Reading, Station
 
-from .base import BaseConnector
+from .base import BaseConnector, gravar_acumulados_oficiais
 
 logger = logging.getLogger("ingestion")
 
@@ -63,6 +68,10 @@ class NiteroiConnector(BaseConnector):
         if auth is None:
             return []
 
+        anteriores = {
+            st.external_id: (st.raw_metadata or {}).get("acumulados_oficiais")
+            for st in Station.objects.filter(source__slug=self.slug)
+        }
         resp = requests.get(STATIONS_URL, auth=auth, timeout=30)
         resp.raise_for_status()
         payload = resp.json()
@@ -86,7 +95,7 @@ class NiteroiConnector(BaseConnector):
                     "latitude": float(lat),
                     "longitude": float(lon),
                     "altitude_m": None,
-                    "raw_metadata": props,
+                    "raw_metadata": {**props, "acumulados_oficiais": anteriores.get(external_id)},
                 }
             )
         return stations
@@ -101,11 +110,20 @@ class NiteroiConnector(BaseConnector):
         payload = resp.json()
 
         readings = []
+        self._oficiais: dict[str, dict] = {}
         for item in payload:
             timestamp = _parse_timestamp(item.get("horaLeitura"))
             if timestamp is None:
                 continue
-            valor = item.get("m15")
+            self._oficiais[str(item.get("estacao"))] = {
+                "referencia": timestamp.astimezone(dt.timezone.utc).isoformat(),
+                "acc": {
+                    ch: (float(item[ch]) if isinstance(item.get(ch), (int, float)) and item[ch] >= 0 else None)
+                    for ch in ("m05", "m10", "m15", "m30", "h01", "h06", "h12", "h24", "h36", "h48", "h72", "h96", "h168", "h720", "mes")
+                },
+                "is_delay": bool(item.get("is_delay")),
+            }
+            valor = item.get("m05")
             if valor is None:
                 continue
             readings.append(
@@ -118,6 +136,22 @@ class NiteroiConnector(BaseConnector):
                 }
             )
         return readings
+
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        from django.utils import timezone
+
+        from core.qualidade import registrar_qualidade_chuva
+
+        for external_id, snap in getattr(self, "_oficiais", {}).items():
+            estacao = station_objs.get(external_id)
+            if estacao is None:
+                continue
+            estacao.raw_metadata = {**(estacao.raw_metadata or {}), "acumulados_oficiais": snap}
+            estacao.save(update_fields=["raw_metadata"])
+        gravar_acumulados_oficiais(
+            station_objs, getattr(self, "_oficiais", {}), {1: "h01", 24: "h24", 96: "h96"}
+        )
+        registrar_qualidade_chuva(leituras_criadas, timezone.now())
 
 
 def _parse_timestamp(valor: str | None) -> dt.datetime | None:

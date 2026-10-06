@@ -19,6 +19,16 @@ a API que abastece o site oficial do Alerta Rio):
       + direção cardinal em texto) por estação meteorológica — conjunto de
       estações parcialmente diferente do pluviométrico.
 
+Achados de 06/10/2026 (comparação com o próprio feed; docs/alerta-rio-e-niteroi.md):
+  * o feed manda o valor-sentinela **-99,99** em `m15`/`h24`/`h96`... quando a estação
+    está sem dado; 235 leituras negativas já tinham entrado e distorciam os
+    acumulados de ~20 estações (ex.: Grota Funda 96 h = -445 mm). Chuva negativa
+    nunca vira leitura (guarda em `BaseConnector.run`) e as consultas ignoram negativos;
+  * gravamos `m05` (balde de 5 min, grade fixa de `read_at`) com cron de 5 min — `m15`
+    é janela deslizante e, em coleta irregular, sobrepunha/perdia baldes;
+  * o retrato dos acumulados OFICIAIS (m05, m15, h01-h04, h24, h96, mes) fica em
+    `raw_metadata["acumulados_oficiais"]` e, 1x/hora, em `AcumuladoOficial`.
+
 Essas URLs respondem "Request Rejected" (bloqueio de um WAF por
 User-Agent) para clientes genéricos tipo `curl` sem cabeçalhos — não é
 CAPTCHA nem desafio interativo, só uma checagem de User-Agent/Referer.
@@ -43,7 +53,7 @@ import requests
 
 from core.models import Reading, Station
 
-from .base import BaseConnector
+from .base import BaseConnector, gravar_acumulados_oficiais
 
 logger = logging.getLogger("ingestion")
 
@@ -74,6 +84,12 @@ class AlertaRioConnector(BaseConnector):
     description = "Estações pluviométricas e meteorológicas do Sistema Alerta Rio (capital)."
 
     def fetch_stations(self) -> list[dict]:
+        # `acumulados_oficiais` (gravado em `pos_ingestao`) precisa sobreviver ao
+        # update_or_create desta rodada.
+        anteriores = {
+            st.external_id: (st.raw_metadata or {}).get("acumulados_oficiais")
+            for st in Station.objects.filter(source__slug=self.slug)
+        }
         resp = requests.get(GEOJSON_URL, timeout=30)
         resp.raise_for_status()
         data = resp.json()
@@ -99,7 +115,7 @@ class AlertaRioConnector(BaseConnector):
                     "latitude": lat,
                     "longitude": lon,
                     "altitude_m": None,
-                    "raw_metadata": props,
+                    "raw_metadata": {**props, "acumulados_oficiais": anteriores.get(str(codigo))},
                 }
             )
         return stations
@@ -125,6 +141,7 @@ class AlertaRioConnector(BaseConnector):
             return []
 
         readings = []
+        self._oficiais: dict[str, dict] = {}
         for obj in data.get("objects", []):
             external_id = by_bairro.get(_normalizar(obj.get("name", "")))
             if external_id is None:
@@ -132,7 +149,18 @@ class AlertaRioConnector(BaseConnector):
             timestamp = _parse_iso(obj.get("read_at"))
             if timestamp is None:
                 continue
-            valor = (obj.get("data") or {}).get("m15")
+            dados = obj.get("data") or {}
+            # Retrato dos acumulados oficiais (valores < 0 = sentinela "sem dado" -> None).
+            self._oficiais[external_id] = {
+                "referencia": timestamp.astimezone(dt.timezone.utc).isoformat(),
+                "acc": {
+                    ch: (float(v) if isinstance(v, (int, float)) and v >= 0 else None)
+                    for ch, v in dados.items()
+                    if ch in ("m05", "m15", "h01", "h02", "h03", "h04", "h24", "h96", "mes")
+                },
+            }
+            # m05 (grade de 5 min, sem sobreposição) — requer cron de 5 min.
+            valor = dados.get("m05")
             if valor is None:
                 continue
             readings.append(
@@ -145,6 +173,22 @@ class AlertaRioConnector(BaseConnector):
                 }
             )
         return readings
+
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        from django.utils import timezone
+
+        from core.qualidade import registrar_qualidade_chuva
+
+        for external_id, snap in getattr(self, "_oficiais", {}).items():
+            estacao = station_objs.get(external_id)
+            if estacao is None:
+                continue
+            estacao.raw_metadata = {**(estacao.raw_metadata or {}), "acumulados_oficiais": snap}
+            estacao.save(update_fields=["raw_metadata"])
+        gravar_acumulados_oficiais(
+            station_objs, getattr(self, "_oficiais", {}), {1: "h01", 24: "h24", 96: "h96"}
+        )
+        registrar_qualidade_chuva(leituras_criadas, timezone.now())
 
     def _fetch_meteorologicos(self, by_cod: dict[str, str]) -> list[dict]:
         try:
@@ -214,6 +258,10 @@ class AlertaRioConnector(BaseConnector):
 # em fetch_stations) e a API de leituras em tempo real.
 _ALIASES_NOME = {
     "estrada grajau/jacarepagua": "est. grajau/jacarepagua",
+    # 06/10/2026: o feed de chuva usa outro nome para 2 estações (mesma coordenada /
+    # ~1,5 km do GeoJSON); sem o apelido elas NUNCA tiveram chuva gravada.
+    "barra/barrinha": "barra/itanhanga",
+    "barra/riocentro": "barra/rio centro",
 }
 
 

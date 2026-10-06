@@ -308,7 +308,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
 
         leituras = list(
             Reading.objects.filter(
-                station=station, reading_type=Reading.ReadingType.CHUVA_MM, timestamp__gte=inicio
+                station=station, reading_type=Reading.ReadingType.CHUVA_MM, timestamp__gte=inicio, value__gte=0
             ).values("timestamp", "value")
         )
 
@@ -446,6 +446,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         leituras_recentes = Reading.objects.filter(
             station_id__in=station_ids,
             reading_type=Reading.ReadingType.CHUVA_MM,
+            value__gte=0,  # ignora o valor-sentinela negativo (-99,99 do Alerta Rio = "sem dado")
             timestamp__gte=timezone.now() - datetime.timedelta(hours=24),
         ).order_by("station_id", "-timestamp").values("station_id", "value", "timestamp")
         ultima_chuva = {}
@@ -580,6 +581,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         readings = Reading.objects.filter(
             station_id__in=station_ids,
             reading_type=Reading.ReadingType.CHUVA_MM,
+            value__gte=0,  # ignora o valor-sentinela negativo (-99,99 do Alerta Rio = "sem dado")
             timestamp__gte=JANELA_MAX_PYTHON,
         ).values("station_id", "value", "timestamp")
 
@@ -591,7 +593,10 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             return {
                 row["station_id"]: row["total"]
                 for row in Reading.objects.filter(
-                    station_id__in=station_ids, reading_type=Reading.ReadingType.CHUVA_MM, timestamp__gte=cutoff
+                    station_id__in=station_ids,
+                    reading_type=Reading.ReadingType.CHUVA_MM,
+                    value__gte=0,
+                    timestamp__gte=cutoff,
                 )
                 .values("station_id")
                 .annotate(total=Sum("value"))
@@ -605,6 +610,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             for row in Reading.objects.filter(
                 station_id__in=station_ids,
                 reading_type=Reading.ReadingType.CHUVA_MM,
+                value__gte=0,
                 timestamp__gte=cutoffs["acumulado_24h_mm"],
             )
             .values("station_id")
@@ -714,7 +720,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             )
         return Response(data)
 
-    REDES_TABELA = ("plugfield", "macae_ufrj", "wunderground")
+    REDES_TABELA = ("plugfield", "macae_ufrj", "wunderground", "niteroi", "alerta_rio")
 
     @action(detail=False, methods=["get"])
     def rede(self, request):
@@ -726,7 +732,9 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
 
         `oficial` depende da fonte: Macaé = {"1","24","96"} (portal);
         Plugfield = {"hoje","mes","ano"} (`rainDay/rainMonth/rainYear`);
-        Wunderground = {"hoje","taxa"} (`precipTotal`, `precipRate`)."""
+        Wunderground = {"hoje","taxa"} (`precipTotal`, `precipRate`);
+        Niterói = janelas oficiais {"m05","m15","1","6","12","24","36","48","72","96","168","720","mes"};
+        Alerta Rio = {"m05","m15","1","2","3","4","24","96","mes"}."""
         slug = request.query_params.get("source", "")
         if slug not in self.REDES_TABELA:
             return Response({"detail": f"source deve ser um de {list(self.REDES_TABELA)}"}, status=400)
@@ -789,6 +797,14 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 oficial = {"hoje": dash.get("rainDay"), "mes": dash.get("rainMonth"), "ano": dash.get("rainYear")}
                 codigo = str(meta.get("serialNumber") or st.external_id)
                 extra = {"bateria_pct": dash.get("bat"), "intervalo_s": meta.get("refreshInterval"), "modelo": meta.get("stationModel")}
+            elif slug in ("niteroi", "alerta_rio"):
+                snap = meta.get("acumulados_oficiais") or {}
+                referencia = snap.get("referencia")
+                acc = snap.get("acc") or {}
+                # chaves "h01" -> "1", "h24" -> "24"; "m05"/"m15"/"mes" ficam como estão
+                oficial = {(str(int(k[1:])) if k.startswith("h") else k): v for k, v in acc.items()}
+                codigo = str(meta.get("codigo") or meta.get("cod") or st.external_id)
+                extra = {"atrasada_fonte": snap.get("is_delay")}
             else:  # wunderground
                 obs = meta.get("observacao_oficial") or {}
                 referencia = obs.get("referencia")

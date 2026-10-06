@@ -212,6 +212,11 @@ class BaseConnector:
             station = station_objs_by_external_id.get(rd["external_id"])
             if station is None:
                 continue
+            # Chuva negativa é valor-sentinela de "sem dado" (ex.: -99,99 no Alerta Rio,
+            # 03/10/2026: 235 leituras distorciam os acumulados de ~20 estações) —
+            # nunca vira leitura.
+            if rd["reading_type"] == Reading.ReadingType.CHUVA_MM and rd["value"] < 0:
+                continue
             reading_obj, created = Reading.objects.get_or_create(
                 station=station,
                 reading_type=rd["reading_type"],
@@ -234,3 +239,36 @@ class BaseConnector:
         source.last_ingest_error = "; ".join(result.errors)
         source.save(update_fields=["last_ingested_at", "last_ingest_error"])
         return result
+
+
+def gravar_acumulados_oficiais(
+    station_objs: dict, snapshots: dict, mapa_janelas: dict[int, str] | None = None
+) -> int:
+    """Grava em `AcumuladoOficial` (1x por hora por estação) os acumulados que a
+    PRÓPRIA FONTE informa, para comparar com a nossa soma de baldes.
+
+    `snapshots` = {external_id: {"referencia": ISO-UTC, "acc": {chave: mm}}};
+    `mapa_janelas` = {janela_h: chave em `acc`} (padrão: 1, 24 e 96 h com as chaves
+    "1", "24" e "96"). A referência é truncada para a hora cheia; o 1o registro da
+    hora vence (get_or_create). Devolve quantos gravou."""
+    import datetime as _dt
+
+    from core.models import AcumuladoOficial
+
+    mapa = mapa_janelas or {1: "1", 24: "24", 96: "96"}
+    gravados = 0
+    for external_id, snap in snapshots.items():
+        estacao = station_objs.get(external_id)
+        referencia = (snap or {}).get("referencia")
+        if estacao is None or not referencia:
+            continue
+        ref_hora = _dt.datetime.fromisoformat(referencia).replace(minute=0, second=0, microsecond=0)
+        for janela, chave in mapa.items():
+            valor = ((snap or {}).get("acc") or {}).get(chave)
+            if valor is None:
+                continue
+            _, criado = AcumuladoOficial.objects.get_or_create(
+                station=estacao, janela_h=janela, referencia=ref_hora, defaults={"valor_mm": float(valor)}
+            )
+            gravados += int(criado)
+    return gravados

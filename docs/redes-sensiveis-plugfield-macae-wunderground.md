@@ -406,6 +406,13 @@ globais Município/REDEC.
 
 O ⚠ ao lado do nome indica leitura de chuva suspeita/inválida nas últimas 24 h.
 
+## 8-B. Atualização 06/10/2026
+
+- **Wunderground:** preenchimento de lacunas com `observations/all/1day` (> 45 min sem coleta nossa; até 12 estações por rodada) — ver `alerta-rio-niteroi-inea-e-saude-das-fontes.md` §7.
+- **Plugfield:** `/data/hourly` testado e **não usado**: soma 4,4 mm contra `rainDay` 3,3 mm (Guapimirim); diferença não esclarecida.
+- **Macaé:** mais estações offline em 06/10 (Bicuda Grande desde 18:08, Bicuda pequena 18:15, CTR Macaé 14:47); os acumulados continuam batendo com o oficial.
+- A faixa de **saúde das fontes** passou a avisar coleta atrasada e estações paradas (> 4 h).
+
 ## 9. Pendências e recomendações
 
 1. Contatar a UFRJ/Defesa Civil de Macaé sobre as **15 estações sem leitura** e as que

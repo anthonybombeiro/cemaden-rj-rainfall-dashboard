@@ -14,6 +14,7 @@ import MeteorologiaPanel from "@/components/MeteorologiaPanel";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import CemadenNacionalTable from "@/components/CemadenNacionalTable";
 import RedeTable from "@/components/RedeTable";
+import SaudeFontesBanner from "@/components/SaudeFontesBanner";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
 import SirenesTable from "@/components/SirenesTable";
@@ -66,7 +67,15 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // Estações/Contatos) — 5 itens principais cabem bem tanto no menu
 // horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
 type ViewMode = "mapa" | "meteorologia" | "dados" | "sirenes" | "alertas";
-type DadosSub = "precipitacao" | "cemaden" | "plugfield" | "macae" | "wunderground" | "meteorologico" | "hidrologico" | "ventos";
+type DadosSub =
+  | "precipitacao"
+  | "cemaden"
+  | "alerta_rio"
+  | "niteroi"
+  | "plugfield"
+  | "macae"
+  | "wunderground"
+  | "meteorologico" | "hidrologico" | "ventos";
 
 const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "mapa", label: "Mapa", Icone: Map },
@@ -78,11 +87,15 @@ const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
 
 // Abas de rede com tabela individual (03/10/2026) -> fonte no backend.
 const REDE_DE_SUB: Partial<Record<DadosSub, RedeSource>> = {
+  alerta_rio: "alerta_rio",
+  niteroi: "niteroi",
   plugfield: "plugfield",
   macae: "macae_ufrj",
   wunderground: "wunderground",
 };
 const NOME_REDE: Record<RedeSource, string> = {
+  alerta_rio: "Alerta Rio",
+  niteroi: "Niterói",
   plugfield: "Plugfield",
   macae_ufrj: "Macaé",
   wunderground: "Wunderground",
@@ -91,6 +104,8 @@ const NOME_REDE: Record<RedeSource, string> = {
 const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "precipitacao", label: "Precipitação" },
   { key: "cemaden", label: "CEMADEN Nacional" },
+  { key: "alerta_rio", label: "Alerta Rio" },
+  { key: "niteroi", label: "Niterói" },
   { key: "plugfield", label: "Plugfield" },
   { key: "macae", label: "Macaé" },
   { key: "wunderground", label: "Wunderground" },
@@ -790,6 +805,7 @@ export default function Dashboard({
             . O painel pode NÃO estar mostrando toques de sirene — confirme pelo portal do CBMERJ.
           </div>
         )}
+        <SaudeFontesBanner />
         {activeAlertEvents.length > 0 && (
           <div className="animate-pulse bg-red-600 px-4 py-1.5 text-sm font-bold text-white">
             🔊 {activeAlertEvents.length === 1 ? "1 sirene tocando agora" : `${activeAlertEvents.length} sirenes tocando agora`}

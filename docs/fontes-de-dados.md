@@ -1403,8 +1403,8 @@ ignoramos** · `—` = o fornecedor não oferece · `?` = a confirmar.
 
 | Grupo (cadência) | Fonte | Rede / natureza | Estações | Valor que gravamos (`chuva_mm`) | Janelas prontas que o fornecedor oferece (e ignoramos) | Carimbo de tempo | Resolução |
 |---|---|---|---|---|---|---|---|
-| **5 min** | Alerta Rio (Prefeitura RJ/GeoRio) | pluviógrafo basculante | 31 | `m15` (15 min deslizante) a cada rodada | `m05`, `h01`-`h04`, `h24`, `h96`, `mes` (**I**) | `read_at`, publicado ~5-10 min após | 0,2 mm |
-| **5 min** | Niterói (Defesa Civil/Tecal) | pluviômetro | 30 | `m15` a cada rodada | `m05`, `m10`, `m30`, `h01`…`h720`, `mes` (**I**) | `horaLeitura` (tz não tratada explicitamente) | ? |
+| **5 min** | Alerta Rio (Prefeitura RJ/GeoRio) | pluviógrafo basculante | 33 | **`m05` a cada 5 min (desde 06/10; antes `m15` deslizante)**; sentinela −99,99 descartada; oficiais `m05/m15/h01-h04/h24/h96/mes` em `raw_metadata` + `AcumuladoOficial` 1/24/96 h | — | `read_at`, publicado ~5-10 min após | 0,2 mm |
+| **5 min** | Niterói (Defesa Civil/Tecal) | pluviômetro | 30 | **`m05` a cada 5 min (desde 06/10; antes `m15`)**; oficiais `m05…h720, mes` + `is_delay` em `raw_metadata` + `AcumuladoOficial` 1/24/96 h | — (sem endpoint de histórico) | `horaLeitura` UTC, grade de 5 min | ? |
 | **10 min** | CEMADEN Nacional (`cemaden_mctic`) | PCDs A/B + hidrológicas H + geotécnicas G (só chuva) | 392 (356 A/B, 10 H, 26 G) | `ultimovalor` (~10 min), cron a cada **5 min** desde 03/10 | `acc1hr`…`acc96hr` — **retrato em `raw_metadata` + histórico 1/24/96 h em `AcumuladoOficial`** (03/10) | `datahoraUltimovalor` em UTC | qualificação válido/suspeito/inválido (`LeituraQualidade`) |
 | **15 min** | CEMADEN-RJ sirenes (GridLab) | pluviômetro + sirene | 85 com pluviômetro | `tempo1` (janela deslizante), mín. 14 min entre gravações | outras janelas (**I**) | `DataHora` (BRT→UTC) | ? |
 | **15 min** | INEA Alerta de Cheias | pluviômetro + linígrafo | 94 | `dado_ultimo` (15 min) | `chuva_1h/4h/24h/96h/30d` (**I**, por decisão) | `data_hora` (BRT→UTC) | ? |
@@ -1502,9 +1502,9 @@ lon, altitude_m, tipo, status, município)`.
 | Fonte | Validado contra | Resultado | Controle de qualidade hoje | Principais riscos | Melhoria proposta |
 |---|---|---|---|---|---|
 | CEMADEN (`cemaden_mctic`) | plataforma oficial, 03/10/2026 | **~40% do oficial** (24h 33,2 × 80 mm) | nenhum | baldes de 10 min perdidos (gaps 10-70 min) | **FEITO em 03/10/2026:** `acc*` oficiais gravados (`AcumuladoOficial` + `raw_metadata`), cron de 5 min, tabela "CEMADEN Nacional" mostra os oficiais |
-| Alerta Rio | feed oficial, mesmo `read_at` | 1-24 h dentro de ~1-6%; 96 h/mês com excesso (Urca +13%) | nenhum | `m15` sobreposto; atraso de ~9 min é do feed | gravar `m05` + oficiais `h01…h96`; comparar diariamente |
+| Alerta Rio | feed oficial, mesmo `read_at` (gravado desde 06/10) | 24 h: erro médio −0,6 mm (06/10); 96 h/mês com excesso antes (Urca +13%) — reconferir em 24-48 h | **descarta −99,99** (235 leituras já haviam entrado); negativo/>20/>50 mm | `m15` sobreposto (trocado por `m05`); atraso de ~9 min é do feed; horas de sentinela = perda definitiva | reconferir diariamente; ver `alerta-rio-niteroi-inea-e-saude-das-fontes.md` |
 | Niterói | não validado | — | nenhum | só vale com ingestão exata de 15 min; antes de 25/09 gravava `m05` | usar `h01` como referência/reconciliação |
-| INEA | não validado | — | nenhum | janela de `dado_ultimo` presumida; `verify=False` no TLS; id por nome | guardar `chuva_1h/24h` oficiais; validar certificado |
+| INEA | oficiais `chuva_1h/4h/24h/96h/30d` guardados (06/10) | ainda não comparados | negativo/>20/>50 mm (06/10) | janela de `dado_ultimo` presumida; `verify=False` no TLS; id por nome | comparar oficial × nosso; validar certificado |
 | CEMADEN-RJ sirenes | revisão de sobreposição (779 removidas) | corrigido | intervalo mínimo 14 min | janela deslizante subamostra chuva intensa | usar janela oficial maior (1 h) como referência |
 | INMET | — | — | faixas físicas (T -10..50, UR 0..100, chuva 0..300, vento 0..80, P 300..1100 …) | extremos de rede no limite; rate-limit devolve HTTP 200 texto | adicionar teste de passo (T), persistência (vento/pressão) e consistência T ≥ Td |
 | REDEMET METAR | — | horário real do METAR já usado | nenhum além do parsing | QNH ≠ pressão de estação; ventos VRB perdidos; nuvens/visibilidade fora da base | guardar visibilidade, teto, tempo presente estruturados |
@@ -1586,9 +1586,9 @@ Situação por fonte (lida no código; "não auditado" = ainda não verificado):
 | Wunderground, Plugfield, Ecowitt Paracambi | total do dia → balde por diferença (`bucket_from_running_daily`, teto 150 mm) | Robusta: autocorrige (medido em 03/10/2026: Plugfield 17/17 e Wunderground 95/96 batem com o total oficial; ver `redes-sensiveis-plugfield-macae-wunderground.md`) |
 | CEMADEN-RJ sirenes (`cemaden_rj_sirenes`) | `tempo1` com intervalo mínimo de 14 min (corrigido 02/10) | Boa; 779 sobreposições antigas removidas |
 | CEMADEN Nacional (`cemaden_mctic`) | `ultimovalor` (~10 min) por rodada | **Corrigido em 03/10/2026** — era ~40% do oficial; agora cron de 5 min, acumulados oficiais gravados e exibidos (tabela CEMADEN Nacional); `chuva_mm` ainda é balde, os acumulados oficiais são a referência |
-| Alerta Rio | `m15` por rodada, `read_at` em grade de 5-10 min | Conferido: 1-24 h dentro de ~1-6% do oficial; 96 h/mês com excesso em algumas estações (Urca +13%); atraso de ~9 min é do feed |
-| Niterói (`niteroi`) | `m15` de `horaLeitura` por rodada | Frágil; mesmo desenho do Alerta Rio |
-| INEA (`inea`) | `chuva_mm` da tabela por rodada | Frágil; janela do valor **não auditada** |
+| Alerta Rio | `m05` por `read_at` (grade de 5 min) com cron de 5 min, desde 06/10/2026 | Antes (`m15`): 1-24 h dentro de ~1-6%, 96 h com excesso (Urca +13%) e **sentinela −99,99 corrompendo acumulados** (corrigido); reconferir 96 h em 24-48 h |
+| Niterói (`niteroi`) | `m05` de `horaLeitura` por rodada (5 min), desde 06/10/2026 | Antes (`m15`): 96 h +3-10% em 25 de 30 estações; reconferir em 24-48 h |
+| INEA (`inea`) | `chuva_mm` da tabela por rodada | Frágil; janela do valor **não auditada**; acumulados oficiais agora guardados para a comparação |
 | Macaé UFRJ | histórico por minuto do portal (desde 03/10/2026) | **Corrigido:** antes ~3% do oficial (3,4 × 90,8 mm em 24 h); agora igual ao oficial |
 | Rio Chuva por Bairro | por rodada | Frágil; não auditado |
 | INMET | `CHUVA` (última hora) | Depende de pegar toda hora; não auditado em detalhe |
@@ -1613,3 +1613,11 @@ interior do RJ — nenhum desses foi pesquisado ainda. (INPE/CPTEC como fonte
 alternativa de satélite deixou de ser prioridade: REDEMET, acima, já cobre
 satélite com cadastro simples; só vale revisitar o INPE se o cadastro da
 REDEMET emperrar.)
+
+## Atualização 06/10/2026 — Alerta Rio, Niterói, INEA e saúde das fontes
+
+Valor-sentinela −99,99 no Alerta Rio (235 leituras negativas distorcendo acumulados), troca de
+`m15` por `m05` com cron de 5 min no Alerta Rio e em Niterói, acumulados oficiais guardados
+(Alerta Rio, Niterói, INEA), 2 estações do Alerta Rio que nunca gravaram (nomes), faixa de
+saúde das fontes e preenchimento de lacunas do Wunderground: ver
+`alerta-rio-niteroi-inea-e-saude-das-fontes.md`.

@@ -23,13 +23,13 @@ memória local do assistente).
 
 | Minuto | Comando (`/api/admin/run/`) | Timeout curl |
 |---|---|---|
-| `2-59/15` | `ingest alerta_rio` | 25 s |
+| **`2-59/5`** | `ingest alerta_rio` (alterado em 06/10/2026; antes `2-59/15`; grava `m05`) | 25 s |
 | `4-59/15` | `ingest wunderground` | 25 s |
 | `6-59/15` | `ingest plugfield` | 25 s |
 | `8-59/15` | `ingest inmet` | 25 s |
 | `10-59/15` | `sync_risk_alerts` | 280 s |
 | **`3-59/5`** | `ingest cemaden_mctic` (alterado em 03/10/2026; antes `13-59/15`) | 120 s |
-| `14-59/15` | `ingest niteroi` | 280 s |
+| **`0-59/5`** | `ingest niteroi` (alterado em 06/10/2026; antes `14-59/15`; grava `m05`) | 280 s |
 | **`*/2`** | **`sync_sirenes`** (alterado pelo usuário no cPanel em 03/10/2026; antes `*/15`, 25 s) | 60 s |
 | `1-59/15` | `ingest inea` | 25 s |
 | `0,30` | `sync_avisos_mau_tempo` | 25 s |
@@ -171,6 +171,18 @@ aceita três ações **que não gravam nada**, criadas para auditar as fontes:
 | `analise_chuva_qc` | `{"source": "cemaden_mctic", "dias": 30}` | distribuição dos baldes de chuva, vizinhança e sequências iguais (calibração da qualificação) |
 | `snapshot_precip` | `{"source": "<slug>"}` | nossos acumulados (1/24/96 h, hoje) por estação, para comparar com o oficial da fonte |
 | `analise_funcionamento` | `{"source": "<slug>", "dias": 7}` | por estação: primeira/última leitura, idade, instantes, intervalo mediano, maior lacuna e variáveis presentes |
+| `analise_negativos` | `{"source": "alerta_rio"}` (opcional) | leituras de chuva negativas (valores-sentinela): total, valores, estações e datas |
 
 Observação: o servidor responde 406 a requisições com o `User-Agent` padrão do
 Python; use o do `curl` (ou `curl`) ao chamar de scripts.
+
+### Saúde das fontes e incidente do cron de sirenes (06/10/2026)
+
+- `GET /api/fontes/saude/` (login) resume, por fonte, a idade da última coleta contra o limite
+  esperado (3 × cadência, mín. 20 min) e as estações que pararam; o painel mostra uma faixa
+  laranja quando há problema (`SaudeFontesBanner`).
+- Em 06/10 o `sync_sirenes` estava de novo em `*/20` (mesma linha de antes, `linekey`
+  2639992328); nada no repositório altera o cron, então a origem é externa (cPanel/edição
+  manual). Reaplicado `*/2` e verificado. **Reconferir o crontab periodicamente.**
+- Após a mudança, o crontab tem 13 jobs: Alerta Rio `2-59/5`, Niterói `0-59/5`, CEMADEN
+  `3-59/5`, sirenes `*/2`, demais em 15 min.

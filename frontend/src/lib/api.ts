@@ -337,7 +337,7 @@ export async function fetchCemadenNacional(): Promise<CemadenNacionalStation[]> 
 
 /** Redes com tabela individual (03/10/2026): fonte (slug do backend) das abas
  * Plugfield, Macaé e Wunderground em Dados. */
-export type RedeSource = "plugfield" | "macae_ufrj" | "wunderground";
+export type RedeSource = "plugfield" | "macae_ufrj" | "wunderground" | "niteroi" | "alerta_rio";
 
 /** Linha da tabela de uma rede. `oficial` depende da fonte: Macaé
  * {"1","24","96"}; Plugfield {"hoje","mes","ano"}; Wunderground {"hoje","taxa"}.
@@ -368,6 +368,33 @@ export type RedeStation = {
 export async function fetchRede(source: RedeSource): Promise<RedeStation[]> {
   const r = await getJson<RedeStation[]>(`/stations/rede/?source=${source}`);
   return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
+}
+
+/** Saúde das fontes (`GET /fontes/saude/`, 06/10/2026): coleta atrasada por fonte e
+ * estações que pararam de reportar (tinham leitura nas últimas 48 h e nenhuma há > 4 h). */
+export type FonteSaude = {
+  slug: string;
+  nome: string;
+  ultima_coleta: string | null;
+  idade_min: number | null;
+  limite_min: number;
+  atrasada: boolean;
+  erro: string;
+  estacoes_total: number;
+  estacoes_ativas: number;
+  estacoes_paradas: number;
+  estacoes_sem_dado_48h: number;
+  paradas: { id: number; nome: string; municipio: string; idade_h: number }[];
+};
+export type FontesSaude = {
+  gerado_em: string;
+  parada_apos_h: number;
+  resumo: { fontes_atrasadas: number; estacoes_paradas: number };
+  fontes: FonteSaude[];
+};
+
+export async function fetchFontesSaude(): Promise<FontesSaude> {
+  return getJson<FontesSaude>("/fontes/saude/");
 }
 
 /** Atraso da última leitura, com as MESMAS faixas da legenda da Rede Salvar:

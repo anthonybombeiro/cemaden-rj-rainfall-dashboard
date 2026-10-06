@@ -14,6 +14,7 @@ from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeV
 from .inea_radar_views import INEARadarImageryView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetSateliteImageryView
+from .saude_views import FontesSaudeView
 from .refresh_views import RefreshNowView, RefreshRedemetView, RefreshSirenesView, SirenesStatusView
 from .views import (
     AlertEventViewSet,
@@ -60,6 +61,7 @@ urlpatterns = [
     path("refresh/redemet/", RefreshRedemetView.as_view(), name="refresh-redemet"),
     path("refresh/sirenes/", RefreshSirenesView.as_view(), name="refresh-sirenes"),
     path("sirenes/status/", SirenesStatusView.as_view(), name="sirenes-status"),
+    path("fontes/saude/", FontesSaudeView.as_view(), name="fontes-saude"),
     path("imagery/satelite/", RedemetSateliteImageryView.as_view(), name="imagery-satelite"),
     path("imagery/radar/", RedemetRadarImageryView.as_view(), name="imagery-radar"),
     path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),

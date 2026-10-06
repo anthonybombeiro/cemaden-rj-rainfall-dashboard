@@ -167,6 +167,11 @@ Legenda: **✅** gravado · **⚠️** a fonte envia mas **não gravamos** · **
 > ver `redes-sensiveis-plugfield-macae-wunderground.md`. **Macaé** passou a gravar a chuva
 > por minuto (antes ~3% do oficial).
 
+> **Atualização 06/10/2026:** Alerta Rio, Niterói e INEA têm acumulados oficiais guardados;
+> Alerta Rio e Niterói gravam `m05` a cada 5 min; abas próprias de Alerta Rio e Niterói em
+> Dados; sentinela −99,99 do Alerta Rio descartada — ver
+> `alerta-rio-niteroi-inea-e-saude-das-fontes.md`.
+
 ## 5. Pontos de atenção para fidelidade dos dados
 
 Observados no código; alguns dependem de validação com a fonte:

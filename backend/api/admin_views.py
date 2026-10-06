@@ -82,6 +82,7 @@ ACOES_PERMITIDAS = {
     "analise_chuva_qc",
     "snapshot_precip",
     "analise_funcionamento",
+    "analise_negativos",
 }
 
 
@@ -372,9 +373,45 @@ class AdminOpsView(APIView):
                             "intervalo_mediano_min": round(mediana, 1) if mediana else None,
                             "maior_lacuna_h": round(max(gaps) / 60, 1) if gaps else None,
                             "tipos": tipos.get(sid, {}),
+                            "codigo": (st.raw_metadata or {}).get("cod_estacao") or (st.raw_metadata or {}).get("codigo"),
                         }
                     )
                 saida.write(json_module.dumps(linhas, ensure_ascii=False, default=str))
+            elif action == "analise_negativos":
+                # SOMENTE LEITURA: leituras de chuva negativas (valores-sentinela de
+                # "sem dado") por fonte — contagem, valores mais comuns, estações e datas.
+                import json as json_module
+                from collections import Counter
+
+                from core.models import Reading
+
+                source = (request.data or {}).get("source")
+                qs = Reading.objects.filter(reading_type="chuva_mm", value__lt=0)
+                if source:
+                    qs = qs.filter(station__source__slug=source)
+                por_fonte = Counter()
+                valores = Counter()
+                por_estacao = Counter()
+                datas = []
+                for slug, nome, ts, v in qs.values_list("station__source__slug", "station__name", "timestamp", "value"):
+                    por_fonte[slug] += 1
+                    valores[round(v, 2)] += 1
+                    por_estacao[nome] += 1
+                    datas.append(ts)
+                saida.write(
+                    json_module.dumps(
+                        {
+                            "total": sum(por_fonte.values()),
+                            "por_fonte": dict(por_fonte),
+                            "valores_mais_comuns": valores.most_common(8),
+                            "estacoes_mais_afetadas": por_estacao.most_common(8),
+                            "primeira": min(datas) if datas else None,
+                            "ultima": max(datas) if datas else None,
+                        },
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                )
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 
