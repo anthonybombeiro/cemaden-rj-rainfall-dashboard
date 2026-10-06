@@ -82,6 +82,7 @@ só aparece com problema; clique em "detalhes"):
   há mais de 4 h. Estações sem nenhum dado em 48 h são contadas à parte
   (`estacoes_sem_dado_48h`) para não gerar alarme permanente (ex.: as 15 de Macaé).
 - Atualiza a cada 5 min com o painel aberto.
+- **Quem acende a faixa (ajuste de 06/10 à noite):** coleta atrasada de qualquer fonte, ou estações paradas das redes **sensíveis** (Plugfield, Macaé, Wunderground, Niterói, Alerta Rio, INEA, Ecowitt). O CEMADEN (27 paradas entre 4-48 h e 142 sem dado há > 48 h) aparece nos detalhes como "não dispara alerta" para a faixa não ficar sempre acesa.
 
 ## 7. Preenchimento de lacunas (Wunderground)
 
@@ -113,7 +114,7 @@ esclarecida — por isso não é misturado ao balde por diferença.
    janela de 96 h for toda composta de baldes de 5 min.
 2. Alerta Rio: as horas com −99,99 são perda definitiva; acompanhar se o feed continua
    mandando sentinela (hoje 0 negativos novos desde 21:35 UTC).
-3. Investigar por que o intervalo mediano do CEMADEN é de 60 min.
+3. ~~Investigar o intervalo mediano de 60 min do CEMADEN~~ **Esclarecido em 06/10 (noite):** no feed `getJson2.php` os carimbos são múltiplos de 10 min, mas só **~200 de 389** estações atualizaram na última hora (76 em < 15 min; 124 entre 15-60 min), **158 estão com a última leitura > 6 h** e **142 de 392 não reportam há > 48 h** (27 entre 4 e 48 h). Ou seja: parte transmite de hora em hora e cerca de um terço da rede está parada (problema das estações, não nosso).
 4. Quem reescreve o cron de sirenes para `*/20`? (a faixa de saúde/sirenes avisa; reconferir
    o crontab periodicamente).
 5. Tabela própria do INEA (se desejado).

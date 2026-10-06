@@ -38,7 +38,7 @@ export default function SaudeFontesBanner() {
   if (!saude || (saude.resumo.fontes_atrasadas === 0 && saude.resumo.estacoes_paradas === 0)) return null;
 
   const atrasadas = saude.fontes.filter((f) => f.atrasada);
-  const comParadas = saude.fontes.filter((f) => f.estacoes_paradas > 0);
+  const comParadas = saude.fontes.filter((f) => f.estacoes_paradas > 0).sort((a, b) => Number(b.sensivel) - Number(a.sensivel));
 
   return (
     <div className="border-b border-orange-300 bg-orange-100 text-orange-950">
@@ -54,7 +54,7 @@ export default function SaudeFontesBanner() {
             {saude.resumo.fontes_atrasadas} com coleta atrasada ({atrasadas.map((f) => f.nome.split(" — ")[0]).join(", ")})
           </span>
         )}
-        {saude.resumo.estacoes_paradas > 0 && <span>{saude.resumo.estacoes_paradas} estações paradas (&gt; {saude.parada_apos_h} h)</span>}
+        {saude.resumo.estacoes_paradas > 0 && <span>{saude.resumo.estacoes_paradas} estações paradas nas redes sensíveis (&gt; {saude.parada_apos_h} h)</span>}
         <span className="ml-auto font-normal underline">{aberto ? "ocultar" : "detalhes"}</span>
       </button>
       {aberto && (
@@ -67,7 +67,7 @@ export default function SaudeFontesBanner() {
           ))}
           {comParadas.map((f) => (
             <div key={`p-${f.slug}`}>
-              <strong>{f.nome}</strong>: {f.estacoes_paradas} parada(s) de {f.estacoes_total} ({f.estacoes_ativas} ativas) —{" "}
+              <strong>{f.nome}</strong>{f.sensivel ? "" : " (não dispara alerta)"}: {f.estacoes_paradas} parada(s) de {f.estacoes_total} ({f.estacoes_ativas} ativas) —{" "}
               {f.paradas
                 .slice(0, 8)
                 .map((p) => `${p.nome} (${p.idade_h} h)`)

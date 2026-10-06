@@ -384,12 +384,13 @@ export type FonteSaude = {
   estacoes_ativas: number;
   estacoes_paradas: number;
   estacoes_sem_dado_48h: number;
+  sensivel: boolean;
   paradas: { id: number; nome: string; municipio: string; idade_h: number }[];
 };
 export type FontesSaude = {
   gerado_em: string;
   parada_apos_h: number;
-  resumo: { fontes_atrasadas: number; estacoes_paradas: number };
+  resumo: { fontes_atrasadas: number; estacoes_paradas: number; estacoes_paradas_outras: number };
   fontes: FonteSaude[];
 };
 

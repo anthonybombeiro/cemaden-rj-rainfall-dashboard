@@ -35,6 +35,11 @@ CADENCIA_MIN = {
 # Sirenes têm faixa própria (`SirenesStatusView`); estas não têm coleta periódica de estações.
 IGNORAR = {"cemaden_rj_sirenes", "cemaden_rj", "cemaden_nacional", "rio_chuva_bairro", "marinha_avisos"}
 
+# Redes onde cada estação importa (sem outra rede por perto): só as paradas delas acendem a
+# faixa. As demais (ex.: CEMADEN, onde ~36% das estações ficam dias sem reportar) aparecem
+# nos detalhes mas não disparam o alerta — senão a faixa ficaria sempre acesa.
+SENSIVEIS = {"plugfield", "macae_ufrj", "wunderground", "niteroi", "alerta_rio", "inea", "ecowitt_paracambi"}
+
 PARADA_APOS_H = 4
 JANELA_PARADA_H = 48
 TIPOS_ATIVIDADE = ("chuva_mm", "temperatura_c", "nivel_m")
@@ -99,6 +104,7 @@ class FontesSaudeView(APIView):
                     "estacoes_total": f["total"],
                     "estacoes_ativas": f["ativas"],
                     "estacoes_paradas": len(paradas),
+                    "sensivel": slug in SENSIVEIS,
                     "estacoes_sem_dado_48h": f["sem_dado"],
                     "paradas": paradas[:15],
                 }
@@ -109,7 +115,8 @@ class FontesSaudeView(APIView):
                 "parada_apos_h": PARADA_APOS_H,
                 "resumo": {
                     "fontes_atrasadas": sum(1 for f in saida if f["atrasada"]),
-                    "estacoes_paradas": sum(f["estacoes_paradas"] for f in saida),
+                    "estacoes_paradas": sum(f["estacoes_paradas"] for f in saida if f["sensivel"]),
+                    "estacoes_paradas_outras": sum(f["estacoes_paradas"] for f in saida if not f["sensivel"]),
                 },
                 "fontes": saida,
             }

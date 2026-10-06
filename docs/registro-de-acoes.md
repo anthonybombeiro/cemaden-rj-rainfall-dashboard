@@ -98,6 +98,8 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | **Tabelas individuais Alerta Rio e Niterói** na aba Dados (oficiais + colunas "Calc", REDEC, atualização e código por último) | `RedeTable.tsx`, `views.py` (`rede`), `Dashboard.tsx` | 33 e 30 linhas no navegador local; frontend publicado |
 | Documento novo `alerta-rio-niteroi-inea-e-saude-das-fontes.md` e demais `.md` atualizados | `docs/` | — |
 
+| Crontab reconferido (13 jobs; sirenes `*/2`, Alerta Rio `2-59/5`, Niterói `0-59/5`). **CEMADEN:** do feed, só ~200 de 389 estações atualizaram na última hora, 158 estão há > 6 h e 142 de 392 há > 48 h sem reportar. Faixa de saúde ajustada: só coleta atrasada e paradas das redes sensíveis disparam; CEMADEN fica nos detalhes | `saude_views.py`, `SaudeFontesBanner.tsx`, `api.ts` | publicado; docs atualizados |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
