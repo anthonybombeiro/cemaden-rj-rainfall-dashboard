@@ -306,7 +306,7 @@ class AdminOpsView(APIView):
                 if not source:
                     return Response({"detail": "snapshot_precip exige 'source'."}, status=400)
                 estacoes = list(Station.objects.filter(source__slug=source))
-                calc = {e["id"]: e for e in StationViewSet()._calcular_precipitacao(estacoes)}
+                calc = {e["id"]: e for e in StationViewSet()._calcular_precipitacao(estacoes, usar_oficiais=False)}
                 linhas = []
                 for st in estacoes:
                     c = calc.get(st.id) or {}

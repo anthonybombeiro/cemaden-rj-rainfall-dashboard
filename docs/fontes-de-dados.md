@@ -1621,3 +1621,15 @@ Valor-sentinela −99,99 no Alerta Rio (235 leituras negativas distorcendo acumu
 (Alerta Rio, Niterói, INEA), 2 estações do Alerta Rio que nunca gravaram (nomes), faixa de
 saúde das fontes e preenchimento de lacunas do Wunderground: ver
 `alerta-rio-niteroi-inea-e-saude-das-fontes.md`.
+
+## Atualização 06-07/10/2026 — Ecowitt, INMET, REDEMET, TX-15
+
+- **Ecowitt (Paracambi):** fora de `PRECIPITACAO_BUCKET_SOURCES` até 06/10 (a tabela de Precipitação não
+  mostrava a chuva); incluída. Totais oficiais (1 h, dia, evento, semana, mês, ano, taxa) guardados em
+  `raw_metadata["acumulados_oficiais"]`; qualificação aplicada (total que regride, 1ª leitura do dia).
+- **INMET:** 26 estações ativas, observação horária; sem acumulados oficiais.
+- **REDEMET:** 17 estações, METAR horário (T, Td, vento, QNH); sem chuva/rajada/umidade.
+- **"TX-15" do Alerta Rio** = taxa de chuva em mm/h estimada pelos últimos 15 min (acumulado de 15 min
+  × 4). A nota antiga de que o nosso "Pico" é "equivalente ao TX-15" **estava errada** (Pico = maior
+  balde individual em 24 h).
+- Tabelas de todas as fontes, regras de colunas e achados: `tabelas-individuais-por-fonte.md`.

@@ -12,6 +12,7 @@ própria, testar, documentar). Relacionados: `fontes-de-dados.md`,
 |---|---|---|
 | **Alerta Rio — valor-sentinela** | O feed manda **−99,99** (estação sem dado). **235 leituras negativas** (21/09 a 06/10, 20+ estações; ex.: Tijuca 36, Anchieta 20, Irajá 19) entraram como chuva e **distorciam os acumulados**: Grota Funda 96 h = **−445,6 mm** (oficial 57,8), Grajaú 24 h = −191 mm, Santa Teresa 96 h = −633 mm | Chuva negativa nunca vira leitura (`BaseConnector.run`) e **todas as consultas de chuva ignoram valores < 0** (tabela de Precipitação, série, última chuva das sirenes). Após a correção: 0 janelas negativas, erro médio 24 h = −0,6 mm |
 | **Alerta Rio — 2 estações sem chuva desde sempre** | `Barra/Barrinha` e `Barra/Riocentro` (nomes do feed) não casavam com o GeoJSON (`barra/itanhanga` — mesma coordenada — e `barra/rio centro`, a 1,5 km) | Apelidos em `_ALIASES_NOME`; passaram a gravar |
+| **Alerta Rio — atualização a cada 10 min (correção de 06/10 noite)** | O `read_at` de cada estação só avança de 10 em 10 min; o `m05` cobre 5 dos 10 minutos: a 1ª troca (`m15`→`m05`) perdia ~metade da chuva (Bangu 1 h: 7,4 × 28,8 oficial) | Grava a janela que cobre o intervalo desde a última leitura gravada (`_valor_janela`: m05/m10/m15/m30; normalmente **m10**, vindo do portal). Efeito medido 14 min depois: erro médio de 1 h de −3,55 para −1,19 mm (máx 27,2 → 6,2 mm) |
 | **Alerta Rio e Niterói — balde** | O `m15` é janela **deslizante**; com coleta de 15 min irregular sobrepunha/perdia baldes. Niterói: **25 de 30** estações com 96 h nossas 3-10% acima do oficial (Itaipú 70,0 × 64,2; Morro do Estado 73,4 × 67,2). Alerta Rio: 24 h dentro de ~1-3 mm | Passam a gravar **`m05`** (grade fixa de 5 min) com **cron de 5 min** (`2-59/5` Alerta Rio; `0-59/5` Niterói) |
 | **Acumulados oficiais** (item 5) | Todas as três fontes entregam janelas prontas | Retrato em `raw_metadata["acumulados_oficiais"]` e, 1×/hora, **`AcumuladoOficial` de 1/24/96 h** (Alerta Rio, Niterói, INEA); Macaé e CEMADEN já faziam |
 | **Saúde das fontes** (item 3) | O cron manda a saída para /dev/null: coleta que falha é silenciosa | `GET /api/fontes/saude/` + faixa laranja no topo da tela |
@@ -118,3 +119,59 @@ esclarecida — por isso não é misturado ao balde por diferença.
 4. Quem reescreve o cron de sirenes para `*/20`? (a faixa de saúde/sirenes avisa; reconferir
    o crontab periodicamente).
 5. Tabela própria do INEA (se desejado).
+
+## 10. Atualização 06/10/2026 (noite) — portal do Alerta Rio, janela de 10 min e valor oficial
+
+### 10.1 Feed com atualização de 10 em 10 minutos
+Amostrando o feed a cada minuto (Bangu): `read_at` 21:10 → 21:20 e parado nos 9 minutos
+seguintes; `m05` = só os últimos 5 min. Logo, com cron de 5 min só se captura 1 balde de 5 min a
+cada 10 (−50%). Em produção, o intervalo mediano entre leituras gravadas era 10 min (99
+instantes/24 h por estação). Correção: `_valor_janela` escolhe a maior janela (m05/m10/m15/m30)
+que caiba no intervalo desde a última leitura gravada da estação; `m10` e `m30` só existem no
+portal (HTML), por isso o conector lê **também** a página pública.
+
+### 10.2 Portal do Alerta Rio (HTML) — colunas e Localização
+`https://websempre.rio.rj.gov.br/estacoes/` (User-Agent de navegador): tabela "Dados
+Pluviométricos" com N°, Estação, **Localização**, Hora Leitura, 05/10/15/30 min, 1/2/3/4/6/12/24/96
+h, No Mês e **TX-15**; tabela meteorológica com Temp., Umi., P. Atm., P. Orvalho, Vel. do Vento,
+**Dir. do Vento (°)**, Condições de Chuva e Probabilidade de Escorregamento (por região). **Não
+há coluna de rajada.** TX-15 = taxa em mm/h (15 min × 4) — ver `tabelas-individuais-por-fonte.md`.
+
+### 10.3 INEA — comparação oficial × nosso (06/10 ~21:30 BRT)
+92 estações comparadas: 1 h média −0,18 mm (2 com |erro| > 2); 24 h média −1,69 (17); 96 h média
+**−17,77 mm (73 de 92; máx 106 mm)**. Estações como Fazenda Escola UBM (24 h 1,6 × 30,6) mostram
+que parte do dado oficial chega atrasado ou em lote. Efeito: a tabela de Precipitação exibe
+o valor oficial (ver `tabelas-individuais-por-fonte.md` §5).
+
+### 10.4 Baseline para as conferências agendadas (script `backend/scripts/conferir_oficial_vs_nosso.py`)
+| Fonte | 1 h | 24 h | 96 h |
+|---|---|---|---|
+| Niterói (06/10 21:49 BRT) | média −0,07; 0 de 30 com |erro| > 2 | média −0,08; 0 de 30 | **+3,04; 24 de 30** (histórico do `m15` antigo) |
+| Alerta Rio (21:49 BRT) | média −1,19; 4 de 32 | −4,83; 9 de 32 (perda do `m05` da tarde e horas de −99,99) | −9,13; 18 de 32 |
+
+### 10.5 Conferências agendadas (item 4)
+Tarefas únicas do app (rodam com o app aberto; se estiver fechado rodam ao abrir): **08/10 10:00
+BRT** (`conferir-alerta-rio-niteroi-48h`, janelas de 1/24 h; critério: erro médio de 24 h entre −1 e
++1 mm e no máximo 3 estações com |erro| > 2 mm por fonte) e **10/10 22:00 BRT**
+(`conferir-alerta-rio-niteroi-96h`, janela de 96 h; critério: média entre −2 e +2 mm e no máximo 4
+estações com |erro| > 4 mm). Ambas reconferem o crontab, documentam aqui e fazem commit/push.
+Execução manual: `python backend/scripts/conferir_oficial_vs_nosso.py [niteroi] [alerta_rio]`
+com `CPANEL_API_TOKEN` no ambiente (o segredo administrativo é lido do crontab; nada é impresso).
+
+### 10.6 Cron das sirenes — investigação de "trava da HostGator" (item 5)
+Fatos levantados: (1) **não há acesso de shell** na conta (`Shell access is not enabled`); o crontab só se
+altera pelo cPanel (UI ou API2); (2) **não existe limite de frequência**: o CEMADEN (`3-59/5`), Alerta
+Rio (`2-59/5`), Niterói (`0-59/5`) e sirenes (`*/2`) permanecem; (3) a linha de sirenes voltou **duas
+vezes ao mesmo valor `*/20`**, com o **mesmo `linekey` 2639992328** (o `linekey` é um hash do conteúdo
+da linha, então foi restaurada exatamente a linha original); (4) nada no repositório altera o
+cron e **nenhuma outra sessão do Claude** (nenhuma ativa; nenhum registro de `add_line`) nem tarefa
+agendada o faz; (5) a conta guarda outro sistema (`monitoramento.preserve.rio.br`, PHP de 2021) e
+WordPress, que podem ter seus próprios agendamentos fora do alcance da API; (6) o crontab tem linhas em
+branco entre os jobs (efeito de add/remove da API), sem relação com o problema. **Hipóteses**
+(sem prova): restauração do crontab por rotina/backup do provedor ou uma tela do cPanel aberta
+com a versão antiga que salvou de volta. **Ação:** um monitor somente leitura registra o crontab a
+cada 4 min em `C:\Users\antho\AppData\Local\Temp\cron_monitor.log` (3 h) para flagrar o horário exato da
+mudança; as conferências agendadas reconferem o crontab; **recomendação** (não aplicada, depende
+do usuário criar um segredo no GitHub): redundância independente do cPanel via workflow agendado
+do GitHub Actions chamando `POST /api/admin/run/ {"action":"sync_sirenes"}` a cada 5 min (o
+GitHub Actions garante no máximo 5 min e pode atrasar).

@@ -61,8 +61,44 @@ PRECIPITACAO_BUCKET_SOURCES = {
     "wunderground",
     "plugfield",
     "macae_ufrj",
+    "ecowitt_paracambi",  # incluída em 06/10/2026 (o conector converte o total do dia em balde)
 }
 PRECIPITACAO_RUNNING_DAILY_SOURCES: set[str] = set()
+
+# Fontes que informam acumulados OFICIAIS por janela (guardados em
+# `Station.raw_metadata["acumulados_oficiais"]` = {referencia, acc{chave: mm}}). Na tabela
+# de Precipitação (06/10/2026) esses valores substituem o nosso cálculo nas janelas listadas,
+# desde que o retrato tenha até `OFICIAL_VALIDADE_H` horas: o oficial inclui dados que chegam
+# atrasados e que nunca vimos (INEA: nosso 96 h ficava em média 17,8 mm abaixo do oficial).
+# O nosso cálculo continua disponível nas colunas "Calc" das tabelas por rede.
+# {slug: {campo de `_calcular_precipitacao`: chave em `acc`}}
+OFICIAL_VALIDADE_H = 2
+MAPA_ACUMULADOS_OFICIAIS = {
+    "alerta_rio": {
+        "acumulado_5min_mm": "m05", "acumulado_10min_mm": "m10", "acumulado_15min_mm": "m15",
+        "acumulado_30min_mm": "m30", "acumulado_1h_mm": "h01", "acumulado_2h_mm": "h02",
+        "acumulado_3h_mm": "h03", "acumulado_4h_mm": "h04", "acumulado_6h_mm": "h06",
+        "acumulado_12h_mm": "h12", "acumulado_24h_mm": "h24", "acumulado_96h_mm": "h96",
+        "acumulado_mes_mm": "mes",
+    },
+    "niteroi": {
+        "acumulado_5min_mm": "m05", "acumulado_10min_mm": "m10", "acumulado_15min_mm": "m15",
+        "acumulado_30min_mm": "m30", "acumulado_1h_mm": "h01", "acumulado_6h_mm": "h06",
+        "acumulado_12h_mm": "h12", "acumulado_24h_mm": "h24", "acumulado_36h_mm": "h36",
+        "acumulado_48h_mm": "h48", "acumulado_72h_mm": "h72", "acumulado_96h_mm": "h96",
+        "acumulado_168h_mm": "h168", "acumulado_1mes_mm": "h720", "acumulado_mes_mm": "mes",
+    },
+    "inea": {
+        "acumulado_1h_mm": "1", "acumulado_4h_mm": "4", "acumulado_24h_mm": "24",
+        "acumulado_96h_mm": "96", "acumulado_1mes_mm": "720",
+    },
+    "macae_ufrj": {"acumulado_1h_mm": "1", "acumulado_24h_mm": "24", "acumulado_96h_mm": "96"},
+    "ecowitt_paracambi": {"acumulado_1h_mm": "1", "acumulado_hoje_mm": "hoje", "acumulado_mes_mm": "mes"},
+    "cemaden_mctic": {
+        "acumulado_1h_mm": "1", "acumulado_3h_mm": "3", "acumulado_6h_mm": "6", "acumulado_12h_mm": "12",
+        "acumulado_24h_mm": "24", "acumulado_48h_mm": "48", "acumulado_72h_mm": "72", "acumulado_96h_mm": "96",
+    },
+}
 
 
 def _parse_iso_param(valor):
@@ -520,7 +556,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         data.sort(key=lambda e: (not e["tocando"], e["status_estacao"] != Station.Status.INATIVA, e["name"]))
         return Response(data)
 
-    def _calcular_precipitacao(self, stations):
+    def _calcular_precipitacao(self, stations, usar_oficiais=True):
         """Chuva acumulada em várias janelas pra uma lista de estações —
         inspirado no formato do Alerta Rio (websempre.rio.rj.gov.br/estacoes/)
         e do portal de sirenes do CEMADEN-RJ. Extraído da action
@@ -659,9 +695,36 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 entry["pico_mm"] = pico_24h_por_estacao.get(station.id)
             elif kind == "running_daily":
                 entry["acumulado_hoje_mm"] = latest["value"] if latest else None
+            entry["acumulados_oficiais"] = self._aplicar_oficiais(entry, station, now) if usar_oficiais else False
             data.append(entry)
 
         return data
+
+    @staticmethod
+    def _aplicar_oficiais(entry: dict, station, agora) -> bool:
+        """Troca, em `entry`, as janelas que a FONTE informa pelos valores oficiais (se o
+        retrato tem até OFICIAL_VALIDADE_H h). Devolve True se aplicou. Guarda o nosso cálculo
+        original em `entry["calculado"]` (campo -> valor) para auditoria."""
+        mapa = MAPA_ACUMULADOS_OFICIAIS.get(station.source.slug)
+        snap = (station.raw_metadata or {}).get("acumulados_oficiais") if mapa else None
+        if not snap or not snap.get("referencia"):
+            return False
+        try:
+            ref = datetime.datetime.fromisoformat(snap["referencia"])
+        except ValueError:
+            return False
+        if agora - ref > datetime.timedelta(hours=OFICIAL_VALIDADE_H):
+            return False
+        acc = snap.get("acc") or {}
+        calculado = {}
+        for campo, chave in mapa.items():
+            valor = acc.get(chave)
+            if valor is None or valor < 0:
+                continue  # "ND"/sentinela: mantém o nosso cálculo
+            calculado[campo] = entry.get(campo)
+            entry[campo] = valor
+        entry["calculado"] = calculado
+        return bool(calculado)
 
     @action(detail=False, methods=["get"])
     def cemaden(self, request):
@@ -674,7 +737,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         para comparar com os oficiais."""
         stations = list(Station.objects.filter(source__slug="cemaden_mctic"))
         ids = [s.id for s in stations]
-        nossos = {e["id"]: e for e in self._calcular_precipitacao(stations)}
+        nossos = {e["id"]: e for e in self._calcular_precipitacao(stations, usar_oficiais=False)}
 
         # Qualificação da última leitura de cada estação (só exceções existem).
         qualidade = {}
@@ -720,7 +783,9 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             )
         return Response(data)
 
-    REDES_TABELA = ("plugfield", "macae_ufrj", "wunderground", "niteroi", "alerta_rio")
+    REDES_TABELA = (
+        "plugfield", "macae_ufrj", "wunderground", "niteroi", "alerta_rio", "inea", "ecowitt_paracambi", "inmet", "redemet",
+    )
 
     @action(detail=False, methods=["get"])
     def rede(self, request):
@@ -740,7 +805,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"detail": f"source deve ser um de {list(self.REDES_TABELA)}"}, status=400)
         stations = list(Station.objects.filter(source__slug=slug))
         ids = [st.id for st in stations]
-        nossos = {e["id"]: e for e in self._calcular_precipitacao(stations)}
+        nossos = {e["id"]: e for e in self._calcular_precipitacao(stations, usar_oficiais=False)}
         agora = timezone.now()
 
         tipos_atuais = {
@@ -750,6 +815,12 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             "vento_rajada_ms": "rajada_ms",
             "pressao_nm_hpa": "pressao_nm",
             "pressao_hpa": "pressao",
+            "vento_dir_graus": "dir",
+            "ponto_orvalho_c": "orvalho",
+            "temperatura_max_c": "tmax",
+            "temperatura_min_c": "tmin",
+            "radiacao_wm2": "rad",
+            "nivel_m": "nivel",
         }
         atuais: dict = {}
         for sid, rt, valor in (
@@ -797,6 +868,19 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 oficial = {"hoje": dash.get("rainDay"), "mes": dash.get("rainMonth"), "ano": dash.get("rainYear")}
                 codigo = str(meta.get("serialNumber") or st.external_id)
                 extra = {"bateria_pct": dash.get("bat"), "intervalo_s": meta.get("refreshInterval"), "modelo": meta.get("stationModel")}
+            elif slug == "inea":
+                snap = meta.get("acumulados_oficiais") or {}
+                referencia = snap.get("referencia")
+                oficial = dict(snap.get("acc") or {})
+                codigo = str(meta.get("codigo_inea") or st.external_id)
+                extra = {"tipo_inea": meta.get("tipo_inea")}
+            elif slug == "ecowitt_paracambi":
+                snap = meta.get("acumulados_oficiais") or {}
+                referencia = snap.get("referencia")
+                oficial = dict(snap.get("acc") or {})
+                codigo = st.external_id
+            elif slug in ("inmet", "redemet"):
+                codigo = st.external_id  # INMET: A628; REDEMET: ICAO (ex.: SBJR)
             elif slug in ("niteroi", "alerta_rio"):
                 snap = meta.get("acumulados_oficiais") or {}
                 referencia = snap.get("referencia")
@@ -804,7 +888,11 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 # chaves "h01" -> "1", "h24" -> "24"; "m05"/"m15"/"mes" ficam como estão
                 oficial = {(str(int(k[1:])) if k.startswith("h") else k): v for k, v in acc.items()}
                 codigo = str(meta.get("codigo") or meta.get("cod") or st.external_id)
-                extra = {"atrasada_fonte": snap.get("is_delay")}
+                extra = {
+                    "atrasada_fonte": snap.get("is_delay"),
+                    "localizacao": snap.get("localizacao"),
+                    "numero": snap.get("numero"),
+                }
             else:  # wunderground
                 obs = meta.get("observacao_oficial") or {}
                 referencia = obs.get("referencia")

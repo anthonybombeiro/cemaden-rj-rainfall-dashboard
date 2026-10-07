@@ -337,7 +337,16 @@ export async function fetchCemadenNacional(): Promise<CemadenNacionalStation[]> 
 
 /** Redes com tabela individual (03/10/2026): fonte (slug do backend) das abas
  * Plugfield, Macaé e Wunderground em Dados. */
-export type RedeSource = "plugfield" | "macae_ufrj" | "wunderground" | "niteroi" | "alerta_rio";
+export type RedeSource =
+  | "plugfield"
+  | "macae_ufrj"
+  | "wunderground"
+  | "niteroi"
+  | "alerta_rio"
+  | "inea"
+  | "ecowitt_paracambi"
+  | "inmet"
+  | "redemet";
 
 /** Linha da tabela de uma rede. `oficial` depende da fonte: Macaé
  * {"1","24","96"}; Plugfield {"hoje","mes","ano"}; Wunderground {"hoje","taxa"}.
@@ -358,6 +367,12 @@ export type RedeStation = {
     rajada_ms?: number;
     pressao_nm?: number;
     pressao?: number;
+    dir?: number;
+    orvalho?: number;
+    tmax?: number;
+    tmin?: number;
+    rad?: number;
+    nivel?: number;
   };
   extra: Record<string, string | number | boolean | null | undefined>;
   qualidade: "suspeito" | "invalido" | null;

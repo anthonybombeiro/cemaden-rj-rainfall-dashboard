@@ -100,6 +100,20 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 
 | Crontab reconferido (13 jobs; sirenes `*/2`, Alerta Rio `2-59/5`, Niterói `0-59/5`). **CEMADEN:** do feed, só ~200 de 389 estações atualizaram na última hora, 158 estão há > 6 h e 142 de 392 há > 48 h sem reportar. Faixa de saúde ajustada: só coleta atrasada e paradas das redes sensíveis disparam; CEMADEN fica nos detalhes | `saude_views.py`, `SaudeFontesBanner.tsx`, `api.ts` | publicado; docs atualizados |
 
+## 06-07/10/2026 — lote de 7 pedidos (classificados por prioridade e executados do mais fácil ao mais difícil)
+
+| # | Pedido | Ação | Verificação |
+|---|---|---|---|
+| 1 | Tirar Município e REDEC de Niterói, Macaé e Alerta Rio | `RedeTable` configurável por fonte (`CONFIG`): `municipio`/`redec` só nas redes de várias cidades | abas no navegador local |
+| 7 | Colunas Calc depois dos dados; Plugfield sem Calc | Calc ao final em todas; Plugfield ganhou "Calc Hoje"; Wunderground reordenado | idem |
+| 4 | Agendar a conferência de Alerta Rio e Niterói | Duas tarefas únicas (08/10 10:00 e 10/10 22:00 BRT) + script `backend/scripts/conferir_oficial_vs_nosso.py` | baseline medido (§10.4 do doc do Alerta Rio) |
+| 2 | Alerta Rio: sem coluna Fonte nem Rajada; Dir. do vento; Localização no lugar da REDEC; 10/15/30 min e TX-15; documentar TX-15 | Portal HTML do Alerta Rio lido (Localização, m10, m30, h06, h12, TX-15, "ND"); feed sem rajada; coluna Dir. (bússola) em todas as redes com direção; TX-15 = taxa mm/h (15 min × 4) documentado; texto errado de "Pico ≈ TX-15" corrigido | 33 estações com Localização; TX-15 = 27,2 para Barra/Barrinha |
+| — | **Erro meu corrigido:** o `m05` (troca de ontem) perdia ~metade da chuva do Alerta Rio porque o feed atualiza a cada 10 min | `_valor_janela` (m05/m10/m15/m30 conforme o intervalo desde a última leitura) | erro médio de 1 h: −3,55 → −1,19 mm (14 min depois) |
+| 6 | Faixa de saúde cortava os botões inferiores no celular (aba Mapa) | `h-dvh`, padding com `safe-area-inset-bottom`, faixa de saúde em 1 linha, aviso das sirenes menor no celular | emulação 375×812: botões Opções/Legenda visíveis |
+| 5 | Existe trava da HostGator no cron? | Investigado: sem shell, sem limite de frequência, linha `*/20` restaurada com o mesmo `linekey`, nenhuma outra sessão/tarefa mexe; monitor do crontab ativo; sirenes reaplicado `*/2` | §10.6; log do monitor |
+| 3 | Tabelas individuais das fontes restantes | **INEA** (oficiais 1/4/24/96 h/30 d, nível, tipo), **Ecowitt** (oficiais 1 h/dia/evento/semana/mês/ano/taxa), **INMET**, **REDEMET**; Ecowitt incluído no cálculo de chuva (estava de fora); INEA: nosso 96 h −17,8 mm vs oficial → a tabela de Precipitação **exibe o oficial** das janelas informadas pela fonte (≤ 2 h) | Ecowitt hoje = oficial; INEA/Ecowitt locais ok; INMET/REDEMET dependem de tokens (produção) |
+| 8 | Documentar tudo | `tabelas-individuais-por-fonte.md` (novo) + atualizações em `alerta-rio-niteroi-inea-e-saude-das-fontes.md`, `redes-sensiveis-…`, `fontes-de-dados.md`, `operacao-cron-e-producao.md` | — |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
@@ -112,3 +126,5 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 6. **Reavaliar a qualificação de chuva no verão** (limite de suspeito 20 para 10 mm e regra de vizinhança), com mais dados: ver "Calibração dos limites da qualificação" em `fontes-de-dados.md`. Decisão do usuário em 03/10/2026.
 7. **Macaé:** 15 das 26 estações internas sem dado; **Plugfield:** 2 estações de Cambuci paradas há meses e lacuna de 20 h em Areal; **Wunderground:** IMARIC14 (contador regrediu) e 15 estações sem dado — ver `redes-sensiveis-plugfield-macae-wunderground.md` §9.
 8. **Reconferir Alerta Rio e Niterói em 24-48 h** (96 h oficial × nosso após o `m05`); investigar o intervalo mediano de 60 min do CEMADEN; descobrir quem reescreve o cron de sirenes.
+9. **Conferências agendadas** (08/10 10:00 e 10/10 22:00) de Alerta Rio e Niterói; ler `cron_monitor.log` para saber quando (e se) o cron de sirenes mudou; decidir sobre a redundância via GitHub Actions para as sirenes.
+10. INMET e REDEMET: validar as novas abas em produção com login (os tokens só existem no servidor).

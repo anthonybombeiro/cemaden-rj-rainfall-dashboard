@@ -24,8 +24,11 @@ Achados de 06/10/2026 (comparação com o próprio feed; docs/alerta-rio-e-niter
     está sem dado; 235 leituras negativas já tinham entrado e distorciam os
     acumulados de ~20 estações (ex.: Grota Funda 96 h = -445 mm). Chuva negativa
     nunca vira leitura (guarda em `BaseConnector.run`) e as consultas ignoram negativos;
-  * gravamos `m05` (balde de 5 min, grade fixa de `read_at`) com cron de 5 min — `m15`
-    é janela deslizante e, em coleta irregular, sobrepunha/perdia baldes;
+  * CADA ESTAÇÃO SÓ ATUALIZA A CADA 10 MIN (o `read_at` pula de :10 para :20 e fica parado
+    entre eles — medido em 06/10/2026 noite) e o `m05` cobre só 5 desses 10 minutos: a 1ª troca
+    (`m15` -> `m05`, 06/10 tarde) perdia ~metade da chuva (Bangu 1 h: 7,4 x 28,8 oficial).
+    Por isso gravamos a janela que COBRE o intervalo desde a última leitura gravada da estação
+    (`_janela_para_intervalo`: m05/m10/m15/m30; normalmente `m10`, que vem do portal);
   * o retrato dos acumulados OFICIAIS (m05, m15, h01-h04, h24, h96, mes) fica em
     `raw_metadata["acumulados_oficiais"]` e, 1x/hora, em `AcumuladoOficial`.
 
@@ -59,6 +62,11 @@ logger = logging.getLogger("ingestion")
 
 GEOJSON_URL = "https://www.data.rio/api/download/v1/items/88b61c6abe424c049fdf83d27917602e/geojson?layers=0"
 CHUVAS_URL = "https://websempre.rio.rj.gov.br/json/chuvas"
+# Página pública "Dados Pluviométricos" do Alerta Rio (HTML renderizado no servidor): traz colunas
+# que o JSON não tem — Localização (região), 10 min, 30 min, 6 h, 12 h e "TX - 15" (06/10/2026).
+PORTAL_URL = "https://websempre.rio.rj.gov.br/estacoes/"
+# Ordem das colunas de chuva da tabela do portal (depois de N°, Estação, Localização, Hora Leitura).
+COLUNAS_PORTAL = ("m05", "m10", "m15", "m30", "h01", "h02", "h03", "h04", "h06", "h12", "h24", "h96", "mes", "tx15")
 METEOROLOGICOS_URL = "https://websempre.rio.rj.gov.br/json/dados_meteorologicos"
 
 # Sem isso, o WAF do host rejeita a requisição com "Request Rejected"
@@ -142,6 +150,18 @@ class AlertaRioConnector(BaseConnector):
 
         readings = []
         self._oficiais: dict[str, dict] = {}
+        portal = _fetch_portal()  # {} se a página falhar: o JSON continua valendo
+        # Última leitura de chuva gravada de cada estação (define a janela a usar).
+        from django.db.models import Max
+
+        from core.models import Reading as _Reading
+
+        ultimas = {
+            r["station__external_id"]: r["m"]
+            for r in _Reading.objects.filter(station__source__slug=self.slug, reading_type=_Reading.ReadingType.CHUVA_MM)
+            .values("station__external_id")
+            .annotate(m=Max("timestamp"))
+        }
         for obj in data.get("objects", []):
             external_id = by_bairro.get(_normalizar(obj.get("name", "")))
             if external_id is None:
@@ -151,16 +171,29 @@ class AlertaRioConnector(BaseConnector):
                 continue
             dados = obj.get("data") or {}
             # Retrato dos acumulados oficiais (valores < 0 = sentinela "sem dado" -> None).
+            acc = {
+                ch: (float(v) if isinstance(v, (int, float)) and v >= 0 else None)
+                for ch, v in dados.items()
+                if ch in ("m05", "m15", "h01", "h02", "h03", "h04", "h24", "h96", "mes")
+            }
+            p = portal.get(_normalizar(obj.get("name", "")))
+            if p:
+                # O portal completa (10 min, 30 min, 6 h, 12 h, TX-15) e é a referência visual;
+                # onde ele diz "ND" (None) vale o valor do JSON.
+                for ch, v in p["acc"].items():
+                    if v is not None:
+                        acc[ch] = v
+                    else:
+                        acc.setdefault(ch, None)
             self._oficiais[external_id] = {
                 "referencia": timestamp.astimezone(dt.timezone.utc).isoformat(),
-                "acc": {
-                    ch: (float(v) if isinstance(v, (int, float)) and v >= 0 else None)
-                    for ch, v in dados.items()
-                    if ch in ("m05", "m15", "h01", "h02", "h03", "h04", "h24", "h96", "mes")
-                },
+                "acc": acc,
+                "localizacao": (p or {}).get("localizacao"),
+                "numero": (p or {}).get("numero"),
             }
-            # m05 (grade de 5 min, sem sobreposição) — requer cron de 5 min.
-            valor = dados.get("m05")
+            # Balde = janela que cobre o intervalo desde a última leitura gravada desta estação
+            # (normalmente 10 min: a estação só atualiza a cada 10 min).
+            valor = _valor_janela(acc, timestamp, ultimas.get(external_id))
             if valor is None:
                 continue
             readings.append(
@@ -252,6 +285,50 @@ class AlertaRioConnector(BaseConnector):
                     }
                 )
         return readings
+
+
+JANELAS_MIN = (("m05", 5), ("m10", 10), ("m15", 15), ("m30", 30))
+
+
+def _valor_janela(acc: dict, timestamp: dt.datetime, ultima: dt.datetime | None) -> float | None:
+    """Chuva do intervalo desde a última leitura gravada: usa a maior janela (m05/m10/m15/m30) que
+    caiba no intervalo (tolerância de 2,5 min). Sem leitura anterior ou intervalo > 30 min, usa
+    m10 / m30. Se a janela pedida não existe, cai para a menor disponível."""
+    if ultima is None:
+        alvo = 10.0
+    else:
+        alvo = (timestamp - ultima).total_seconds() / 60
+        if alvo <= 0:
+            alvo = 5.0  # mesmo read_at já gravado: o get_or_create descarta o duplicado
+    escolhidas = [ch for ch, m in JANELAS_MIN if m <= alvo + 2.5] or ["m05"]
+    for ch in reversed(escolhidas):
+        v = acc.get(ch)
+        if v is not None:
+            return float(v)
+    return None
+
+
+def _fetch_portal() -> dict[str, dict]:
+    """Lê a tabela de chuva da página pública do portal: {nome normalizado: {numero,
+    localizacao, acc{m05..tx15}}}. Valores "ND" (sem dado) ou negativos viram None."""
+    try:
+        resp = requests.get(PORTAL_URL, headers=BROWSER_HEADERS, timeout=25)
+        resp.raise_for_status()
+        html = resp.content.decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        logger.exception("Falha ao buscar %s", PORTAL_URL)
+        return {}
+    saida: dict[str, dict] = {}
+    for linha in re.findall(r'<tr id ?="linha-\d+">(.*?)</tr>', html, flags=re.S):
+        c = [re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", x)).strip() for x in re.findall(r"<td[^>]*>(.*?)</td>", linha, flags=re.S)]
+        if len(c) < 4 + len(COLUNAS_PORTAL):
+            continue
+        acc = {}
+        for ch, v in zip(COLUNAS_PORTAL, c[4 : 4 + len(COLUNAS_PORTAL)]):
+            n = _parse_br_float(v)
+            acc[ch] = n if (n is not None and n >= 0) else None
+        saida[_normalizar(c[1])] = {"numero": c[0], "localizacao": c[2], "acc": acc}
+    return saida
 
 
 # Pequenas diferenças de nomenclatura entre o GeoJSON de estações (usado

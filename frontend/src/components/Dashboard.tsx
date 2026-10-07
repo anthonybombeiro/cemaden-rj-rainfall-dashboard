@@ -75,6 +75,10 @@ type DadosSub =
   | "plugfield"
   | "macae"
   | "wunderground"
+  | "inea"
+  | "inmet"
+  | "ecowitt"
+  | "redemet"
   | "meteorologico" | "hidrologico" | "ventos";
 
 const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
@@ -92,6 +96,10 @@ const REDE_DE_SUB: Partial<Record<DadosSub, RedeSource>> = {
   plugfield: "plugfield",
   macae: "macae_ufrj",
   wunderground: "wunderground",
+  inea: "inea",
+  inmet: "inmet",
+  ecowitt: "ecowitt_paracambi",
+  redemet: "redemet",
 };
 const NOME_REDE: Record<RedeSource, string> = {
   alerta_rio: "Alerta Rio",
@@ -99,6 +107,10 @@ const NOME_REDE: Record<RedeSource, string> = {
   plugfield: "Plugfield",
   macae_ufrj: "Macaé",
   wunderground: "Wunderground",
+  inea: "INEA",
+  inmet: "INMET",
+  ecowitt_paracambi: "Ecowitt",
+  redemet: "REDEMET",
 };
 
 const DADOS_SUBS: { key: DadosSub; label: string }[] = [
@@ -109,6 +121,10 @@ const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "plugfield", label: "Plugfield" },
   { key: "macae", label: "Macaé" },
   { key: "wunderground", label: "Wunderground" },
+  { key: "inea", label: "INEA" },
+  { key: "inmet", label: "INMET" },
+  { key: "ecowitt", label: "Ecowitt" },
+  { key: "redemet", label: "REDEMET" },
   { key: "meteorologico", label: "Meteorológicos" },
   { key: "hidrologico", label: "Hidrológicos" },
   { key: "ventos", label: "Ventos" },
@@ -741,7 +757,10 @@ export default function Dashboard({
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-dvh flex-col">
+      {/* h-dvh (altura dinâmica da janela): com h-screen (100vh) o navegador do celular mede
+          a janela COM a barra de endereço escondida e a base da tela — inclusive os botões
+          inferiores do mapa — ficava cortada, ainda mais com a faixa de saúde no topo. */}
       {/* Cabeçalho no mesmo esquema visual do SIGPLAN-SEDEC (pedido do
           usuário, 2026-09-23, inspecionado ao vivo em
           sigplan-sedec.vercel.app/dashboard): barra escura (gray-900),
@@ -795,7 +814,7 @@ export default function Dashboard({
           </div>
         </div>
         {(sirenesStatusErro || sirenesStatus?.obsoleto) && (
-          <div className="bg-amber-500 px-4 py-1.5 text-sm font-bold text-black">
+          <div className="bg-amber-500 px-3 py-1 text-[11px] font-bold leading-tight text-black sm:px-4 sm:py-1.5 sm:text-sm">
             ⚠ ATENÇÃO: o status das sirenes está DESATUALIZADO
             {sirenesStatus?.idade_s != null
               ? ` há ${Math.round(sirenesStatus.idade_s / 60)} min`
@@ -851,7 +870,7 @@ export default function Dashboard({
         ))}
       </nav>
 
-      <div className="flex flex-1 flex-col overflow-hidden pb-14 md:!pb-0">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:!pb-0">
         {/* Barra de filtro flutuante (pedido do usuário, 2026-09-23: a barra
             antiga com os 4 filtros sempre abertos + Exportar CSV numa linha
             separada tomava quase metade da tela no celular — escolhida a

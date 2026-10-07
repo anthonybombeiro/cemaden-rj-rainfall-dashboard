@@ -425,3 +425,12 @@ O ⚠ ao lado do nome indica leitura de chuva suspeita/inválida nas últimas 24
 5. Usar `/data/hourly` (Plugfield) e `observations/all/1day` (Wunderground) para
    conferir as janelas de 1-96 h contra o histórico das próprias fontes.
 6. Reavaliar os limites de qualificação no verão (ver `fontes-de-dados.md`).
+
+## 11. Atualização 06-07/10/2026 — colunas das tabelas
+
+Pedido do usuário: (1) tabelas de Niterói, Macaé e Alerta Rio **sem Município e REDEC** (redes de
+uma só cidade); (2) colunas **"Calc" depois de todos os dados recebidos**; (3) **Plugfield passa a ter
+"Calc Hoje"** (ao final, para conferir com o total oficial do dia) e no Wunderground o "Calc Hoje" foi
+movido para o final; (4) coluna **Dir.** do vento (bússola + graus + cardeal, como na tabela Ventos) nas
+redes com direção. Em Macaé, "Status online/offline" continua antes das colunas Calc. Detalhes e
+colunas de todas as fontes em `tabelas-individuais-por-fonte.md`.

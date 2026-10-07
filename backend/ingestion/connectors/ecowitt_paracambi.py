@@ -35,7 +35,7 @@ from django.conf import settings
 
 from core.models import Reading, Station
 
-from .base import BaseConnector, bucket_from_running_daily
+from .base import BaseConnector, bucket_from_running_daily_detalhe, gravar_acumulados_oficiais
 
 logger = logging.getLogger("ingestion")
 
@@ -80,6 +80,12 @@ class EcowittParacambiConnector(BaseConnector):
             logger.warning("Ecowitt device/list retornou código %s: %s", payload.get("code"), payload.get("msg"))
             return []
 
+        # Retrato dos acumulados oficiais (gravado em `pos_ingestao`) precisa sobreviver ao
+        # update_or_create desta rodada.
+        anteriores = {
+            st.external_id: (st.raw_metadata or {}).get("acumulados_oficiais")
+            for st in Station.objects.filter(source__slug=self.slug)
+        }
         estacoes = []
         for d in payload.get("data", {}).get("list", []):
             # Nome vem tipo "Cascata_EM Dr Carlos Nabuco" — só a parte antes
@@ -97,7 +103,7 @@ class EcowittParacambiConnector(BaseConnector):
                     "latitude": lat,
                     "longitude": lon,
                     "altitude_m": None,
-                    "raw_metadata": d,
+                    "raw_metadata": {**d, "acumulados_oficiais": anteriores.get(d["mac"])},
                 }
             )
         return estacoes
@@ -108,6 +114,7 @@ class EcowittParacambiConnector(BaseConnector):
             return []
 
         readings: list[dict] = []
+        self._oficiais: dict[str, dict] = {}
         for st in stations:
             mac = st["external_id"]
             try:
@@ -181,22 +188,63 @@ class EcowittParacambiConnector(BaseConnector):
             # "balde" (chuva NESSE intervalo) com a mesma técnica já usada
             # pras outras fontes running_daily, pra ficar somável igual ao
             # resto do projeto (ver bucket_from_running_daily em base.py).
-            daily = (data.get("rainfall") or {}).get("daily")
-            if daily and daily.get("value") is not None:
+            chuva = data.get("rainfall") or {}
+            daily = chuva.get("daily")
+
+            def _num(k):
                 try:
-                    balde = bucket_from_running_daily("ecowitt_paracambi", mac, float(daily["value"]))
+                    return float((chuva.get(k) or {}).get("value"))
+                except (TypeError, ValueError):
+                    return None
+
+            if daily and daily.get("value") is not None:
+                hint = None
+                try:
+                    total = float(daily["value"])
                     timestamp = dt.datetime.fromtimestamp(int(daily["time"]), tz=dt.timezone.utc)
+                    balde, ja_registrado = bucket_from_running_daily_detalhe("ecowitt_paracambi", mac, total)
+                    if ja_registrado is None:
+                        hint = ("ok", "1a leitura do dia: o balde é o total desde 00h")
+                    elif total < ja_registrado - 0.5:
+                        hint = (
+                            "suspeito",
+                            f"total do dia regrediu ({ja_registrado:.1f} -> {total:.1f} mm): contador reiniciou?",
+                        )
+                    # Retrato OFICIAL (06/10/2026): a API entrega o total de 1 h, do dia, do evento,
+                    # da semana, do mês e do ano e a taxa instantânea.
+                    self._oficiais[mac] = {
+                        "referencia": timestamp.isoformat(),
+                        "acc": {
+                            "1": _num("1_hour"), "hoje": total, "evento": _num("event"), "semana": _num("weekly"),
+                            "mes": _num("monthly"), "ano": _num("yearly"), "taxa": _num("rain_rate"),
+                        },
+                    }
                 except (TypeError, ValueError, KeyError):
                     balde, timestamp = None, None
                 if balde is not None and timestamp is not None:
-                    readings.append(
-                        {
-                            "external_id": mac,
-                            "reading_type": Reading.ReadingType.CHUVA_MM,
-                            "value": balde,
-                            "timestamp": timestamp,
-                            "raw_payload": daily,
-                        }
-                    )
+                    leitura = {
+                        "external_id": mac,
+                        "reading_type": Reading.ReadingType.CHUVA_MM,
+                        "value": balde,
+                        "timestamp": timestamp,
+                        "raw_payload": daily,
+                    }
+                    if hint:
+                        leitura["qc_hint"] = hint
+                    readings.append(leitura)
 
         return readings
+
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        from django.utils import timezone
+
+        from core.qualidade import registrar_qualidade_chuva
+
+        for mac, snap in getattr(self, "_oficiais", {}).items():
+            estacao = station_objs.get(mac)
+            if estacao is None:
+                continue
+            estacao.raw_metadata = {**(estacao.raw_metadata or {}), "acumulados_oficiais": snap}
+            estacao.save(update_fields=["raw_metadata"])
+        gravar_acumulados_oficiais(station_objs, getattr(self, "_oficiais", {}), {1: "1"})
+        registrar_qualidade_chuva(leituras_criadas, timezone.now())

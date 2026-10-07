@@ -73,7 +73,7 @@ const JANELAS: { key: keyof PrecipitacaoStation; label: string; titulo: string }
     label: "No Mês",
     titulo: 'Acumulado calendário: desde o dia 1 do mês corrente até agora. Ao lado de "Hoje" por serem o mesmo tipo de acumulado (calendário, não janela móvel).',
   },
-  { key: "pico_mm", label: "Pico", titulo: "Maior leitura individual nas últimas 24h (equivalente ao \"TX-15\" do Alerta Rio)" },
+  { key: "pico_mm", label: "Pico", titulo: "Maior leitura individual (balde) nas últimas 24h. Não é o \"TX-15\" do Alerta Rio, que é uma taxa em mm/h (acumulado de 15 min × 4)" },
 ];
 
 const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "source", "updated"]);

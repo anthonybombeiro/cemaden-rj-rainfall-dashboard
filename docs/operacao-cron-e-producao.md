@@ -186,3 +186,13 @@ Python; use o do `curl` (ou `curl`) ao chamar de scripts.
   manual). Reaplicado `*/2` e verificado. **Reconferir o crontab periodicamente.**
 - Após a mudança, o crontab tem 13 jobs: Alerta Rio `2-59/5`, Niterói `0-59/5`, CEMADEN
   `3-59/5`, sirenes `*/2`, demais em 15 min.
+
+## Atualização 06-07/10/2026
+
+- **Cron das sirenes:** investigação da "trava" e monitor do crontab em
+  `alerta-rio-niteroi-inea-e-saude-das-fontes.md` §10.6 (sem shell; sem limite de frequência;
+  restauração externa da linha original `*/20`).
+- **Conferências agendadas** de Alerta Rio e Niterói: 08/10 10:00 e 10/10 22:00 (§10.5 do mesmo
+  documento); script `backend/scripts/conferir_oficial_vs_nosso.py`.
+- A ação admin `analise_funcionamento` passou a devolver também o código da estação
+  (`cod_estacao`/`codigo`).

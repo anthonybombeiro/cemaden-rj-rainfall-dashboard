@@ -45,17 +45,22 @@ export default function SaudeFontesBanner() {
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
-        className="flex w-full flex-wrap items-center gap-x-3 px-4 py-1 text-left text-xs font-semibold sm:text-sm"
+        className="flex w-full items-center gap-x-3 px-3 py-0.5 text-left text-[11px] font-semibold sm:px-4 sm:py-1 sm:text-sm"
         aria-expanded={aberto}
       >
-        <span>⚠ Saúde das fontes:</span>
-        {saude.resumo.fontes_atrasadas > 0 && (
-          <span>
-            {saude.resumo.fontes_atrasadas} com coleta atrasada ({atrasadas.map((f) => f.nome.split(" — ")[0]).join(", ")})
-          </span>
-        )}
-        {saude.resumo.estacoes_paradas > 0 && <span>{saude.resumo.estacoes_paradas} estações paradas nas redes sensíveis (&gt; {saude.parada_apos_h} h)</span>}
-        <span className="ml-auto font-normal underline">{aberto ? "ocultar" : "detalhes"}</span>
+        {/* Uma linha só (truncada): no celular a faixa não pode crescer e empurrar a tela. */}
+        <span className="min-w-0 flex-1 truncate">
+          ⚠ Fontes:
+          {saude.resumo.fontes_atrasadas > 0 && (
+            <> {saude.resumo.fontes_atrasadas} atrasada(s) ({atrasadas.map((f) => f.nome.split(" — ")[0]).join(", ")})</>
+          )}
+          {saude.resumo.estacoes_paradas > 0 && (
+            <>
+              {saude.resumo.fontes_atrasadas > 0 ? " ·" : ""} {saude.resumo.estacoes_paradas} estação(ões) parada(s) &gt; {saude.parada_apos_h} h
+            </>
+          )}
+        </span>
+        <span className="shrink-0 font-normal underline">{aberto ? "ocultar" : "detalhes"}</span>
       </button>
       {aberto && (
         <div className="max-h-64 space-y-2 overflow-auto border-t border-orange-200 px-4 py-2 text-xs">
