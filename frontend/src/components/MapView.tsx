@@ -165,7 +165,8 @@ function LegendaFlutuante({ sourcesPresentes, modo }: { sourcesPresentes: string
 }
 
 type CamadaImagem = "nenhuma" | "satelite" | "radar";
-type TipoSatelite = "realcada" | "ir" | "vis";
+type TipoSatelite = "truecolor" | "dsat_realcada" | "dsat_ch13" | "dsat_ch02" | "realcada" | "ir" | "vis";
+const eDsat = (t: TipoSatelite) => t === "truecolor" || t.startsWith("dsat_");
 type TipoRadar =
   | "maxcappi"
   | "10km"
@@ -309,7 +310,10 @@ function useCamadaMeteorologica(
       // resolvido, pra cair no mesmo `.then(data => ...)` abaixo.
       const promessa: Promise<ImageryLayer | { frames: AnimacaoFrame[]; bounds: unknown; tipo: string; total_frames: number }> =
         config.tipo === "satelite"
-          ? fetch(`/api/imagery/satelite/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=15" : ""}`).then((r) => r.json())
+          ? eDsat(config.tipoSatelite)
+            ? // DSAT/CPTEC (GOES-19): quadros de ~4 MB, animação limitada a 6 (1 h)
+              fetch(`/api/imagery/dsat/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=6" : ""}`).then((r) => r.json())
+            : fetch(`/api/imagery/satelite/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=15" : ""}`).then((r) => r.json())
           : config.tipoRadar === "niteroi"
             ? // Radar próprio de Niterói: histórico real de 15 quadros (5min
               // cada), diferente do limite de 8 da REDEMET.
@@ -443,7 +447,7 @@ function CamadaMeteorologica({ imagem }: { imagem: ImageryLayer | null }) {
   // 02/10/2026). Mantendo a mesma instância, o react-leaflet só chama
   // `setUrl`/`setBounds` na camada já existente — troca suave, sem piscar,
   // e só remonta de verdade quando a fonte muda de fato (satélite↔radar).
-  return <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={0.55} zIndex={400} />;
+  return <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={eDsat(imagem.tipo as TipoSatelite) ? 0.8 : 0.55} zIndex={400} />;
 }
 
 /** Botão flutuante pra alternar a camada de satélite/radar. Canto inferior
@@ -482,9 +486,13 @@ function SeletorCamadaMeteorologica({
   ];
 
   const tiposSatelite: { valor: TipoSatelite; label: string }[] = [
-    { valor: "realcada", label: "Realçada" },
-    { valor: "ir", label: "Infravermelho" },
-    { valor: "vis", label: "Visível" },
+    { valor: "truecolor", label: "Cor verdadeira — True Color (DSAT/INPE)" },
+    { valor: "dsat_realcada", label: "IR realçado (DSAT/INPE)" },
+    { valor: "dsat_ch13", label: "IR canal 13 (DSAT/INPE)" },
+    { valor: "dsat_ch02", label: "Visível canal 02 (DSAT/INPE)" },
+    { valor: "realcada", label: "Realçada (REDEMET)" },
+    { valor: "ir", label: "Infravermelho (REDEMET)" },
+    { valor: "vis", label: "Visível (REDEMET)" },
   ];
 
   const tiposRadar: { valor: TipoRadar; label: string }[] = [
@@ -667,7 +675,9 @@ function SeletorCamadaMeteorologica({
                       ? "Niterói"
                       : config.tipo === "radar" && config.tipoRadar.startsWith("inea-")
                         ? "INEA"
-                        : "REDEMET"
+                        : config.tipo === "satelite" && eDsat(config.tipoSatelite)
+                          ? "DSAT/CPTEC-INPE (GOES-19)"
+                          : "REDEMET"
                   }`
                 : "Carregando…"}
             </p>
@@ -737,7 +747,7 @@ export default function MapView({
 
   const [config, setConfig] = useState<ConfigCamada>({
     tipo: "nenhuma",
-    tipoSatelite: "realcada",
+    tipoSatelite: "truecolor",
     tipoRadar: "maxcappi",
     animacao: false,
     mostrarEstacoes: true,
