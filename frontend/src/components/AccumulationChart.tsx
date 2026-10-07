@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { SerieBalde } from "@/lib/api";
 
@@ -38,6 +38,7 @@ export default function AccumulationChart({
   janela: "4h" | "24h" | "7d";
   totalMm: number;
 }) {
+  const [hover, setHover] = useState<number | null>(null);
   const { barras, linha, maxY, ticksY } = useMemo(() => {
     if (serie.length === 0) return { barras: [], linha: "", maxY: 1, ticksY: [0] };
     const plotW = WIDTH - PAD_LEFT - PAD_RIGHT;
@@ -82,7 +83,18 @@ export default function AccumulationChart({
 
   return (
     <div className="w-full">
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full">
+      <div className="relative">
+      <svg
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        className="w-full touch-pan-y"
+        onPointerMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const relX = ((e.clientX - rect.left) / rect.width) * WIDTH;
+          const i = Math.floor(((relX - PAD_LEFT) / (WIDTH - PAD_LEFT - PAD_RIGHT)) * serie.length);
+          setHover(i >= 0 && i < serie.length ? i : null);
+        }}
+        onPointerLeave={() => setHover(null)}
+      >
         {ticksY.map((t) => (
           <g key={t}>
             <line x1={PAD_LEFT} x2={WIDTH - PAD_RIGHT} y1={yOf(t)} y2={yOf(t)} stroke="#f1f5f9" strokeWidth={1} />
@@ -92,7 +104,7 @@ export default function AccumulationChart({
           </g>
         ))}
         {barras.map((b, i) => (
-          <rect key={i} x={b.x} y={b.y} width={b.w} height={Math.max(b.h, 0)} fill="#7dd3fc" />
+          <rect key={i} x={b.x} y={b.y} width={b.w} height={Math.max(b.h, 0)} fill={hover === i ? "#0ea5e9" : "#7dd3fc"} />
         ))}
         <path d={linha} fill="none" stroke="#0369a1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         {serie.map((b, i) =>
@@ -109,6 +121,27 @@ export default function AccumulationChart({
           ) : null,
         )}
       </svg>
+        {/* Tooltip (07/10/2026): balde e acumulado do intervalo sob o cursor */}
+        {hover != null && (
+          <div
+            className="pointer-events-none absolute top-1 z-10 w-44 rounded-md border border-gray-200 bg-white/95 p-2 text-[11px] leading-snug text-gray-700 shadow-lg"
+            style={
+              hover > serie.length * 0.62
+                ? { right: `${100 - ((hover + 0.5) / serie.length) * 100 + 2}%` }
+                : { left: `${((hover + 0.5) / serie.length) * 100 + 2}%` }
+            }
+          >
+            <div className="font-bold text-gray-900">{formatShort(serie[hover].inicio, janela)}</div>
+            <div>
+              Chuva no intervalo: <strong className="text-gray-900">{serie[hover].chuva_mm.toFixed(1)} mm</strong>
+            </div>
+            <div>
+              Acumulada até aqui:{" "}
+              <strong className="text-gray-900">{serie.slice(0, hover + 1).reduce((s, b) => s + b.chuva_mm, 0).toFixed(1)} mm</strong>
+            </div>
+          </div>
+        )}
+      </div>
       <div className="mt-1 flex items-center justify-between text-xs text-gray-600">
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1">

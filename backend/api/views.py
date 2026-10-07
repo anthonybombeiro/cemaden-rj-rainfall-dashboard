@@ -323,6 +323,33 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         data = ReadingSerializer(qs[:limit], many=True).data
         return Response(data)
 
+    @action(detail=True, methods=["get"])
+    def detalhe(self, request, pk=None):
+        """Dados extras da página de detalhe da estação (07/10/2026): chuva acumulada em 1 h e
+        24 h (valor OFICIAL da fonte quando ela informa — ver `_aplicar_oficiais` — senão a
+        soma dos baldes gravados) para os "baldes" do topo, e as cotas hidrológicas (cm) para
+        as linhas do cotagrama. Nunca é a "última leitura": o monitoramento precisa de 1 h e 24 h."""
+        station = Station.objects.select_related("source").get(pk=self.get_object().pk)
+        entrada = self._calcular_precipitacao([station])[0]
+        cota = getattr(station, "cota", None)
+        return Response(
+            {
+                "acumulado_1h_mm": entrada.get("acumulado_1h_mm"),
+                "acumulado_24h_mm": entrada.get("acumulado_24h_mm"),
+                "oficial": bool(entrada.get("acumulados_oficiais")),
+                "cota": (
+                    {
+                        "atencao_cm": cota.atencao_cm,
+                        "alerta_cm": cota.alerta_cm,
+                        "inundacao_cm": cota.inundacao_cm,
+                        "extrema_cm": cota.extrema_calculada_cm,
+                    }
+                    if cota
+                    else None
+                ),
+            }
+        )
+
     @action(detail=True, methods=["get"], url_path="precipitacao-serie")
     def precipitacao_serie(self, request, pk=None):
         """Chuva em baldes de tempo pra plotar barra+linha acumulada — mesma

@@ -413,6 +413,19 @@ export async function fetchFontesSaude(): Promise<FontesSaude> {
   return getJson<FontesSaude>("/fontes/saude/");
 }
 
+/** Detalhe da estação (`GET /stations/{id}/detalhe/`, 07/10/2026): chuva acumulada em 1 h e 24 h
+ * (oficial da fonte quando informado) e cotas hidrológicas em cm. */
+export type DetalheEstacao = {
+  acumulado_1h_mm: number | null;
+  acumulado_24h_mm: number | null;
+  oficial: boolean;
+  cota: { atencao_cm: number | null; alerta_cm: number | null; inundacao_cm: number | null; extrema_cm: number | null } | null;
+};
+
+export async function fetchDetalheEstacao(id: number): Promise<DetalheEstacao> {
+  return getJson<DetalheEstacao>(`/stations/${id}/detalhe/`);
+}
+
 /** Atraso da última leitura, com as MESMAS faixas da legenda da Rede Salvar:
  * até 4 h normal; >4 h <120 h azul-escuro; >120 h <30 d oliva; >30 d roxo.
  * Hora no futuro (> 10 min à frente) = "dado futuro" (relógio vermelho). */

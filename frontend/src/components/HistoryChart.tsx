@@ -126,10 +126,11 @@ export default function HistoryChart({ readings, unit }: { readings: Reading[]; 
 
   return (
     <div className="w-full">
+      <div className="relative">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="w-full touch-none"
+        className="w-full touch-pan-y"
         role="img"
         aria-label={`Gráfico de histórico com ${points.length} leituras, variando de ${formatValue(minValue)} a ${formatValue(maxValue)}${unit ? ` ${unit}` : ""}`}
         onPointerMove={handlePointerMove}
@@ -166,6 +167,23 @@ export default function HistoryChart({ readings, unit }: { readings: Reading[]; 
           </>
         )}
       </svg>
+        {/* Tooltip flutuante (07/10/2026: "ter os detalhes quando o foco estiver sobre o gráfico") */}
+        {hovered && (
+          <div
+            className="pointer-events-none absolute top-1 z-10 w-44 rounded-md border border-gray-200 bg-white/95 p-2 text-[11px] leading-snug text-gray-700 shadow-lg"
+            style={hovered.x > WIDTH * 0.62 ? { right: `${100 - (hovered.x / WIDTH) * 100 + 2}%` } : { left: `${(hovered.x / WIDTH) * 100 + 2}%` }}
+          >
+            <div className="font-bold text-gray-900">{formatTimestamp(hovered.reading.timestamp)}</div>
+            <div className="mt-0.5">
+              Valor: <strong className="text-gray-900">{formatValue(hovered.reading.value)}</strong>
+              {unit ? ` ${unit}` : ""}
+            </div>
+            <div className="text-gray-500">
+              Período: mín {formatValue(minValue)} · máx {formatValue(maxValue)}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="mt-1 flex min-h-[1.5rem] items-center justify-between text-xs text-gray-600">
         <span>

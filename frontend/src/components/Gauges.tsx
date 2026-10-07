@@ -244,6 +244,45 @@ export function ChuvaGauge({ valor, max = 20 }: { valor: number; max?: number })
   );
 }
 
+/** Balde de chuva ACUMULADA (07/10/2026, pedido do usuário: o balde mostrava só a última
+ * leitura, inútil para o monitoramento — agora são sempre dois: 1 h e 24 h). O preenchimento é
+ * proporcional ao acumulado (`max` = fundo de escala) e a cor segue as faixas de chuva do painel
+ * (1 h: Fraca/Moderada/Forte/Muito forte; 24 h: 10/30/70 mm). `valor` null = sem dado. */
+export function BaldeAcumulado({
+  titulo,
+  valor,
+  max,
+  cor,
+  rodape,
+}: {
+  titulo: string;
+  valor: number | null;
+  max: number;
+  cor?: string;
+  rodape?: string;
+}) {
+  const f = valor == null ? 0 : fracao(valor, 0, max);
+  const altoTotal = 50;
+  const altoPreenchido = f * altoTotal;
+  return (
+    <Card titulo={titulo} rodape={rodape}>
+      <svg viewBox="0 0 60 70" className="w-full max-w-[90px]">
+        <rect x={15} y={10} width={30} height={altoTotal} rx={4} fill="none" stroke="#94a3b8" strokeWidth={2} />
+        <rect
+          x={16}
+          y={10 + (altoTotal - altoPreenchido)}
+          width={28}
+          height={Math.max(altoPreenchido - 1, 0)}
+          rx={2}
+          fill={cor ?? "#38bdf8"}
+        />
+      </svg>
+      <span className="-mt-2 text-2xl font-bold text-gray-900">{valor == null ? "—" : valor.toFixed(1)}</span>
+      <span className="text-xs text-gray-500">mm</span>
+    </Card>
+  );
+}
+
 /** Card simples (sem gauge dedicado) — usado pra nível de rio/maré, que
  * não têm uma faixa "natural" fixa pra desenhar um mostrador com sentido. */
 export function NumeroGrandeCard({ titulo, valor, unidade }: { titulo: string; valor: number; unidade: string }) {

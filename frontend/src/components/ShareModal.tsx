@@ -177,6 +177,9 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                 pro corpo e pintam por cima do rodapé (que vem logo depois
                 no layout), em vez de simplesmente cortar o que não coube. */}
             <div className="flex min-h-0 flex-1 flex-col justify-start overflow-hidden px-4 py-3">
+              {data.corpo ? (
+                data.corpo
+              ) : (
               <table className="w-full table-fixed border-collapse text-[10.5px]">
                 {data.colunas.some((c) => c.larguraPct) && (
                   <colgroup>
@@ -218,8 +221,9 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                   ))}
                 </tbody>
               </table>
+              )}
 
-              {data.legenda && data.legenda.length > 0 && (
+              {!data.corpo && data.legenda && data.legenda.length > 0 && (
                 <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[9.5px] text-gray-600">
                   {data.legenda.map((leg) => (
                     <span key={leg.rotulo} className="flex items-center gap-1">

@@ -114,6 +114,16 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 3 | Tabelas individuais das fontes restantes | **INEA** (oficiais 1/4/24/96 h/30 d, nível, tipo), **Ecowitt** (oficiais 1 h/dia/evento/semana/mês/ano/taxa), **INMET**, **REDEMET**; Ecowitt incluído no cálculo de chuva (estava de fora); INEA: nosso 96 h −17,8 mm vs oficial → a tabela de Precipitação **exibe o oficial** das janelas informadas pela fonte (≤ 2 h) | Ecowitt hoje = oficial; INEA/Ecowitt locais ok; INMET/REDEMET dependem de tokens (produção) |
 | 8 | Documentar tudo | `tabelas-individuais-por-fonte.md` (novo) + atualizações em `alerta-rio-niteroi-inea-e-saude-das-fontes.md`, `redes-sensiveis-…`, `fontes-de-dados.md`, `operacao-cron-e-producao.md` | — |
 
+## 07/10/2026 — detalhe da estação
+
+| Ação | Onde | Verificação |
+|---|---|---|
+| **Baldes de chuva do detalhe da estação sempre 1 h e 24 h** (antes: última leitura); endpoint `GET /api/stations/{id}/detalhe/` com acumulados (oficial da fonte quando houver) e cotas | `views.py` (`detalhe`), `Gauges.tsx` (`BaldeAcumulado`), `StationHistoryPanel.tsx`, `api.ts` | cards "Chuva 1 h"/"Chuva 24 h" no navegador local |
+| **Cotagrama** nas estações hidrológicas (aba Nível do rio): nível + linhas de cota (atenção/alerta/inundação/extrema) + chuva em barras penduradas do topo, como INEA e SGB/CPRM; alternância de escala | `CotagramaChart.tsx` | cotas reais (213/284/355 cm) + série sintética, local |
+| **Tooltips** com detalhes ao passar o mouse/dedo (cotagrama, histórico, precipitação acumulada) | `CotagramaChart.tsx`, `HistoryChart.tsx`, `AccumulationChart.tsx` | idem |
+| **Compartilhar gráfico** (imagem/texto) como na tabela Ventos: `ShareData.corpo`/`textoPronto` | `ShareModal.tsx`, `shareExport.ts`, `StationHistoryPanel.tsx` | modal testado local; frontend publicado |
+| Documento novo `detalhe-da-estacao-cotagrama.md` | `docs/` | — |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

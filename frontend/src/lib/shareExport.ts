@@ -55,6 +55,10 @@ export type ShareData = {
    * WhatsApp/Telegram). Sem isso, usa todas as `linhas`. Não afeta a
    * imagem/tabela, só o texto. */
   limiteTexto?: number;
+  /** Compartilhar um GRÁFICO (07/10/2026): quando vem, o card mostra este conteúdo no lugar da
+   * tabela e `textoPronto` é o texto para copiar/enviar (`gerarTextoCompartilhavel` é ignorado). */
+  corpo?: import("react").ReactNode;
+  textoPronto?: string;
 };
 
 /** Texto WhatsApp-nativo: negrito (*texto*), emojis de círculo por grupo
@@ -124,6 +128,7 @@ function gerarTextoTabela(data: ShareData): string {
 }
 
 export function gerarTextoCompartilhavel(data: ShareData): string {
+  if (data.textoPronto) return data.textoPronto;
   return data.agruparPor ? gerarTextoAgrupado(data) : gerarTextoTabela(data);
 }
 

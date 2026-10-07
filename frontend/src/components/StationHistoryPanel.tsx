@@ -4,9 +4,10 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
 import AccumulationChart from "@/components/AccumulationChart";
+import CotagramaChart, { classeDaCota } from "@/components/CotagramaChart";
 import { COLUMN_ORDER } from "@/components/DataTable";
 import {
-  ChuvaGauge,
+  BaldeAcumulado,
   NumeroGrandeCard,
   PressaoGauge,
   RadiacaoGauge,
@@ -16,8 +17,12 @@ import {
   VentoGauge,
 } from "@/components/Gauges";
 import HistoryChart from "@/components/HistoryChart";
+import ShareModal from "@/components/ShareModal";
 import {
+  COTA_ESTILOS,
+  DetalheEstacao,
   EstacaoProxima,
+  fetchDetalheEstacao,
   fetchEstacoesProximas,
   fetchPrecipitacaoSerie,
   fetchStation,
@@ -28,7 +33,10 @@ import {
   Reading,
   STATION_TYPE_LABELS,
   Station,
+  getChuva1hFaixa,
+  getChuva24hNivel,
 } from "@/lib/api";
+import type { ShareData } from "@/lib/shareExport";
 
 // Leaflet precisa de `window` — sem SSR, mesmo padrão do MapView em Dashboard.tsx.
 const StationMiniMap = dynamic(() => import("@/components/StationMiniMap"), {
@@ -58,6 +66,50 @@ function paraExibicao(readings: Reading[], tipo: string): Reading[] {
   return readings.map((r) => ({ ...r, value: kmh(r.value) }));
 }
 
+const BTN_COMPARTILHAR =
+  "rounded border border-sedec-300 px-2.5 py-1 text-xs font-medium text-sedec-700 hover:bg-sedec-50";
+
+/** Conteúdo do card de compartilhar de um GRÁFICO (07/10/2026): identificação da estação, um
+ * resumo curto e o próprio gráfico em modo imagem. */
+function CorpoGrafico({
+  estacao,
+  municipio,
+  subtitulo,
+  resumo,
+  children,
+}: {
+  estacao: string;
+  municipio: string;
+  subtitulo: string;
+  resumo: [string, string][];
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <h4 className="text-lg font-bold leading-tight text-gray-900">{estacao}</h4>
+        <p className="text-[11px] text-gray-500">
+          {municipio || "—"} · {subtitulo}
+        </p>
+      </div>
+      {resumo.length > 0 && (
+        <div className="grid grid-cols-4 gap-2">
+          {resumo.map(([r, v]) => (
+            <div key={r} className="rounded border border-gray-200 bg-gray-50 px-2 py-1.5">
+              <div className="text-[9px] font-semibold uppercase tracking-wide text-gray-500">{r}</div>
+              <div className="text-[13px] font-bold text-gray-900">{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div>{children}</div>
+    </div>
+  );
+}
+
+const fmtMm = (v: number | null | undefined) => (v == null ? "—" : `${(Math.round(v * 10) / 10).toFixed(1)} mm`);
+const fonteDe = (station: Station) => `Fonte: ${station.source} · CEMADEN-RJ / SEDEC`;
+
 const JANELAS_CHUVA: { key: "4h" | "24h" | "7d"; label: string }[] = [
   { key: "4h", label: "4 horas" },
   { key: "24h", label: "24 horas" },
@@ -70,7 +122,7 @@ const JANELAS_CHUVA: { key: "4h" | "24h" | "7d"; label: string }[] = [
  * dashboard do Wunderground). Vento junta velocidade+direção+rajada num
  * card só; temperatura/umidade mostram sensação/orvalho como legenda
  * quando a fonte informa. */
-function CardsAoVivo({ station }: { station: Station }) {
+function CardsAoVivo({ station, detalhe }: { station: Station; detalhe: DetalheEstacao | null }) {
   const valorDe = (tipo: string) => station.latest_readings.find((r) => r.reading_type === tipo)?.value;
   const temp = valorDe("temperatura_c");
   const umid = valorDe("umidade_pct");
@@ -80,7 +132,6 @@ function CardsAoVivo({ station }: { station: Station }) {
   const pressao = valorDe("pressao_hpa") ?? valorDe("pressao_nm_hpa");
   const uv = valorDe("uv_indice");
   const radiacao = valorDe("radiacao_wm2");
-  const chuva = valorDe("chuva_mm");
   const nivel = valorDe("nivel_m");
   const mare = valorDe("mare_m");
   const sensacao = valorDe("sensacao_termica_c");
@@ -94,7 +145,20 @@ function CardsAoVivo({ station }: { station: Station }) {
       <VentoGauge key="vento" velocidadeKmh={kmh(ventoMs)} direcaoGraus={direcao} rajadaKmh={rajadaMs !== undefined ? kmh(rajadaMs) : undefined} />,
     );
   if (pressao !== undefined) cards.push(<PressaoGauge key="pressao" valor={pressao} />);
-  if (chuva !== undefined) cards.push(<ChuvaGauge key="chuva" valor={chuva} />);
+  // Chuva: SEMPRE os acumulados de 1 h e de 24 h (07/10/2026), nunca a "última leitura" do balde.
+  const temChuva =
+    station.latest_readings.some((r) => r.reading_type === "chuva_mm") ||
+    detalhe?.acumulado_1h_mm != null ||
+    detalhe?.acumulado_24h_mm != null;
+  if (temChuva) {
+    const a1 = detalhe?.acumulado_1h_mm ?? null;
+    const a24 = detalhe?.acumulado_24h_mm ?? null;
+    const origem = detalhe ? (detalhe.oficial ? "valor oficial da fonte" : "soma das leituras gravadas") : "carregando…";
+    cards.push(
+      <BaldeAcumulado key="chuva1h" titulo="Chuva 1 h" valor={a1} max={50} cor={getChuva1hFaixa(a1, false)?.bg} rodape={origem} />,
+      <BaldeAcumulado key="chuva24h" titulo="Chuva 24 h" valor={a24} max={100} cor={getChuva24hNivel(a24)?.color} rodape={origem} />,
+    );
+  }
   if (uv !== undefined) cards.push(<UvGauge key="uv" valor={uv} />);
   if (radiacao !== undefined) cards.push(<RadiacaoGauge key="radiacao" valor={radiacao} />);
   if (nivel !== undefined) cards.push(<NumeroGrandeCard key="nivel" titulo="Nível do rio" valor={nivel} unidade="m" />);
@@ -108,7 +172,8 @@ function CardsAoVivo({ station }: { station: Station }) {
  * Rede Salvar do CEMADEN nacional (pedido do usuário, 2026-09-28) — troca
  * de janela por abas, não pelo seletor de período genérico (esse é só
  * pras outras variáveis, ver `HistoricoPorPeriodo`). */
-function PrecipitacaoAcumulada({ stationId }: { stationId: number }) {
+function PrecipitacaoAcumulada({ station, onShare }: { station: Station; onShare: (d: ShareData) => void }) {
+  const stationId = station.id;
   const [janela, setJanela] = useState<"4h" | "24h" | "7d">("24h");
   const [dados, setDados] = useState<PrecipitacaoSerie | null>(null);
   const [loading, setLoading] = useState(true);
@@ -137,7 +202,43 @@ function PrecipitacaoAcumulada({ stationId }: { stationId: number }) {
     <section className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-gray-800">Precipitação acumulada</h2>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            className={BTN_COMPARTILHAR}
+            disabled={!dados || dados.serie.length === 0}
+            onClick={() => {
+              if (!dados) return;
+              const rotulo = JANELAS_CHUVA.find((j) => j.key === janela)?.label ?? janela;
+              const ultimo = dados.serie[dados.serie.length - 1]?.inicio;
+              onShare({
+                titulo: `${station.name} — Precipitação acumulada (${rotulo})`,
+                dataHora: ultimo ? formatTimestamp(ultimo) : "—",
+                colunas: [],
+                linhas: [],
+                fonteTexto: fonteDe(station),
+                nomeArquivo: `chuva-${station.id}-${janela}`,
+                corpo: (
+                  <CorpoGrafico
+                    estacao={station.name}
+                    municipio={station.municipality}
+                    subtitulo={`Precipitação acumulada — ${rotulo}`}
+                    resumo={[["Total no período", fmtMm(dados.total_mm)]]}
+                  >
+                    <AccumulationChart serie={dados.serie} janela={janela} totalMm={dados.total_mm} />
+                  </CorpoGrafico>
+                ),
+                textoPronto: [
+                  `*${station.name} — Precipitação acumulada (${rotulo})*`,
+                  `🕐 Dados de: ${ultimo ? formatTimestamp(ultimo) : "—"}`,
+                  `🌧️ Total no período: ${fmtMm(dados.total_mm)}`,
+                  `📡 ${fonteDe(station)}`,
+                ].join("\n"),
+              });
+            }}
+          >
+            📤 Compartilhar gráfico
+          </button>
           {JANELAS_CHUVA.map((j) => (
             <button
               key={j.key}
@@ -183,7 +284,15 @@ function isoDate(d: Date): string {
  * inspirado no dashboard do Wunderground). Cobre TODOS os tipos de
  * leitura da estação, inclusive chuva/nível (a seção de acumulado acima é
  * um complemento pra chuva, não substitui esta). */
-function HistoricoPorPeriodo({ station }: { station: Station }) {
+function HistoricoPorPeriodo({
+  station,
+  detalhe,
+  onShare,
+}: {
+  station: Station;
+  detalhe: DetalheEstacao | null;
+  onShare: (d: ShareData) => void;
+}) {
   const availableTypes = useMemo(() => {
     const present = new Set(station.latest_readings.map((r) => r.reading_type));
     return COLUMN_ORDER.filter((t) => !t.startsWith("x:") && present.has(t));
@@ -196,6 +305,9 @@ function HistoricoPorPeriodo({ station }: { station: Station }) {
   const [visualizacao, setVisualizacao] = useState<"grafico" | "tabela">("grafico");
 
   const [history, setHistory] = useState<Reading[]>([]);
+  // Chuva do mesmo período, para as barras do cotagrama (só na aba Nível do rio).
+  const [chuvaHist, setChuvaHist] = useState<Reading[]>([]);
+  const temChuva = station.latest_readings.some((r) => r.reading_type === "chuva_mm");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -214,6 +326,17 @@ function HistoricoPorPeriodo({ station }: { station: Station }) {
       periodo === "personalizado"
         ? { since: new Date(`${customSince}T00:00:00-03:00`), until: new Date(`${customUntil}T23:59:59-03:00`) }
         : { since: new Date(Date.now() - (cfg?.dias ?? 1) * 86400000) };
+    if (activeType === "nivel_m" && temChuva) {
+      fetchStationReadings(station.id, "chuva_mm", opts)
+        .then((c) => {
+          if (!cancelado) setChuvaHist(c);
+        })
+        .catch(() => {
+          if (!cancelado) setChuvaHist([]);
+        });
+    } else {
+      setChuvaHist([]);
+    }
     fetchStationReadings(station.id, activeType, opts)
       .then((data) => {
         if (!cancelado) setHistory(paraExibicao(data, activeType));
@@ -227,7 +350,7 @@ function HistoricoPorPeriodo({ station }: { station: Station }) {
     return () => {
       cancelado = true;
     };
-  }, [station.id, activeType, periodo, customSince, customUntil]);
+  }, [station.id, activeType, periodo, customSince, customUntil, temChuva]);
 
   const resumo = useMemo(() => {
     if (history.length === 0) return null;
@@ -241,6 +364,57 @@ function HistoricoPorPeriodo({ station }: { station: Station }) {
 
   if (availableTypes.length === 0) return null;
   const unidade = activeType ? READING_TYPE_UNITS[activeType] : undefined;
+  const ehNivel = activeType === "nivel_m";
+
+  const compartilharGrafico = () => {
+    if (!activeType || history.length === 0) return;
+    const ultimo = history[0]; // a API devolve do mais recente para o mais antigo
+    const tipoRotulo = READING_TYPE_LABELS[activeType] ?? activeType;
+    const periodoRotulo = PERIODOS.find((p) => p.key === periodo)?.label ?? periodo;
+    const hora = formatTimestamp(ultimo.timestamp);
+    const resumoTxt = resumo ? `mín ${formatValue(resumo.baixa)} · máx ${formatValue(resumo.alta)} ${unidade ?? ""}`.trim() : "";
+    const resumoCards: [string, string][] = [];
+    const linhasTexto = [`*${station.name} — ${tipoRotulo}*`, `🕐 Dados de: ${hora}`];
+    if (ehNivel) {
+      const classe = classeDaCota(ultimo.value * 100, detalhe?.cota ?? null);
+      const cls = COTA_ESTILOS[classe].label;
+      resumoCards.push(["Nível atual", `${formatValue(ultimo.value)} m`], ["Situação", cls], ["Chuva 1 h", fmtMm(detalhe?.acumulado_1h_mm)], ["Chuva 24 h", fmtMm(detalhe?.acumulado_24h_mm)]);
+      linhasTexto.push(`🌊 Nível: ${formatValue(ultimo.value)} m (${cls})`, `🌧️ Chuva: 1 h ${fmtMm(detalhe?.acumulado_1h_mm)} · 24 h ${fmtMm(detalhe?.acumulado_24h_mm)}`);
+      const c = detalhe?.cota;
+      if (c) {
+        const partes = [
+          c.atencao_cm != null ? `atenção ${formatValue(c.atencao_cm / 100)} m` : null,
+          c.alerta_cm != null ? `alerta ${formatValue(c.alerta_cm / 100)} m` : null,
+          c.inundacao_cm != null ? `inundação ${formatValue(c.inundacao_cm / 100)} m` : null,
+        ].filter(Boolean);
+        if (partes.length) linhasTexto.push(`📏 Cotas: ${partes.join(" · ")}`);
+      }
+    } else {
+      resumoCards.push(["Última leitura", `${formatValue(ultimo.value)} ${unidade ?? ""}`.trim()]);
+      if (resumo) resumoCards.push(["Máx. no período", `${formatValue(resumo.alta)} ${unidade ?? ""}`.trim()], ["Mín. no período", `${formatValue(resumo.baixa)} ${unidade ?? ""}`.trim()]);
+      linhasTexto.push(`📊 Última leitura: ${formatValue(ultimo.value)} ${unidade ?? ""}`.trim());
+    }
+    if (resumoTxt) linhasTexto.push(`📈 ${periodoRotulo}: ${resumoTxt}`);
+    linhasTexto.push(`📡 ${fonteDe(station)}`);
+    onShare({
+      titulo: `${station.name} — ${tipoRotulo}`,
+      dataHora: hora,
+      colunas: [],
+      linhas: [],
+      fonteTexto: fonteDe(station),
+      nomeArquivo: `grafico-${station.id}-${activeType}-${periodo}`,
+      corpo: (
+        <CorpoGrafico estacao={station.name} municipio={station.municipality} subtitulo={`${tipoRotulo} — ${periodoRotulo}`} resumo={resumoCards}>
+          {ehNivel ? (
+            <CotagramaChart nivel={history} chuva={chuvaHist} cota={detalhe?.cota ?? null} estatico />
+          ) : (
+            <HistoryChart readings={history} unit={unidade} />
+          )}
+        </CorpoGrafico>
+      ),
+      textoPronto: linhasTexto.join("\n"),
+    });
+  };
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
@@ -276,6 +450,12 @@ function HistoricoPorPeriodo({ station }: { station: Station }) {
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-2">
+          {visualizacao === "grafico" && history.length > 0 && (
+            <button type="button" onClick={compartilharGrafico} className={BTN_COMPARTILHAR}>
+              📤 Compartilhar gráfico
+            </button>
+          )}
         <div className="flex gap-1 rounded-md bg-gray-100 p-0.5">
           {(["grafico", "tabela"] as const).map((v) => (
             <button
@@ -289,6 +469,7 @@ function HistoricoPorPeriodo({ station }: { station: Station }) {
               {v === "grafico" ? "Gráfico" : "Tabela"}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -341,7 +522,11 @@ function HistoricoPorPeriodo({ station }: { station: Station }) {
         ) : erro ? (
           <div className="p-4 text-sm text-red-600">Não foi possível carregar o histórico ({erro}).</div>
         ) : visualizacao === "grafico" ? (
-          <HistoryChart readings={history} unit={unidade} />
+          ehNivel ? (
+            <CotagramaChart nivel={history} chuva={chuvaHist} cota={detalhe?.cota ?? null} />
+          ) : (
+            <HistoryChart readings={history} unit={unidade} />
+          )
         ) : (
           <div className="max-h-96 overflow-auto rounded border border-gray-100">
             <table className="min-w-full border-collapse text-sm">
@@ -378,6 +563,8 @@ function HistoricoPorPeriodo({ station }: { station: Station }) {
 export default function StationHistoryPanel({ stationId, topo }: { stationId: number; topo: React.ReactNode }) {
   const [station, setStation] = useState<Station | null>(null);
   const [proximas, setProximas] = useState<EstacaoProxima[]>([]);
+  const [detalhe, setDetalhe] = useState<DetalheEstacao | null>(null);
+  const [compartilhar, setCompartilhar] = useState<ShareData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -397,6 +584,12 @@ export default function StationHistoryPanel({ stationId, topo }: { stationId: nu
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    setDetalhe(null);
+    fetchDetalheEstacao(stationId)
+      .then((d) => {
+        if (!cancelled) setDetalhe(d);
+      })
+      .catch(() => {});
     fetchEstacoesProximas(stationId).then((d) => {
       if (!cancelled) setProximas(d);
     }).catch(() => {});
@@ -451,16 +644,19 @@ export default function StationHistoryPanel({ stationId, topo }: { stationId: nu
             </dl>
           </header>
 
-          <CardsAoVivo station={station} />
+          <CardsAoVivo station={station} detalhe={detalhe} />
 
           <section className="rounded-lg border border-gray-200 bg-white p-3">
             <h2 className="mb-2 text-sm font-bold text-gray-800">Localização e estações próximas</h2>
             <StationMiniMap nome={station.name} latitude={station.latitude} longitude={station.longitude} proximas={proximas} />
           </section>
 
-          {station.latest_readings.some((r) => r.reading_type === "chuva_mm") && <PrecipitacaoAcumulada stationId={station.id} />}
+          {station.latest_readings.some((r) => r.reading_type === "chuva_mm") && (
+            <PrecipitacaoAcumulada station={station} onShare={setCompartilhar} />
+          )}
 
-          <HistoricoPorPeriodo station={station} />
+          <HistoricoPorPeriodo station={station} detalhe={detalhe} onShare={setCompartilhar} />
+          {compartilhar && <ShareModal data={compartilhar} onClose={() => setCompartilhar(null)} />}
         </>
       )}
     </div>
