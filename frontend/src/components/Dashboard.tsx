@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Bell, BellOff, BookOpen, CloudSun, Database, Filter, LogOut, Map, Siren, User, X } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, BookOpen, ClipboardList, CloudSun, Database, Filter, LogOut, Map, Siren, User, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -14,6 +14,7 @@ import MeteorologiaPanel from "@/components/MeteorologiaPanel";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import CemadenNacionalTable from "@/components/CemadenNacionalTable";
 import RedeTable from "@/components/RedeTable";
+import ResumoPanel from "@/components/ResumoPanel";
 import SaudeFontesBanner from "@/components/SaudeFontesBanner";
 import { lerModoSalvo, ModoMapa, salvarModo } from "@/lib/mapaModos";
 import PrecipitationTable from "@/components/PrecipitationTable";
@@ -67,7 +68,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // "Dados" (mesmo padrão de sub-aba que "Mapa" já tinha com
 // Estações/Contatos) — 5 itens principais cabem bem tanto no menu
 // horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
-type ViewMode = "mapa" | "meteorologia" | "dados" | "sirenes" | "alertas";
+type ViewMode = "mapa" | "meteorologia" | "dados" | "sirenes" | "alertas" | "resumo";
 type DadosSub =
   | "precipitacao"
   | "cemaden"
@@ -89,6 +90,7 @@ const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "dados", label: "Dados", Icone: Database },
   { key: "sirenes", label: "Sirenes", Icone: Siren },
   { key: "alertas", label: "Alertas", Icone: AlertTriangle },
+  { key: "resumo", label: "Resumo 24h", Icone: ClipboardList },
 ];
 
 // Abas de rede com tabela individual (03/10/2026) -> fonte no backend.
@@ -1167,6 +1169,7 @@ export default function Dashboard({
           )}
           {viewMode === "meteorologia" && <MeteorologiaPanel />}
           {viewMode === "alertas" && <AlertsPanel />}
+          {viewMode === "resumo" && <ResumoPanel onOpenStation={(id) => setPainelEstacaoId(id)} />}
 
           {/* Painel de histórico de estação IN-APP — por cima do conteúdo da
               aba atual (mesmo <main>), NÃO do cabeçalho/menu (pedido do

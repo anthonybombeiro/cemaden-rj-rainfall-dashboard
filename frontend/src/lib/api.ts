@@ -914,3 +914,87 @@ export type AvisoMauTempo = {
 export async function fetchAvisosMauTempo(): Promise<AvisoMauTempo[]> {
   return fetchAllPages<AvisoMauTempo>("/avisos-mau-tempo/?ativo=true&limit=50");
 }
+
+/** Aba "Resumo 24 h" (`GET /resumo/?dia=AAAA-MM-DD`; sem `dia` = últimas 24 h). */
+export type ResumoItem = { id: number; name: string; municipio: string; fonte: string; valor: number };
+export type ResumoMunicipio = {
+  municipio: string;
+  regiao: string;
+  estacoes: number;
+  estacoes_com_chuva: number;
+  chuva_max_mm: number | null;
+  chuva_media_mm: number | null;
+  chuva_estacao: string | null;
+  chuva_classe: string | null;
+  rajada_max_kmh: number | null;
+  rajada_estacao: string | null;
+  rajada_classe: string | null;
+  tmax: number | null;
+  tmin: number | null;
+};
+export type ResumoRegiao = {
+  regiao: string;
+  previsao: {
+    tmax: number;
+    tmin: number;
+    umid_max: number;
+    umid_min: number;
+    vento: string;
+    vento_dir: string;
+    icone: string;
+    comentario: string;
+    preve_chuva: boolean;
+  } | null;
+  observado: {
+    estacoes: number;
+    chuva_max_mm: number | null;
+    estacoes_com_chuva: number;
+    tmax: number | null;
+    tmax_mediana: number | null;
+    tmin: number | null;
+    tmin_mediana: number | null;
+    rajada_max_kmh: number | null;
+    vento_max_kmh: number | null;
+    vento_classe: string | null;
+  };
+  veredito: {
+    tmax_dif?: number | null;
+    tmax?: string | null;
+    tmin_dif?: number | null;
+    tmin?: string | null;
+    chuva?: string | null;
+    vento?: string | null;
+  };
+  municipios_com_chuva: string[];
+};
+export type Resumo24h = {
+  modo: "rolling" | "hoje" | "dia";
+  dia: string;
+  inicio: string;
+  fim: string;
+  gerado_em: string;
+  resumo: {
+    estacoes_com_dado: number;
+    estacoes_com_chuva: number;
+    municipios_com_chuva: number;
+    municipios_por_classe_chuva: Record<string, number>;
+    municipios_rajada_moderada_ou_mais: Record<string, number>;
+    maior_chuva: ResumoItem | null;
+    maior_tmax: ResumoItem | null;
+    menor_tmin: ResumoItem | null;
+    maior_rajada: ResumoItem | null;
+    sirenes_acionadas: number;
+    sirenes_tocando_agora: number;
+    acionamentos_por_municipio: [string, number][];
+    outros_alertas: number;
+    riscos_altos: Record<string, { alto: number; muito_alto: number }>;
+    avisos_marinha: { area: string; tipo: string; valido_ate: string | null }[];
+  };
+  top10: { chuva: ResumoItem[]; tmax: ResumoItem[]; tmin: ResumoItem[]; rajada: ResumoItem[] };
+  regioes: ResumoRegiao[];
+  municipios: ResumoMunicipio[];
+};
+
+export async function fetchResumo24h(dia?: string): Promise<Resumo24h> {
+  return getJson<Resumo24h>(`/resumo/${dia ? `?dia=${encodeURIComponent(dia)}` : ""}`);
+}
