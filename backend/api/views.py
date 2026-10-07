@@ -94,6 +94,11 @@ MAPA_ACUMULADOS_OFICIAIS = {
     },
     "macae_ufrj": {"acumulado_1h_mm": "1", "acumulado_24h_mm": "24", "acumulado_96h_mm": "96"},
     "ecowitt_paracambi": {"acumulado_1h_mm": "1", "acumulado_hoje_mm": "hoje", "acumulado_mes_mm": "mes"},
+    "cemaden_rj_sirenes": {
+        "acumulado_15min_mm": "m15", "acumulado_1h_mm": "1", "acumulado_4h_mm": "4", "acumulado_12h_mm": "12",
+        "acumulado_24h_mm": "24", "acumulado_48h_mm": "48", "acumulado_72h_mm": "72", "acumulado_96h_mm": "96",
+        "acumulado_mes_mm": "mes",
+    },
     "cemaden_mctic": {
         "acumulado_1h_mm": "1", "acumulado_3h_mm": "3", "acumulado_6h_mm": "6", "acumulado_12h_mm": "12",
         "acumulado_24h_mm": "24", "acumulado_48h_mm": "48", "acumulado_72h_mm": "72", "acumulado_96h_mm": "96",
@@ -843,6 +848,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
 
     REDES_TABELA = (
         "plugfield", "macae_ufrj", "wunderground", "niteroi", "alerta_rio", "inea", "ecowitt_paracambi", "inmet", "redemet",
+        "cemaden_rj_sirenes",
     )
 
     @action(detail=False, methods=["get"])
@@ -932,6 +938,13 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 oficial = dict(snap.get("acc") or {})
                 codigo = str(meta.get("codigo_inea") or st.external_id)
                 extra = {"tipo_inea": meta.get("tipo_inea")}
+            elif slug == "cemaden_rj_sirenes":
+                if not meta.get("tem_pluviometro"):
+                    continue  # só as sirenes com pluviômetro entram na tabela de chuva
+                snap = meta.get("acumulados_oficiais") or {}
+                referencia = snap.get("referencia")
+                oficial = dict(snap.get("acc") or {})
+                extra = {"redec": meta.get("redec")}
             elif slug == "ecowitt_paracambi":
                 snap = meta.get("acumulados_oficiais") or {}
                 referencia = snap.get("referencia")

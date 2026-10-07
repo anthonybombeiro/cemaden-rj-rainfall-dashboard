@@ -131,6 +131,36 @@ def _to_float(valor) -> float | None:
         return None
 
 
+# Colunas da página pública `ConsultaPluviometros?cmd=dadosPluviometros` (índice -> chave em `acc`).
+COLUNAS_OFICIAIS = {3: "m03", 4: "m15", 5: "1", 6: "4", 7: "12", 8: "24", 9: "48", 10: "72", 11: "96", 12: "mes"}
+
+
+def _acumulados_oficiais_portal() -> dict[str, dict]:
+    """Acumulados OFICIAIS (3 min a 1 mês) da página pública do portal, por external_id
+    (cidade|estação). Nunca levanta: falha aqui não pode afetar o status das sirenes."""
+    try:
+        from .cemaden_rj_pluviometros import URL_CEMADEN_RJ, _linhas_cruas
+        from .cemaden_rj_pluviometros import _parse_data_hora as _data_pagina
+        from .cemaden_rj_pluviometros import _to_float as _num
+
+        saida = {}
+        for c in _linhas_cruas(URL_CEMADEN_RJ):
+            if len(c) < 14:
+                continue
+            ref = _data_pagina(c[13])
+            if ref is None:
+                continue
+            acc = {chave: _num(c[i]) for i, chave in COLUNAS_OFICIAIS.items()}
+            saida[f"{_normaliza(c[1])}|{_normaliza(c[2])}"] = {
+                "referencia": ref.isoformat(),
+                "acc": {k: v for k, v in acc.items() if v is not None},
+            }
+        return saida
+    except Exception:  # noqa: BLE001
+        logger.exception("Falha ao ler acumulados oficiais da página pública do CEMADEN-RJ")
+        return {}
+
+
 @dataclass
 class SirenesSyncResult:
     stations_upserted: int = 0
@@ -221,6 +251,14 @@ def sync() -> SirenesSyncResult:
         .values_list("station_id", "ultimo")
     )
 
+    oficiais = _acumulados_oficiais_portal()
+    anteriores = {
+        e: (m or {}).get("acumulados_oficiais")
+        for e, m in Station.objects.filter(source=source).values_list("external_id", "raw_metadata")
+    }
+    snapshots: dict[str, dict] = {}
+    estacoes_pluv: dict = {}
+
     for registro in registros:
         tipo_equip = (registro.get("equipamento") or {}).get("tipoEquipamento", "")
         if "Sirene" not in tipo_equip and "Linímetro" not in tipo_equip:
@@ -266,12 +304,21 @@ def sync() -> SirenesSyncResult:
                     "grupo": (registro.get("grupo") or {}).get("nomeGrupo"),
                     "tipo_equipamento": tipo_equip,
                     "tem_pluviometro": (registro.get("pluviometro") or {}).get("idPluviometro", 0) != 0,
+                    # retrato oficial do portal (preserva o anterior se a página falhar)
+                    **(
+                        {"acumulados_oficiais": oficiais.get(external_id) or anteriores.get(external_id)}
+                        if (oficiais.get(external_id) or anteriores.get(external_id))
+                        else {}
+                    ),
                 },
             },
         )
         result.stations_upserted += 1
 
         pluv = registro.get("pluviometro") or {}
+        if oficiais.get(external_id):
+            snapshots[external_id] = oficiais[external_id]
+            estacoes_pluv[external_id] = station
         if pluv.get("idPluviometro", 0) != 0:
             valor = _to_float(pluv.get("tempo1"))
             timestamp = _parse_data_hora(pluv.get("DataHora", ""))
@@ -316,5 +363,12 @@ def sync() -> SirenesSyncResult:
             evento_ativo.resolved_at = now
             evento_ativo.save(update_fields=["resolved_at"])
             result.eventos_resolvidos += 1
+
+    try:
+        from .base import gravar_acumulados_oficiais
+
+        gravar_acumulados_oficiais(estacoes_pluv, snapshots)
+    except Exception:  # noqa: BLE001
+        logger.exception("Falha ao gravar histórico de acumulados oficiais das sirenes")
 
     return result

@@ -138,6 +138,7 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 9 | Nível na frente de Chuva acumulada | `nivel_m` primeiro na lista e como aba padrão | navegador local |
 
 | 07/10 | **Resultado do monitor do crontab:** ~3 h, 88 leituras, nenhuma mudança (sirenes `*/2` o tempo todo); documentado em §10.7 do doc do Alerta Rio. **Auditoria da documentação** (a pedido do usuário): faltavam o resultado do monitor, as ações `cotas_hidro`/rotas novas em `operacao-cron-e-producao.md` e um índice — corrigidos; criado `docs/README.md` |
+| 07/10 | **Mapa — botão Estações** com 5 modos (por rede, sirenes, chuva 1 h, chuva 24 h, vento); **aba Paracambi** (renomeada de Ecowitt); **aba CEMADEN-RJ** (acumulados oficiais da página pública lidos no `sync_sirenes`, `rede` e `MAPA_ACUMULADOS_OFICIAIS`). Deploy de `api/views.py`, `cemaden_rj_sirenes.py` e frontend; `sync_sirenes` rodado (225 estações, 0 erros). Detalhes em `mapa-modos-de-visualizacao.md`. Pendente: conferir em produção com login que as 85 linhas casaram |
 
 ## Pendências abertas (03/10/2026)
 

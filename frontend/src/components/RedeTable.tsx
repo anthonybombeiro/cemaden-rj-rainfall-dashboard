@@ -118,6 +118,29 @@ type Config = {
 };
 
 const CONFIG: Record<RedeSource, Config> = {
+  cemaden_rj_sirenes: {
+    nome: "CEMADEN-RJ (pluviômetros das sirenes)",
+    municipio: true,
+    redec: true,
+    chuva: [
+      { key: "om15", label: "15min", titulo: "Acumulado OFICIAL do portal — últimos 15 min", get: oficial("m15"), tipo: "mm" },
+      oficialH("1"),
+      oficialH("4"),
+      oficialH("12"),
+      oficialH("24"),
+      oficialH("48"),
+      oficialH("72"),
+      oficialH("96"),
+      { key: "omes", label: "1 mês", titulo: "Acumulado OFICIAL do portal — último mês", get: oficial("mes"), tipo: "mm" },
+    ],
+    meteo: [],
+    direcao: false,
+    calc: [ctl("1"), ctl("24"), ctl("96")],
+    coluna1h: oficial("1"),
+    coluna24h: oficial("24"),
+    nota:
+      "CEMADEN-RJ (85 pluviômetros instalados nas sirenes): 15 min, 1 h, 4 h, 12 h, 24 h, 48 h, 72 h, 96 h e 1 mês são os acumulados OFICIAIS da página pública do portal de sirenes (atualizada a cada ~3 min); “Calc” (cinza, itálico) é o nosso cálculo (soma dos baldes gravados), para conferir. Esta rede não mede temperatura, vento nem umidade.",
+  },
   inea: {
     nome: "INEA (Alerta de Cheias)",
     municipio: true,
@@ -143,7 +166,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "INEA (Alerta de Cheias): 1h, 4h, 24h, 96h e 30d são os acumulados OFICIAIS do XML da rede; “Calc” (cinza, itálico) é o nosso cálculo, para conferir — em 06/10/2026 o nosso 96 h ficava em média 17,8 mm abaixo do oficial (a fonte inclui dados que chegam atrasados e que não vemos), por isso a tabela de Precipitação passou a exibir o valor oficial. Nível (m) existe só nas estações Plu/Flu.",
   },
   ecowitt_paracambi: {
-    nome: "Ecowitt (Paracambi)",
+    nome: "Paracambi (Defesa Civil, Ecowitt)",
     municipio: false,
     redec: false,
     chuva: [

@@ -67,3 +67,17 @@ body {
 .sirene-tocando {
   animation: sirene-pulso 1.2s ease-in-out infinite;
 }
+
+/* Bolinha numerada do mapa (modos de chuva/vento, 08/10/2026). */
+.mapa-bolha {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid rgba(15, 23, 42, 0.45);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}

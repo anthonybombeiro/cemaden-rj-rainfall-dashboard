@@ -10,14 +10,25 @@ import {
   fetchRadarImagery,
   fetchSateliteImagery,
   ImageryLayer,
+  PrecipitacaoStation,
   READING_TYPE_LABELS,
   SOURCE_COLORS,
   SOURCE_LABELS,
+  SireneStation,
   STATION_TYPE_LABELS,
   Station,
   normalizeMunicipioName,
 } from "@/lib/api";
 import { computeBBox, GeoJsonFeatureCollection } from "@/lib/geo";
+import { ModoMapa } from "@/lib/mapaModos";
+import {
+  CamadaChuva,
+  CamadaSirenes,
+  CamadaVento,
+  ConteudoLegendaModo,
+  contagemModo,
+  SeletorModoMapa,
+} from "@/components/MapaBolhas";
 
 const RJ_CENTER: [number, number] = [-22.25, -42.6];
 
@@ -109,14 +120,15 @@ function formatReadingValue(readingType: string, value: number): number {
 /** Botão flutuante com a legenda de cor por fonte/rede — pedido do usuário
  * (item 5), mesmo padrão visual do botão "Filtros" já existente no mapa
  * (Dashboard.tsx), só que no canto oposto pra não brigar com ele. */
-function LegendaFlutuante({ sourcesPresentes }: { sourcesPresentes: string[] }) {
+function LegendaFlutuante({ sourcesPresentes, modo }: { sourcesPresentes: string[]; modo: ModoMapa }) {
   const [aberta, setAberta] = useState(false);
   return (
     <div className="absolute bottom-3 right-3 z-[1000] max-w-[calc(100vw-1.5rem)]">
       {aberta && (
         <div className="mb-2 max-h-[60vh] w-56 overflow-y-auto rounded-md border border-gray-200 bg-white p-3 text-xs shadow-lg sm:w-64">
-          <p className="mb-2 font-semibold text-gray-700">Estações por rede</p>
-          <ul className="space-y-1.5">
+          {modo !== "redes" && <ConteudoLegendaModo modo={modo} />}
+          {modo === "redes" && <p className="mb-2 font-semibold text-gray-700">Estações por rede</p>}
+          <ul className={`space-y-1.5 ${modo !== "redes" ? "hidden" : ""}`}>
             {sourcesPresentes.map((slug) => (
               <li key={slug} className="flex items-center gap-2">
                 <span
@@ -694,7 +706,22 @@ export default function MapView({
   activeAlertEvents = [],
   redecFilter = [],
   municipalityFilter = [],
+  modo = "redes",
+  onModoChange,
+  precipitacao = [],
+  sirenes = [],
+  carregandoModo = false,
+  onOpenStation,
 }: {
+  /** Modo de visualização das bolinhas (botão "Estações", 08/10/2026). */
+  modo?: ModoMapa;
+  onModoChange?: (m: ModoMapa) => void;
+  /** Estações com chuva acumulada (1 h/24 h, já com o valor oficial) — modos "Chuva em 1 h/24 h". */
+  precipitacao?: PrecipitacaoStation[];
+  /** Sirenes (tocando/não tocando) — modo "Sirenes". */
+  sirenes?: SireneStation[];
+  carregandoModo?: boolean;
+  onOpenStation?: (id: number) => void;
   stations: Station[];
   /** Sirenes tocando agora (AlertEvent sem resolved_at) — cruzado com
    * `station.id` pra destacar no mapa. Opcional: quem não passa (outras
@@ -776,7 +803,11 @@ export default function MapView({
         redecFilter={redecFilter}
         municipalityFilter={municipalityFilter}
       />
-      {config.mostrarEstacoes && stations.map((station) => {
+      {config.mostrarEstacoes && modo === "sirenes" && <CamadaSirenes sirenes={sirenes} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "chuva1h" && <CamadaChuva janela="1h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "chuva24h" && <CamadaChuva janela="24h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "vento" && <CamadaVento estacoes={stations} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "redes" && stations.map((station) => {
         const tocando = estacoesTocandoIds.has(station.id);
         const cor = SOURCE_COLORS[station.source] ?? "#6b7280";
         return (
@@ -827,7 +858,15 @@ export default function MapView({
           </CircleMarker>
         );
       })}
-      <LegendaFlutuante sourcesPresentes={sourcesPresentes} />
+      <LegendaFlutuante sourcesPresentes={sourcesPresentes} modo={modo} />
+      {onModoChange && (
+        <SeletorModoMapa
+          modo={modo}
+          onModoChange={onModoChange}
+          carregando={carregandoModo}
+          contagem={carregandoModo ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes })}
+        />
+      )}
       <SeletorCamadaMeteorologica
         config={config}
         onConfigChange={setConfig}

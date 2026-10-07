@@ -13,6 +13,7 @@ import {
   STATION_TYPE_LABELS,
   Station,
 } from "@/lib/api";
+import { FAIXA_ATRASADA, FAIXAS_RAJADA, HORAS_ATRASO_VENTO, estaAtrasadoVento, faixaDaRajada } from "@/lib/ventoFaixas";
 import { downloadCsv } from "@/lib/csvExport";
 import { ShareData, ShareGrupo } from "@/lib/shareExport";
 import { useColumnWidths } from "@/lib/useColumnWidths";
@@ -50,25 +51,6 @@ function formatHoraMinuto(iso: string): string {
   }
 }
 
-type FaixaRajada = { label: string; bg: string; text: string; emoji: string };
-const FAIXAS_RAJADA: { min: number; faixa: FaixaRajada }[] = [
-  { min: 76, faixa: { label: "Muito forte", bg: "#c084fc", text: "#3b0764", emoji: "🟣" } },
-  { min: 52, faixa: { label: "Forte", bg: "#f87171", text: "#7f1d1d", emoji: "🔴" } },
-  { min: 18.6, faixa: { label: "Moderada", bg: "#f0a868", text: "#7c2d12", emoji: "🟠" } },
-  { min: 0, faixa: { label: "Fraca", bg: "#dcfce7", text: "#166534", emoji: "🟢" } },
-];
-// Estação atrasada (pedido do usuário, 2026-09-30: leitura de vento de
-// horas atrás não pode aparecer colorida como se fosse dado do momento —
-// vinha confundindo quem olhava rápido a tabela pra decidir algo).
-// "2 leituras sem dados" varia por fonte (cadência de 15min a 1h
-// dependendo da estação, não temos isso tabulado aqui) — na prática o
-// corte que cobre as duas condições pedidas ("2 leituras" OU "3 horas")
-// é simplesmente 3h: se uma fonte atualiza de hora em hora, 3h já são 2-3
-// leituras perdidas; se atualiza mais rápido, 3h é MUITO mais que 2
-// leituras. Mesmo cinza/rótulo "Atrasada" já usado nas outras tabelas
-// (ver getChuva1hFaixa em lib/api.ts), só que aplicado à rajada aqui.
-const HORAS_ATRASO_VENTO = 3;
-const FAIXA_ATRASADA: FaixaRajada = { label: "Atrasada", bg: "#BEBEBE", text: "#1f2937", emoji: "⚪" };
 
 function formatNumeroPtBr(n: number): string {
   return n.toFixed(1).replace(".", ",").replace(/,0$/, "");
@@ -85,18 +67,6 @@ function rotuloComFaixa(i: number): string {
   if (i === FAIXAS_RAJADA.length - 1) return `${atual.faixa.label} < ${formatNumeroPtBr(FAIXAS_RAJADA[i - 1].min)} km/h`;
   const superior = FAIXAS_RAJADA[i - 1].min - 0.1;
   return `${atual.faixa.label} ${formatNumeroPtBr(atual.min)}–${formatNumeroPtBr(superior)} km/h`;
-}
-
-function estaAtrasadoVento(updated: string | null): boolean {
-  if (!updated) return true;
-  const horas = (Date.now() - new Date(updated).getTime()) / 3_600_000;
-  return horas > HORAS_ATRASO_VENTO;
-}
-
-function faixaDaRajada(rajadaKmh: number | null, atrasado: boolean): FaixaRajada | null {
-  if (atrasado) return FAIXA_ATRASADA;
-  if (rajadaKmh === null) return null;
-  return FAIXAS_RAJADA.find((f) => rajadaKmh >= f.min)?.faixa ?? null;
 }
 
 function Bussola({ graus }: { graus: number | null }) {

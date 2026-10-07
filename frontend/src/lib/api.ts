@@ -264,6 +264,8 @@ export type PrecipitacaoStation = {
   latitude: number;
   longitude: number;
   updated_at: string | null;
+  /** true quando as janelas exibidas são o valor OFICIAL da fonte (ver backend `_aplicar_oficiais`). */
+  acumulados_oficiais?: boolean;
   /** Última leitura "bruta". */
   chuva_agora_mm: number | null;
   /** Acumulado desde a meia-noite local. Sempre que disponível, pra qualquer fonte. */
@@ -346,7 +348,8 @@ export type RedeSource =
   | "inea"
   | "ecowitt_paracambi"
   | "inmet"
-  | "redemet";
+  | "redemet"
+  | "cemaden_rj_sirenes";
 
 /** Linha da tabela de uma rede. `oficial` depende da fonte: Macaé
  * {"1","24","96"}; Plugfield {"hoje","mes","ano"}; Wunderground {"hoje","taxa"}.

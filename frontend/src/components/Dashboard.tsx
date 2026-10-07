@@ -15,6 +15,7 @@ import MultiSelectFilter from "@/components/MultiSelectFilter";
 import CemadenNacionalTable from "@/components/CemadenNacionalTable";
 import RedeTable from "@/components/RedeTable";
 import SaudeFontesBanner from "@/components/SaudeFontesBanner";
+import { lerModoSalvo, ModoMapa, salvarModo } from "@/lib/mapaModos";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
 import SirenesTable from "@/components/SirenesTable";
@@ -79,6 +80,7 @@ type DadosSub =
   | "inmet"
   | "ecowitt"
   | "redemet"
+  | "cemaden_rj"
   | "meteorologico" | "hidrologico" | "ventos";
 
 const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
@@ -100,6 +102,7 @@ const REDE_DE_SUB: Partial<Record<DadosSub, RedeSource>> = {
   inmet: "inmet",
   ecowitt: "ecowitt_paracambi",
   redemet: "redemet",
+  cemaden_rj: "cemaden_rj_sirenes",
 };
 const NOME_REDE: Record<RedeSource, string> = {
   alerta_rio: "Alerta Rio",
@@ -109,13 +112,15 @@ const NOME_REDE: Record<RedeSource, string> = {
   wunderground: "Wunderground",
   inea: "INEA",
   inmet: "INMET",
-  ecowitt_paracambi: "Ecowitt",
+  ecowitt_paracambi: "Paracambi",
   redemet: "REDEMET",
+  cemaden_rj_sirenes: "CEMADEN-RJ",
 };
 
 const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "precipitacao", label: "Precipitação" },
   { key: "cemaden", label: "CEMADEN Nacional" },
+  { key: "cemaden_rj", label: "CEMADEN-RJ" },
   { key: "alerta_rio", label: "Alerta Rio" },
   { key: "niteroi", label: "Niterói" },
   { key: "plugfield", label: "Plugfield" },
@@ -123,7 +128,7 @@ const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "wunderground", label: "Wunderground" },
   { key: "inea", label: "INEA" },
   { key: "inmet", label: "INMET" },
-  { key: "ecowitt", label: "Ecowitt" },
+  { key: "ecowitt", label: "Paracambi" },
   { key: "redemet", label: "REDEMET" },
   { key: "meteorologico", label: "Meteorológicos" },
   { key: "hidrologico", label: "Hidrológicos" },
@@ -186,6 +191,17 @@ export default function Dashboard({
   // Sub-abas da aba Mapa (pedido do usuário, 2026-09-24): "Estações" (mapa
   // antigo) e "Contatos" (mapa de REDECs com contatos de prefeitos/gestores).
   const [mapaSub, setMapaSub] = useState<"estacoes" | "contatos">("estacoes");
+  // Visualização das bolinhas do mapa (botão "Estações", 08/10/2026): por rede (padrão), sirenes,
+  // chuva 1 h, chuva 24 h ou rajada de vento. A escolha fica salva no navegador.
+  const [modoMapa, setModoMapa] = useState<ModoMapa>("redes");
+  const [modoMapaLoading, setModoMapaLoading] = useState(false);
+  useEffect(() => {
+    setModoMapa(lerModoSalvo());
+  }, []);
+  const trocarModoMapa = (m: ModoMapa) => {
+    setModoMapa(m);
+    salvarModo(m);
+  };
 
   // Município → REDEC — hoje só existia do lado dos alertas (AlertsPanel);
   // busca 1x aqui e reusa pra agregar/filtrar Precipitação e Dados
@@ -477,7 +493,8 @@ export default function Dashboard({
   // acionamento é dado de segurança em tempo real, não faz sentido essa
   // tela específica ficar parada até o operador trocar de aba e voltar.
   useEffect(() => {
-    if (viewMode !== "sirenes") return;
+    // Também carrega (e atualiza a cada 1 min) quando o mapa está no modo "Sirenes".
+    if (viewMode !== "sirenes" && !(viewMode === "mapa" && modoMapa === "sirenes")) return;
     let cancelled = false;
     const carregar = (primeiraVez: boolean) => {
       if (primeiraVez) setSirenesLoading(true);
@@ -503,7 +520,47 @@ export default function Dashboard({
       clearInterval(intervalo);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode]);
+  }, [viewMode, modoMapa]);
+
+  // Modos "Chuva em 1 h/24 h" do mapa: carrega a tabela de precipitação (já com o valor oficial
+  // das fontes que o informam) e atualiza a cada 5 min enquanto o modo estiver ativo.
+  useEffect(() => {
+    if (viewMode !== "mapa" || (modoMapa !== "chuva1h" && modoMapa !== "chuva24h")) return;
+    let cancelled = false;
+    const carregar = (primeira: boolean) => {
+      if (primeira && !precipitacaoLoaded) setModoMapaLoading(true);
+      fetchPrecipitacao()
+        .then((d) => {
+          if (!cancelled) {
+            setPrecipitacao(d);
+            setPrecipitacaoLoaded(true);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setModoMapaLoading(false);
+        });
+    };
+    carregar(true);
+    const id = setInterval(() => carregar(false), 300_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, modoMapa]);
+
+  // Sirenes na visualização do mapa: só os filtros de município/REDEC do mapa (os filtros da aba
+  // Sirenes são outros).
+  const sirenesDoMapa = useMemo(
+    () =>
+      sirenes.filter(
+        (s) =>
+          (municipalityFilter.length === 0 || municipalityFilter.includes(s.municipality)) &&
+          (redecFilter.length === 0 || redecFilter.includes(s.redec)),
+      ),
+    [sirenes, municipalityFilter, redecFilter],
+  );
 
   const municipalities = useMemo(
     () => Array.from(new Set(stations.map((s) => s.municipality).filter(Boolean))).sort(),
@@ -991,6 +1048,15 @@ export default function Dashboard({
                 activeAlertEvents={activeAlertEvents}
                 redecFilter={redecFilter}
                 municipalityFilter={municipalityFilter}
+                modo={modoMapa}
+                onModoChange={trocarModoMapa}
+                precipitacao={filteredPrecipitacao}
+                sirenes={sirenesDoMapa}
+                carregandoModo={
+                  (modoMapa === "sirenes" && sirenesLoading) ||
+                  ((modoMapa === "chuva1h" || modoMapa === "chuva24h") && modoMapaLoading)
+                }
+                onOpenStation={setPainelEstacaoId}
               />
               {/* Painel de filtro flutuante sobre o mapa — pedido do usuário
                   (item 9): escondível por um botão de expansão/contração,

@@ -87,3 +87,7 @@ A faixa de saúde das fontes e o aviso das sirenes empurravam o conteúdo e a ba
 janela, em vez de `h-screen`/100vh), padding inferior com `env(safe-area-inset-bottom)`, faixa de
 saúde em **uma linha** truncada e aviso das sirenes com fonte menor no celular. Testado em
 emulação 375×812: raiz com 812 px, barra inferior encostada, botões visíveis.
+
+## 7. CEMADEN-RJ e Paracambi (07/10/2026)
+
+Abas **CEMADEN-RJ** (oficial 15 min–1 mês + Calc) e **Paracambi** (antes "Ecowitt"). Ver `mapa-modos-de-visualizacao.md`.
