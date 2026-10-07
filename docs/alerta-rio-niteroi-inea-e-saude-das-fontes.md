@@ -175,3 +175,10 @@ mudança; as conferências agendadas reconferem o crontab; **recomendação** (n
 do usuário criar um segredo no GitHub): redundância independente do cPanel via workflow agendado
 do GitHub Actions chamando `POST /api/admin/run/ {"action":"sync_sirenes"}` a cada 5 min (o
 GitHub Actions garante no máximo 5 min e pode atrasar).
+
+### 10.7 Resultado do monitor do crontab (07/10/2026)
+O monitor somente leitura rodou ~3 h (00:48-03:45 UTC, 88 leituras a cada 4 min): **nenhuma mudança e nenhum erro**; o
+`sync_sirenes` ficou em `*/2` e os 13 jobs permaneceram intactos. Conclusão: não é uma rotina frequente do provedor; as duas
+reversões anteriores ocorreram em intervalos maiores (a 1ª em ~30 min após o ajuste; a 2ª em até ~3 dias). Hipóteses ainda
+abertas: rotina diária/semanal do provedor ou tela do cPanel aberta com versão antiga. **Próximo passo sugerido:** repetir o
+monitor por 24-48 h (somente leitura).

@@ -137,6 +137,8 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 8 | Hidrológicos com a lógica de valores corrigidos | já usava o oficial; adicionada a coerência entre janelas (`_garantir_janelas_coerentes`) | teste unitário local |
 | 9 | Nível na frente de Chuva acumulada | `nivel_m` primeiro na lista e como aba padrão | navegador local |
 
+| 07/10 | **Resultado do monitor do crontab:** ~3 h, 88 leituras, nenhuma mudança (sirenes `*/2` o tempo todo); documentado em §10.7 do doc do Alerta Rio. **Auditoria da documentação** (a pedido do usuário): faltavam o resultado do monitor, as ações `cotas_hidro`/rotas novas em `operacao-cron-e-producao.md` e um índice — corrigidos; criado `docs/README.md` |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

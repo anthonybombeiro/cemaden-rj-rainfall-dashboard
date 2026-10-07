@@ -171,6 +171,7 @@ aceita três ações **que não gravam nada**, criadas para auditar as fontes:
 | `analise_chuva_qc` | `{"source": "cemaden_mctic", "dias": 30}` | distribuição dos baldes de chuva, vizinhança e sequências iguais (calibração da qualificação) |
 | `snapshot_precip` | `{"source": "<slug>"}` | nossos acumulados (1/24/96 h, hoje) por estação, para comparar com o oficial da fonte |
 | `analise_funcionamento` | `{"source": "<slug>", "dias": 7}` | por estação: primeira/última leitura, idade, instantes, intervalo mediano, maior lacuna e variáveis presentes |
+| `cotas_hidro` | `{"nome": "Laje"}` (opcional) | cotas (atenção/alerta/transbordo/extrema, cm), rio monitorado, região hidrográfica e bacia das estações hidrológicas |
 | `analise_negativos` | `{"source": "alerta_rio"}` (opcional) | leituras de chuva negativas (valores-sentinela): total, valores, estações e datas |
 
 Observação: o servidor responde 406 a requisições com o `User-Agent` padrão do
@@ -196,3 +197,8 @@ Python; use o do `curl` (ou `curl`) ao chamar de scripts.
   documento); script `backend/scripts/conferir_oficial_vs_nosso.py`.
 - A ação admin `analise_funcionamento` passou a devolver também o código da estação
   (`cod_estacao`/`codigo`).
+
+**Rotas autenticadas novas de 06-07/10/2026** (login; não são ações administrativas): `GET /api/stations/rede/?source=<slug>`
+(tabelas por fonte), `GET /api/fontes/saude/` (saúde das fontes) e `GET /api/stations/{id}/detalhe/` (acumulados 1 h/24 h e cotas
+do detalhe da estação). Detalhes em `tabelas-individuais-por-fonte.md`, `alerta-rio-niteroi-inea-e-saude-das-fontes.md` e
+`detalhe-da-estacao-cotagrama.md`.
