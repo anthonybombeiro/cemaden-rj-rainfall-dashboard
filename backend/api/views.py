@@ -334,6 +334,10 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         cota = getattr(station, "cota", None)
         return Response(
             {
+                "municipio": canonico_ou_original(station.municipality),
+                "rio_monitorado": station.rio_monitorado or (cota.rio if cota else "") or "",
+                "regiao_hidrografica": station.regiao_hidrografica or "",
+                "bacia": station.bacia or "",
                 "acumulado_1h_mm": entrada.get("acumulado_1h_mm"),
                 "acumulado_24h_mm": entrada.get("acumulado_24h_mm"),
                 "oficial": bool(entrada.get("acumulados_oficiais")),
@@ -751,7 +755,34 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             calculado[campo] = entry.get(campo)
             entry[campo] = valor
         entry["calculado"] = calculado
+        if calculado:
+            StationViewSet._garantir_janelas_coerentes(entry)
         return bool(calculado)
+
+    # Janelas de chuva em ordem crescente de duração (campos de `_calcular_precipitacao`).
+    JANELAS_EM_ORDEM = (
+        "acumulado_5min_mm", "acumulado_10min_mm", "acumulado_15min_mm", "acumulado_30min_mm",
+        "acumulado_1h_mm", "acumulado_2h_mm", "acumulado_3h_mm", "acumulado_4h_mm", "acumulado_6h_mm",
+        "acumulado_12h_mm", "acumulado_24h_mm", "acumulado_36h_mm", "acumulado_48h_mm", "acumulado_72h_mm",
+        "acumulado_96h_mm", "acumulado_168h_mm", "acumulado_1mes_mm",
+    )
+
+    @staticmethod
+    def _garantir_janelas_coerentes(entry: dict) -> None:
+        """Depois de trocar algumas janelas pelo valor OFICIAL, as que continuam calculadas por nós
+        podem ficar incoerentes (ex.: nosso 6 h = 2 mm abaixo do oficial de 4 h = 5 mm). Uma janela
+        maior contém a menor, então nunca pode ser menor: sobe para o maior valor das janelas
+        contidas. Só mexe nas janelas ainda calculadas (as oficiais não são alteradas)."""
+        oficiais = set((entry.get("calculado") or {}).keys())
+        maior = None
+        for campo in StationViewSet.JANELAS_EM_ORDEM:
+            v = entry.get(campo)
+            if v is None:
+                continue
+            if maior is not None and v < maior and campo not in oficiais:
+                entry[campo] = maior
+                v = maior
+            maior = v if maior is None else max(maior, v)
 
     @action(detail=False, methods=["get"])
     def cemaden(self, request):

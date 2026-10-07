@@ -124,6 +124,19 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | **Compartilhar gráfico** (imagem/texto) como na tabela Ventos: `ShareData.corpo`/`textoPronto` | `ShareModal.tsx`, `shareExport.ts`, `StationHistoryPanel.tsx` | modal testado local; frontend publicado |
 | Documento novo `detalhe-da-estacao-cotagrama.md` | `docs/` | — |
 
+### 07/10/2026 (noite) — 9 correções do cotagrama / card de compartilhar
+
+| # | Correção | Ação | Verificação |
+|---|---|---|---|
+| 1 | Títulos do card | `<Município> — Nível do <rio monitorado> (m)`; linha 1 `<estação> - <Região Hidrográfica>`; linha 2 `<REDEC> - Nível (m) - <período>`; `detalhe` devolve município, rio, região hidrográfica e bacia | texto/card no navegador local |
+| 2, 5 | Chuva separada do nível; gráfico mais alto e centralizado | painéis empilhados (chuva em cima, nível embaixo), margens simétricas, altura 520 no modo imagem | idem |
+| 3 | Eixo X apertado | semana/mês só com data (dd/mm), ≤ 7 marcas | ticks 08/09…03/10 |
+| 4 | Espaço sobrando no card | gráfico preenche o card (legenda a 635 de 657 px) | idem |
+| 6 | Rótulos cortados; "Nível do rio" | margens maiores; eixo e legenda "Nível (m)" | idem |
+| 7 | Cotas | nomes e cores da tabela Hidrológicos (Atenção laranja, Alerta vermelho, Transbordo roxo, Extrema rosa); valores já eram os mesmos (conferido com a ação admin `cotas_hidro`) | idem |
+| 8 | Hidrológicos com a lógica de valores corrigidos | já usava o oficial; adicionada a coerência entre janelas (`_garantir_janelas_coerentes`) | teste unitário local |
+| 9 | Nível na frente de Chuva acumulada | `nivel_m` primeiro na lista e como aba padrão | navegador local |
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

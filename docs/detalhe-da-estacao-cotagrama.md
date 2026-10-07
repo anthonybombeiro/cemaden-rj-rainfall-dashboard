@@ -18,11 +18,15 @@ nem a **chuva** (barras), como no INEA e no SGB; (3) **detalhes ao passar o mous
 
 ## 2. Cotagrama (aba "Nível do rio" do histórico)
 `CotagramaChart.tsx`, no padrão do cotagrama do INEA e do SACE do SGB:
-- **Nível do rio** em linha + área (m), eixo esquerdo.
-- **Linhas das cotas** em cores fixas: atenção (amarelo), alerta (laranja), inundação (vermelho) e extrema (rosa
-  tracejada, só se couber na escala), com rótulo e valor em m (as cotas estão em cm no banco).
-- **Chuva em barras penduradas do topo**, eixo da direita invertido (0 no topo), como no INEA. Baldes de **15 min**
-  (intervalo ≤ 36 h), **1 h** (≤ 8 dias) ou **1 dia**; a chuva vem das leituras gravadas da própria estação.
+- **Dois painéis empilhados (revisão de 07/10 noite):** a **chuva em barras** no painel de cima (eixo da direita "Chuva (mm)")
+  e, separado por um espaço, o **nível** em linha + área no painel de baixo (eixo da esquerda "**Nível (m)**" — sem "do rio", pois
+  há estações de córregos, lagoas e canais). Antes as barras ficavam coladas na curva do nível.
+- **Linhas das cotas com os nomes e as cores da tabela Hidrológicos** (`COTA_ESTILOS`): **Atenção** (laranja), **Alerta**
+  (vermelho), **Transbordo** (roxo) e **Extrema** (rosa tracejada, só se couber). Os valores são os mesmos da tabela
+  (`CotaHidrologica`, em cm no banco, em m no gráfico); o que divergia era nome ("Inundação") e cor.
+- Baldes de chuva de **15 min** (intervalo ≤ 36 h), **1 h** (≤ 8 dias) ou **1 dia**; a chuva vem das leituras gravadas da estação.
+- **Eixo X:** até 36 h, horários (HH:MM); em **semana e mês, só a data (dd/mm)** em divisas de dia, no máximo ~7 marcas (antes
+  as legendas de data e hora se sobrepunham).
 - **Escala:** por padrão inclui as cotas quando elas não "achatam" o nível (maior cota ≤ 5 × o nível máximo); o botão
   "Ajustar escala ao nível / Mostrar todas as cotas" alterna. A legenda lista só as cotas desenhadas.
 - Estações **sem cotas cadastradas** (13 na planilha INEA/CPRM) mostram só nível e chuva e a nota "Estação sem
@@ -35,7 +39,16 @@ nem a **chuva** (barras), como no INEA e no SGB; (3) **detalhes ao passar o mous
 - **Histórico (demais variáveis)** e **Precipitação acumulada:** o mesmo tipo de cartão (valor/hora e mín-máx do
   período; chuva do intervalo e acumulada até aqui). `touch-action: pan-y` permite rolar a página com o dedo.
 
-## 4. Compartilhar gráfico
+## 4. Compartilhar gráfico (revisão de 07/10 noite)
+Identificação do card (padrão pedido pelo usuário, para estações hidrológicas):
+- **Título (cabeçalho azul):** `<Município> — Nível do <rio monitorado> (m)` (ex.: "Rio das Flores — Nível do Ribeirão Manoel Pereira (m)"; sem rio cadastrado: "Nível (m)").
+- **Linha 1:** `<nome da estação> - <Região Hidrográfica>`.
+- **Linha 2 (sem repetir o município):** `<REDEC> - Nível (m) - <período>`.
+Nos demais gráficos o título usa o nome da variável no lugar do rio. O gráfico em modo imagem é mais alto (viewBox 520) e
+preenche o card de 760×760 (legenda termina a ~97% da altura útil, sem estourar). O texto copiado segue a mesma identificação.
+Os dados (município, rio, região hidrográfica, bacia) vêm de `GET /stations/{id}/detalhe/`; a REDEC, do mapa município→REDEC.
+
+### 4.1 Versão anterior
 Botão "📤 Compartilhar gráfico" nas seções **Precipitação acumulada** e **Histórico por período** (todas as
 variáveis). Reaproveita o `ShareModal` da tabela Ventos (card quadrado fixo 760×760 com cabeçalho azul e logos,
 baixar/copiar imagem, compartilhar nativo no celular, copiar texto): `ShareData` ganhou `corpo` (conteúdo do card:
@@ -47,3 +60,15 @@ Local (SQLite de teste, só local): estação Rio das Flores com cotas reais da 
 sintética de nível/chuva — baldes 1 h/24 h, cotagrama com 3 cotas, barras de chuva, tooltip e o modal de compartilhar
 (resumo, gráfico e botões) verificados no navegador. Produção: rota `detalhe` existe (403 sem login), frontend
 publicado.
+
+## 6. Hidrológicos e ordem das abas (revisão de 07/10 noite)
+- **Ordem:** nas estações hidrológicas, **"Nível do rio (m)" vem na frente de "Chuva acumulada"** no "Histórico por período" e é a
+  aba aberta por padrão.
+- **Tabela Hidrológicos — coerência dos valores:** as colunas de chuva já usavam o **valor oficial da fonte** (mesma lógica
+  documentada em `tabelas-individuais-por-fonte.md` §5). Faltava coerência entre janelas: ao trocar só algumas janelas pelo
+  oficial, as que seguiam calculadas por nós podiam ficar **menores** que uma janela contida (ex.: nosso 6 h = 2 mm abaixo do oficial
+  de 4 h = 5 mm). `_garantir_janelas_coerentes` sobe essas janelas calculadas para o maior valor das janelas menores (as oficiais
+  não são alteradas). Teste: oficiais 1 h 0 / 4 h 5 / 24 h 12 / 96 h 40 → 6 h e 12 h passam a 5, 48 h a 12 e 168 h a 40.
+  Vale para todas as tabelas que usam o oficial (Precipitação, Hidrológicos, detalhe).
+- Nova ação admin somente leitura `cotas_hidro` (cotas e inventário das 67 estações com cota: rio, região hidrográfica, bacia).
+  Achado: 52 de 67 têm cotas no padrão atenção = 60% e alerta = 80% do transbordo (valores derivados da planilha INEA/CPRM).

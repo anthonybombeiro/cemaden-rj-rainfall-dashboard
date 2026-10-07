@@ -416,6 +416,10 @@ export async function fetchFontesSaude(): Promise<FontesSaude> {
 /** Detalhe da estação (`GET /stations/{id}/detalhe/`, 07/10/2026): chuva acumulada em 1 h e 24 h
  * (oficial da fonte quando informado) e cotas hidrológicas em cm. */
 export type DetalheEstacao = {
+  municipio: string;
+  rio_monitorado: string;
+  regiao_hidrografica: string;
+  bacia: string;
   acumulado_1h_mm: number | null;
   acumulado_24h_mm: number | null;
   oficial: boolean;

@@ -83,6 +83,7 @@ ACOES_PERMITIDAS = {
     "snapshot_precip",
     "analise_funcionamento",
     "analise_negativos",
+    "cotas_hidro",
 }
 
 
@@ -412,6 +413,28 @@ class AdminOpsView(APIView):
                         default=str,
                     )
                 )
+            elif action == "cotas_hidro":
+                # SOMENTE LEITURA: cotas e inventário das estações hidrológicas (nome opcional filtra).
+                import json as json_module
+
+                from core.models import Station
+
+                filtro = ((request.data or {}).get("nome") or "").strip()
+                qs = Station.objects.filter(cota__isnull=False).select_related("cota", "source")
+                if filtro:
+                    qs = qs.filter(name__icontains=filtro)
+                linhas = [
+                    {
+                        "id": st.id, "nome": st.name, "fonte": st.source.slug, "mun": st.municipality,
+                        "rio": st.rio_monitorado, "regiao_hidro": st.regiao_hidrografica, "bacia": st.bacia,
+                        "atencao": st.cota.atencao_cm, "alerta": st.cota.alerta_cm,
+                        "inundacao": st.cota.inundacao_cm, "extrema": st.cota.extrema_cm,
+                        "cota_rio": st.cota.rio, "ref": st.cota.codigo_referencia, "obs": st.cota.observacao,
+                        "atualizado_em": st.cota.atualizado_em,
+                    }
+                    for st in qs.order_by("name")
+                ]
+                saida.write(json_module.dumps(linhas, ensure_ascii=False, default=str))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 

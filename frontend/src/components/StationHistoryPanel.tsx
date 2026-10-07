@@ -24,6 +24,8 @@ import {
   EstacaoProxima,
   fetchDetalheEstacao,
   fetchEstacoesProximas,
+  fetchMunicipioRedecMap,
+  normalizeMunicipioName,
   fetchPrecipitacaoSerie,
   fetchStation,
   fetchStationReadings,
@@ -72,25 +74,23 @@ const BTN_COMPARTILHAR =
 /** Conteúdo do card de compartilhar de um GRÁFICO (07/10/2026): identificação da estação, um
  * resumo curto e o próprio gráfico em modo imagem. */
 function CorpoGrafico({
-  estacao,
-  municipio,
-  subtitulo,
+  linha1,
+  linha2,
   resumo,
   children,
 }: {
-  estacao: string;
-  municipio: string;
-  subtitulo: string;
+  /** "<nome da estação> - <Região Hidrográfica>" */
+  linha1: string;
+  /** "<REDEC> - Nível (m) - <período>" */
+  linha2: string;
   resumo: [string, string][];
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2.5">
       <div>
-        <h4 className="text-lg font-bold leading-tight text-gray-900">{estacao}</h4>
-        <p className="text-[11px] text-gray-500">
-          {municipio || "—"} · {subtitulo}
-        </p>
+        <h4 className="text-[17px] font-bold leading-tight text-gray-900">{linha1}</h4>
+        <p className="text-[11px] text-gray-500">{linha2}</p>
       </div>
       {resumo.length > 0 && (
         <div className="grid grid-cols-4 gap-2">
@@ -105,6 +105,29 @@ function CorpoGrafico({
       <div>{children}</div>
     </div>
   );
+}
+
+/** Identificação do card de compartilhar (07/10/2026, correção do usuário):
+ *  título   = "<Município> — Nível do <rio monitorado> (m)"  (ou o nome da variável, nos demais gráficos)
+ *  linha 1  = "<nome da estação> - <Região Hidrográfica>"
+ *  linha 2  = "<REDEC> - Nível (m) - <período>"  (o município não se repete). */
+function identificacao(
+  station: Station,
+  detalhe: DetalheEstacao | null,
+  redec: string,
+  rotuloGrafico: string,
+  periodo: string,
+  hidro: boolean,
+) {
+  const municipio = detalhe?.municipio || station.municipality || "—";
+  const rio = detalhe?.rio_monitorado;
+  const tituloTipo = hidro ? (rio ? `Nível do ${rio} (m)` : "Nível (m)") : rotuloGrafico;
+  const regiao = detalhe?.regiao_hidrografica;
+  return {
+    titulo: `${municipio} — ${tituloTipo}`,
+    linha1: hidro && regiao ? `${station.name} - ${regiao}` : station.name,
+    linha2: [redec || "—", hidro ? "Nível (m)" : rotuloGrafico, periodo].join(" - "),
+  };
 }
 
 const fmtMm = (v: number | null | undefined) => (v == null ? "—" : `${(Math.round(v * 10) / 10).toFixed(1)} mm`);
@@ -172,7 +195,17 @@ function CardsAoVivo({ station, detalhe }: { station: Station; detalhe: DetalheE
  * Rede Salvar do CEMADEN nacional (pedido do usuário, 2026-09-28) — troca
  * de janela por abas, não pelo seletor de período genérico (esse é só
  * pras outras variáveis, ver `HistoricoPorPeriodo`). */
-function PrecipitacaoAcumulada({ station, onShare }: { station: Station; onShare: (d: ShareData) => void }) {
+function PrecipitacaoAcumulada({
+  station,
+  detalhe,
+  redec,
+  onShare,
+}: {
+  station: Station;
+  detalhe: DetalheEstacao | null;
+  redec: string;
+  onShare: (d: ShareData) => void;
+}) {
   const stationId = station.id;
   const [janela, setJanela] = useState<"4h" | "24h" | "7d">("24h");
   const [dados, setDados] = useState<PrecipitacaoSerie | null>(null);
@@ -211,25 +244,21 @@ function PrecipitacaoAcumulada({ station, onShare }: { station: Station; onShare
               if (!dados) return;
               const rotulo = JANELAS_CHUVA.find((j) => j.key === janela)?.label ?? janela;
               const ultimo = dados.serie[dados.serie.length - 1]?.inicio;
+              const id = identificacao(station, detalhe, redec, "Precipitação acumulada", rotulo, false);
               onShare({
-                titulo: `${station.name} — Precipitação acumulada (${rotulo})`,
+                titulo: id.titulo,
                 dataHora: ultimo ? formatTimestamp(ultimo) : "—",
                 colunas: [],
                 linhas: [],
                 fonteTexto: fonteDe(station),
                 nomeArquivo: `chuva-${station.id}-${janela}`,
                 corpo: (
-                  <CorpoGrafico
-                    estacao={station.name}
-                    municipio={station.municipality}
-                    subtitulo={`Precipitação acumulada — ${rotulo}`}
-                    resumo={[["Total no período", fmtMm(dados.total_mm)]]}
-                  >
+                  <CorpoGrafico linha1={id.linha1} linha2={id.linha2} resumo={[["Total no período", fmtMm(dados.total_mm)]]}>
                     <AccumulationChart serie={dados.serie} janela={janela} totalMm={dados.total_mm} />
                   </CorpoGrafico>
                 ),
                 textoPronto: [
-                  `*${station.name} — Precipitação acumulada (${rotulo})*`,
+                  `*${id.titulo} (${rotulo})*`,
                   `🕐 Dados de: ${ultimo ? formatTimestamp(ultimo) : "—"}`,
                   `🌧️ Total no período: ${fmtMm(dados.total_mm)}`,
                   `📡 ${fonteDe(station)}`,
@@ -287,15 +316,19 @@ function isoDate(d: Date): string {
 function HistoricoPorPeriodo({
   station,
   detalhe,
+  redec,
   onShare,
 }: {
   station: Station;
   detalhe: DetalheEstacao | null;
+  redec: string;
   onShare: (d: ShareData) => void;
 }) {
   const availableTypes = useMemo(() => {
     const present = new Set(station.latest_readings.map((r) => r.reading_type));
-    return COLUMN_ORDER.filter((t) => !t.startsWith("x:") && present.has(t));
+    const tipos = COLUMN_ORDER.filter((t) => !t.startsWith("x:") && present.has(t));
+    // Estações hidrológicas: "Nível do rio" vem na frente de "Chuva acumulada" (07/10/2026).
+    return tipos.includes("nivel_m") ? ["nivel_m", ...tipos.filter((t) => t !== "nivel_m")] : tipos;
   }, [station]);
 
   const [activeType, setActiveType] = useState<string | null>(null);
@@ -374,7 +407,8 @@ function HistoricoPorPeriodo({
     const hora = formatTimestamp(ultimo.timestamp);
     const resumoTxt = resumo ? `mín ${formatValue(resumo.baixa)} · máx ${formatValue(resumo.alta)} ${unidade ?? ""}`.trim() : "";
     const resumoCards: [string, string][] = [];
-    const linhasTexto = [`*${station.name} — ${tipoRotulo}*`, `🕐 Dados de: ${hora}`];
+    const id = identificacao(station, detalhe, redec, tipoRotulo, periodoRotulo, ehNivel);
+    const linhasTexto = [`*${id.titulo}*`, `${id.linha1}`, `🕐 Dados de: ${hora}`];
     if (ehNivel) {
       const classe = classeDaCota(ultimo.value * 100, detalhe?.cota ?? null);
       const cls = COTA_ESTILOS[classe].label;
@@ -397,14 +431,14 @@ function HistoricoPorPeriodo({
     if (resumoTxt) linhasTexto.push(`📈 ${periodoRotulo}: ${resumoTxt}`);
     linhasTexto.push(`📡 ${fonteDe(station)}`);
     onShare({
-      titulo: `${station.name} — ${tipoRotulo}`,
+      titulo: id.titulo,
       dataHora: hora,
       colunas: [],
       linhas: [],
       fonteTexto: fonteDe(station),
       nomeArquivo: `grafico-${station.id}-${activeType}-${periodo}`,
       corpo: (
-        <CorpoGrafico estacao={station.name} municipio={station.municipality} subtitulo={`${tipoRotulo} — ${periodoRotulo}`} resumo={resumoCards}>
+        <CorpoGrafico linha1={id.linha1} linha2={id.linha2} resumo={resumoCards}>
           {ehNivel ? (
             <CotagramaChart nivel={history} chuva={chuvaHist} cota={detalhe?.cota ?? null} estatico />
           ) : (
@@ -564,6 +598,7 @@ export default function StationHistoryPanel({ stationId, topo }: { stationId: nu
   const [station, setStation] = useState<Station | null>(null);
   const [proximas, setProximas] = useState<EstacaoProxima[]>([]);
   const [detalhe, setDetalhe] = useState<DetalheEstacao | null>(null);
+  const [mapaRedec, setMapaRedec] = useState<Record<string, string>>({});
   const [compartilhar, setCompartilhar] = useState<ShareData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -585,6 +620,11 @@ export default function StationHistoryPanel({ stationId, topo }: { stationId: nu
         if (!cancelled) setLoading(false);
       });
     setDetalhe(null);
+    fetchMunicipioRedecMap()
+      .then((m) => {
+        if (!cancelled) setMapaRedec(m);
+      })
+      .catch(() => {});
     fetchDetalheEstacao(stationId)
       .then((d) => {
         if (!cancelled) setDetalhe(d);
@@ -597,6 +637,8 @@ export default function StationHistoryPanel({ stationId, topo }: { stationId: nu
       cancelled = true;
     };
   }, [stationId]);
+
+  const redec = station ? (mapaRedec[normalizeMunicipioName(detalhe?.municipio || station.municipality)] ?? "") : "";
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:px-4 sm:py-6">
@@ -652,10 +694,10 @@ export default function StationHistoryPanel({ stationId, topo }: { stationId: nu
           </section>
 
           {station.latest_readings.some((r) => r.reading_type === "chuva_mm") && (
-            <PrecipitacaoAcumulada station={station} onShare={setCompartilhar} />
+            <PrecipitacaoAcumulada station={station} detalhe={detalhe} redec={redec} onShare={setCompartilhar} />
           )}
 
-          <HistoricoPorPeriodo station={station} detalhe={detalhe} onShare={setCompartilhar} />
+          <HistoricoPorPeriodo station={station} detalhe={detalhe} redec={redec} onShare={setCompartilhar} />
           {compartilhar && <ShareModal data={compartilhar} onClose={() => setCompartilhar(null)} />}
         </>
       )}
