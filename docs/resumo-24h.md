@@ -29,3 +29,6 @@ Cache de 3 min no servidor; botão *Atualizar* e *Copiar resumo* (texto pronto p
 Limites conhecidos: o observado usa o extremo entre todas as estações da região (não a média), então tende a
 superestimar Tmáx em regiões muito heterogêneas; regiões sem estação mapeada ou sem previsão aparecem com "—".
 Verificado com dados locais de teste (previsões de teste só no banco local); em produção conferir com login.
+
+## Correção de layout (08/10/2026)
+A aba não rolava (o contêiner `<main>` é `overflow-hidden` e o painel não tinha altura própria) e no celular o conteúdo estourava a largura. O painel agora é `h-full overflow-y-auto overflow-x-hidden`; listas do Top 10 quebram em duas linhas (estação / município · fonte) e os grids usam `min-w-0`. Verificado em viewport de 375 px: conteúdo 1124 px dentro de 581 px visíveis, rolando, sem rolagem horizontal. Tabelas largas (Cidades, Previsão × Observado) rolam dentro do próprio quadro.

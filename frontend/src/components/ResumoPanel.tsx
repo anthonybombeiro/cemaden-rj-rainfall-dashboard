@@ -54,7 +54,7 @@ function Veredito({ v }: { v?: string | null }) {
 
 function Cartao({ titulo, valor, detalhe, destaque }: { titulo: string; valor: string; detalhe?: string; destaque?: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+    <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
       <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{titulo}</div>
       <div className="mt-1 text-xl font-bold" style={destaque ? { color: destaque } : undefined}>
         {valor}
@@ -68,23 +68,23 @@ function TopLista({
   titulo, itens, unidade, onOpenStation,
 }: { titulo: string; itens: ResumoItem[]; unidade: string; onOpenStation?: (id: number) => void }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+    <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
       <h3 className="mb-2 text-sm font-semibold">{titulo}</h3>
       {itens.length === 0 ? (
         <p className="text-xs text-gray-500">Sem dados no período.</p>
       ) : (
         <ol className="space-y-1">
           {itens.map((i, n) => (
-            <li key={i.id} className="flex items-baseline gap-2 text-xs">
+            <li key={i.id} className="flex min-w-0 items-baseline gap-2 text-xs">
               <span className="w-4 shrink-0 text-right text-gray-400">{n + 1}</span>
               <button
                 type="button"
                 onClick={() => onOpenStation?.(i.id)}
-                className="min-w-0 flex-1 truncate text-left hover:underline"
+                className="min-w-0 flex-1 text-left leading-tight hover:underline"
                 title={`${i.name} — ${i.municipio} (${NOME_FONTE[i.fonte] ?? i.fonte})`}
               >
                 <span className="font-medium">{i.name}</span>
-                <span className="text-gray-500"> · {i.municipio} · {NOME_FONTE[i.fonte] ?? i.fonte}</span>
+                <span className="block text-[11px] text-gray-500 md:inline"> <span className="hidden md:inline">· </span>{i.municipio} · {NOME_FONTE[i.fonte] ?? i.fonte}</span>
               </button>
               <span className="shrink-0 font-bold tabular-nums">
                 {fmt(i.valor)} {unidade}
@@ -194,10 +194,10 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
   }, [dados, s]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-gray-50 p-3 md:p-4">
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden bg-gray-50 p-3 pb-6 md:p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-bold">Resumo — {rotuloPeriodo || "…"}</h2>
-        <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">
+        <h2 className="min-w-0 text-base font-bold">Resumo — {rotuloPeriodo || "…"}</h2>
+        <div className="flex w-full flex-wrap items-center gap-2 text-xs md:ml-auto md:w-auto">
           <button
             type="button"
             onClick={() => setDia("")}
@@ -305,7 +305,7 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
       )}
 
       {dados && sub === "top10" && (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <TopLista titulo="🌧️ Precipitação (mm)" itens={dados.top10.chuva} unidade="mm" onOpenStation={onOpenStation} />
           <TopLista titulo="💨 Rajada de vento (km/h)" itens={dados.top10.rajada} unidade="km/h" onOpenStation={onOpenStation} />
           <TopLista titulo="🌡️ Temperatura máxima (°C)" itens={dados.top10.tmax} unidade="°C" onOpenStation={onOpenStation} />

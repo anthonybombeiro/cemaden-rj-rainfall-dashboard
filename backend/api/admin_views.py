@@ -84,6 +84,7 @@ ACOES_PERMITIDAS = {
     "analise_funcionamento",
     "analise_negativos",
     "cotas_hidro",
+    "teste_dsat",
 }
 
 
@@ -435,6 +436,26 @@ class AdminOpsView(APIView):
                     for st in qs.order_by("name")
                 ]
                 saida.write(json_module.dumps(linhas, ensure_ascii=False, default=str))
+            elif action == "teste_dsat":
+                # SOMENTE LEITURA: tempo e erro de cada passo da consulta ao CPTEC/DSAT a partir do servidor.
+                import json as json_module
+                import time as time_module
+
+                from . import dsat_imagery_views as dsat
+
+                res = {}
+                tipo = (request.data or {}).get("tipo") or "truecolor"
+                produto, prefixo, _ = dsat.PRODUTOS[tipo]
+                try:
+                    t0 = time_module.time()
+                    q = dsat._quadros(produto, prefixo, 6)
+                    res["quadros"] = {"n": len(q), "ultimo": str(q[-1]) if q else None, "s": round(time_module.time() - t0, 1)}
+                    if q:
+                        t0 = time_module.time()
+                        res["bounds"] = {"v": dsat._bounds(produto, prefixo, q[-1]), "s": round(time_module.time() - t0, 1)}
+                except Exception as exc:  # noqa: BLE001
+                    res["erro"] = f"{type(exc).__name__}: {exc}"
+                saida.write(json_module.dumps(res, ensure_ascii=False, default=str))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 

@@ -141,6 +141,7 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 07/10 | **Mapa — botão Estações** com 5 modos (por rede, sirenes, chuva 1 h, chuva 24 h, vento); **aba Paracambi** (renomeada de Ecowitt); **aba CEMADEN-RJ** (acumulados oficiais da página pública lidos no `sync_sirenes`, `rede` e `MAPA_ACUMULADOS_OFICIAIS`). Deploy de `api/views.py`, `cemaden_rj_sirenes.py` e frontend; `sync_sirenes` rodado (225 estações, 0 erros). Detalhes em `mapa-modos-de-visualizacao.md`. Pendente: conferir em produção com login que as 85 linhas casaram |
 | 07/10 | **Satélite DSAT/CPTEC-INPE (GOES-19) no mapa:** True Color (padrão), IR realçado, IR canal 13 e Visível canal 02; nova rota `/api/imagery/dsat/` (`dsat_imagery_views.py`). Deploy de backend e frontend; documentado em `mapa-modos-de-visualizacao.md` |
 | 07/10 | **Aba Resumo 24h** (após Alertas): rota `/api/resumo/`, `ResumoPanel.tsx`; resumo do dia, Top 10 (chuva, Tmáx, Tmín, rajada), previsão × observado por REDEC e cidades com chuva/rajada. Deploy backend+frontend; documentado em `resumo-24h.md` |
+| 08/10 | **Correções a pedido do usuário:** (1) Resumo 24h não rolava e ficava ruim no celular → contêiner com rolagem, listas e grids responsivos; (2) satélite DSAT em "Carregando…" eterno → o CPTEC esvaziou o ftp, rota passou a sondar `satelite.cptec.inpe.br/repositoriogoes` por HEAD; mapa mostra erro claro; ação admin de leitura `teste_dsat`. Deploy backend+frontend |
 
 ## Pendências abertas (03/10/2026)
 

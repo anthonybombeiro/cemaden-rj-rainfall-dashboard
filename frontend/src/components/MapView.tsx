@@ -271,11 +271,12 @@ async function buscarRadarNiteroi(numFrames: number) {
 function useCamadaMeteorologica(
   config: ConfigCamada,
   isPlaying: boolean = true,
-): { imagem: ImageryLayer | null; animacao: AnimacaoState | null; atualizando: boolean; atualizarAgora: () => void } {
+): { imagem: ImageryLayer | null; animacao: AnimacaoState | null; atualizando: boolean; erro: boolean; atualizarAgora: () => void } {
   const [imagem, setImagem] = useState<ImageryLayer | null>(null);
   const [animacao, setAnimacao] = useState<AnimacaoState | null>(null);
   const [frameAtual, setFrameAtual] = useState(0);
   const [atualizando, setAtualizando] = useState(false);
+  const [erro, setErro] = useState(false);
   // Incrementado pelo botão "atualizar agora" (item 4 do pedido do usuário:
   // além da atualização automática, dar um jeito de forçar na hora) — como
   // entra nas deps do efeito de busca, qualquer mudança reexecuta `buscar`
@@ -294,6 +295,7 @@ function useCamadaMeteorologica(
     setImagem(null);
     setAnimacao(null);
     setFrameAtual(0);
+    setErro(false);
   }, [config.tipo, config.tipoSatelite, config.tipoRadar]);
 
   useEffect(() => {
@@ -336,6 +338,15 @@ function useCamadaMeteorologica(
       promessa
         .then((data: any) => {
           if (cancelado) return;
+          // Resposta de erro do backend ({detail}) ou sem imagem: mostra "sem imagem" em vez de
+          // ficar em "Carregando…" para sempre.
+          if (!data || (!data.image_url && !(Array.isArray(data.frames) && data.frames.length > 0))) {
+            setImagem(null);
+            setAnimacao(null);
+            setErro(true);
+            return;
+          }
+          setErro(false);
 
           if (config.animacao && data.frames && Array.isArray(data.frames) && data.frames.length > 0) {
             // A REDEMET completa o pedido de N quadros repetindo o último
@@ -372,6 +383,7 @@ function useCamadaMeteorologica(
           if (!cancelado) {
             setImagem(null);
             setAnimacao(null);
+            setErro(true);
           }
         })
         .finally(() => {
@@ -418,6 +430,7 @@ function useCamadaMeteorologica(
     imagem,
     animacao: animacao ? { ...animacao, frameAtual, isPlaying } : null,
     atualizando,
+    erro,
     atualizarAgora: () => setForcarAtualizacaoEm((v) => v + 1),
   };
 }
@@ -465,6 +478,7 @@ function SeletorCamadaMeteorologica({
   animacao,
   onPlayPause,
   atualizando,
+  erro,
   onAtualizarAgora,
 }: {
   config: ConfigCamada;
@@ -473,6 +487,7 @@ function SeletorCamadaMeteorologica({
   animacao: AnimacaoState | null;
   onPlayPause?: (play: boolean) => void;
   atualizando: boolean;
+  erro: boolean;
   onAtualizarAgora: () => void;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -679,7 +694,9 @@ function SeletorCamadaMeteorologica({
                           ? "DSAT/CPTEC-INPE (GOES-19)"
                           : "REDEMET"
                   }`
-                : "Carregando…"}
+                : erro
+                  ? "Sem imagem disponível agora (a fonte não respondeu ou ainda não publicou). Tente atualizar."
+                  : "Carregando…"}
             </p>
           )}
 
@@ -758,6 +775,7 @@ export default function MapView({
     imagem: imagemAtual,
     animacao,
     atualizando,
+    erro: erroCamada,
     atualizarAgora,
   } = useCamadaMeteorologica(config, animacaoPlaying);
 
@@ -884,6 +902,7 @@ export default function MapView({
         animacao={config.animacao ? animacao : null}
         onPlayPause={setAnimacaoPlaying}
         atualizando={atualizando}
+        erro={erroCamada}
         onAtualizarAgora={atualizarAgora}
       />
     </MapContainer>

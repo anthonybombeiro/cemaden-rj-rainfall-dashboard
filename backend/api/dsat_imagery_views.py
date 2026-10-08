@@ -2,10 +2,10 @@
 Imagens de satélite do DSAT/CPTEC-INPE (GOES-19) para o mapa — pedido do usuário
 (07/10/2026), principalmente a cor verdadeira (True Color).
 
-Fonte: `https://ftp.cptec.inpe.br/goes/goes19/goes19_web/<produto>/AAAA/MM/` — públicas,
-sem login, com `Access-Control-Allow-Origin: *`. Cada quadro (a cada 10 min) tem um
+Fonte: `https://satelite.cptec.inpe.br/repositoriogoes/goes19/goes19_web/<produto>/AAAA/MM/` — públicas,
+sem login (o antigo ftp.cptec.inpe.br foi esvaziado em 08/10/2026). Cada quadro (a cada 10 min) tem um
 `.jpg` e um world file `.jgw` (0,02°/pixel, origem -100°/12,52°). O backend só descobre
-os nomes dos quadros mais recentes (listagem do diretório) e os limites geográficos;
+os quadros mais recentes (HEAD nos nomes previsíveis; o servidor não lista diretórios) e os limites geográficos;
 o navegador baixa o JPG direto do CPTEC (não gastamos banda nem CPU do servidor).
 """
 
@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-import re
 import struct
 
 import requests
@@ -23,29 +22,46 @@ from rest_framework.views import APIView
 
 logger = logging.getLogger("ingestion")
 
-BASE = "https://ftp.cptec.inpe.br/goes/goes19/goes19_web"
+BASE = "https://satelite.cptec.inpe.br/repositoriogoes/goes19/goes19_web"
 HEADERS = {"User-Agent": "Mozilla/5.0 (CEMADEN-RJ painel)"}
-# tipo -> (diretório no CPTEC, descrição)
+# tipo -> (diretório, prefixo do arquivo, descrição). O diretório do ftp.cptec.inpe.br foi esvaziado
+# em 08/10/2026; os arquivos seguem em satelite.cptec.inpe.br/repositoriogoes (sem listagem de
+# diretório), com nome previsível `<prefixo>_AAAAMMDDHHMM.jpg` a cada 10 min (UTC).
 PRODUTOS = {
-    "truecolor": ("ams_rgb_natcolor", "Cor verdadeira (True Color)"),
-    "dsat_realcada": ("ams_realcada_alta", "Infravermelho realçado (DSAT)"),
-    "dsat_ch13": ("ams_ret_ch13_alta", "Infravermelho canal 13 (DSAT)"),
-    "dsat_ch02": ("ams_ret_ch02_alta", "Visível canal 02 (DSAT)"),
+    "truecolor": ("ams_rgb_natcolor", "S11161220", "Cor verdadeira (True Color)"),
+    "dsat_realcada": ("ams_realcada_alta", "S11161222", "Infravermelho realçado (DSAT)"),
+    "dsat_ch13": ("ams_ret_ch13_alta", "S11161113", "Infravermelho canal 13 (DSAT)"),
+    "dsat_ch02": ("ams_ret_ch02_alta", "S11161102", "Visível canal 02 (DSAT; só de dia)"),
 }
-MAX_QUADROS = 6  # ~4 MB cada: animação limitada a 1 h
+MAX_QUADROS = 6  # ~2,5 MB cada: animação limitada a 1 h
+BUSCA_HORAS = 4  # quanto tempo para trás procurar quadros
 TTL_QUADROS_S = 240
 TTL_BOUNDS_S = 86400
 
 
-def _listar(produto: str, ano: int, mes: int) -> list[tuple[str, str]]:
-    """[(timestamp 'AAAAMMDDHHMM', nome do .jpg)] em ordem crescente."""
-    url = f"{BASE}/{produto}/{ano}/{mes:02d}/"
-    resp = requests.get(url, headers=HEADERS, timeout=20)
-    if resp.status_code == 404:
-        return []
-    resp.raise_for_status()
-    nomes = sorted(set(re.findall(r'href="(S\d+_(\d{12})\.jpg)"', resp.text)), key=lambda t: t[1])
-    return [(ts, nome) for nome, ts in nomes]
+def _url(produto: str, prefixo: str, t: dt.datetime, ext: str = "jpg") -> str:
+    return f"{BASE}/{produto}/{t:%Y}/{t:%m}/{prefixo}_{t:%Y%m%d%H%M}.{ext}"
+
+
+def _existe(url: str) -> bool:
+    try:
+        return requests.head(url, headers=HEADERS, timeout=8, allow_redirects=True).status_code == 200
+    except requests.RequestException:
+        return False
+
+
+def _quadros(produto: str, prefixo: str, n: int) -> list[dt.datetime]:
+    """Últimos `n` quadros existentes (UTC, crescente): testa cada múltiplo de 10 min das últimas
+    `BUSCA_HORAS` h, em paralelo (o servidor não lista diretórios)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    agora = dt.datetime.now(dt.timezone.utc).replace(second=0, microsecond=0)
+    base = agora - dt.timedelta(minutes=agora.minute % 10)
+    candidatos = [base - dt.timedelta(minutes=10 * i) for i in range(BUSCA_HORAS * 6)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        achou = list(pool.map(lambda t: _existe(_url(produto, prefixo, t)), candidatos))
+    existentes = sorted(t for t, ok in zip(candidatos, achou) if ok)
+    return existentes[-n:]
 
 
 def _tamanho_jpeg(url: str) -> tuple[int, int]:
@@ -63,15 +79,14 @@ def _tamanho_jpeg(url: str) -> tuple[int, int]:
     raise ValueError("cabeçalho JPEG sem SOF")
 
 
-def _bounds(produto: str, ano: int, mes: int, nome_jpg: str):
+def _bounds(produto: str, prefixo: str, t: dt.datetime):
     chave = f"dsat:bounds:{produto}"
     b = cache.get(chave)
     if b is not None:
         return b
-    base = f"{BASE}/{produto}/{ano}/{mes:02d}/{nome_jpg}"
-    jgw = requests.get(base[:-4] + ".jgw", headers=HEADERS, timeout=20).text.split()
+    jgw = requests.get(_url(produto, prefixo, t, "jgw"), headers=HEADERS, timeout=20).text.split()
     passo_x, passo_y, x0, y0 = float(jgw[0]), abs(float(jgw[3])), float(jgw[4]), float(jgw[5])
-    largura, altura = _tamanho_jpeg(base)
+    largura, altura = _tamanho_jpeg(_url(produto, prefixo, t))
     oeste, norte = x0 - passo_x / 2, y0 + passo_y / 2
     b = [[norte - altura * passo_y, oeste], [norte, oeste + largura * passo_x]]  # [[sul, oeste], [norte, leste]]
     cache.set(chave, b, TTL_BOUNDS_S)
@@ -96,28 +111,20 @@ class DsatSateliteImageryView(APIView):
         if cached is not None:
             return Response(cached)
 
-        produto = PRODUTOS[tipo][0]
-        agora = dt.datetime.now(dt.timezone.utc)
+        produto, prefixo, _ = PRODUTOS[tipo]
         try:
-            quadros = [(agora.year, agora.month, q) for q in _listar(produto, agora.year, agora.month)]
-            if len(quadros) < (n or 1):
-                ant = (agora.replace(day=1) - dt.timedelta(days=1))
-                quadros = [(ant.year, ant.month, q) for q in _listar(produto, ant.year, ant.month)] + quadros
+            quadros = _quadros(produto, prefixo, n or 1)
             if not quadros:
-                return Response({"detail": "Nenhuma imagem disponível no momento."}, status=502)
-            quadros = quadros[-(n or 1):]
-            ano, mes, (_, nome) = quadros[-1]
-            bounds = _bounds(produto, ano, mes, nome)
+                return Response({"detail": "Nenhuma imagem recente disponível para este produto (o visível só existe de dia)."}, status=502)
+            bounds = _bounds(produto, prefixo, quadros[-1])
         except Exception as exc:  # noqa: BLE001
             logger.warning("Falha ao consultar imagens do DSAT/CPTEC (%s): %s", tipo, exc)
             return Response({"detail": "Falha ao consultar o CPTEC/INPE."}, status=502)
 
-        def item(a, m, q):
-            ts, arq = q
-            data = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]} {ts[8:10]}:{ts[10:12]}:00"  # UTC, igual ao formato da REDEMET
-            return {"data": data, "path": f"{BASE}/{produto}/{a}/{m:02d}/{arq}"}
-
-        itens = [item(a, m, q) for a, m, q in quadros]
+        itens = [
+            {"data": f"{t:%Y-%m-%d %H:%M}:00", "path": _url(produto, prefixo, t)}  # UTC, igual ao formato da REDEMET
+            for t in quadros
+        ]
         if n is not None:
             payload = {"tipo": tipo, "frames": itens, "bounds": bounds, "total_frames": len(itens)}
         else:

@@ -46,3 +46,9 @@ O padrão passou a ser a **Cor verdadeira — True Color**.
 * **Imagem:** o navegador baixa o JPG direto do CPTEC (CORS aberto, sem login); cada quadro tem ~4 MB e cobre toda a América do Sul. Animação limitada a 6 quadros (1 h) por causa do peso. Opacidade 0,8. À noite/antes do amanhecer a imagem é escura (é a cor real).
 * **Frontend:** `MapView.tsx` (tipos novos em `TipoSatelite`, `eDsat()`, rótulo "DSAT/CPTEC-INPE (GOES-19)").
 * **Teste local:** quadro True Color sobre o RJ georreferenciado corretamente (costa e nuvens sobre as estações). No `next dev` local o proxy remove a barra final e dá 404 (também ocorre com as rotas antigas) — em produção a rota é do mesmo domínio e funciona (403 sem login, como as demais).
+
+### Correção em 08/10/2026 — DSAT "carregando para sempre"
+* **Causa:** o CPTEC esvaziou/reorganizou `ftp.cptec.inpe.br/goes/goes19/` na madrugada de 08/10 (diretórios `goes19_web`, `rgb` etc. passaram a dar 404, sobrou só `web_tiles/` vazio). A rota do DSAT dependia da listagem desse diretório, voltava 502 e o mapa ficava em "Carregando…" porque o front tratava a resposta de erro como imagem.
+* **Correção (backend):** os mesmos arquivos continuam em `https://satelite.cptec.inpe.br/repositoriogoes/goes19/goes19_web/<produto>/AAAA/MM/<prefixo>_AAAAMMDDHHMM.jpg` (+ `.jgw`), mas **sem listagem de diretório**. A rota agora testa (HEAD, em paralelo) os horários de 10 em 10 min das últimas 4 h e pega os últimos existentes. Prefixos: True Color `S11161220`, IR realçado `S11161222`, canal 13 `S11161113`, visível canal 02 `S11161102` (este só existe de dia). Quadros de ~2,4 MB. Testado no servidor com a ação admin de leitura `teste_dsat` (6 quadros em 0,1 s).
+* **Correção (frontend):** erro/sem imagem agora mostra "Sem imagem disponível agora…" em vez de "Carregando…" eterno (`MapView.tsx`).
+* Se o CPTEC mudar de novo: reexecutar `teste_dsat` (ação admin) e ajustar `BASE`/`PRODUTOS` em `backend/api/dsat_imagery_views.py`.
