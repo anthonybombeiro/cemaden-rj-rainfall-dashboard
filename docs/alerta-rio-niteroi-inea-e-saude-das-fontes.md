@@ -182,3 +182,19 @@ O monitor somente leitura rodou ~3 h (00:48-03:45 UTC, 88 leituras a cada 4 min)
 reversões anteriores ocorreram em intervalos maiores (a 1ª em ~30 min após o ajuste; a 2ª em até ~3 dias). Hipóteses ainda
 abertas: rotina diária/semanal do provedor ou tela do cPanel aberta com versão antiga. **Próximo passo sugerido:** repetir o
 monitor por 24-48 h (somente leitura).
+
+### 10.8 Conferência de 08/10/2026 (~07:30 BRT; `conferir_oficial_vs_nosso.py niteroi alerta_rio`)
+| Fonte | 1 h | 24 h | 96 h |
+|---|---|---|---|
+| Niterói (30 estações) | média +0,00; 0 com \|erro\| > 2 mm | média +0,02 (máx 0,6); 0 | **média −0,05 (máx 0,8); 0** (baseline 06/10: +3,04, 24 de 30) |
+| Alerta Rio (32 casadas; "Est. Grajaú/Jacarepaguá" sem casamento) | média +0,00; 0 | média +0,01 (máx 0,2); 0 | **média −5,94; 17 de 32 com \|erro\| > 2 mm** (baseline: −9,13; 18) |
+
+**Critério das 24 h (média entre −1 e +1 mm e ≤ 3 estações com \|erro\| > 2 mm): atendido nas duas fontes.**
+Niterói já cumpre também o critério de 96 h; o `m05` com cron de 5 min eliminou o excesso.
+Alerta Rio: o 96 h ainda carrega a perda de chuva de 04-06/10 (antes da correção de `m05` e do tratamento
+de −99,99 de 06/10 à noite); os maiores desvios são de estações que tiveram chuva forte nesses dias
+(Barra/Rio Centro −46,6; Bangu −31,4; Av. Brasil/Mendanha −27,0; Barra/Itanhangá −19,6), todos com 24 h e
+1 h corretos. Esse residual só some quando a janela de 96 h deixar de incluir 04-06/10 (a partir de
+~10/10 noite); a conferência agendada de **10/10 22:00** valida. Crontab não reconferido nesta rodada
+(monitor anterior sem mudanças).
+
