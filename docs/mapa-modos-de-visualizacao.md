@@ -67,3 +67,10 @@ Problema: as listas de tipo de satélite/radar (agora 7 e 16 opções) cresciam 
 * A lista passou a mostrar **~5 opções** (`max-h-[9.5rem]`) e rola por dentro (`overflow-y-auto overscroll-contain`).
 * Os painéis do mapa (Camada de imagem e botão Estações) param os eventos de rolagem/clique/toque antes do Leaflet (`L.DomEvent.disableScrollPropagation` e `disableClickPropagation`), então rolar ou tocar no menu não move nem dá zoom no mapa.
 * Teste (375 px): lista com 150 px visíveis de 448 (16 itens), rolou até o fim e o `translate3d` do mapa permaneceu `0,0,0`.
+
+## Alinhamento da imagem do DSAT com o mapa (09/10/2026)
+Relato: a imagem de satélite não batia com o mapa (a costa ficava deslocada).
+* **Causa:** os JPG do DSAT estão em projeção geográfica (graus lineares de latitude e longitude, 0,02°/pixel). O `ImageOverlay` do Leaflet estica a imagem entre os cantos **em Web Mercator**; numa imagem de 68° de latitude (12,5° N a 56° S) isso distorce a posição (cálculo: ~5° de deslocamento na latitude do RJ no pior caso do estiramento linear).
+* **Verificação da georreferência do arquivo:** limites municipais do RJ (`rj_municipios.geojson`) desenhados em lat/lon linear sobre o recorte do True Color coincidem com a costa e a baía (sem deslocamento sistemático); assumir imagem em Mercator não encontra o RJ no lugar certo. Ou seja, o arquivo e o `.jgw` estão corretos; o erro era do desenho.
+* **Correção:** novo `frontend/src/components/CamadaGeografica.tsx` — camada de tiles em canvas (`L.GridLayer`) que posiciona cada linha da imagem na latitude Mercator correta (`map.project`) e recorta a longitude por tile. Usa `drawImage` direto (sem ler pixels, então não precisa de CORS); troca de quadro redesenha os tiles existentes sem piscar; cache de até 8 imagens. Aplicada aos 4 produtos DSAT em `MapView.tsx`; REDEMET (satélite/radar), Niterói e INEA continuam em `ImageOverlay` (áreas pequenas ou projeção própria — reavaliar se aparecer desalinhamento).
+* **Teste (local):** o canto norte da imagem (12,5° N) e o leste (−25°) caem exatamente em Guiné-Bissau/Cabo Verde no mapa-base.

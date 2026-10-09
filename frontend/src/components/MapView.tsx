@@ -1,6 +1,7 @@
 "use client";
 
 import L from "leaflet";
+import CamadaGeografica from "@/components/CamadaGeografica";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -468,7 +469,12 @@ function CamadaMeteorologica({ imagem }: { imagem: ImageryLayer | null }) {
   // 02/10/2026). Mantendo a mesma instância, o react-leaflet só chama
   // `setUrl`/`setBounds` na camada já existente — troca suave, sem piscar,
   // e só remonta de verdade quando a fonte muda de fato (satélite↔radar).
-  return <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={eDsat(imagem.tipo as TipoSatelite) ? 0.8 : 0.55} zIndex={400} />;
+  // Imagens do DSAT/CPTEC são em graus lineares de lat/lon: o ImageOverlay (esticado em Mercator) as
+  // desalinharia do mapa; a CamadaGeografica reprojeta linha a linha (09/10/2026).
+  if (eDsat(imagem.tipo as TipoSatelite)) {
+    return <CamadaGeografica key="dsat" url={imagem.image_url} bounds={imagem.bounds as [[number, number], [number, number]]} opacity={0.8} zIndex={400} />;
+  }
+  return <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={0.55} zIndex={400} />;
 }
 
 /** Botão flutuante pra alternar a camada de satélite/radar. Canto inferior

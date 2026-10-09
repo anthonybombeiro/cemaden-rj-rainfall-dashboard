@@ -145,6 +145,7 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 08/10 | **Conferência Alerta Rio × Niterói (24 h):** critério atendido nas duas (erro médio ≈ 0, 0 estações com \|erro\| > 2 mm); Niterói também 96 h OK; Alerta Rio 96 h ainda −5,94 por perda de 04-06/10 (revalida 10/10 22:00). Detalhes em `alerta-rio-niteroi-inea-e-saude-das-fontes.md` §10.8 |
 | 09/10 | **Radar de Santa Teresa (REDEMET, área `st`)** no mapa: 5 cortes; `area` validada no backend; ação admin de leitura `teste_redemet`. Deploy backend+frontend. Ver `mapa-modos-de-visualizacao.md` |
 | 09/10 | **Menus do mapa:** listas de satélite/radar limitadas a ~5 opções com rolagem interna; rolar/tocar no painel não move mais o mapa (`MapView.tsx`, `MapaBolhas.tsx`). Deploy frontend |
+| 09/10 | **Satélite DSAT alinhado ao mapa:** imagem em lat/lon linear era esticada em Mercator pelo `ImageOverlay`; nova `CamadaGeografica.tsx` (tiles em canvas com reprojeção por linha). Deploy frontend. Ver `mapa-modos-de-visualizacao.md` |
 
 ## Pendências abertas (03/10/2026)
 
