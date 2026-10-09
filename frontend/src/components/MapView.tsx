@@ -1,7 +1,7 @@
 "use client";
 
 import L from "leaflet";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -501,6 +501,15 @@ function SeletorCamadaMeteorologica({
   const [aberto, setAberto] = useState(false);
   const [tipoAbertoSatelite, setTipoAbertoSatelite] = useState(false);
   const [tipoAbertoRadar, setTipoAbertoRadar] = useState(false);
+  // O painel fica DENTRO do mapa: sem isto, rolar a lista (roda do mouse/toque) ou arrastar nela
+  // movia/zoomava o mapa ao fundo. Os eventos de scroll/clique/toque param no painel.
+  const painelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = painelRef.current;
+    if (!el) return;
+    L.DomEvent.disableScrollPropagation(el);
+    L.DomEvent.disableClickPropagation(el);
+  }, []);
 
   const opcoes: { valor: CamadaImagem; label: string }[] = [
     { valor: "nenhuma", label: "Nenhuma" },
@@ -548,9 +557,9 @@ function SeletorCamadaMeteorologica({
   ];
 
   return (
-    <div className="absolute bottom-3 left-3 z-[1000] max-w-[calc(100vw-1.5rem)]">
+    <div ref={painelRef} className="absolute bottom-3 left-3 z-[1000] max-w-[calc(100vw-1.5rem)]">
       {aberto && (
-        <div className="mb-2 w-72 max-h-[60vh] overflow-y-auto rounded-md border border-gray-200 bg-white p-3 text-xs shadow-lg">
+        <div className="mb-2 w-72 max-h-[60vh] overflow-y-auto overscroll-contain rounded-md border border-gray-200 bg-white p-3 text-xs shadow-lg">
           <p className="mb-2 font-semibold text-gray-700">Camada de imagem</p>
 
           {/* Seleção principal: Nenhuma / Satélite / Radar */}
@@ -585,7 +594,7 @@ function SeletorCamadaMeteorologica({
                 <span className={`transform transition-transform ${tipoAbertoSatelite ? "rotate-180" : ""}`}>▾</span>
               </button>
               {tipoAbertoSatelite && (
-                <div className="mt-1 border border-gray-200 rounded bg-white shadow">
+                <div className="mt-1 max-h-[9.5rem] overflow-y-auto overscroll-contain rounded border border-gray-200 bg-white shadow">
                   {tiposSatelite.map((t) => (
                     <button
                       key={t.valor}
@@ -620,7 +629,7 @@ function SeletorCamadaMeteorologica({
                 <span className={`transform transition-transform ${tipoAbertoRadar ? "rotate-180" : ""}`}>▾</span>
               </button>
               {tipoAbertoRadar && (
-                <div className="mt-1 border border-gray-200 rounded bg-white shadow">
+                <div className="mt-1 max-h-[9.5rem] overflow-y-auto overscroll-contain rounded border border-gray-200 bg-white shadow">
                   {tiposRadar.map((t) => (
                     <button
                       key={t.valor}

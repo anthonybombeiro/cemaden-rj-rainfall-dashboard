@@ -1,7 +1,7 @@
 "use client";
 
 import L from "leaflet";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, Marker, Popup, useMapEvents } from "react-leaflet";
 
 import {
@@ -276,10 +276,18 @@ export function SeletorModoMapa({
   contagem: number | null;
 }) {
   const [aberto, setAberto] = useState(false);
+  const raizRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    // Rolar/tocar no menu não deve mover o mapa ao fundo.
+    if (raizRef.current) {
+      L.DomEvent.disableScrollPropagation(raizRef.current);
+      L.DomEvent.disableClickPropagation(raizRef.current);
+    }
+  }, []);
   const atual = MODOS_MAPA.find((m) => m.key === modo) ?? MODOS_MAPA[0];
   return (
     // left-14: logo à direita do controle de zoom do Leaflet (canto superior esquerdo)
-    <div className="absolute z-[1000]" style={{ left: 56, top: 12, maxWidth: "calc(100vw - 4.5rem)" }}>
+    <div ref={raizRef} className="absolute z-[1000]" style={{ left: 56, top: 12, maxWidth: "calc(100vw - 4.5rem)" }}>
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
@@ -292,7 +300,7 @@ export function SeletorModoMapa({
         <span className="text-xs text-gray-400">{aberto ? "▴" : "▾"}</span>
       </button>
       {aberto && (
-        <div className="mt-1 w-72 max-w-full rounded-md border border-gray-200 bg-white p-1.5 text-sm shadow-lg">
+        <div className="mt-1 max-h-[55vh] w-72 max-w-full overflow-y-auto overscroll-contain rounded-md border border-gray-200 bg-white p-1.5 text-sm shadow-lg">
           <p className="px-2 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Visualização das bolinhas</p>
           {MODOS_MAPA.map((m) => (
             <button

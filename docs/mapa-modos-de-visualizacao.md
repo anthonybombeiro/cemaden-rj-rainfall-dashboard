@@ -61,3 +61,9 @@ cobrindo o norte/noroeste do RJ). As opções antigas ficaram rotuladas "(Pico d
 * **Frontend:** `MapView.tsx` — tipos `st-maxcappi`, `st-10km`, `st-07km`, `st-05km`, `st-03km`; o prefixo `st-` escolhe `area=st`. Animação: até 8 quadros (limite real da REDEMET).
 * **Descoberta do código:** ação admin de leitura `teste_redemet` (GET em `/produtos/...` com a chave do servidor, nunca exibida). Os 5 cortes responderam com imagem recente (17:50-17:57 UTC).
 * Não verificado visualmente em produção (a chave REDEMET só existe no servidor e a rota exige login).
+
+## Menus do mapa — rolagem e tamanho (09/10/2026)
+Problema: as listas de tipo de satélite/radar (agora 7 e 16 opções) cresciam o painel além da tela e rolar com o dedo/roda movia o mapa ao fundo.
+* A lista passou a mostrar **~5 opções** (`max-h-[9.5rem]`) e rola por dentro (`overflow-y-auto overscroll-contain`).
+* Os painéis do mapa (Camada de imagem e botão Estações) param os eventos de rolagem/clique/toque antes do Leaflet (`L.DomEvent.disableScrollPropagation` e `disableClickPropagation`), então rolar ou tocar no menu não move nem dá zoom no mapa.
+* Teste (375 px): lista com 150 px visíveis de 448 (16 itens), rolou até o fim e o `translate3d` do mapa permaneceu `0,0,0`.
