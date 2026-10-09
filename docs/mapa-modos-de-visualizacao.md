@@ -52,3 +52,12 @@ O padrão passou a ser a **Cor verdadeira — True Color**.
 * **Correção (backend):** os mesmos arquivos continuam em `https://satelite.cptec.inpe.br/repositoriogoes/goes19/goes19_web/<produto>/AAAA/MM/<prefixo>_AAAAMMDDHHMM.jpg` (+ `.jgw`), mas **sem listagem de diretório**. A rota agora testa (HEAD, em paralelo) os horários de 10 em 10 min das últimas 4 h e pega os últimos existentes. Prefixos: True Color `S11161220`, IR realçado `S11161222`, canal 13 `S11161113`, visível canal 02 `S11161102` (este só existe de dia). Quadros de ~2,4 MB. Testado no servidor com a ação admin de leitura `teste_dsat` (6 quadros em 0,1 s).
 * **Correção (frontend):** erro/sem imagem agora mostra "Sem imagem disponível agora…" em vez de "Carregando…" eterno (`MapView.tsx`).
 * Se o CPTEC mudar de novo: reexecutar `teste_dsat` (ação admin) e ajustar `BASE`/`PRODUTOS` em `backend/api/dsat_imagery_views.py`.
+
+## Radar de Santa Teresa — REDEMET (09/10/2026)
+Em **Opções → Camada de imagem → Radar** entraram 5 opções "(Santa Teresa)": MAXCAPPI e CAPPI 10/7/5/3 km. A REDEMET
+chama a área de `st` ("Radar - Santa Teresa/MG", raio 400 km, centro −19,99/−40,58; limites lat −23,54…−16,35, lon −44,33…−36,66,
+cobrindo o norte/noroeste do RJ). As opções antigas ficaram rotuladas "(Pico do Couto)", `area=pc`.
+* **Backend:** `/api/imagery/radar/?tipo=<corte>&area=st` (mesma view do Pico do Couto; `area` agora é validada contra `{pc, st}` em `AREAS_RADAR`, `redemet_imagery_views.py`).
+* **Frontend:** `MapView.tsx` — tipos `st-maxcappi`, `st-10km`, `st-07km`, `st-05km`, `st-03km`; o prefixo `st-` escolhe `area=st`. Animação: até 8 quadros (limite real da REDEMET).
+* **Descoberta do código:** ação admin de leitura `teste_redemet` (GET em `/produtos/...` com a chave do servidor, nunca exibida). Os 5 cortes responderam com imagem recente (17:50-17:57 UTC).
+* Não verificado visualmente em produção (a chave REDEMET só existe no servidor e a rota exige login).

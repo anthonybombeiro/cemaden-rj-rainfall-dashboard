@@ -173,6 +173,11 @@ type TipoRadar =
   | "07km"
   | "05km"
   | "03km"
+  | "st-maxcappi"
+  | "st-10km"
+  | "st-07km"
+  | "st-05km"
+  | "st-03km"
   | "niteroi"
   | "inea-mosaic"
   | "inea-gua"
@@ -333,7 +338,10 @@ function useCamadaMeteorologica(
                 // 02/10/2026 — o satélite vai até 14, ou seja, 15 quadros).
                 // Pedir 15 pro radar só fazia a REDEMET repetir o último
                 // quadro disponível pra completar a conta.
-                fetch(`/api/imagery/radar/?tipo=${config.tipoRadar}&area=pc${config.animacao ? "&anima=8" : ""}`).then((r) => r.json());
+                fetch(
+                  // "st-<corte>" = radar de Santa Teresa (area=st); sem prefixo = Pico do Couto (area=pc)
+                  `/api/imagery/radar/?tipo=${config.tipoRadar.replace("st-", "")}&area=${config.tipoRadar.startsWith("st-") ? "st" : "pc"}${config.animacao ? "&anima=8" : ""}`,
+                ).then((r) => r.json());
 
       promessa
         .then((data: any) => {
@@ -511,11 +519,17 @@ function SeletorCamadaMeteorologica({
   ];
 
   const tiposRadar: { valor: TipoRadar; label: string }[] = [
-    { valor: "maxcappi", label: "MAXCAPPI (composição)" },
-    { valor: "10km", label: "CAPPI 10km" },
-    { valor: "07km", label: "CAPPI 7km" },
-    { valor: "05km", label: "CAPPI 5km" },
-    { valor: "03km", label: "CAPPI 3km" },
+    { valor: "maxcappi", label: "MAXCAPPI (Pico do Couto)" },
+    { valor: "10km", label: "CAPPI 10km (Pico do Couto)" },
+    { valor: "07km", label: "CAPPI 7km (Pico do Couto)" },
+    { valor: "05km", label: "CAPPI 5km (Pico do Couto)" },
+    { valor: "03km", label: "CAPPI 3km (Pico do Couto)" },
+    // Radar de Santa Teresa (REDEMET, area=st; raio 400 km, cobre norte/noroeste do RJ) — pedido 09/10/2026.
+    { valor: "st-maxcappi", label: "MAXCAPPI (Santa Teresa)" },
+    { valor: "st-10km", label: "CAPPI 10km (Santa Teresa)" },
+    { valor: "st-07km", label: "CAPPI 7km (Santa Teresa)" },
+    { valor: "st-05km", label: "CAPPI 5km (Santa Teresa)" },
+    { valor: "st-03km", label: "CAPPI 3km (Santa Teresa)" },
     // Radar próprio da Prefeitura de Niterói (radar.niteroi.rj.gov.br) —
     // pedido do usuário (02/10/2026). Atualiza a cada 5min (contra ~20min
     // do MAXCAPPI) e cobre raio de 100km a partir de Niterói — menor área

@@ -47,6 +47,7 @@ CACHE_TTL_SEGUNDOS = 300
 CACHE_TTL_ANIMACAO_SEGUNDOS = 120
 
 TIPOS_SATELITE = {"ir", "realcada", "vis"}
+AREAS_RADAR = {"pc", "st"}  # pc = Pico do Couto/RJ; st = Santa Teresa (REDEMET, 09/10/2026)
 TIPOS_RADAR = {"maxcappi", "10km", "07km", "05km", "03km"}
 
 
@@ -148,6 +149,8 @@ class RedemetRadarImageryView(APIView):
         area = request.query_params.get("area", "pc")
         if tipo not in TIPOS_RADAR:
             return Response({"detail": f"tipo inválido, use um de: {sorted(TIPOS_RADAR)}"}, status=400)
+        if area not in AREAS_RADAR:
+            return Response({"detail": f"area inválida, use uma de: {sorted(AREAS_RADAR)}"}, status=400)
 
         num_frames, erro = _parse_anima(request.query_params.get("anima"))
         if erro is not None:

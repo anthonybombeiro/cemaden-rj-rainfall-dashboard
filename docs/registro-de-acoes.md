@@ -143,6 +143,7 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 07/10 | **Aba Resumo 24h** (após Alertas): rota `/api/resumo/`, `ResumoPanel.tsx`; resumo do dia, Top 10 (chuva, Tmáx, Tmín, rajada), previsão × observado por REDEC e cidades com chuva/rajada. Deploy backend+frontend; documentado em `resumo-24h.md` |
 | 08/10 | **Correções a pedido do usuário:** (1) Resumo 24h não rolava e ficava ruim no celular → contêiner com rolagem, listas e grids responsivos; (2) satélite DSAT em "Carregando…" eterno → o CPTEC esvaziou o ftp, rota passou a sondar `satelite.cptec.inpe.br/repositoriogoes` por HEAD; mapa mostra erro claro; ação admin de leitura `teste_dsat`. Deploy backend+frontend |
 | 08/10 | **Conferência Alerta Rio × Niterói (24 h):** critério atendido nas duas (erro médio ≈ 0, 0 estações com \|erro\| > 2 mm); Niterói também 96 h OK; Alerta Rio 96 h ainda −5,94 por perda de 04-06/10 (revalida 10/10 22:00). Detalhes em `alerta-rio-niteroi-inea-e-saude-das-fontes.md` §10.8 |
+| 09/10 | **Radar de Santa Teresa (REDEMET, área `st`)** no mapa: 5 cortes; `area` validada no backend; ação admin de leitura `teste_redemet`. Deploy backend+frontend. Ver `mapa-modos-de-visualizacao.md` |
 
 ## Pendências abertas (03/10/2026)
 

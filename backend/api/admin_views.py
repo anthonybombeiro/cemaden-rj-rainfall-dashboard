@@ -85,6 +85,7 @@ ACOES_PERMITIDAS = {
     "analise_negativos",
     "cotas_hidro",
     "teste_dsat",
+    "teste_redemet",
 }
 
 
@@ -456,6 +457,27 @@ class AdminOpsView(APIView):
                 except Exception as exc:  # noqa: BLE001
                     res["erro"] = f"{type(exc).__name__}: {exc}"
                 saida.write(json_module.dumps(res, ensure_ascii=False, default=str))
+            elif action == "teste_redemet":
+                # SOMENTE LEITURA: GET na API-REDEMET (/produtos/...) com a chave do servidor (nunca exibida).
+                import json as json_module
+
+                import requests as requests_module
+                from django.conf import settings as settings_module
+
+                res = {}
+                for caminho in ((request.data or {}).get("caminhos") or [])[:12]:
+                    if not str(caminho).startswith("/produtos/"):
+                        res[caminho] = "só /produtos/ é permitido"
+                        continue
+                    try:
+                        r = requests_module.get(
+                            "https://api-redemet.decea.mil.br" + caminho,
+                            headers={"X-Api-Key": settings_module.REDEMET_API_KEY}, timeout=25,
+                        )
+                        res[caminho] = {"status": r.status_code, "corpo": r.text[:700]}
+                    except Exception as exc:  # noqa: BLE001
+                        res[caminho] = f"{type(exc).__name__}: {exc}"
+                saida.write(json_module.dumps(res, ensure_ascii=False))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 
