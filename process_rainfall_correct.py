@@ -127,7 +127,8 @@ for mun in by_mun_year_month:
                 'rainy_days': int(max_rainy),
                 'max_daily_mm': float(max_daily_mm),
                 'avg_daily_mm': float(avg_daily_mm),
-                'num_stations': len(stations_data)
+                'num_stations': len(stations_data),
+                'days_with_data': max(len(v) for v in stations_data.values())
             }
 
 # Salvar
@@ -141,8 +142,8 @@ print(f"Tamanho: {output_path.stat().st_size / (1024*1024):.1f} MB")
 # Verificacao
 petro = [m for m in final_data['by_municipality_year_month'].keys() if 'Petr' in m][0]
 print(f"\nVerificacao - {petro} marco 2024:")
-print(f"  Total: {final_data['by_municipality_year_month'][petro]['2024']['3']['total_mm']:.1f} mm")
-print(f"  Max daily: {final_data['by_municipality_year_month'][petro]['2024']['3']['max_daily_mm']:.1f} mm")
+print(f"  Total: {final_data['by_municipality_year_month'][petro][2024][3]['total_mm']:.1f} mm")
+print(f"  Max daily: {final_data['by_municipality_year_month'][petro][2024][3]['max_daily_mm']:.1f} mm")
 
 for e in final_data['daily_maxima'][:3]:
     if e['date'] == '2024-03-22':
