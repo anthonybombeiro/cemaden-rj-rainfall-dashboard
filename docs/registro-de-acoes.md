@@ -147,6 +147,7 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 09/10 | **Menus do mapa:** listas de satélite/radar limitadas a ~5 opções com rolagem interna; rolar/tocar no painel não move mais o mapa (`MapView.tsx`, `MapaBolhas.tsx`). Deploy frontend |
 | 09/10 | **Satélite DSAT alinhado ao mapa:** imagem em lat/lon linear era esticada em Mercator pelo `ImageOverlay`; nova `CamadaGeografica.tsx` (tiles em canvas com reprojeção por linha). Deploy frontend. Ver `mapa-modos-de-visualizacao.md` |
 | 16/10 | **Barra de opacidade** das imagens de satélite/radar acima da animação (padrão 70%, salva no navegador). Deploy frontend |
+| 16/10 | **Conferência 96 h Alerta Rio × Niterói:** critério atendido nas duas (Niterói −0,85 mm, 3 estações > 4 mm; Alerta Rio +0,26 mm, 1 estação > 4 mm). Detalhes em `alerta-rio-niteroi-inea-e-saude-das-fontes.md` §10.9 |
 
 ## Pendências abertas (03/10/2026)
 

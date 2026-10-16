@@ -198,3 +198,12 @@ de −99,99 de 06/10 à noite); os maiores desvios são de estações que tivera
 ~10/10 noite); a conferência agendada de **10/10 22:00** valida. Crontab não reconferido nesta rodada
 (monitor anterior sem mudanças).
 
+### 10.9 Conferência de 96 h (16/10/2026 ~01:00 BRT; `conferir_oficial_vs_nosso.py niteroi alerta_rio`)
+Executada a pedido do usuário no lugar da tarefa agendada de 10/10 22:00. Critério: erro médio de 96 h entre −2 e +2 mm e no máximo 4 estações com |erro| > 4 mm por fonte.
+| Fonte | 1 h | 24 h | 96 h | \|erro\| > 4 mm (96 h) |
+|---|---|---|---|---|
+| Niterói (30) | média −0,01 | média −0,85 (máx 8,8; 4 com > 2) | **média −0,85 (máx 8,8)** | **3** (Morro da Penha −8,8; Boa Vista −5,8; Bairro de Fátima −4,2) |
+| Alerta Rio (32) | média −0,04 (1 com > 2) | média +0,06 (máx 2,0) | **média +0,26 (máx 8,0)** | **1** (Jacarepaguá/Tanque +8,0, nosso acima do oficial) |
+
+**Resultado: critério atendido nas duas fontes.** Alerta Rio saiu de −5,94 mm (17 de 32 fora, em 08/10) para +0,26 (1 de 32): o residual era mesmo a perda de 04-06/10, que já saiu da janela. Niterói ficou com um pequeno déficit (−0,85) concentrado em 4 estações (Penha, Boa Vista, Fátima, Pé Pequeno), todo ele dentro das últimas 24 h (24 h = 96 h) — compatível com chuva do evento mais recente que chega ao oficial e não vimos, a acompanhar em chuvas futuras; sem ação necessária agora. Crontab não reconferido nesta rodada.
+
