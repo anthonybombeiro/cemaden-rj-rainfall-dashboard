@@ -85,11 +85,12 @@ export async function fetchFloodHubValidacao(dias = 14): Promise<{ dias: number;
 }
 
 export const ESTILO_SEVERIDADE: Record<string, { bg: string; text: string; rotulo: string }> = {
-  EXTREME: { bg: "#dc2626", text: "#ffffff", rotulo: "Extremo" },
-  SEVERE: { bg: "#f97316", text: "#ffffff", rotulo: "Severo" },
-  ABOVE_NORMAL: { bg: "#eab308", text: "#1f2937", rotulo: "Acima do normal" },
-  NO_FLOODING: { bg: "#bbf7d0", text: "#166534", rotulo: "Sem cheia" },
-  UNKNOWN: { bg: "#e5e7eb", text: "#374151", rotulo: "Desconhecido" },
+  // Cores originais do Google Flood Hub (amostradas da legenda do site em 16/10/2026): Extremo, Perigo, Aviso, Normal, Sem dados
+  EXTREME: { bg: "#9f0203", text: "#ffffff", rotulo: "Extremo" },
+  SEVERE: { bg: "#fe320e", text: "#ffffff", rotulo: "Severo" },
+  ABOVE_NORMAL: { bg: "#fb9a32", text: "#1f2937", rotulo: "Acima do normal" },
+  NO_FLOODING: { bg: "#45a46b", text: "#ffffff", rotulo: "Sem cheia" },
+  UNKNOWN: { bg: "#bebebe", text: "#1f2937", rotulo: "Desconhecido" },
 };
 
 export const ROTULO_TENDENCIA: Record<string, string> = { RISE: "↗ subindo", FALL: "↘ descendo", NO_CHANGE: "→ estável" };

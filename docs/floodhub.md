@@ -106,3 +106,14 @@ postos, início/fim); *chuva repentina (flash flood)* = probabilidade de enchent
   O parser KML foi validado com um polígono real da API (17 polígonos, 2.479 vértices).
 * Limites: a ordem dos pontos do KML é lon,lat (convertida); o teste de "toca o RJ" é aproximado (centroides/vértices), podendo perder um polígono que cruze o RJ sem
   conter centroide nem vértice dele (improvável nas escalas desses eventos).
+
+## Cores originais e ordem das camadas (16/10/2026)
+* **Cores do Flood Hub** (amostradas da legenda do site do Google): Extremo `#9f0203`, Perigo `#fe320e` (nosso rótulo "Severo"), Aviso `#fb9a32` ("Acima do normal"),
+  Normal `#45a46b` ("Sem cheia"), Sem dados `#bebebe`. As bolinhas do mapa e as etiquetas das tabelas usam essas cores, **sem transparência** (borda branca nos
+  verificados; tracejada cinza nos não verificados, que ficam um pouco menores). Os rótulos continuam os nossos; se preferir os nomes do Google (Extremo/Perigo/Aviso/Normal),
+  é só trocar em `ESTILO_SEVERIDADE` (`frontend/src/lib/floodhub.ts`).
+* **Ordem das camadas no mapa (de baixo para cima):** mapa-base (200) → divisões e bolinhas das estações (`overlayPane`, 400; marcadores 600) → **imagens de satélite/radar**
+  (pane `imagensMeteo`, 650) → **áreas de evento do Flood Hub** (pane `eventosFH`, 660) → popups (700). Antes as imagens (zIndex 400 no mesmo pane das bolinhas) ficavam
+  *abaixo* das estações. Agora a imagem cobre as estações e a **barra de opacidade** controla o quanto delas se vê. Os dois panes têm `pointer-events: none`, então o clique passa
+  para a estação por baixo (verificado: `elementFromPoint` no centro da bolinha devolve a própria estação com o satélite a 100%); o contorno das áreas de evento continua clicável
+  (CSS `.evento-fh { pointer-events: stroke }`).

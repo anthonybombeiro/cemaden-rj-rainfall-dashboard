@@ -3,7 +3,7 @@
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ESTILO_EVENTO, ESTILO_SEVERIDADE, EventoFH, ORDEM_SEVERIDADE, PostoFH, ROTULO_TENDENCIA, severidadeEfetiva } from "@/lib/floodhub";
-import { GeoJSON, CircleMarker, Marker, Popup, useMapEvents } from "react-leaflet";
+import { Pane, GeoJSON, CircleMarker, Marker, Popup, useMapEvents } from "react-leaflet";
 
 import {
   getChuva1hFaixa,
@@ -349,7 +349,7 @@ const fmtData = (iso: string | null) => (iso ? new Date(iso).toLocaleString("pt-
 /** Áreas de inundação significativa e de chuva repentina (flash flood) do Google Flood Hub que tocam o RJ. */
 export function CamadaEventosFH({ eventos }: { eventos: EventoFH[] }) {
   return (
-    <>
+    <Pane name="eventosFH" style={{ zIndex: 660, pointerEvents: "none" }}>
       {eventos.flatMap((ev) =>
         ev.feicoes.map((f, i) => {
           const e = ESTILO_EVENTO[f.nivel] ?? ESTILO_EVENTO.significativo;
@@ -357,7 +357,7 @@ export function CamadaEventosFH({ eventos }: { eventos: EventoFH[] }) {
             <GeoJSON
               key={`${ev.id}-${f.nivel}-${i}-${ev.emitido_em ?? ev.inicio}`}
               data={{ type: "Feature", properties: {}, geometry: f.geometry } as GeoJSON.Feature}
-              style={{ color: e.cor, weight: 2, fillColor: e.cor, fillOpacity: e.opacidade, dashArray: f.nivel === "provavel" ? "6 4" : undefined }}
+              style={{ color: e.cor, weight: 2, fillColor: e.cor, fillOpacity: e.opacidade, dashArray: f.nivel === "provavel" ? "6 4" : undefined, className: "evento-fh" }}
             >
               <Popup>
                 <div className="space-y-0.5 text-sm">
@@ -381,7 +381,7 @@ export function CamadaEventosFH({ eventos }: { eventos: EventoFH[] }) {
           );
         }),
       )}
-    </>
+    </Pane>
   );
 }
 
@@ -401,11 +401,11 @@ export function CamadaFloodHub({ postos, onAbrirFicha }: { postos: PostoFH[]; on
           <CircleMarker
             key={p.gauge_id}
             center={[p.latitude, p.longitude]}
-            radius={alto ? 11 : 7}
+            radius={alto ? 11 : p.verificado ? 8 : 6}
             pathOptions={{
-              color: p.verificado ? "#1e3a8a" : "#6b7280",
+              color: p.verificado ? "#ffffff" : "#4b5563",
               fillColor: e.bg,
-              fillOpacity: p.verificado ? 0.95 : 0.55,
+              fillOpacity: 1, // sem transparência (cor original do Flood Hub)
               weight: alto ? 3 : 1.5,
               dashArray: p.verificado ? undefined : "3 2",
             }}

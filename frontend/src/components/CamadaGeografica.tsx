@@ -37,11 +37,13 @@ export default function CamadaGeografica({
   bounds,
   opacity = 0.8,
   zIndex = 400,
+  pane,
 }: {
   url: string;
   bounds: Limites;
   opacity?: number;
   zIndex?: number;
+  pane?: string;
 }) {
   const map = useMap();
   const estado = useRef<{ img: HTMLImageElement | null; bounds: Limites; tiles: Map<HTMLCanvasElement, L.Coords> }>({
@@ -113,6 +115,7 @@ export default function CamadaGeografica({
       tileSize: 256,
       opacity,
       zIndex,
+      pane,
       updateWhenZooming: false,
     });
     camada.on("tileunload", (ev: L.TileEvent) => {

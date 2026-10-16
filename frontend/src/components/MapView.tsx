@@ -5,7 +5,7 @@ import CamadaGeografica from "@/components/CamadaGeografica";
 import FloodHubFicha from "@/components/FloodHubFicha";
 import { EventoFH, PostoFH, EventosFHResposta, textoEventos } from "@/lib/floodhub";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
+import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Pane, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 import {
@@ -478,9 +478,19 @@ function CamadaMeteorologica({ imagem, opacidade }: { imagem: ImageryLayer | nul
   // Imagens do DSAT/CPTEC são em graus lineares de lat/lon: o ImageOverlay (esticado em Mercator) as
   // desalinharia do mapa; a CamadaGeografica reprojeta linha a linha (09/10/2026).
   if (eDsat(imagem.tipo as TipoSatelite)) {
-    return <CamadaGeografica key="dsat" url={imagem.image_url} bounds={imagem.bounds as [[number, number], [number, number]]} opacity={opacidade} zIndex={400} />;
+    return (
+      <Pane name="imagensMeteo" style={{ zIndex: 650, pointerEvents: "none" }}>
+        <CamadaGeografica key="dsat" url={imagem.image_url} bounds={imagem.bounds as [[number, number], [number, number]]} opacity={opacidade} zIndex={400} pane="imagensMeteo" />
+      </Pane>
+    );
   }
-  return <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={opacidade} zIndex={400} />;
+  // Pane acima das estações (CircleMarker = 400, marcadores = 600): a imagem cobre as estações e a opacidade controla o quanto
+  // se vê delas por baixo; `pointerEvents: none` deixa o clique passar para a estação.
+  return (
+    <Pane name="imagensMeteo" style={{ zIndex: 650, pointerEvents: "none" }}>
+      <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={opacidade} zIndex={400} />
+    </Pane>
+  );
 }
 
 /** Botão flutuante pra alternar a camada de satélite/radar. Canto inferior

@@ -87,3 +87,8 @@ body {
 .leaflet-container {
   isolation: isolate;
 }
+
+/* Áreas de evento do Flood Hub ficam acima das estações mas deixam o clique passar; só o contorno abre o popup. */
+.leaflet-pane .evento-fh.leaflet-interactive {
+  pointer-events: stroke;
+}
