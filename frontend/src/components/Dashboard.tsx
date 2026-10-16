@@ -16,7 +16,7 @@ import CemadenNacionalTable from "@/components/CemadenNacionalTable";
 import RedeTable from "@/components/RedeTable";
 import FloodHubPanel from "@/components/FloodHubPanel";
 import ResumoPanel from "@/components/ResumoPanel";
-import { PostoFH, fetchFloodHub } from "@/lib/floodhub";
+import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
 import SaudeFontesBanner from "@/components/SaudeFontesBanner";
 import { lerModoSalvo, ModoMapa, salvarModo } from "@/lib/mapaModos";
 import PrecipitationTable from "@/components/PrecipitationTable";
@@ -202,6 +202,7 @@ export default function Dashboard({
   const [modoMapa, setModoMapa] = useState<ModoMapa>("redes");
   const [modoMapaLoading, setModoMapaLoading] = useState(false);
   const [floodhubMapa, setFloodhubMapa] = useState<PostoFH[]>([]);
+  const [floodhubEventos, setFloodhubEventos] = useState<EventosFHResposta | null>(null);
   const [floodhubTodosMapa, setFloodhubTodosMapa] = useState(false); // inclui postos NÃO verificados no mapa
   const [floodhubContagem, setFloodhubContagem] = useState("");
   const floodhubExportRef = useRef<(() => void) | null>(null);
@@ -566,6 +567,11 @@ export default function Dashboard({
     let cancelled = false;
     const carregar = () => {
       setModoMapaLoading(true);
+      fetchFloodHubEventos()
+        .then((e) => {
+          if (!cancelled) setFloodhubEventos(e);
+        })
+        .catch(() => {});
       fetchFloodHub({ todos: floodhubTodosMapa })
         .then((d) => {
           if (!cancelled) setFloodhubMapa(d.postos);
@@ -1092,6 +1098,7 @@ export default function Dashboard({
                 sirenes={sirenesDoMapa}
                 floodhub={floodhubMapa}
                 floodhubTodos={floodhubTodosMapa}
+                floodhubEventos={floodhubEventos}
                 onFloodhubTodos={setFloodhubTodosMapa}
                 carregandoModo={
                   (modoMapa === "sirenes" && sirenesLoading) ||

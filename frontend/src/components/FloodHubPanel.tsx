@@ -13,8 +13,12 @@ import {
   PostoFH,
   ROTULO_TENDENCIA,
   ValidacaoLinha,
+  EventosFHResposta,
   fetchFloodHub,
+  fetchFloodHubEventos,
   fetchFloodHubValidacao,
+  ESTILO_EVENTO,
+  textoEventos,
   severidadeEfetiva,
 } from "@/lib/floodhub";
 
@@ -29,6 +33,33 @@ const fmtNum = (v: number | null | undefined, c = 1) => (v == null ? "—" : v.t
 const fmtDataHora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+export function BlocoEventosFH({ eventos }: { eventos: EventosFHResposta | null }) {
+  if (!eventos) return null;
+  if (eventos.no_rj.length === 0) {
+    return <p className="mt-2 text-xs text-gray-600">{textoEventos(eventos)}. (Inundações significativas e chuvas repentinas informadas pelo Google.)</p>;
+  }
+  return (
+    <div className="mt-2 rounded-lg border border-red-300 bg-red-50 p-3">
+      <h3 className="mb-1 text-sm font-bold text-red-900">Eventos do Flood Hub no RJ ({eventos.no_rj.length})</h3>
+      <ul className="space-y-1 text-sm">
+        {eventos.no_rj.map((ev) => (
+          <li key={ev.id} className="flex flex-wrap items-center gap-2">
+            {[...new Set(ev.feicoes.map((f) => f.nivel))].map((n) => (
+              <span key={n} className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-white" style={{ backgroundColor: ESTILO_EVENTO[n]?.cor }}>
+                {ESTILO_EVENTO[n]?.rotulo}
+              </span>
+            ))}
+            <span className="text-xs text-gray-600">
+              {ev.tipo === "flash" ? `próximas ${ev.periodo_horas ?? 24} h` : `até ${ev.fim ? new Date(ev.fim).toLocaleDateString("pt-BR") : "—"}`}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-[11px] text-red-800">Veja as áreas no Mapa → Estações → Flood Hub. Informativo: não aciona sirene.</p>
+    </div>
+  );
+}
 
 export function BlocoAlertasFH({ alertas, onAbrir }: { alertas: PostoFH[]; onAbrir?: (p: PostoFH) => void }) {
   if (alertas.length === 0) {
@@ -122,6 +153,10 @@ export default function FloodHubPanel({
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [ficha, setFicha] = useState<PostoFH | null>(null);
+  const [eventos, setEventos] = useState<EventosFHResposta | null>(null);
+  useEffect(() => {
+    fetchFloodHubEventos().then(setEventos).catch(() => {});
+  }, []);
   // filtros próprios
   const [busca, setBusca] = useState("");
   const [fMunicipio, setFMunicipio] = useState("");
@@ -270,6 +305,7 @@ export default function FloodHubPanel({
 
       {erro && <p className="mb-2 text-sm text-red-600">{erro}</p>}
       {dados && <BlocoAlertasFH alertas={dados.alertas} onAbrir={setFicha} />}
+      <BlocoEventosFH eventos={eventos} />
 
       <div className="my-3 flex flex-wrap gap-1.5">
         {(

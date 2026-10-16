@@ -103,3 +103,35 @@ export function severidadeEfetiva(p: PostoFH): SeveridadeFH | null {
 }
 
 export const ATRIBUICAO_FH = "Dados: Google Flood Hub (Flood Forecasting API), licença CC BY 4.0.";
+
+export type EventoFH = {
+  id: number;
+  tipo: "significativo" | "flash";
+  inicio: string | null;
+  fim: string | null;
+  emitido_em: string | null;
+  periodo_horas: number | null;
+  area_km2: number | null;
+  populacao: number | null;
+  postos: number;
+  feicoes: { nivel: "significativo" | "provavel" | "muito_provavel"; geometry: GeoJSON.MultiPolygon | GeoJSON.Polygon }[];
+};
+
+export type EventosFHResposta = { consultado_em: string | null; total_brasil: number; no_rj: EventoFH[]; atribuicao: string };
+
+/** Eventos ativos do Flood Hub que tocam o RJ: inundação significativa e chuva repentina (flash flood). */
+export async function fetchFloodHubEventos(): Promise<EventosFHResposta> {
+  return getJson<EventosFHResposta>("/floodhub/eventos/");
+}
+
+export const ESTILO_EVENTO: Record<string, { cor: string; opacidade: number; rotulo: string }> = {
+  significativo: { cor: "#7c3aed", opacidade: 0.25, rotulo: "Inundação significativa" },
+  provavel: { cor: "#f97316", opacidade: 0.3, rotulo: "Chuva repentina — provável" },
+  muito_provavel: { cor: "#dc2626", opacidade: 0.4, rotulo: "Chuva repentina — muito provável" },
+};
+
+export function textoEventos(e: EventosFHResposta | null): string {
+  if (!e) return "";
+  if (e.no_rj.length === 0) return `Eventos do Flood Hub: nenhum no RJ agora (${e.total_brasil} no Brasil)`;
+  return `${e.no_rj.length} evento(s) do Flood Hub no RJ agora`;
+}

@@ -3,7 +3,7 @@
 import L from "leaflet";
 import CamadaGeografica from "@/components/CamadaGeografica";
 import FloodHubFicha from "@/components/FloodHubFicha";
-import type { PostoFH } from "@/lib/floodhub";
+import { EventoFH, PostoFH, EventosFHResposta, textoEventos } from "@/lib/floodhub";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -29,6 +29,7 @@ import {
   CamadaSirenes,
   CamadaVento,
   CamadaFloodHub,
+  CamadaEventosFH,
   ConteudoLegendaModo,
   contagemModo,
   SeletorModoMapa,
@@ -791,6 +792,7 @@ export default function MapView({
   floodhub = [],
   floodhubTodos = false,
   onFloodhubTodos,
+  floodhubEventos = null,
   onModoChange,
   precipitacao = [],
   sirenes = [],
@@ -807,6 +809,7 @@ export default function MapView({
   floodhub?: PostoFH[];
   floodhubTodos?: boolean;
   onFloodhubTodos?: (v: boolean) => void;
+  floodhubEventos?: EventosFHResposta | null;
   carregandoModo?: boolean;
   onOpenStation?: (id: number) => void;
   stations: Station[];
@@ -914,6 +917,7 @@ export default function MapView({
       {config.mostrarEstacoes && modo === "chuva1h" && <CamadaChuva janela="1h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "chuva24h" && <CamadaChuva janela="24h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "vento" && <CamadaVento estacoes={stations} onOpenStation={onOpenStation} />}
+      {modo === "floodhub" && floodhubEventos && <CamadaEventosFH eventos={floodhubEventos.no_rj as EventoFH[]} />}
       {config.mostrarEstacoes && modo === "floodhub" && <CamadaFloodHub postos={floodhub} onAbrirFicha={setFichaFH} />}
       {config.mostrarEstacoes && modo === "redes" && stations.map((station) => {
         const tocando = estacoesTocandoIds.has(station.id);
@@ -975,6 +979,7 @@ export default function MapView({
           contagem={carregandoModo ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes, floodhub })}
           floodhubTodos={floodhubTodos}
           onFloodhubTodos={onFloodhubTodos}
+          eventosTexto={textoEventos(floodhubEventos)}
         />
       )}
       <SeletorCamadaMeteorologica

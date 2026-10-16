@@ -85,3 +85,24 @@ dentro do mapa. Testado: abrindo "Ver histórico da estação" a partir do mapa,
 * **Cliques:** nome do posto abre a ficha; "Estação nossa" abre o histórico (antes só aparecia nos poucos postos casados; agora há 24 pares).
 * **181 × validação:** os 181 são **todos** os postos virtuais não verificados dentro do RJ (contagem do Google). A **Validação** só compara os postos **casados com uma
   estação nossa** (24) e só os dias com dados; por isso os números não batem. A tela agora explica isso e mostra a distância posto↔estação e o nome do posto.
+
+## Eventos: inundação significativa e chuva repentina no mapa (16/10/2026)
+**O que são** (Google Flood Hub): *inundação significativa* = evento com vários postos e vários dias (polígono da área prevista afetada, área em km², população,
+postos, início/fim); *chuva repentina (flash flood)* = probabilidade de enchente repentina nas próximas 24 h em células de 20 km, com duas áreas: **provável** e
+**muito provável**.
+
+**Como entra no painel**
+* `ingestion/floodhub.py::sincronizar_eventos` (dentro de `sync`, não derruba os postos se falhar): consulta `significantEvents:search` (só os que citam `BR`) e
+  `flashFloods:search` (`countryCodes:["BR"]`); para cada evento novo busca o contorno (`serializedPolygons/{id}`, KML) e converte para GeoJSON
+  (`kml_para_geojson`, simplifica contornos acima de 2.500 vértices). **Só guarda o contorno dos que tocam o RJ** (`geometria_toca_rj`: algum centroide de
+  município dentro do polígono, ou vértice dentro do RJ); os demais ficam registrados sem contorno (`afeta_rj=False`) para não buscar de novo. Limite de 60 polígonos
+  por rodada. Eventos que somem da consulta ficam `ativo=False`.
+* Modelo `FloodHubEvento` (migração `0018_floodhub_eventos`), endpoint `GET /api/floodhub/eventos/` (`no_rj` com `feicoes` em GeoJSON, `total_brasil`).
+* **Mapa** (modo Estações → Flood Hub): áreas desenhadas sob as bolinhas — roxo = inundação significativa; laranja tracejado = chuva repentina provável; vermelho = muito
+  provável; popup com horários/área/população; legenda; e o texto "Eventos do Flood Hub: nenhum no RJ agora (N no Brasil)" ou "N evento(s) no RJ agora".
+* **Alerta informativo:** bloco "Eventos do Flood Hub no RJ" na aba Dados → Flood Hub (sempre mostra o estado) e no Resumo 24h (só quando há evento). Não aciona sirene.
+* **Estado em 16/10/2026:** a API listava 1 inundação significativa (Somália, descartada por não citar o Brasil) e 1 chuva repentina no Brasil, **fora do RJ** — por isso nenhum
+  desenho aparece hoje. O desenho foi validado com eventos **sintéticos inseridos só no banco local de teste** (removidos depois): as 3 áreas, o popup e a legenda funcionaram.
+  O parser KML foi validado com um polígono real da API (17 polígonos, 2.479 vértices).
+* Limites: a ordem dos pontos do KML é lon,lat (convertida); o teste de "toca o RJ" é aproximado (centroides/vértices), podendo perder um polígono que cruze o RJ sem
+  conter centroide nem vértice dele (improvável nas escalas desses eventos).

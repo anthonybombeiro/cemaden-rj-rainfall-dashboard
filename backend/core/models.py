@@ -613,3 +613,37 @@ class FloodHubSituacao(models.Model):
     class Meta:
         constraints = [models.UniqueConstraint(fields=["gauge", "dia"], name="unique_floodhub_situacao_dia")]
         ordering = ["-dia"]
+
+
+class FloodHubEvento(models.Model):
+    """Evento do Google Flood Hub: "inundação significativa" (vários postos, vários dias) ou "chuva repentina"
+    (flash flood, probabilidade em 24 h). Guardamos os eventos do Brasil com a marca `afeta_rj`; só os que tocam o RJ
+    levam o contorno (`geojson`). `ativo` = veio na última consulta."""
+
+    class Tipo(models.TextChoices):
+        SIGNIFICATIVO = "significativo", "Inundação significativa"
+        FLASH = "flash", "Chuva repentina (flash flood)"
+
+    tipo = models.CharField(max_length=15, choices=Tipo.choices)
+    chave = models.CharField(max_length=200, help_text="ID do polígono do evento (estável enquanto o evento não muda).")
+    nivel = models.CharField(max_length=20, blank=True, help_text="flash: provavel | muito_provavel; significativo: vazio.")
+    inicio = models.DateTimeField(null=True, blank=True)
+    fim = models.DateTimeField(null=True, blank=True)
+    emitido_em = models.DateTimeField(null=True, blank=True)
+    periodo_horas = models.PositiveSmallIntegerField(null=True, blank=True)
+    area_km2 = models.FloatField(null=True, blank=True)
+    populacao = models.BigIntegerField(null=True, blank=True)
+    gauge_ids = models.JSONField(default=list, blank=True)
+    afeta_rj = models.BooleanField(default=False)
+    geojson = models.JSONField(null=True, blank=True)
+    ativo = models.BooleanField(default=True)
+    visto_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["tipo", "chave"], name="unique_floodhub_evento")]
+        ordering = ["-emitido_em", "-inicio"]
+        verbose_name = "evento Flood Hub"
+        verbose_name_plural = "eventos Flood Hub"
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} · {self.chave[:12]}…"

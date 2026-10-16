@@ -2,8 +2,8 @@
 
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ESTILO_SEVERIDADE, ORDEM_SEVERIDADE, PostoFH, ROTULO_TENDENCIA, severidadeEfetiva } from "@/lib/floodhub";
-import { CircleMarker, Marker, Popup, useMapEvents } from "react-leaflet";
+import { ESTILO_EVENTO, ESTILO_SEVERIDADE, EventoFH, ORDEM_SEVERIDADE, PostoFH, ROTULO_TENDENCIA, severidadeEfetiva } from "@/lib/floodhub";
+import { GeoJSON, CircleMarker, Marker, Popup, useMapEvents } from "react-leaflet";
 
 import {
   getChuva1hFaixa,
@@ -272,6 +272,7 @@ export function SeletorModoMapa({
   contagem,
   floodhubTodos = false,
   onFloodhubTodos,
+  eventosTexto = "",
 }: {
   modo: ModoMapa;
   onModoChange: (m: ModoMapa) => void;
@@ -279,6 +280,7 @@ export function SeletorModoMapa({
   contagem: number | null;
   floodhubTodos?: boolean;
   onFloodhubTodos?: (v: boolean) => void;
+  eventosTexto?: string;
 }) {
   const [aberto, setAberto] = useState(false);
   const raizRef = useRef<HTMLDivElement | null>(null);
@@ -329,12 +331,57 @@ export function SeletorModoMapa({
           Incluir postos <b>não verificados</b> pelo Google (usar com cautela)
         </label>
       )}
+      {modo === "floodhub" && !aberto && eventosTexto && (
+        <p className="mt-1 inline-block rounded bg-white/95 px-2 py-0.5 text-[11px] text-gray-700 shadow">{eventosTexto}</p>
+      )}
       {!aberto && (carregando || contagem != null) && (
         <p className="mt-1 inline-block rounded bg-white/90 px-2 py-0.5 text-[11px] text-gray-600 shadow">
           {carregando ? "Carregando dados…" : `${contagem} estações nesta visualização`}
         </p>
       )}
     </div>
+  );
+}
+
+// --------------------------------------------------------------------------- Flood Hub: áreas de evento
+const fmtData = (iso: string | null) => (iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
+
+/** Áreas de inundação significativa e de chuva repentina (flash flood) do Google Flood Hub que tocam o RJ. */
+export function CamadaEventosFH({ eventos }: { eventos: EventoFH[] }) {
+  return (
+    <>
+      {eventos.flatMap((ev) =>
+        ev.feicoes.map((f, i) => {
+          const e = ESTILO_EVENTO[f.nivel] ?? ESTILO_EVENTO.significativo;
+          return (
+            <GeoJSON
+              key={`${ev.id}-${f.nivel}-${i}-${ev.emitido_em ?? ev.inicio}`}
+              data={{ type: "Feature", properties: {}, geometry: f.geometry } as GeoJSON.Feature}
+              style={{ color: e.cor, weight: 2, fillColor: e.cor, fillOpacity: e.opacidade, dashArray: f.nivel === "provavel" ? "6 4" : undefined }}
+            >
+              <Popup>
+                <div className="space-y-0.5 text-sm">
+                  <p className="rounded px-2 py-1 text-center font-bold text-white" style={{ backgroundColor: e.cor }}>{e.rotulo}</p>
+                  {ev.tipo === "flash" ? (
+                    <p className="text-xs text-gray-600">
+                      Probabilidade nas próximas {ev.periodo_horas ?? 24} h · previsão emitida {fmtData(ev.emitido_em)}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-600">
+                      {fmtData(ev.inicio)} → {fmtData(ev.fim)}
+                      {ev.area_km2 ? ` · ${Math.round(ev.area_km2).toLocaleString("pt-BR")} km²` : ""}
+                      {ev.populacao ? ` · ~${ev.populacao.toLocaleString("pt-BR")} pessoas` : ""}
+                      {ev.postos ? ` · ${ev.postos} postos` : ""}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-gray-400">Fonte: Google Flood Hub (CC BY 4.0)</p>
+                </div>
+              </Popup>
+            </GeoJSON>
+          );
+        }),
+      )}
+    </>
   );
 }
 
@@ -419,7 +466,15 @@ export function ConteudoLegendaModo({ modo }: { modo: Exclude<ModoMapa, "redes">
             <span className="text-gray-700">{ESTILO_SEVERIDADE[k].rotulo}</span>
           </div>
         ))}
-        <p className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400">Só postos verificados pelo Google. Dados: Google Flood Hub (CC BY 4.0).</p>
+        <div className="space-y-1 border-t border-gray-100 pt-1.5">
+          {(["significativo", "provavel", "muito_provavel"] as const).map((k) => (
+            <div key={k} className="flex items-center gap-2">
+              <span className="inline-block h-3.5 w-5 shrink-0 rounded-sm border" style={{ backgroundColor: ESTILO_EVENTO[k].cor + "55", borderColor: ESTILO_EVENTO[k].cor }} />
+              <span className="text-gray-700">{ESTILO_EVENTO[k].rotulo}</span>
+            </div>
+          ))}
+        </div>
+        <p className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400">Postos: só verificados pelo Google (caixa no mapa inclui os demais). Dados: Google Flood Hub (CC BY 4.0).</p>
       </div>
     );
   }

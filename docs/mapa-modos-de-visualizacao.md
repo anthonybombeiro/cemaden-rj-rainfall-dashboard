@@ -83,3 +83,7 @@ No painel *Opções → Camada de imagem* (satélite ou radar) há a barra **Opa
   para incluir os não verificados; popup com "Ver ficha do posto". Detalhes e regras em `floodhub.md`.
 * **Correção para todo o projeto:** o histórico da estação (z-40) aparecia sob o mapa porque os controles/panes do Leaflet têm z-index até 1000. `.leaflet-container`
   agora cria o próprio contexto de empilhamento (`isolation: isolate`) e o contêiner da aba Mapa usa `isolate` (`Dashboard.tsx`). Verificado no navegador.
+
+## Áreas de evento do Flood Hub no mapa (16/10/2026)
+No modo Estações → Flood Hub o mapa também desenha as áreas de **inundação significativa** (roxo) e de **chuva repentina** (laranja tracejado = provável; vermelho = muito
+provável) que tocam o RJ. Quando não há evento, o botão mostra "Eventos do Flood Hub: nenhum no RJ agora (N no Brasil)". Regras e limites em `floodhub.md`.

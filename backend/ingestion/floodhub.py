@@ -27,7 +27,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone
 
-from core.models import FloodHubForecast, FloodHubGauge, FloodHubSituacao, Station
+from core.models import FloodHubEvento, FloodHubForecast, FloodHubGauge, FloodHubSituacao, Station
 from core.municipios import canonico_ou_original
 
 logger = logging.getLogger("ingestion")
@@ -243,6 +243,147 @@ def _atualizar_metadados(resumo: dict) -> None:
     resumo["postos_casados_com_estacao"] = casados
 
 
+# --------------------------------------------------------------------------- eventos (polígonos)
+CENTROIDES = Path(__file__).resolve().parent / "data" / "rj_municipios_centroides.json"
+MAX_POLIGONOS_POR_RODADA = 60  # chamadas a serializedPolygons por sincronização
+MAX_VERTICES = 2500  # acima disso o contorno é simplificado (guardar/trafegar polígonos gigantes pesa)
+
+
+def kml_para_geojson(kml: str) -> dict | None:
+    """KML (`serializedPolygons`) -> geometria GeoJSON (MultiPolygon, [lon, lat]). None se não houver polígono."""
+    import xml.etree.ElementTree as ET
+
+    ns = "{http://www.opengis.net/kml/2.2}"
+    try:
+        raiz = ET.fromstring(kml)
+    except ET.ParseError:
+        return None
+
+    def anel(no) -> list[list[float]]:
+        pts = []
+        for tok in (no.text or "").split():
+            partes = tok.split(",")
+            if len(partes) >= 2:
+                pts.append([round(float(partes[0]), 4), round(float(partes[1]), 4)])
+        return pts
+
+    poligonos = []
+    for poly in raiz.iter(ns + "Polygon"):
+        aneis = []
+        for tag in ("outerBoundaryIs", "innerBoundaryIs"):
+            for limite in poly.findall(ns + tag):
+                for coords in limite.iter(ns + "coordinates"):
+                    a = anel(coords)
+                    if len(a) >= 4:
+                        aneis.append(a)
+        if aneis:
+            poligonos.append(aneis)
+    if not poligonos:
+        return None
+    total = sum(len(a) for pol in poligonos for a in pol)
+    if total > MAX_VERTICES:  # simplifica por amostragem uniforme (mantém o primeiro e fecha o anel)
+        passo = math.ceil(total / MAX_VERTICES)
+        poligonos = [
+            [(a[::passo] + [a[0]]) if (a[::passo][-1] != a[0]) else a[::passo] for a in pol] for pol in poligonos
+        ]
+    return {"type": "MultiPolygon", "coordinates": poligonos}
+
+
+def _ponto_no_anel(lon: float, lat: float, anel: list) -> bool:
+    dentro = False
+    j = len(anel) - 1
+    for i in range(len(anel)):
+        xi, yi = anel[i]
+        xj, yj = anel[j]
+        if (yi > lat) != (yj > lat) and lon < (xj - xi) * (lat - yi) / (yj - yi) + xi:
+            dentro = not dentro
+        j = i
+    return dentro
+
+
+def geometria_toca_rj(geom: dict) -> bool:
+    """True se o contorno cobre algum município do RJ (centroide dentro do polígono) ou tem vértice dentro do RJ."""
+    centros = json.loads(CENTROIDES.read_text(encoding="utf-8"))
+    pontos = [(v[1], v[0]) for k, v in centros.items() if not k.isdigit()]  # (lon, lat)
+    for pol in geom["coordinates"]:
+        externo = pol[0]
+        lons = [c[0] for c in externo]
+        lats = [c[1] for c in externo]
+        if max(lons) < -45.2 or min(lons) > -40.8 or max(lats) < -23.5 or min(lats) > -20.6:
+            continue  # fora do retângulo do RJ
+        buracos = pol[1:]
+        for lon, lat in pontos:
+            if _ponto_no_anel(lon, lat, externo) and not any(_ponto_no_anel(lon, lat, b) for b in buracos):
+                return True
+        passo = max(1, len(externo) // 200)
+        if any(_municipio(c[1], c[0]) for c in externo[::passo]):
+            return True
+    return False
+
+
+def _poligono(pid: str):
+    r = _req("GET", BASE + f"serializedPolygons/{pid}", headers=_headers())
+    r.raise_for_status()
+    return kml_para_geojson(r.json().get("kml", ""))
+
+
+def sincronizar_eventos(resumo: dict) -> None:
+    """Eventos significativos e chuvas repentinas (flash flood) do Brasil; guarda o contorno só dos que tocam o RJ."""
+    agora = timezone.now()
+    vistos: set[int] = set()  # pks dos eventos que vieram na consulta
+    consultas = 0
+
+    sig = _post_paginado("significantEvents:search", {}, "significantEvents")
+    for e in sig:
+        if "BR" not in (e.get("affectedCountryCodes") or []):
+            continue
+        chave = e.get("eventPolygonId") or ""
+        if not chave:
+            continue
+        ev, criado = FloodHubEvento.objects.get_or_create(tipo="significativo", chave=chave)
+        vistos.add(ev.pk)
+        iv = e.get("eventInterval") or {}
+        ev.inicio = _parse_dt(iv.get("startTime"))
+        ev.fim = _parse_dt(iv.get("endTime") or iv.get("minimumEndTime"))
+        ev.area_km2, ev.populacao, ev.gauge_ids = e.get("areaKm2"), e.get("affectedPopulation"), e.get("gaugeIds") or []
+        ev.ativo = True
+        if criado or ev.geojson is None and not ev.afeta_rj:
+            if consultas < MAX_POLIGONOS_POR_RODADA:
+                consultas += 1
+                geom = _poligono(chave)
+                ev.afeta_rj = bool(geom and geometria_toca_rj(geom))
+                ev.geojson = geom if ev.afeta_rj else None
+        ev.save()
+
+    flash = _post_paginado("flashFloods:search", {"countryCodes": ["BR"]}, "flashFloodEvents")
+    for e in flash:
+        chave = e.get("eventPolygonId") or ""
+        if not chave:
+            continue
+        ev, criado = FloodHubEvento.objects.get_or_create(tipo="flash", chave=chave)
+        vistos.add(ev.pk)
+        ev.emitido_em = _parse_dt(e.get("forecastIssueTime"))
+        ev.periodo_horas = e.get("forecastPeriodHours")
+        ev.ativo = True
+        if criado and consultas < MAX_POLIGONOS_POR_RODADA:
+            consultas += 1
+            geom = _poligono(chave)
+            if geom and geometria_toca_rj(geom):
+                ev.afeta_rj = True
+                feicoes = []
+                for nivel, campo in (("provavel", "likelyAffectedPolygonId"), ("muito_provavel", "highlyLikelyAffectedPolygonId")):
+                    pid = e.get(campo)
+                    g = _poligono(pid) if pid else None
+                    if g:
+                        feicoes.append({"nivel": nivel, "geometry": g})
+                ev.geojson = {"feicoes": feicoes or [{"nivel": "provavel", "geometry": geom}]}
+        ev.save()
+
+    FloodHubEvento.objects.filter(ativo=True).exclude(pk__in=vistos).update(ativo=False)
+    resumo["eventos_brasil"] = len(vistos)
+    resumo["eventos_no_rj"] = FloodHubEvento.objects.filter(ativo=True, afeta_rj=True).count()
+
+
 def sync(forcar_metadados: bool = False) -> dict:
     """Atualiza situação, metadados, previsões e histórico. Devolve um resumo (para a ação admin)."""
     resumo: dict = {"erros": []}
@@ -310,6 +451,12 @@ def sync(forcar_metadados: bool = False) -> dict:
                     novas += criado
         resumo["postos_com_previsao"] = len(alvo)
         resumo["previsoes_novas"] = novas
+
+        try:
+            sincronizar_eventos(resumo)
+        except Exception as exc:  # noqa: BLE001  (eventos não podem derrubar a sincronização dos postos)
+            logger.exception("Falha ao sincronizar eventos do Flood Hub")
+            resumo["erros"].append(f"eventos: {type(exc).__name__}: {exc}")
     except Exception as exc:  # noqa: BLE001
         logger.exception("Falha na sincronização com o Flood Hub")
         resumo["erros"].append(f"{type(exc).__name__}: {exc}")

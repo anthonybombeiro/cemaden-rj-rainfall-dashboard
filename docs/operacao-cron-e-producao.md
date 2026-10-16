@@ -227,3 +227,6 @@ Variáveis de ambiente novas: `FLOODHUB_API_KEY` (Google Flood Hub; local em `ba
 **Deploy (resumo do que se usou):** backend por SFTP arquivo a arquivo para `~/cemadenrj_backend/<caminho>` (script `deploy_files.py`, caminhos `backend/...`);
 frontend: `next build` em cópia limpa, depois envio por SFTP (script `deploy_sftp_v2.py`); migrações e testes por `/api/admin/run/`. Os scripts de apoio ficam na pasta
 temporária da sessão (não estão no repositório): precisam da chave SSH `~/.ssh/hostgator_cemaden`.
+
+Atualização 16/10/2026 (eventos do Flood Hub): `sync_floodhub` também sincroniza os eventos (resumo traz `eventos_brasil` e `eventos_no_rj`); nova rota
+`/api/floodhub/eventos/`; migração `0018_floodhub_eventos` aplicada por `migrate`.

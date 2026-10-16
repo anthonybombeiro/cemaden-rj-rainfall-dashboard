@@ -14,7 +14,7 @@ from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.models import FloodHubForecast, FloodHubGauge, FloodHubSituacao, Reading
+from core.models import FloodHubEvento, FloodHubForecast, FloodHubGauge, FloodHubSituacao, Reading
 from ingestion.floodhub import ORDEM_SEVERIDADE, classificar_vazao
 
 ROTULO = {
@@ -206,3 +206,40 @@ class FloodHubValidacaoView(APIView):
                 )
         linhas.sort(key=lambda x: (x["dia"], x["estacao"]), reverse=True)
         return Response({"dias": dias, "estacoes_casadas": len(casados), "linhas": linhas})
+
+
+class FloodHubEventosView(APIView):
+    """GET /api/floodhub/eventos/ — eventos ativos do Flood Hub que tocam o RJ (polígonos em GeoJSON).
+    `significativo` = inundação significativa (vários postos, vários dias); `flash` = chuva repentina, com duas áreas:
+    `provavel` e `muito_provavel` (probabilidade nas próximas `periodo_horas`)."""
+
+    def get(self, request):
+        ativos = FloodHubEvento.objects.filter(ativo=True)
+        eventos = []
+        for e in ativos.filter(afeta_rj=True):
+            if e.tipo == "flash":
+                feicoes = (e.geojson or {}).get("feicoes") or []
+            else:
+                feicoes = [{"nivel": "significativo", "geometry": e.geojson}] if e.geojson else []
+            eventos.append(
+                {
+                    "id": e.id,
+                    "tipo": e.tipo,
+                    "inicio": e.inicio,
+                    "fim": e.fim,
+                    "emitido_em": e.emitido_em,
+                    "periodo_horas": e.periodo_horas,
+                    "area_km2": e.area_km2,
+                    "populacao": e.populacao,
+                    "postos": len(e.gauge_ids or []),
+                    "feicoes": feicoes,
+                }
+            )
+        return Response(
+            {
+                "consultado_em": FloodHubEvento.objects.aggregate(m=Max("visto_em"))["m"],
+                "total_brasil": ativos.count(),
+                "no_rj": eventos,
+                "atribuicao": "Dados: Google Flood Hub (Flood Forecasting API), CC BY 4.0.",
+            }
+        )
