@@ -229,6 +229,10 @@ CEMADEN_NACIONAL_BASE_URL = os.environ.get(
 # exposta ao frontend, só o backend chama a API-REDEMET diretamente.
 REDEMET_API_KEY = os.environ.get("REDEMET_API_KEY", "")
 
+# Google Flood Hub (Flood Forecasting API, floodforecasting.googleapis.com) — chave do projeto no Google
+# Cloud; usada só no servidor (ingestion/floodhub.py), nunca enviada ao navegador.
+FLOODHUB_API_KEY = os.environ.get("FLOODHUB_API_KEY", "")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

@@ -86,6 +86,8 @@ ACOES_PERMITIDAS = {
     "cotas_hidro",
     "teste_dsat",
     "teste_redemet",
+    "sync_floodhub",
+    "floodhub_pares",
 }
 
 
@@ -129,6 +131,12 @@ class AdminOpsView(APIView):
                     )
                 resultado = get_connector(source).run()
                 saida.write(resultado.summary())
+                if source == "inea":  # carona (cron de 15 min): atualiza o Google Flood Hub a cada 30 min
+                    from ingestion import floodhub as floodhub_mod
+
+                    fh = floodhub_mod.sync_se_vencido(30)
+                    if fh is not None:
+                        saida.write(f"\n  floodhub: {fh}")
                 for erro in resultado.errors:
                     saida.write(f"\n  - {erro}")
             elif action == "sync_risk_alerts":
@@ -478,6 +486,29 @@ class AdminOpsView(APIView):
                     except Exception as exc:  # noqa: BLE001
                         res[caminho] = f"{type(exc).__name__}: {exc}"
                 saida.write(json_module.dumps(res, ensure_ascii=False))
+            elif action == "sync_floodhub":
+                import json as json_module
+
+                from ingestion import floodhub
+
+                resumo = floodhub.sync(forcar_metadados=bool((request.data or {}).get("forcar")))
+                saida.write(json_module.dumps(resumo, ensure_ascii=False))
+            elif action == "floodhub_pares":
+                # SOMENTE LEITURA: postos do Flood Hub casados com estações nossas (para revisão)
+                import json as json_module
+
+                from core.models import FloodHubGauge
+
+                linhas = [
+                    {
+                        "gauge": g.gauge_id, "posto": g.site_name or g.river, "mun": g.municipio, "fonte": g.source,
+                        "verificado": g.quality_verified, "estacao_id": g.estacao_id, "estacao": g.estacao.name,
+                        "fonte_estacao": g.estacao.source.slug, "km": round(g.distancia_estacao_km or 0, 2),
+                        "rio_estacao": g.estacao.rio_monitorado,
+                    }
+                    for g in FloodHubGauge.objects.filter(estacao__isnull=False).select_related("estacao", "estacao__source")
+                ]
+                saida.write(json_module.dumps(linhas, ensure_ascii=False))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 

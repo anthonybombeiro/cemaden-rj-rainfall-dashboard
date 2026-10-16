@@ -14,7 +14,9 @@ import MeteorologiaPanel from "@/components/MeteorologiaPanel";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import CemadenNacionalTable from "@/components/CemadenNacionalTable";
 import RedeTable from "@/components/RedeTable";
+import FloodHubPanel from "@/components/FloodHubPanel";
 import ResumoPanel from "@/components/ResumoPanel";
+import { PostoFH, fetchFloodHub } from "@/lib/floodhub";
 import SaudeFontesBanner from "@/components/SaudeFontesBanner";
 import { lerModoSalvo, ModoMapa, salvarModo } from "@/lib/mapaModos";
 import PrecipitationTable from "@/components/PrecipitationTable";
@@ -82,6 +84,7 @@ type DadosSub =
   | "ecowitt"
   | "redemet"
   | "cemaden_rj"
+  | "floodhub"
   | "meteorologico" | "hidrologico" | "ventos";
 
 const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
@@ -134,6 +137,7 @@ const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "redemet", label: "REDEMET" },
   { key: "meteorologico", label: "Meteorológicos" },
   { key: "hidrologico", label: "Hidrológicos" },
+  { key: "floodhub", label: "Flood Hub" },
   { key: "ventos", label: "Ventos" },
 ];
 
@@ -197,6 +201,7 @@ export default function Dashboard({
   // chuva 1 h, chuva 24 h ou rajada de vento. A escolha fica salva no navegador.
   const [modoMapa, setModoMapa] = useState<ModoMapa>("redes");
   const [modoMapaLoading, setModoMapaLoading] = useState(false);
+  const [floodhubMapa, setFloodhubMapa] = useState<PostoFH[]>([]);
   useEffect(() => {
     setModoMapa(lerModoSalvo());
   }, []);
@@ -550,6 +555,29 @@ export default function Dashboard({
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, modoMapa]);
+
+  // Modo "Flood Hub" do mapa: postos verificados do Google (atualiza a cada 10 min)
+  useEffect(() => {
+    if (viewMode !== "mapa" || modoMapa !== "floodhub") return;
+    let cancelled = false;
+    const carregar = () => {
+      setModoMapaLoading(true);
+      fetchFloodHub()
+        .then((d) => {
+          if (!cancelled) setFloodhubMapa(d.postos);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setModoMapaLoading(false);
+        });
+    };
+    carregar();
+    const id = setInterval(carregar, 600_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [viewMode, modoMapa]);
 
   // Sirenes na visualização do mapa: só os filtros de município/REDEC do mapa (os filtros da aba
@@ -1054,9 +1082,10 @@ export default function Dashboard({
                 onModoChange={trocarModoMapa}
                 precipitacao={filteredPrecipitacao}
                 sirenes={sirenesDoMapa}
+                floodhub={floodhubMapa}
                 carregandoModo={
                   (modoMapa === "sirenes" && sirenesLoading) ||
-                  ((modoMapa === "chuva1h" || modoMapa === "chuva24h") && modoMapaLoading)
+                  ((modoMapa === "chuva1h" || modoMapa === "chuva24h" || modoMapa === "floodhub") && modoMapaLoading)
                 }
                 onOpenStation={setPainelEstacaoId}
               />
@@ -1147,6 +1176,7 @@ export default function Dashboard({
                     onOpenStation={setPainelEstacaoId}
                   />
                 )}
+                {dadosSub === "floodhub" && <FloodHubPanel onOpenStation={setPainelEstacaoId} />}
                 {dadosSub === "ventos" && (
                   <VentosTable
                     ref={ventosTableRef}

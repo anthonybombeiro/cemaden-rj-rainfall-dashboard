@@ -2,6 +2,7 @@
 
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ESTILO_SEVERIDADE, ORDEM_SEVERIDADE, PostoFH, ROTULO_TENDENCIA, severidadeEfetiva } from "@/lib/floodhub";
 import { CircleMarker, Marker, Popup, useMapEvents } from "react-leaflet";
 
 import {
@@ -327,6 +328,47 @@ export function SeletorModoMapa({
   );
 }
 
+// --------------------------------------------------------------------------- Flood Hub
+export function CamadaFloodHub({ postos, onOpenStation }: { postos: PostoFH[]; onOpenStation?: (id: number) => void }) {
+  const ordenados = useMemo(
+    () => [...postos].sort((a, b) => ORDEM_SEVERIDADE[severidadeEfetiva(a) ?? "UNKNOWN"] - ORDEM_SEVERIDADE[severidadeEfetiva(b) ?? "UNKNOWN"]),
+    [postos],
+  );
+  return (
+    <>
+      {ordenados.map((p) => {
+        const sev = severidadeEfetiva(p) ?? "UNKNOWN";
+        const e = ESTILO_SEVERIDADE[sev] ?? ESTILO_SEVERIDADE.UNKNOWN;
+        const alto = sev === "EXTREME" || sev === "SEVERE" || sev === "ABOVE_NORMAL";
+        return (
+          <CircleMarker
+            key={p.gauge_id}
+            center={[p.latitude, p.longitude]}
+            radius={alto ? 11 : 7}
+            pathOptions={{ color: "#1e3a8a", fillColor: e.bg, fillOpacity: 0.95, weight: alto ? 3 : 1.5 }}
+          >
+            <Popup>
+              <div className="space-y-0.5 text-sm">
+                <p className="rounded px-2 py-1 text-center font-bold" style={{ backgroundColor: e.bg, color: e.text }}>
+                  Flood Hub: {e.rotulo}
+                </p>
+                <p className="font-semibold">{p.nome}</p>
+                <p className="text-gray-600">{[p.rio, p.municipio].filter(Boolean).join(" · ") || "—"}</p>
+                <p className="text-xs text-gray-500">
+                  {p.tendencia ? ROTULO_TENDENCIA[p.tendencia] : "sem previsão"}
+                  {p.previsao?.pico != null ? ` · pico previsto ${Math.round(p.previsao.pico)} m³/s` : ""}
+                </p>
+                <p className="text-[11px] text-gray-400">Fonte: Google Flood Hub (CC BY 4.0)</p>
+                {p.estacao && <BotaoHistorico id={p.estacao.id} onOpenStation={onOpenStation} />}
+              </div>
+            </Popup>
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
+
 // --------------------------------------------------------------------------- legenda do modo
 export function ConteudoLegendaModo({ modo }: { modo: Exclude<ModoMapa, "redes"> }) {
   const bolinha = (bg: string, texto?: string) => (
@@ -345,6 +387,20 @@ export function ConteudoLegendaModo({ modo }: { modo: Exclude<ModoMapa, "redes">
         <div className="flex items-center gap-2 border-t border-gray-100 pt-1.5">{bolinha(COR_ONLINE)}<span className="text-gray-700">Normal (online, não toca)</span></div>
         <div className="flex items-center gap-2">{bolinha(COR_OFFLINE)}<span className="text-gray-700">Offline</span></div>
         <div className="flex items-center gap-2">{bolinha(COR_DESCONHECIDO)}<span className="text-gray-700">Desconhecido</span></div>
+      </div>
+    );
+  }
+  if (modo === "floodhub") {
+    return (
+      <div className="space-y-1.5">
+        <p className="mb-1 font-semibold text-gray-700">Google Flood Hub</p>
+        {(["EXTREME", "SEVERE", "ABOVE_NORMAL", "NO_FLOODING", "UNKNOWN"] as const).map((k) => (
+          <div key={k} className="flex items-center gap-2">
+            {bolinha(ESTILO_SEVERIDADE[k].bg)}
+            <span className="text-gray-700">{ESTILO_SEVERIDADE[k].rotulo}</span>
+          </div>
+        ))}
+        <p className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400">Só postos verificados pelo Google. Dados: Google Flood Hub (CC BY 4.0).</p>
       </div>
     );
   }
@@ -397,8 +453,9 @@ export function ConteudoLegendaModo({ modo }: { modo: Exclude<ModoMapa, "redes">
 /** Quantas bolinhas o modo atual desenha (texto "N estações nesta visualização"). */
 export function contagemModo(
   modo: ModoMapa,
-  dados: { estacoes: Station[]; precipitacao: PrecipitacaoStation[]; sirenes: SireneStation[] },
+  dados: { estacoes: Station[]; precipitacao: PrecipitacaoStation[]; sirenes: SireneStation[]; floodhub?: PostoFH[] },
 ): number {
+  if (modo === "floodhub") return (dados.floodhub ?? []).length;
   if (modo === "sirenes") return dados.sirenes.length;
   if (modo === "vento") return dados.estacoes.filter((s) => s.latest_readings.some((r) => r.reading_type === "vento_rajada_ms")).length;
   if (modo === "chuva1h" || modo === "chuva24h") {

@@ -165,7 +165,7 @@ type Paginated<T> = {
   results: T[];
 };
 
-async function getJson<T>(pathOuUrlAbsoluta: string): Promise<T> {
+export async function getJson<T>(pathOuUrlAbsoluta: string): Promise<T> {
   // `next`/`previous` da paginação do DRF já vêm como URL absoluta —
   // aceitar os dois formatos evita ter que recortar API_BASE_URL de volta.
   const url = /^https?:\/\//.test(pathOuUrlAbsoluta) ? pathOuUrlAbsoluta : `${API_BASE_URL}${pathOuUrlAbsoluta}`;

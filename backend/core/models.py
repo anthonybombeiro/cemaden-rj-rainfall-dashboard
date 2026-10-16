@@ -538,3 +538,78 @@ class LeituraQualidade(models.Model):
 
     def __str__(self):
         return f"{self.get_qualidade_display()} — {self.motivo}"
+
+
+class FloodHubGauge(models.Model):
+    """Posto do Google Flood Hub (Flood Forecasting API) na região do RJ (16/10/2026).
+
+    Dois tipos de posto: `ANA_*` (estações reais da ANA, sem modelo: só situação, sem previsão) e
+    `hybas_*` (pontos virtuais da rede de rios, com modelo próprio do Google: previsão de VAZÃO em
+    m³/s com limiares de atenção/perigo/extremo; a maioria ainda não é "quality verified")."""
+
+    gauge_id = models.CharField(max_length=64, unique=True)
+    source = models.CharField(max_length=20, blank=True)
+    site_name = models.CharField(max_length=200, blank=True)
+    river = models.CharField(max_length=200, blank=True)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    municipio = models.CharField(max_length=120, blank=True)
+    has_model = models.BooleanField(default=False)
+    quality_verified = models.BooleanField(default=False)
+    unit = models.CharField(max_length=30, blank=True, help_text="CUBIC_METERS_PER_SECOND ou METERS.")
+    warning = models.FloatField(null=True, blank=True)
+    danger = models.FloatField(null=True, blank=True)
+    extreme = models.FloatField(null=True, blank=True)
+    estacao = models.ForeignKey(
+        Station, null=True, blank=True, on_delete=models.SET_NULL, related_name="floodhub_gauges",
+        help_text="Estação hidrológica nossa mais próxima (até 3 km), se houver.",
+    )
+    distancia_estacao_km = models.FloatField(null=True, blank=True)
+    # situação mais recente (floodStatus)
+    severity = models.CharField(max_length=20, blank=True)
+    trend = models.CharField(max_length=20, blank=True)
+    status_emitido_em = models.DateTimeField(null=True, blank=True)
+    previsao_inicio = models.DateTimeField(null=True, blank=True)
+    previsao_fim = models.DateTimeField(null=True, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    metadados_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["municipio", "site_name", "gauge_id"]
+        verbose_name = "posto Flood Hub"
+        verbose_name_plural = "postos Flood Hub"
+
+    def __str__(self):
+        return f"{self.gauge_id} · {self.site_name or self.river or self.municipio}"
+
+
+class FloodHubForecast(models.Model):
+    """Previsão emitida para um posto (guardada para consulta e para a validação previsão × observado)."""
+
+    gauge = models.ForeignKey(FloodHubGauge, on_delete=models.CASCADE, related_name="previsoes")
+    emitida_em = models.DateTimeField()
+    faixas = models.JSONField(default=list, help_text="[{inicio, fim, valor}] — valor na unidade do posto.")
+    coletada_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["gauge", "emitida_em"], name="unique_floodhub_forecast")]
+        indexes = [models.Index(fields=["gauge", "-emitida_em"])]
+        ordering = ["-emitida_em"]
+
+    def __str__(self):
+        return f"{self.gauge.gauge_id} @ {self.emitida_em:%Y-%m-%d %H:%M}"
+
+
+class FloodHubSituacao(models.Model):
+    """Histórico diário da situação (severidade) de cada posto — a última de cada dia local —
+    para comparar com o observado (aba de validação)."""
+
+    gauge = models.ForeignKey(FloodHubGauge, on_delete=models.CASCADE, related_name="situacoes")
+    dia = models.DateField()
+    severity = models.CharField(max_length=20)
+    trend = models.CharField(max_length=20, blank=True)
+    emitido_em = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["gauge", "dia"], name="unique_floodhub_situacao_dia")]
+        ordering = ["-dia"]

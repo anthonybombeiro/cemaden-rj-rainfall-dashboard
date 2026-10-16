@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import AccumulationChart from "@/components/AccumulationChart";
 import CotagramaChart, { classeDaCota } from "@/components/CotagramaChart";
+import FloodHubDetalhe from "@/components/FloodHubDetalhe";
 import { COLUMN_ORDER } from "@/components/DataTable";
 import {
   BaldeAcumulado,
@@ -696,6 +697,8 @@ export default function StationHistoryPanel({ stationId, topo }: { stationId: nu
           {station.latest_readings.some((r) => r.reading_type === "chuva_mm") && (
             <PrecipitacaoAcumulada station={station} detalhe={detalhe} redec={redec} onShare={setCompartilhar} />
           )}
+
+          <FloodHubDetalhe stationId={station.id} />
 
           <HistoricoPorPeriodo station={station} detalhe={detalhe} redec={redec} onShare={setCompartilhar} />
           {compartilhar && <ShareModal data={compartilhar} onClose={() => setCompartilhar(null)} />}

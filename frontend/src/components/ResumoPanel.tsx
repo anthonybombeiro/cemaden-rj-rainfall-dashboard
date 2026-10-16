@@ -4,6 +4,8 @@ import { Clipboard, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { fetchResumo24h, Resumo24h, ResumoItem, ResumoMunicipio, ResumoRegiao } from "@/lib/api";
+import { BlocoAlertasFH } from "@/components/FloodHubPanel";
+import { PostoFH, fetchFloodHub } from "@/lib/floodhub";
 import { FAIXAS_RAJADA } from "@/lib/ventoFaixas";
 
 /** Aba "Resumo 24 h" (07/10/2026): acontecimentos do dia, Top 10, previsão × observado por região e
@@ -126,6 +128,12 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
   const [erro, setErro] = useState("");
   const [sub, setSub] = useState<Sub>("resumo");
   const [copiado, setCopiado] = useState(false);
+  const [alertasFH, setAlertasFH] = useState<PostoFH[]>([]);
+  useEffect(() => {
+    fetchFloodHub()
+      .then((d) => setAlertasFH(d.alertas))
+      .catch(() => {});
+  }, []);
   const [filtroCidade, setFiltroCidade] = useState<"chuva" | "vento" | "todas">("chuva");
 
   const carregar = useCallback(() => {
@@ -242,6 +250,7 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
 
       {dados && s && sub === "resumo" && (
         <div className="space-y-3">
+          {alertasFH.length > 0 && <BlocoAlertasFH alertas={alertasFH} />}
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <Cartao titulo="Municípios com chuva" valor={String(s.municipios_com_chuva)} detalhe={`${s.estacoes_com_chuva} estações com chuva`} />
             <Cartao

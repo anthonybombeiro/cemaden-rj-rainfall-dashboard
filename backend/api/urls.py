@@ -15,6 +15,7 @@ from .inea_radar_views import INEARadarImageryView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .dsat_imagery_views import DsatSateliteImageryView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetSateliteImageryView
+from .floodhub_views import FloodHubValidacaoView, FloodHubView
 from .resumo_views import Resumo24hView
 from .saude_views import FontesSaudeView
 from .refresh_views import RefreshNowView, RefreshRedemetView, RefreshSirenesView, SirenesStatusView
@@ -65,6 +66,8 @@ urlpatterns = [
     path("sirenes/status/", SirenesStatusView.as_view(), name="sirenes-status"),
     path("fontes/saude/", FontesSaudeView.as_view(), name="fontes-saude"),
     path("resumo/", Resumo24hView.as_view(), name="resumo-24h"),
+    path("floodhub/", FloodHubView.as_view(), name="floodhub"),
+    path("floodhub/validacao/", FloodHubValidacaoView.as_view(), name="floodhub-validacao"),
     path("imagery/satelite/", RedemetSateliteImageryView.as_view(), name="imagery-satelite"),
     path("imagery/dsat/", DsatSateliteImageryView.as_view(), name="imagery-dsat"),
     path("imagery/radar/", RedemetRadarImageryView.as_view(), name="imagery-radar"),

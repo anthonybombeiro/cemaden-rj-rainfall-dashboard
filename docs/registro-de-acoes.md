@@ -148,6 +148,7 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 09/10 | **Satélite DSAT alinhado ao mapa:** imagem em lat/lon linear era esticada em Mercator pelo `ImageOverlay`; nova `CamadaGeografica.tsx` (tiles em canvas com reprojeção por linha). Deploy frontend. Ver `mapa-modos-de-visualizacao.md` |
 | 16/10 | **Barra de opacidade** das imagens de satélite/radar acima da animação (padrão 70%, salva no navegador). Deploy frontend |
 | 16/10 | **Conferência 96 h Alerta Rio × Niterói:** critério atendido nas duas (Niterói −0,85 mm, 3 estações > 4 mm; Alerta Rio +0,26 mm, 1 estação > 4 mm). Detalhes em `alerta-rio-niteroi-inea-e-saude-das-fontes.md` §10.9 |
+| 16/10 | **Google Flood Hub (etapas 1 a 4):** chave `FLOODHUB_API_KEY` no `.env` local e do servidor (SFTP, com backup); migração `0017_floodhub`; `ingestion/floodhub.py` (situação, limiares, previsões, casamento ≤ 3 km, histórico diário) com carona no job de 15 min do INEA; endpoints `/api/floodhub/` e `/api/floodhub/validacao/`; ações admin `sync_floodhub` e `floodhub_pares`; modo "Flood Hub" no mapa, aba Dados → Flood Hub, previsão no detalhe da estação, validação e alerta informativo (também no Resumo 24h). 196 postos no RJ (15 verificados), 20 casados com estações. Ver `floodhub.md` |
 
 ## Pendências abertas (03/10/2026)
 

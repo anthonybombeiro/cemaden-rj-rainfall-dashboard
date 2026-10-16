@@ -2,6 +2,7 @@
 
 import L from "leaflet";
 import CamadaGeografica from "@/components/CamadaGeografica";
+import type { PostoFH } from "@/lib/floodhub";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -26,6 +27,7 @@ import {
   CamadaChuva,
   CamadaSirenes,
   CamadaVento,
+  CamadaFloodHub,
   ConteudoLegendaModo,
   contagemModo,
   SeletorModoMapa,
@@ -785,6 +787,7 @@ export default function MapView({
   redecFilter = [],
   municipalityFilter = [],
   modo = "redes",
+  floodhub = [],
   onModoChange,
   precipitacao = [],
   sirenes = [],
@@ -798,6 +801,7 @@ export default function MapView({
   precipitacao?: PrecipitacaoStation[];
   /** Sirenes (tocando/não tocando) — modo "Sirenes". */
   sirenes?: SireneStation[];
+  floodhub?: PostoFH[];
   carregandoModo?: boolean;
   onOpenStation?: (id: number) => void;
   stations: Station[];
@@ -903,6 +907,7 @@ export default function MapView({
       {config.mostrarEstacoes && modo === "chuva1h" && <CamadaChuva janela="1h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "chuva24h" && <CamadaChuva janela="24h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "vento" && <CamadaVento estacoes={stations} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "floodhub" && <CamadaFloodHub postos={floodhub} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "redes" && stations.map((station) => {
         const tocando = estacoesTocandoIds.has(station.id);
         const cor = SOURCE_COLORS[station.source] ?? "#6b7280";
@@ -960,7 +965,7 @@ export default function MapView({
           modo={modo}
           onModoChange={onModoChange}
           carregando={carregandoModo}
-          contagem={carregandoModo ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes })}
+          contagem={carregandoModo ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes, floodhub })}
         />
       )}
       <SeletorCamadaMeteorologica
