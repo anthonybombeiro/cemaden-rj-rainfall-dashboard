@@ -92,3 +92,14 @@ provável) que tocam o RJ. Quando não há evento, o botão mostra "Eventos do F
 Satélite/radar (todas as fontes) ficam **sobre** as estações (pane `imagensMeteo`, 650) e as áreas de evento do Flood Hub ficam sobre as estações porém **abaixo das imagens** (pane `eventosFH`, 620), como pedido: a opacidade da imagem
 (barra em Opções) define o quanto das estações aparece por baixo. Cliques passam para a estação. Observação: as divisões administrativas (REDEC/município) também ficam abaixo da imagem;
 com opacidade alta elas somem. Detalhes em `floodhub.md`.
+
+## Temperatura, umidade e hidrologia no mapa (16/10/2026)
+Seis modos novos no botão Estações (`frontend/src/lib/mapaModos.ts`, `MapaBolhas.tsx`, escalas em `frontend/src/lib/climaFaixas.ts`):
+* **Rios (nível e cotas):** estações hidrológicas (CEMADEN Nacional, INEA, as mesmas da aba Hidrológicos) com o **nível em metros** dentro da bolinha e a **cor da cota** definida para a tabela
+  (`COTA_ESTILOS`: verde normal, laranja atenção, vermelho alerta, roxo transbordo, rosa extrema, cinza claro sem cota); cinza = leitura de nível com mais de 6 h. Popup: classe, rio, bacia e região
+  hidrográfica, nível, tendência (3 últimas leituras), máx./mín. 24 h, cotas em cm, hora, fonte e histórico. Dados: `/api/stations/hidrologicas/`, atualizados a cada 5 min.
+* **Temperatura (agora), Tmáx (24 h), Tmín (24 h), Umidade máx. (24 h), Umidade mín. (24 h):** valor dentro da bolinha (°C com 1 casa; % inteiro). Fonte: `latest_readings` e `extremos_24h`
+  da lista de estações (os mesmos da tabela Meteorológicos); só entra quem informa o dado; cinza = leitura com mais de 3 h.
+  Escala de temperatura: < 10 azul-escuro · 10–15 azul · 15–20 ciano · 20–25 verde · 25–30 amarelo · 30–35 laranja · 35–40 vermelho · ≥ 40 vinho.
+  Escala de umidade: < 30 marrom · 30–45 âmbar · 45–60 amarelo-claro · 60–75 verde · 75–90 azul-claro · ≥ 90 azul-escuro. (Não havia escala prévia no painel; estas são novas e podem ser ajustadas em `climaFaixas.ts`.)
+* Cada modo tem legenda, contagem e popup com "Ver histórico da estação". Testado no navegador local com leituras sintéticas (inseridas só no banco de teste).

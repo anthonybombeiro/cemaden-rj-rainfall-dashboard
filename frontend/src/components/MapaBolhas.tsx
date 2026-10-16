@@ -7,8 +7,11 @@ import { Pane, GeoJSON, CircleMarker, Marker, Popup, useMapEvents } from "react-
 
 import {
   getChuva1hFaixa,
+  COTA_ESTILOS,
+  CotaClasse,
   getChuva24hNivel,
   getDelayStatus,
+  HidrologicaStation,
   PrecipitacaoStation,
   SireneStation,
   SOURCE_LABELS,
@@ -23,6 +26,7 @@ import {
   ROTULO_ACAO,
 } from "@/lib/sirenesEstilo";
 import { estaAtrasadoVento, FAIXA_ATRASADA, FAIXAS_RAJADA, faixaDaRajada, HORAS_ATRASO_VENTO } from "@/lib/ventoFaixas";
+import { corDaFaixa, FAIXAS_TEMP, FAIXAS_UMID, HORAS_ATRASO_CLIMA } from "@/lib/climaFaixas";
 
 // Modos de visualização das bolinhas do mapa (botão "Estações", 08/10/2026): sirenes (tocando ×
 // não tocando) e chuva 1 h / chuva 24 h / rajada de vento com o VALOR dentro da bolinha, usando as
@@ -205,6 +209,158 @@ export function CamadaVento({ estacoes, onOpenStation }: { estacoes: Station[]; 
           </Popup>
         </Marker>
       ))}
+    </>
+  );
+}
+
+// --------------------------------------------------------------------------- temperatura e umidade
+type ModoClima = "temperatura" | "tmax" | "tmin" | "umax" | "umin";
+
+const CFG_CLIMA: Record<ModoClima, { rotulo: string; unidade: string; faixas: typeof FAIXAS_TEMP; casas: number }> = {
+  temperatura: { rotulo: "Temperatura agora", unidade: "°C", faixas: FAIXAS_TEMP, casas: 1 },
+  tmax: { rotulo: "Temperatura máxima (24 h)", unidade: "°C", faixas: FAIXAS_TEMP, casas: 1 },
+  tmin: { rotulo: "Temperatura mínima (24 h)", unidade: "°C", faixas: FAIXAS_TEMP, casas: 1 },
+  umax: { rotulo: "Umidade máxima (24 h)", unidade: "%", faixas: FAIXAS_UMID, casas: 0 },
+  umin: { rotulo: "Umidade mínima (24 h)", unidade: "%", faixas: FAIXAS_UMID, casas: 0 },
+};
+
+function valorClima(s: Station, modo: ModoClima): number | null {
+  const ex = s.extremos_24h;
+  if (modo === "tmax") return ex?.temp_max ?? null;
+  if (modo === "tmin") return ex?.temp_min ?? null;
+  if (modo === "umax") return ex?.umid_max ?? null;
+  if (modo === "umin") return ex?.umid_min ?? null;
+  return s.latest_readings.find((r) => r.reading_type === "temperatura_c")?.value ?? null;
+}
+
+/** Estações com temperatura/umidade: valor dentro da bolinha, na escala de `climaFaixas.ts`. Só entra quem tem o dado. */
+export function CamadaClima({ modo, estacoes, onOpenStation }: { modo: ModoClima; estacoes: Station[]; onOpenStation?: (id: number) => void }) {
+  const tam = useTamanho();
+  const cfg = CFG_CLIMA[modo];
+  const itens = useMemo(
+    () =>
+      estacoes
+        .map((s) => {
+          const v = valorClima(s, modo);
+          if (v == null) return null;
+          // atraso pela leitura de temperatura/umidade mais recente da estação
+          const ref = s.latest_readings.find((r) => r.reading_type === "temperatura_c" || r.reading_type === "umidade_pct");
+          const horas = ref ? (Date.now() - new Date(ref.timestamp).getTime()) / 3_600_000 : null;
+          const atrasado = horas != null && horas > HORAS_ATRASO_CLIMA;
+          return { s, v, atrasado, ts: ref?.timestamp ?? null };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+        .sort((a, b) => a.v - b.v),
+    [estacoes, modo],
+  );
+  return (
+    <>
+      {itens.map(({ s, v, atrasado, ts }) => {
+        const f = corDaFaixa(cfg.faixas, v);
+        const ex = s.extremos_24h;
+        const fmt = (x: number | null | undefined, c: number, u: string) => (x == null ? "—" : `${x.toFixed(c).replace(".", ",")} ${u}`);
+        return (
+          <Marker
+            key={`${modo}-${s.source}-${s.id}`}
+            position={[s.latitude, s.longitude]}
+            icon={iconeBolha(atrasado ? FAIXA_ATRASADA.bg : f.bg, atrasado ? FAIXA_ATRASADA.text : f.text, v.toFixed(cfg.casas), tam)}
+            zIndexOffset={Math.round(v * 10)}
+          >
+            <Popup>
+              <div className="space-y-0.5 text-sm">
+                <p className="font-semibold">{s.name}</p>
+                <p className="text-gray-600">{s.municipality || "Município não informado"}</p>
+                <p className="text-xs uppercase tracking-wide text-gray-400">Fonte: {SOURCE_LABELS[s.source] ?? s.source}</p>
+                <p>
+                  {cfg.rotulo}: <strong>{fmt(v, cfg.casas, cfg.unidade)}</strong>
+                </p>
+                <p className="text-xs text-gray-500">
+                  Agora: {fmt(s.latest_readings.find((r) => r.reading_type === "temperatura_c")?.value, 1, "°C")} · umidade{" "}
+                  {fmt(s.latest_readings.find((r) => r.reading_type === "umidade_pct")?.value, 0, "%")}
+                </p>
+                <p className="text-xs text-gray-500">
+                  24 h: Tmáx {fmt(ex?.temp_max, 1, "°C")} · Tmín {fmt(ex?.temp_min, 1, "°C")} · Umáx {fmt(ex?.umid_max, 0, "%")} · Umín {fmt(ex?.umid_min, 0, "%")}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Atualizado: {fmtHora(ts)}
+                  {atrasado ? " (atrasada)" : ""}
+                </p>
+                <BotaoHistorico id={s.id} onOpenStation={onOpenStation} />
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+    </>
+  );
+}
+
+// --------------------------------------------------------------------------- hidrologia (nível dos rios)
+const TENDENCIA_SETA: Record<string, string> = { subindo: "↗ subindo", estavel: "→ estável", descendo: "↘ descendo" };
+const HORAS_ATRASO_NIVEL = 6;
+
+/** Estações hidrológicas: nível (m) dentro da bolinha, na cor da cota (mesmas de Dados → Hidrológicos). */
+export function CamadaHidrologia({ estacoes, onOpenStation }: { estacoes: HidrologicaStation[]; onOpenStation?: (id: number) => void }) {
+  const tam = useTamanho();
+  const itens = useMemo(
+    () =>
+      estacoes
+        .filter((s) => s.nivel_atual_m != null)
+        .map((s) => {
+          const horas = s.nivel_atualizado_em ? (Date.now() - new Date(s.nivel_atualizado_em).getTime()) / 3_600_000 : null;
+          const atrasado = horas == null || horas > HORAS_ATRASO_NIVEL;
+          const classe = (s.cota_classe ?? "sem_cota") as CotaClasse;
+          return { s, atrasado, classe, peso: ["normal", "sem_cota", "atencao", "alerta", "transbordo", "extrema"].indexOf(classe) };
+        })
+        .sort((a, b) => a.peso - b.peso),
+    [estacoes],
+  );
+  return (
+    <>
+      {itens.map(({ s, atrasado, classe }) => {
+        const est = COTA_ESTILOS[classe] ?? COTA_ESTILOS.sem_cota;
+        const c = s.cota;
+        const cm = (v: number | null | undefined) => (v == null ? "—" : `${Math.round(v)} cm`);
+        return (
+          <Marker
+            key={`hid-${s.source}-${s.id}`}
+            position={[s.latitude, s.longitude]}
+            icon={iconeBolha(atrasado ? FAIXA_ATRASADA.bg : est.bg, atrasado ? FAIXA_ATRASADA.text : est.text, (s.nivel_atual_m as number).toFixed(2), tam)}
+            zIndexOffset={classe === "normal" || classe === "sem_cota" ? 0 : 1000}
+          >
+            <Popup>
+              <div className="space-y-0.5 text-sm">
+                <p className="rounded px-2 py-1 text-center font-bold" style={{ backgroundColor: est.bg, color: est.text }}>
+                  {est.label}
+                </p>
+                <p className="font-semibold">{s.name}</p>
+                <p className="text-gray-600">{[s.rio_monitorado, s.municipality].filter(Boolean).join(" · ") || "—"}</p>
+                {(s.bacia || s.regiao_hidrografica) && (
+                  <p className="text-xs text-gray-500">{[s.bacia && `Bacia: ${s.bacia}`, s.regiao_hidrografica && `RH: ${s.regiao_hidrografica}`].filter(Boolean).join(" · ")}</p>
+                )}
+                <p>
+                  Nível: <strong>{(s.nivel_atual_m as number).toFixed(2).replace(".", ",")} m</strong>
+                  {s.tendencia ? ` · ${TENDENCIA_SETA[s.tendencia]}` : ""}
+                </p>
+                <p className="text-xs text-gray-500">
+                  24 h: máx {s.nivel_max_24h_m != null ? `${s.nivel_max_24h_m.toFixed(2).replace(".", ",")} m` : "—"} · mín {s.nivel_min_24h_m != null ? `${s.nivel_min_24h_m.toFixed(2).replace(".", ",")} m` : "—"}
+                </p>
+                {c && (
+                  <p className="text-xs text-gray-500">
+                    Cotas: atenção {cm(c.atencao_cm)} · alerta {cm(c.alerta_cm)} · transbordo {cm(c.inundacao_cm)} · extrema {cm(c.extrema_cm)}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Atualizado: {fmtHora(s.nivel_atualizado_em)}
+                  {atrasado ? " (atrasada)" : ""}
+                </p>
+                <p className="text-[11px] text-gray-400">Fonte: {SOURCE_LABELS[s.source] ?? s.source}</p>
+                <BotaoHistorico id={s.id} onOpenStation={onOpenStation} />
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
     </>
   );
 }
@@ -456,6 +612,34 @@ export function ConteudoLegendaModo({ modo }: { modo: Exclude<ModoMapa, "redes">
       </div>
     );
   }
+  if (modo === "hidrologia") {
+    return (
+      <div className="space-y-1.5">
+        <p className="mb-1 font-semibold text-gray-700">Nível dos rios (m)</p>
+        {(["normal", "atencao", "alerta", "transbordo", "extrema", "sem_cota"] as const).map((k) => (
+          <div key={k} className="flex items-center gap-2">
+            {bolinha(COTA_ESTILOS[k].bg)}
+            <span className="text-gray-700">{COTA_ESTILOS[k].label}</span>
+          </div>
+        ))}
+        <div className="flex items-center gap-2">{bolinha(FAIXA_ATRASADA.bg)}<span className="text-gray-700">Atrasada (&gt; {HORAS_ATRASO_NIVEL} h sem atualizar)</span></div>
+        <p className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400">Valor = nível atual em metros. Cotas da tabela Hidrológicos (editáveis no Admin).</p>
+      </div>
+    );
+  }
+  if (modo === "temperatura" || modo === "tmax" || modo === "tmin" || modo === "umax" || modo === "umin") {
+    const cfg = CFG_CLIMA[modo];
+    return (
+      <div className="space-y-1.5">
+        <p className="mb-1 font-semibold text-gray-700">{cfg.rotulo}</p>
+        {cfg.faixas.map((f) => (
+          <div key={f.rotulo} className="flex items-center gap-2">{bolinha(f.bg)}<span className="text-gray-700">{f.rotulo}</span></div>
+        ))}
+        <div className="flex items-center gap-2">{bolinha(FAIXA_ATRASADA.bg)}<span className="text-gray-700">Atrasada (&gt; {HORAS_ATRASO_CLIMA} h sem atualizar)</span></div>
+        <p className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400">Só estações que informam o dado.</p>
+      </div>
+    );
+  }
   if (modo === "floodhub") {
     return (
       <div className="space-y-1.5">
@@ -527,8 +711,12 @@ export function ConteudoLegendaModo({ modo }: { modo: Exclude<ModoMapa, "redes">
 /** Quantas bolinhas o modo atual desenha (texto "N estações nesta visualização"). */
 export function contagemModo(
   modo: ModoMapa,
-  dados: { estacoes: Station[]; precipitacao: PrecipitacaoStation[]; sirenes: SireneStation[]; floodhub?: PostoFH[] },
+  dados: { estacoes: Station[]; precipitacao: PrecipitacaoStation[]; sirenes: SireneStation[]; floodhub?: PostoFH[]; hidrologicas?: HidrologicaStation[] },
 ): number {
+  if (modo === "hidrologia") return (dados.hidrologicas ?? []).filter((s) => s.nivel_atual_m != null).length;
+  if (modo === "temperatura" || modo === "tmax" || modo === "tmin" || modo === "umax" || modo === "umin") {
+    return dados.estacoes.filter((s) => valorClima(s, modo) != null).length;
+  }
   if (modo === "floodhub") return (dados.floodhub ?? []).length;
   if (modo === "sirenes") return dados.sirenes.length;
   if (modo === "vento") return dados.estacoes.filter((s) => s.latest_readings.some((r) => r.reading_type === "vento_rajada_ms")).length;

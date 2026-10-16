@@ -91,3 +91,25 @@ emulação 375×812: raiz com 812 px, barra inferior encostada, botões visívei
 ## 7. CEMADEN-RJ e Paracambi (07/10/2026)
 
 Abas **CEMADEN-RJ** (oficial 15 min–1 mês + Calc) e **Paracambi** (antes "Ecowitt"). Ver `mapa-modos-de-visualizacao.md`.
+
+## 8. Revisão da tabela geral "Precipitação" (16/10/2026)
+**Pedido:** a tabela geral não recebeu os avanços das tabelas individuais e mostrava dados errados com frequência. **Diagnóstico** (ação admin de leitura `auditoria_precip`, 803 estações,
+antes → depois) e causas:
+
+| Problema | Onde | Antes → depois |
+|---|---|---|
+| Estação parada há dias mostrava **0,0 mm** em todas as janelas (parecia "sem chuva") | CEMADEN Nacional: 147 estações sem leitura nas últimas 96 h | todas passam a "—" (conferido: 147 com 1 h = 0 → 0; 147 com 1 h = vazio) |
+| Janela maior menor que a menor (72 h calculado > 96 h oficial) | Alerta Rio | 14 → 0 estações |
+| 10 min calculado (5,6) > 15 min oficial (1,8) | Sirenes CEMADEN-RJ | 7 → 0 |
+| "Hoje" maior que 24 h | Alerta Rio | 11 → 0 |
+| Valor oficial da fonte ausente na tabela geral (as individuais mostravam) | Plugfield (`rainDay`/`rainMonth`) e Wunderground (`precipTotal` do dia) | oficial aplicado: 0 → 17 e 0 → 93 estações |
+| Tabela não dizia se o valor era oficial ou calculado, nem a qualificação | todas | coluna **Origem**, números oficiais **sublinhados**, ⚠/✖ de qualificação |
+
+**Regras novas** (`backend/api/views.py::_calcular_precipitacao`, `_snapshot_oficial`, `_aplicar_oficiais`, `_coerencia_janelas`):
+1. **Sem leitura dentro da janela = sem dado** (`None`, "—"), nunca 0,0. Todas as fontes gravam zeros (mediana 0,0 em `analise_chuva_qc`), então "—" realmente significa que a estação não reportou na janela.
+2. **Valor oficial da fonte** quando o retrato tem até 2 h (`OFICIAL_VALIDADE_H`): Alerta Rio, Niterói, INEA, CEMADEN Nacional, CEMADEN-RJ (sirenes), Macaé, Paracambi e agora Plugfield e Wunderground (hoje/mês).
+3. **Coerência entre janelas** (`_coerencia_janelas`): os oficiais são âncora e nunca mudam; uma janela calculada fica entre o maior oficial de uma janela mais curta e o menor oficial de uma mais longa; "Hoje" ≤ 24 h; "No Mês" ≥ "Hoje".
+4. Cada linha traz `campos_oficiais` (quais colunas são oficiais), `qualidade`/`qualidade_motivo` (pior qualificação das leituras de chuva de 24 h).
+
+Efeito colateral positivo: a tabela Hidrológicos e os modos de chuva do mapa usam o mesmo cálculo e herdam a correção. **Não alterado:** o oficial do CEMADEN Nacional continua diferindo do nosso cálculo em ~95 de 392 estações em 96 h (a fonte inclui dados que chegam atrasados); a tabela mostra o oficial, como combinado em 06/10.
+**Incidente durante o deploy:** a primeira versão usou a anotação `dict | None` e o servidor (Python 3.9) devolveu erro 500 por alguns minutos; corrigido removendo a anotação. Regra: em arquivos sem `from __future__ import annotations`, não usar `X | Y` em anotações.

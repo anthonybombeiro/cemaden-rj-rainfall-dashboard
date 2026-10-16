@@ -93,6 +93,10 @@ MAPA_ACUMULADOS_OFICIAIS = {
         "acumulado_96h_mm": "96", "acumulado_1mes_mm": "720",
     },
     "macae_ufrj": {"acumulado_1h_mm": "1", "acumulado_24h_mm": "24", "acumulado_96h_mm": "96"},
+    # 16/10/2026: Plugfield (rainDay/rainMonth) e Wunderground (precipTotal do dia) passam a ter o valor oficial na tabela geral,
+    # como já tinham nas tabelas individuais (retrato montado em `_snapshot_oficial`).
+    "plugfield": {"acumulado_hoje_mm": "hoje", "acumulado_mes_mm": "mes"},
+    "wunderground": {"acumulado_hoje_mm": "hoje"},
     "ecowitt_paracambi": {"acumulado_1h_mm": "1", "acumulado_hoje_mm": "hoje", "acumulado_mes_mm": "mes"},
     "cemaden_rj_sirenes": {
         "acumulado_15min_mm": "m15", "acumulado_1h_mm": "1", "acumulado_4h_mm": "4", "acumulado_12h_mm": "12",
@@ -689,6 +693,17 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             .annotate(maior=Max("value"))
         }
 
+        # Pior qualificação (inválido > suspeito) das leituras de chuva das últimas 24 h, por estação.
+        qualidade_por_estacao: dict = {}
+        for q in LeituraQualidade.objects.filter(
+            reading__station_id__in=station_ids,
+            reading__reading_type=Reading.ReadingType.CHUVA_MM,
+            reading__timestamp__gte=cutoffs["acumulado_24h_mm"],
+        ).values("reading__station_id", "qualidade", "motivo"):
+            atual = qualidade_por_estacao.get(q["reading__station_id"])
+            if atual is None or (q["qualidade"] == "invalido" and atual[0] != "invalido"):
+                qualidade_por_estacao[q["reading__station_id"]] = (q["qualidade"], q["motivo"])
+
         data = []
         for station in stations:
             slug = station.source.slug
@@ -716,14 +731,26 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 "acumulado_1mes_mm": None,
                 "acumulado_mes_mm": None,
                 "pico_mm": None,
+                "campos_oficiais": [],
+                "qualidade": qualidade_por_estacao.get(station.id, (None, ""))[0],
+                "qualidade_motivo": qualidade_por_estacao.get(station.id, (None, ""))[1],
                 **{campo: None for campo in cutoffs},
             }
             if kind == "bucket":
+                # 16/10/2026: SEM leitura dentro da janela => sem dado (None, "—" na tela), nunca 0,0 mm. Antes uma estação parada
+                # há dias mostrava 0,0 em todas as colunas (147 estações do CEMADEN Nacional) e parecia "sem chuva".
+                ultimo_ts = latest["timestamp"] if latest else None
                 entry["chuva_agora_mm"] = latest["value"] if latest else None
                 for campo, cutoff in cutoffs.items():
-                    entry[campo] = sum(r["value"] for r in rows if r["timestamp"] >= cutoff)
-                entry["acumulado_hoje_mm"] = sum(
-                    r["value"] for r in rows if r["timestamp"] >= inicio_hoje_local
+                    entry[campo] = (
+                        sum(r["value"] for r in rows if r["timestamp"] >= cutoff)
+                        if ultimo_ts is not None and ultimo_ts >= cutoff
+                        else None
+                    )
+                entry["acumulado_hoje_mm"] = (
+                    sum(r["value"] for r in rows if r["timestamp"] >= inicio_hoje_local)
+                    if ultimo_ts is not None and ultimo_ts >= inicio_hoje_local
+                    else None
                 )
                 entry["acumulado_168h_mm"] = soma_168h_por_estacao.get(station.id)
                 entry["acumulado_1mes_mm"] = soma_1mes_corrido_por_estacao.get(station.id)
@@ -737,18 +764,46 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         return data
 
     @staticmethod
+    def _snapshot_oficial(station):
+        """Retrato OFICIAL da fonte no formato {"referencia": ISO, "acc": {chave: mm}}. Para a maioria das fontes já é
+        `raw_metadata["acumulados_oficiais"]`; Plugfield e Wunderground guardam o dado de outra forma (mesma origem que
+        as tabelas individuais mostram)."""
+        meta = station.raw_metadata or {}
+        slug = station.source.slug
+        if slug == "plugfield":
+            ts = meta.get("lastUpdateTimestamp")
+            dash = meta.get("dashboard") or {}
+            if not ts:
+                return None
+            acc = {"hoje": dash.get("rainDay"), "mes": dash.get("rainMonth")}
+            return {
+                "referencia": datetime.datetime.fromtimestamp(ts / 1000, tz=datetime.timezone.utc).isoformat(),
+                "acc": {k: v for k, v in acc.items() if v is not None},
+            }
+        if slug == "wunderground":
+            obs = meta.get("observacao_oficial") or {}
+            if not obs.get("referencia") or obs.get("precip_total_mm") is None:
+                return None
+            return {"referencia": obs["referencia"], "acc": {"hoje": obs["precip_total_mm"]}}
+        return meta.get("acumulados_oficiais")
+
+    @staticmethod
     def _aplicar_oficiais(entry: dict, station, agora) -> bool:
         """Troca, em `entry`, as janelas que a FONTE informa pelos valores oficiais (se o
         retrato tem até OFICIAL_VALIDADE_H h). Devolve True se aplicou. Guarda o nosso cálculo
-        original em `entry["calculado"]` (campo -> valor) para auditoria."""
+        original em `entry["calculado"]` (campo -> valor) e a lista de campos oficiais em
+        `entry["campos_oficiais"]` (a tela marca esses valores). As janelas que continuam calculadas
+        são ajustadas para ficarem coerentes com as oficiais (`_coerencia_janelas`)."""
         mapa = MAPA_ACUMULADOS_OFICIAIS.get(station.source.slug)
-        snap = (station.raw_metadata or {}).get("acumulados_oficiais") if mapa else None
+        snap = StationViewSet._snapshot_oficial(station) if mapa else None
         if not snap or not snap.get("referencia"):
             return False
         try:
             ref = datetime.datetime.fromisoformat(snap["referencia"])
         except ValueError:
             return False
+        if ref.tzinfo is None:
+            ref = ref.replace(tzinfo=datetime.timezone.utc)
         if agora - ref > datetime.timedelta(hours=OFICIAL_VALIDADE_H):
             return False
         acc = snap.get("acc") or {}
@@ -760,8 +815,9 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             calculado[campo] = entry.get(campo)
             entry[campo] = valor
         entry["calculado"] = calculado
+        entry["campos_oficiais"] = sorted(calculado)
         if calculado:
-            StationViewSet._garantir_janelas_coerentes(entry)
+            StationViewSet._coerencia_janelas(entry, set(calculado))
         return bool(calculado)
 
     # Janelas de chuva em ordem crescente de duração (campos de `_calcular_precipitacao`).
@@ -773,21 +829,39 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
     )
 
     @staticmethod
-    def _garantir_janelas_coerentes(entry: dict) -> None:
-        """Depois de trocar algumas janelas pelo valor OFICIAL, as que continuam calculadas por nós
-        podem ficar incoerentes (ex.: nosso 6 h = 2 mm abaixo do oficial de 4 h = 5 mm). Uma janela
-        maior contém a menor, então nunca pode ser menor: sobe para o maior valor das janelas
-        contidas. Só mexe nas janelas ainda calculadas (as oficiais não são alteradas)."""
-        oficiais = set((entry.get("calculado") or {}).keys())
-        maior = None
-        for campo in StationViewSet.JANELAS_EM_ORDEM:
+    def _coerencia_janelas(entry: dict, oficiais: set) -> None:
+        """Garante que as janelas (5 min … 30 d, em ordem) nunca diminuem com o aumento da duração, usando os valores
+        OFICIAIS como âncora (eles nunca são alterados): uma janela calculada fica entre o maior oficial de uma janela
+        mais curta e o menor oficial de uma janela mais longa. Exemplos corrigidos em 16/10/2026: Alerta Rio 72 h calculado
+        (25,0) > 96 h oficial (23,8); sirenes 10 min calculado (5,6) > 15 min oficial (1,8). Também: "Hoje" não pode
+        passar de 24 h, nem "No Mês" ficar abaixo de "Hoje"."""
+        ordem = StationViewSet.JANELAS_EM_ORDEM
+        n = len(ordem)
+        teto = [None] * n  # menor oficial entre as janelas MAIS LONGAS
+        cur = None
+        for i in range(n - 1, -1, -1):
+            teto[i] = cur
+            v = entry.get(ordem[i])
+            if ordem[i] in oficiais and v is not None:
+                cur = v if cur is None else min(cur, v)
+        anterior = None
+        for i, campo in enumerate(ordem):
             v = entry.get(campo)
             if v is None:
                 continue
-            if maior is not None and v < maior and campo not in oficiais:
-                entry[campo] = maior
-                v = maior
-            maior = v if maior is None else max(maior, v)
+            if campo not in oficiais:
+                if anterior is not None and v < anterior:
+                    v = anterior
+                if teto[i] is not None and v > teto[i]:
+                    v = teto[i]
+                entry[campo] = round(v, 2)
+            anterior = v if anterior is None else max(anterior, v)
+        hoje, d24, mes = entry.get("acumulado_hoje_mm"), entry.get("acumulado_24h_mm"), entry.get("acumulado_mes_mm")
+        if "acumulado_hoje_mm" not in oficiais and hoje is not None and d24 is not None and hoje > d24:
+            entry["acumulado_hoje_mm"] = d24
+            hoje = d24
+        if "acumulado_mes_mm" not in oficiais and mes is not None and hoje is not None and mes < hoje:
+            entry["acumulado_mes_mm"] = hoje
 
     @action(detail=False, methods=["get"])
     def cemaden(self, request):

@@ -230,3 +230,5 @@ temporária da sessão (não estão no repositório): precisam da chave SSH `~/.
 
 Atualização 16/10/2026 (eventos do Flood Hub): `sync_floodhub` também sincroniza os eventos (resumo traz `eventos_brasil` e `eventos_no_rj`); nova rota
 `/api/floodhub/eventos/`; migração `0018_floodhub_eventos` aplicada por `migrate`.
+
+Ação admin de leitura nova (16/10/2026): `auditoria_precip` — coerência da tabela geral de Precipitação por fonte (janelas fora de ordem, oficial aplicado, estações sem leitura, diferenças oficial × nosso). Cuidado de deploy: o servidor roda **Python 3.9** (não usar `X | Y` em anotações sem `from __future__ import annotations`).

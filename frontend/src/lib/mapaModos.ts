@@ -1,5 +1,5 @@
 /** Modos de visualização das bolinhas do mapa (botão "Estações", 08/10/2026). */
-export type ModoMapa = "redes" | "sirenes" | "chuva1h" | "chuva24h" | "vento" | "floodhub";
+export type ModoMapa = "redes" | "sirenes" | "chuva1h" | "chuva24h" | "vento" | "floodhub" | "hidrologia" | "temperatura" | "tmax" | "tmin" | "umax" | "umin";
 
 export const MODOS_MAPA: { key: ModoMapa; label: string; descricao: string }[] = [
   { key: "redes", label: "Todas as estações (por rede)", descricao: "Uma cor por rede/fonte (padrão)" },
@@ -7,6 +7,12 @@ export const MODOS_MAPA: { key: ModoMapa; label: string; descricao: string }[] =
   { key: "chuva1h", label: "Chuva em 1 h", descricao: "Acumulado de 1 h dentro da bolinha, com as faixas de chuva do painel" },
   { key: "chuva24h", label: "Chuva em 24 h", descricao: "Acumulado de 24 h dentro da bolinha" },
   { key: "vento", label: "Vento (rajada)", descricao: "Rajada em km/h dentro da bolinha, só estações que informam rajada" },
+  { key: "hidrologia", label: "Rios (nível e cotas)", descricao: "Nível do rio em metros dentro da bolinha, na cor da cota (normal, atenção, alerta, transbordo, extrema)" },
+  { key: "temperatura", label: "Temperatura (agora)", descricao: "Temperatura atual em °C dentro da bolinha" },
+  { key: "tmax", label: "Temperatura máxima (24 h)", descricao: "Maior temperatura das últimas 24 h" },
+  { key: "tmin", label: "Temperatura mínima (24 h)", descricao: "Menor temperatura das últimas 24 h" },
+  { key: "umax", label: "Umidade máxima (24 h)", descricao: "Maior umidade relativa das últimas 24 h" },
+  { key: "umin", label: "Umidade mínima (24 h)", descricao: "Menor umidade relativa das últimas 24 h" },
   { key: "floodhub", label: "Flood Hub (cheias)", descricao: "Situação dos postos do Google Flood Hub: sem cheia, acima do normal, severo, extremo" },
 ];
 

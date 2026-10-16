@@ -589,6 +589,27 @@ export default function Dashboard({
     };
   }, [viewMode, modoMapa, floodhubTodosMapa]);
 
+  // Modo "Rios (nível e cotas)" do mapa: carrega as hidrológicas (nível, cota, tendência) e atualiza a cada 5 min
+  useEffect(() => {
+    if (viewMode !== "mapa" || modoMapa !== "hidrologia") return;
+    let cancelled = false;
+    const carregar = () =>
+      fetchHidrologicas()
+        .then((d) => {
+          if (!cancelled) {
+            setHidrologicas(d);
+            setHidrologicasLoaded(true);
+          }
+        })
+        .catch(() => {});
+    carregar();
+    const id = setInterval(carregar, 300_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [viewMode, modoMapa]);
+
   // Sirenes na visualização do mapa: só os filtros de município/REDEC do mapa (os filtros da aba
   // Sirenes são outros).
   const sirenesDoMapa = useMemo(
@@ -1097,12 +1118,14 @@ export default function Dashboard({
                 precipitacao={filteredPrecipitacao}
                 sirenes={sirenesDoMapa}
                 floodhub={floodhubMapa}
+                hidrologicas={filteredHidrologicas}
                 floodhubTodos={floodhubTodosMapa}
                 floodhubEventos={floodhubEventos}
                 onFloodhubTodos={setFloodhubTodosMapa}
                 carregandoModo={
                   (modoMapa === "sirenes" && sirenesLoading) ||
-                  ((modoMapa === "chuva1h" || modoMapa === "chuva24h" || modoMapa === "floodhub") && modoMapaLoading)
+                  ((modoMapa === "chuva1h" || modoMapa === "chuva24h" || modoMapa === "floodhub") && modoMapaLoading) ||
+                  (modoMapa === "hidrologia" && hidrologicasLoading)
                 }
                 onOpenStation={setPainelEstacaoId}
               />

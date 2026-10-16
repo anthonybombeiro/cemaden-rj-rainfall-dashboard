@@ -154,6 +154,8 @@ const PrecipitationTable = forwardRef<
       "Município",
       "Estação",
       ...JANELAS.map((j) => `${j.label} (mm)`),
+      "Origem do valor",
+      "Qualificação",
       "Fonte",
       "Atualizado em",
     ];
@@ -162,6 +164,8 @@ const PrecipitationTable = forwardRef<
       s.municipality || "",
       s.name,
       ...JANELAS.map((j) => (s[j.key] as number | null) ?? ""),
+      (s.campos_oficiais?.length ?? 0) > 0 ? "Oficial da fonte" : "Calculado (soma das leituras)",
+      s.qualidade ? `${s.qualidade}: ${s.qualidade_motivo ?? ""}` : "",
       SOURCE_LABELS[s.source] ?? s.source,
       formatTimestamp(s.updated_at),
     ]);
@@ -181,7 +185,7 @@ const PrecipitationTable = forwardRef<
         className="border-collapse text-xs sm:text-sm [&_td]:border [&_td]:border-gray-200 [&_th]:border [&_th]:border-gray-300"
         style={{
           tableLayout: "fixed",
-          width: w.estacao + w.redec + w.municipio + JANELAS.length * w.janela + w.fonte + w.atualizado + W_HISTORICO,
+          width: w.estacao + w.redec + w.municipio + JANELAS.length * w.janela + w.fonte + 84 + w.atualizado + W_HISTORICO,
         }}
       >
         <colgroup>
@@ -192,6 +196,7 @@ const PrecipitationTable = forwardRef<
             <col key={j.key} style={{ width: w.janela }} />
           ))}
           <col style={{ width: w.fonte }} />
+          <col style={{ width: 84 }} />
           <col style={{ width: w.atualizado }} />
           <col style={{ width: W_HISTORICO }} />
         </colgroup>
@@ -241,6 +246,13 @@ const PrecipitationTable = forwardRef<
             >
               Fonte{arrow("source")}
               {resizer("fonte")}
+            </th>
+            <th
+              className="sticky top-0 align-bottom leading-tight z-20 whitespace-normal bg-gray-100 px-2 py-2"
+              style={{ width: 84, maxWidth: 84, minWidth: 84 }}
+              title="De onde vem o valor: OFICIAL da fonte (a própria fonte informa os acumulados) ou CALCULADO (soma das leituras que gravamos). Nas linhas oficiais, os números sublinhados são os oficiais."
+            >
+              Origem
             </th>
             <th
               className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-nowrap bg-gray-100 px-2 py-2"
@@ -339,8 +351,9 @@ const PrecipitationTable = forwardRef<
                   ) : (
                     <td
                       key={j.key}
-                      className="whitespace-nowrap px-1.5 py-1 text-right"
+                      className={`whitespace-nowrap px-1.5 py-1 text-right ${s.campos_oficiais?.includes(j.key as string) ? "underline decoration-dotted decoration-1 underline-offset-2" : ""}`}
                       style={{ backgroundColor: bgFundo, color: corTexto ?? "#1f2937" }}
+                      title={s.campos_oficiais?.includes(j.key as string) ? "Valor OFICIAL informado pela fonte" : undefined}
                     >
                       {formatMm(s[j.key] as number | null)}
                     </td>
@@ -352,6 +365,22 @@ const PrecipitationTable = forwardRef<
                   title={s.source}
                 >
                   <CampoClicavel id={s.id} valor={SOURCE_LABELS[s.source] ?? s.source} onOpenStation={onOpenStation} />
+                </td>
+                <td
+                  className="whitespace-normal break-words leading-tight px-1.5 py-1 text-[11px]"
+                  style={{ backgroundColor: bgFundo, color: corTexto ?? "#4b5563" }}
+                  title={
+                    (s.campos_oficiais?.length ?? 0) > 0
+                      ? `Oficial da fonte: ${s.campos_oficiais!.map((c) => c.replace("acumulado_", "").replace("_mm", "")).join(", ")}. Os demais são a soma das leituras.`
+                      : "Calculado: soma das leituras que gravamos (esta fonte não informa acumulados prontos, ou o retrato oficial está desatualizado)."
+                  }
+                >
+                  {(s.campos_oficiais?.length ?? 0) > 0 ? "Oficial" : "Calculado"}
+                  {s.qualidade && (
+                    <span className={`ml-1 font-semibold ${s.qualidade === "invalido" ? "text-red-700" : "text-amber-700"}`} title={s.qualidade_motivo || s.qualidade}>
+                      {s.qualidade === "invalido" ? "✖" : "⚠"}
+                    </span>
+                  )}
                 </td>
                 <td
                   className="whitespace-normal break-words leading-tight px-2 py-1"
@@ -395,8 +424,11 @@ const PrecipitationTable = forwardRef<
         acumulado CALENDÁRIO — desde 00h de hoje e desde o dia 1 do mês corrente, respectivamente — coisas
         diferentes de uma janela móvel. &ldquo;Últ.&rdquo; é a leitura mais recente tal como a fonte reporta: o
         intervalo de tempo que ela representa varia por fonte (5min a 1h) — não dá pra comparar esse valor entre
-        fontes diferentes, só entre leituras da mesma estação ao longo do tempo. Colunas de janela menor que a
-        cadência real de uma fonte saem iguais a &ldquo;Últ.&rdquo;, não é erro. Só a coluna Estação fica fixa
+        fontes diferentes, só entre leituras da mesma estação ao longo do tempo. <b>&ldquo;—&rdquo; = sem leitura dentro
+        da janela</b> (a estação parou de reportar; não significa 0,0 mm). Números <u>sublinhados</u> são o valor OFICIAL da
+        fonte (coluna Origem); os demais são a soma das leituras gravadas, ajustada para nunca ficar incoerente com os
+        oficiais (uma janela maior nunca é menor que uma menor). ⚠ suspeito / ✖ inválido = qualificação automática de
+        leitura nas últimas 24 h. Só a coluna Estação fica fixa
         rolando a tabela pro lado — em celular, arraste horizontalmente pra ver todas as janelas. Clique em
         qualquer cabeçalho pra ordenar.
       </div>

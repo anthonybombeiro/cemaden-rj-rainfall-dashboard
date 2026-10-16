@@ -4,6 +4,7 @@ import L from "leaflet";
 import CamadaGeografica from "@/components/CamadaGeografica";
 import FloodHubFicha from "@/components/FloodHubFicha";
 import { EventoFH, PostoFH, EventosFHResposta, textoEventos } from "@/lib/floodhub";
+import type { HidrologicaStation } from "@/lib/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Pane, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -29,6 +30,8 @@ import {
   CamadaSirenes,
   CamadaVento,
   CamadaFloodHub,
+  CamadaClima,
+  CamadaHidrologia,
   CamadaEventosFH,
   ConteudoLegendaModo,
   contagemModo,
@@ -800,6 +803,7 @@ export default function MapView({
   municipalityFilter = [],
   modo = "redes",
   floodhub = [],
+  hidrologicas = [],
   floodhubTodos = false,
   onFloodhubTodos,
   floodhubEventos = null,
@@ -817,6 +821,7 @@ export default function MapView({
   /** Sirenes (tocando/não tocando) — modo "Sirenes". */
   sirenes?: SireneStation[];
   floodhub?: PostoFH[];
+  hidrologicas?: HidrologicaStation[];
   floodhubTodos?: boolean;
   onFloodhubTodos?: (v: boolean) => void;
   floodhubEventos?: EventosFHResposta | null;
@@ -926,6 +931,10 @@ export default function MapView({
       {config.mostrarEstacoes && modo === "sirenes" && <CamadaSirenes sirenes={sirenes} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "chuva1h" && <CamadaChuva janela="1h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "chuva24h" && <CamadaChuva janela="24h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "hidrologia" && <CamadaHidrologia estacoes={hidrologicas} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && (modo === "temperatura" || modo === "tmax" || modo === "tmin" || modo === "umax" || modo === "umin") && (
+        <CamadaClima modo={modo} estacoes={stations} onOpenStation={onOpenStation} />
+      )}
       {config.mostrarEstacoes && modo === "vento" && <CamadaVento estacoes={stations} onOpenStation={onOpenStation} />}
       {modo === "floodhub" && floodhubEventos && <CamadaEventosFH eventos={floodhubEventos.no_rj as EventoFH[]} />}
       {config.mostrarEstacoes && modo === "floodhub" && <CamadaFloodHub postos={floodhub} onAbrirFicha={setFichaFH} />}
@@ -986,7 +995,7 @@ export default function MapView({
           modo={modo}
           onModoChange={onModoChange}
           carregando={carregandoModo}
-          contagem={carregandoModo ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes, floodhub })}
+          contagem={carregandoModo ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes, floodhub, hidrologicas })}
           floodhubTodos={floodhubTodos}
           onFloodhubTodos={onFloodhubTodos}
           eventosTexto={textoEventos(floodhubEventos)}

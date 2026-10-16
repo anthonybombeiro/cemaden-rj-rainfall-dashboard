@@ -89,6 +89,7 @@ ACOES_PERMITIDAS = {
     "sync_floodhub",
     "floodhub_pares",
     "floodhub_proximas",
+    "auditoria_precip",
 }
 
 
@@ -534,6 +535,70 @@ class AdminOpsView(APIView):
                         ][:4],
                     })
                 saida.write(json_module.dumps(saida_l, ensure_ascii=False))
+            elif action == "auditoria_precip":
+                # SOMENTE LEITURA: coerência dos dados da tabela geral de Precipitação, por fonte
+                import json as json_module
+                from collections import defaultdict
+
+                from core.models import Reading, Station
+                from django.utils import timezone as tz
+
+                from .views import StationViewSet
+
+                vs = StationViewSet()
+                est = list(
+                    Station.objects.select_related("source")
+                    .filter(readings__reading_type=Reading.ReadingType.CHUVA_MM)
+                    .distinct()
+                )
+                oficial = {e["id"]: e for e in vs._calcular_precipitacao(est, usar_oficiais=True)}
+                nosso = {e["id"]: e for e in vs._calcular_precipitacao(est, usar_oficiais=False)}
+                agora = tz.now()
+                por_fonte = defaultdict(lambda: defaultdict(int))
+                exemplos = defaultdict(list)
+                pares = ("5min", "10min", "15min", "30min", "1h", "2h", "3h", "4h", "6h", "12h", "24h", "36h", "48h", "72h", "96h", "168h")
+                for sid, e in oficial.items():
+                    f = e["source"]
+                    m = por_fonte[f]
+                    m["estacoes"] += 1
+                    atraso_h = None if not e["updated_at"] else (agora - e["updated_at"]).total_seconds() / 3600
+                    if atraso_h is None:
+                        m["sem_leitura"] += 1
+                    elif atraso_h > 1:
+                        m["atrasada_1h"] += 1
+                    if atraso_h is not None and atraso_h > 24:
+                        m["atrasada_24h"] += 1
+                    m["oficial_aplicado"] += int(bool(e.get("acumulados_oficiais")))
+                    seq = [(k, e.get(f"acumulado_{k}_mm")) for k in pares]
+                    ordem_ok = True
+                    for (ka, va), (kb, vb) in zip(seq, seq[1:]):
+                        if va is not None and vb is not None and va > vb + 0.05:
+                            ordem_ok = False
+                            m["janela_maior_que_seguinte"] += 1
+                            if len(exemplos[f"{f}:janela"]) < 3:
+                                exemplos[f"{f}:janela"].append(f"{e['name']}: {ka}={va} > {kb}={vb}")
+                            break
+                    for k, v in seq:
+                        if v is not None and v < 0:
+                            m["negativo"] += 1
+                    h, d24, d96 = e.get("acumulado_1h_mm"), e.get("acumulado_24h_mm"), e.get("acumulado_96h_mm")
+                    if d24 is not None and d24 > 250:
+                        m["24h_acima_250mm"] += 1
+                        if len(exemplos[f"{f}:24h>250"]) < 3:
+                            exemplos[f"{f}:24h>250"].append(f"{e['name']}: {d24}")
+                    if e.get("acumulado_hoje_mm") is not None and d24 is not None and e["acumulado_hoje_mm"] > d24 + 0.05:
+                        m["hoje_maior_que_24h"] += 1
+                    if e.get("acumulado_mes_mm") is not None and e.get("acumulado_hoje_mm") is not None and e["acumulado_mes_mm"] + 0.05 < e["acumulado_hoje_mm"]:
+                        m["mes_menor_que_hoje"] += 1
+                    n = nosso[sid]
+                    for k in ("1h", "24h", "96h"):
+                        a, b = e.get(f"acumulado_{k}_mm"), n.get(f"acumulado_{k}_mm")
+                        if a is not None and b is not None and abs(a - b) > 2:
+                            m[f"dif_oficial_vs_nosso_{k}_gt2mm"] += 1
+                    if (e.get("updated_at") is None) != (n.get("updated_at") is None):
+                        m["updated_divergente"] += 1
+                # nomes repetidos entre fontes no mesmo município (possível duplicidade)
+                saida.write(json_module.dumps({"por_fonte": {k: dict(v) for k, v in por_fonte.items()}, "exemplos": dict(exemplos), "total": len(oficial)}, ensure_ascii=False, default=str))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 

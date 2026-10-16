@@ -266,6 +266,11 @@ export type PrecipitacaoStation = {
   updated_at: string | null;
   /** true quando as janelas exibidas são o valor OFICIAL da fonte (ver backend `_aplicar_oficiais`). */
   acumulados_oficiais?: boolean;
+  /** Campos (ex.: "acumulado_1h_mm") cujo valor é OFICIAL da fonte; os demais são a soma das leituras que gravamos. */
+  campos_oficiais?: string[];
+  /** Pior qualificação das leituras de chuva das últimas 24 h (só existem exceções). */
+  qualidade?: "suspeito" | "invalido" | null;
+  qualidade_motivo?: string;
   /** Última leitura "bruta". */
   chuva_agora_mm: number | null;
   /** Acumulado desde a meia-noite local. Sempre que disponível, pra qualquer fonte. */
