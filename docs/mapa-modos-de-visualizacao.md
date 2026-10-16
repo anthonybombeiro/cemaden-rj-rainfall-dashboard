@@ -89,6 +89,6 @@ No modo Estações → Flood Hub o mapa também desenha as áreas de **inundaç�
 provável) que tocam o RJ. Quando não há evento, o botão mostra "Eventos do Flood Hub: nenhum no RJ agora (N no Brasil)". Regras e limites em `floodhub.md`.
 
 ## Imagens e áreas de evento acima das estações (16/10/2026)
-Satélite/radar (todas as fontes) e as áreas de evento do Flood Hub agora ficam **sobre** as estações (panes `imagensMeteo` 650 e `eventosFH` 660), como pedido: a opacidade da imagem
+Satélite/radar (todas as fontes) ficam **sobre** as estações (pane `imagensMeteo`, 650) e as áreas de evento do Flood Hub ficam sobre as estações porém **abaixo das imagens** (pane `eventosFH`, 620), como pedido: a opacidade da imagem
 (barra em Opções) define o quanto das estações aparece por baixo. Cliques passam para a estação. Observação: as divisões administrativas (REDEC/município) também ficam abaixo da imagem;
 com opacidade alta elas somem. Detalhes em `floodhub.md`.

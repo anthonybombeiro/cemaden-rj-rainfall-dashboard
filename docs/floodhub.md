@@ -112,8 +112,8 @@ postos, início/fim); *chuva repentina (flash flood)* = probabilidade de enchent
   Normal `#45a46b` ("Sem cheia"), Sem dados `#bebebe`. As bolinhas do mapa e as etiquetas das tabelas usam essas cores, **sem transparência** (borda branca nos
   verificados; tracejada cinza nos não verificados, que ficam um pouco menores). Os rótulos continuam os nossos; se preferir os nomes do Google (Extremo/Perigo/Aviso/Normal),
   é só trocar em `ESTILO_SEVERIDADE` (`frontend/src/lib/floodhub.ts`).
-* **Ordem das camadas no mapa (de baixo para cima):** mapa-base (200) → divisões e bolinhas das estações (`overlayPane`, 400; marcadores 600) → **imagens de satélite/radar**
-  (pane `imagensMeteo`, 650) → **áreas de evento do Flood Hub** (pane `eventosFH`, 660) → popups (700). Antes as imagens (zIndex 400 no mesmo pane das bolinhas) ficavam
-  *abaixo* das estações. Agora a imagem cobre as estações e a **barra de opacidade** controla o quanto delas se vê. Os dois panes têm `pointer-events: none`, então o clique passa
-  para a estação por baixo (verificado: `elementFromPoint` no centro da bolinha devolve a própria estação com o satélite a 100%); o contorno das áreas de evento continua clicável
-  (CSS `.evento-fh { pointer-events: stroke }`).
+* **Ordem das camadas no mapa (de baixo para cima):** mapa-base (200) → divisões e bolinhas das estações (`overlayPane`, 400; marcadores 600) →
+  **áreas de evento do Flood Hub** (pane `eventosFH`, **620**: sobre as estações) → **imagens de satélite/radar** (pane `imagensMeteo`, **650**: sobre tudo) → popups (700).
+  Ajustado em 16/10/2026 a pedido: os polígonos de chuva repentina ficam **sobre as estações e abaixo das imagens** (a imagem, com a opacidade escolhida, também cobre os
+  polígonos). Antes as imagens (zIndex 400 no mesmo pane das bolinhas) ficavam *abaixo* das estações. Os dois panes têm `pointer-events: none`, então o clique passa para a
+  estação por baixo (verificado com o satélite a 100%); o contorno das áreas de evento continua clicável (CSS `.evento-fh { pointer-events: stroke }`).

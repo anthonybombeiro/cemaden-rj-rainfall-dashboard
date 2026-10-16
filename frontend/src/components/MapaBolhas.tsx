@@ -349,7 +349,7 @@ const fmtData = (iso: string | null) => (iso ? new Date(iso).toLocaleString("pt-
 /** Áreas de inundação significativa e de chuva repentina (flash flood) do Google Flood Hub que tocam o RJ. */
 export function CamadaEventosFH({ eventos }: { eventos: EventoFH[] }) {
   return (
-    <Pane name="eventosFH" style={{ zIndex: 660, pointerEvents: "none" }}>
+    <Pane name="eventosFH" style={{ zIndex: 620, pointerEvents: "none" }}>
       {eventos.flatMap((ev) =>
         ev.feicoes.map((f, i) => {
           const e = ESTILO_EVENTO[f.nivel] ?? ESTILO_EVENTO.significativo;
