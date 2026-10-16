@@ -270,11 +270,15 @@ export function SeletorModoMapa({
   onModoChange,
   carregando,
   contagem,
+  floodhubTodos = false,
+  onFloodhubTodos,
 }: {
   modo: ModoMapa;
   onModoChange: (m: ModoMapa) => void;
   carregando: boolean;
   contagem: number | null;
+  floodhubTodos?: boolean;
+  onFloodhubTodos?: (v: boolean) => void;
 }) {
   const [aberto, setAberto] = useState(false);
   const raizRef = useRef<HTMLDivElement | null>(null);
@@ -319,6 +323,12 @@ export function SeletorModoMapa({
           ))}
         </div>
       )}
+      {modo === "floodhub" && !aberto && (
+        <label className="mt-1 flex w-fit max-w-full cursor-pointer items-center gap-1.5 rounded bg-white/95 px-2 py-1 text-[11px] text-gray-700 shadow">
+          <input type="checkbox" checked={floodhubTodos} onChange={(e) => onFloodhubTodos?.(e.target.checked)} />
+          Incluir postos <b>não verificados</b> pelo Google (usar com cautela)
+        </label>
+      )}
       {!aberto && (carregando || contagem != null) && (
         <p className="mt-1 inline-block rounded bg-white/90 px-2 py-0.5 text-[11px] text-gray-600 shadow">
           {carregando ? "Carregando dados…" : `${contagem} estações nesta visualização`}
@@ -329,7 +339,7 @@ export function SeletorModoMapa({
 }
 
 // --------------------------------------------------------------------------- Flood Hub
-export function CamadaFloodHub({ postos, onOpenStation }: { postos: PostoFH[]; onOpenStation?: (id: number) => void }) {
+export function CamadaFloodHub({ postos, onAbrirFicha }: { postos: PostoFH[]; onAbrirFicha?: (p: PostoFH) => void }) {
   const ordenados = useMemo(
     () => [...postos].sort((a, b) => ORDEM_SEVERIDADE[severidadeEfetiva(a) ?? "UNKNOWN"] - ORDEM_SEVERIDADE[severidadeEfetiva(b) ?? "UNKNOWN"]),
     [postos],
@@ -345,7 +355,13 @@ export function CamadaFloodHub({ postos, onOpenStation }: { postos: PostoFH[]; o
             key={p.gauge_id}
             center={[p.latitude, p.longitude]}
             radius={alto ? 11 : 7}
-            pathOptions={{ color: "#1e3a8a", fillColor: e.bg, fillOpacity: 0.95, weight: alto ? 3 : 1.5 }}
+            pathOptions={{
+              color: p.verificado ? "#1e3a8a" : "#6b7280",
+              fillColor: e.bg,
+              fillOpacity: p.verificado ? 0.95 : 0.55,
+              weight: alto ? 3 : 1.5,
+              dashArray: p.verificado ? undefined : "3 2",
+            }}
           >
             <Popup>
               <div className="space-y-0.5 text-sm">
@@ -358,8 +374,11 @@ export function CamadaFloodHub({ postos, onOpenStation }: { postos: PostoFH[]; o
                   {p.tendencia ? ROTULO_TENDENCIA[p.tendencia] : "sem previsão"}
                   {p.previsao?.pico != null ? ` · pico previsto ${Math.round(p.previsao.pico)} m³/s` : ""}
                 </p>
+                {!p.verificado && <p className="text-[11px] font-semibold text-amber-700">Posto NÃO verificado pelo Google — usar com cautela</p>}
                 <p className="text-[11px] text-gray-400">Fonte: Google Flood Hub (CC BY 4.0)</p>
-                {p.estacao && <BotaoHistorico id={p.estacao.id} onOpenStation={onOpenStation} />}
+                <button type="button" onClick={() => onAbrirFicha?.(p)} className="mt-1 rounded border border-blue-600 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-50">
+                  Ver ficha do posto
+                </button>
               </div>
             </Popup>
           </CircleMarker>

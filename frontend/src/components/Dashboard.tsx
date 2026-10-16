@@ -202,6 +202,9 @@ export default function Dashboard({
   const [modoMapa, setModoMapa] = useState<ModoMapa>("redes");
   const [modoMapaLoading, setModoMapaLoading] = useState(false);
   const [floodhubMapa, setFloodhubMapa] = useState<PostoFH[]>([]);
+  const [floodhubTodosMapa, setFloodhubTodosMapa] = useState(false); // inclui postos NÃO verificados no mapa
+  const [floodhubContagem, setFloodhubContagem] = useState("");
+  const floodhubExportRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     setModoMapa(lerModoSalvo());
   }, []);
@@ -563,7 +566,7 @@ export default function Dashboard({
     let cancelled = false;
     const carregar = () => {
       setModoMapaLoading(true);
-      fetchFloodHub()
+      fetchFloodHub({ todos: floodhubTodosMapa })
         .then((d) => {
           if (!cancelled) setFloodhubMapa(d.postos);
         })
@@ -578,7 +581,7 @@ export default function Dashboard({
       cancelled = true;
       clearInterval(id);
     };
-  }, [viewMode, modoMapa]);
+  }, [viewMode, modoMapa, floodhubTodosMapa]);
 
   // Sirenes na visualização do mapa: só os filtros de município/REDEC do mapa (os filtros da aba
   // Sirenes são outros).
@@ -790,6 +793,8 @@ export default function Dashboard({
       ? loading
         ? "Carregando estações…"
         : `${filteredStations.length} de ${stations.length} estações`
+      : dadosSub === "floodhub"
+        ? floodhubContagem || "Flood Hub"
       : dadosSub === "precipitacao"
         ? precipitacaoLoading
           ? "Carregando precipitação…"
@@ -979,6 +984,7 @@ export default function Dashboard({
               else if (dadosSub === "meteorologico") meteorologicoTableRef.current?.exportar();
               else if (dadosSub === "hidrologico") hidrologicoTableRef.current?.exportar();
               else if (dadosSub === "ventos") ventosTableRef.current?.exportar();
+              else if (dadosSub === "floodhub") floodhubExportRef.current?.();
             }}
             onShare={dadosSub === "ventos" ? () => ventosTableRef.current?.compartilhar?.() : undefined}
             errors={
@@ -1049,7 +1055,9 @@ export default function Dashboard({
 
         <main className="relative flex-1 overflow-hidden">
           {viewMode === "mapa" && (
-            <div className="flex h-full w-full flex-col">
+            // `isolate`: contém os z-index do Leaflet e dos controles (até 1000) dentro do mapa, para o painel
+            // de histórico da estação (z-40) ficar POR CIMA dele (antes o mapa aparecia sobre os dados).
+            <div className="isolate flex h-full w-full flex-col">
               <div className="flex shrink-0 gap-1 border-b border-gray-200 bg-white px-3 py-1.5">
                 {([
                   ["estacoes", "Estações"],
@@ -1083,6 +1091,8 @@ export default function Dashboard({
                 precipitacao={filteredPrecipitacao}
                 sirenes={sirenesDoMapa}
                 floodhub={floodhubMapa}
+                floodhubTodos={floodhubTodosMapa}
+                onFloodhubTodos={setFloodhubTodosMapa}
                 carregandoModo={
                   (modoMapa === "sirenes" && sirenesLoading) ||
                   ((modoMapa === "chuva1h" || modoMapa === "chuva24h" || modoMapa === "floodhub") && modoMapaLoading)
@@ -1176,7 +1186,16 @@ export default function Dashboard({
                     onOpenStation={setPainelEstacaoId}
                   />
                 )}
-                {dadosSub === "floodhub" && <FloodHubPanel onOpenStation={setPainelEstacaoId} />}
+                {dadosSub === "floodhub" && (
+                  <FloodHubPanel
+                    onOpenStation={setPainelEstacaoId}
+                    municipalityFilter={municipalityFilter}
+                    redecFilter={redecFilter}
+                    redecOf={redecOf}
+                    exportRef={floodhubExportRef}
+                    onContagem={setFloodhubContagem}
+                  />
+                )}
                 {dadosSub === "ventos" && (
                   <VentosTable
                     ref={ventosTableRef}

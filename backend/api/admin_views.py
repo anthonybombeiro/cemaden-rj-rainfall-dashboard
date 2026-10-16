@@ -88,6 +88,7 @@ ACOES_PERMITIDAS = {
     "teste_redemet",
     "sync_floodhub",
     "floodhub_pares",
+    "floodhub_proximas",
 }
 
 
@@ -509,6 +510,30 @@ class AdminOpsView(APIView):
                     for g in FloodHubGauge.objects.filter(estacao__isnull=False).select_related("estacao", "estacao__source")
                 ]
                 saida.write(json_module.dumps(linhas, ensure_ascii=False))
+            elif action == "floodhub_proximas":
+                # SOMENTE LEITURA: estações hidrológicas nossas mais próximas de cada posto verificado do Flood Hub
+                import json as json_module
+
+                from core.models import FloodHubGauge, Station
+                from ingestion.floodhub import _km
+
+                raio = float((request.data or {}).get("raio") or 25)
+                hidro = list(Station.objects.filter(cota__isnull=False).select_related("source"))
+                saida_l = []
+                for g in FloodHubGauge.objects.filter(quality_verified=True):
+                    viz = sorted(
+                        ((round(_km(g.latitude, g.longitude, s.latitude, s.longitude), 1), s) for s in hidro),
+                        key=lambda t: t[0],
+                    )
+                    saida_l.append({
+                        "gauge": g.gauge_id, "posto": g.site_name, "rio": g.river, "mun": g.municipio,
+                        "lat": g.latitude, "lon": g.longitude,
+                        "proximas": [
+                            {"km": d, "id": s.id, "nome": s.name, "rio": s.rio_monitorado, "mun": s.municipality, "fonte": s.source.slug}
+                            for d, s in viz if d <= raio
+                        ][:4],
+                    })
+                saida.write(json_module.dumps(saida_l, ensure_ascii=False))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 

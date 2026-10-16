@@ -77,3 +77,9 @@ Relato: a imagem de satélite não batia com o mapa (a costa ficava deslocada).
 
 ## Barra de opacidade das imagens (16/10/2026)
 No painel *Opções → Camada de imagem* (satélite ou radar) há a barra **Opacidade da imagem** (10–100%, passo 5, padrão 70%), **acima** de "Animar histórico". Vale para todas as camadas de imagem (DSAT, REDEMET, Niterói, INEA) — antes a opacidade era fixa (0,8 no DSAT e 0,55 nas demais). O valor fica salvo no navegador (`localStorage`, chave `mapa-opacidade-imagem-v1`, com tratamento de falha). Código: `MapView.tsx` (`ConfigCamada.opacidade`, `CamadaMeteorologica`). Teste local: 70% → 25% mudou a opacidade da camada (`0.7` → `0.25`) e gravou o valor.
+
+## Modo "Flood Hub (cheias)" e correção de empilhamento (16/10/2026)
+* Novo modo no botão Estações: bolinhas do Google Flood Hub por severidade (Sem cheia, Acima do normal, Severo, Extremo), só postos verificados por padrão; caixa
+  para incluir os não verificados; popup com "Ver ficha do posto". Detalhes e regras em `floodhub.md`.
+* **Correção para todo o projeto:** o histórico da estação (z-40) aparecia sob o mapa porque os controles/panes do Leaflet têm z-index até 1000. `.leaflet-container`
+  agora cria o próprio contexto de empilhamento (`isolation: isolate`) e o contêiner da aba Mapa usa `isolate` (`Dashboard.tsx`). Verificado no navegador.

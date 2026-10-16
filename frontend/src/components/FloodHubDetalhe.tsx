@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-import { ChipSeveridade } from "@/components/FloodHubPanel";
+import { ChipSeveridade } from "@/components/FloodHubChip";
 import { ATRIBUICAO_FH, PostoFH, ROTULO_TENDENCIA, fetchFloodHub } from "@/lib/floodhub";
 
 /** Bloco "Previsão do Google Flood Hub" no detalhe da estação (postos do Google a até 3 km da estação).
  * O Google prevê VAZÃO (m³/s) em pontos da rede de rios — não é o nível da nossa régua, por isso aparece em gráfico
  * próprio, com os limiares do posto, e não sobre o cotagrama. */
 
-function GraficoVazao({ p }: { p: PostoFH }) {
+export function GraficoVazao({ p }: { p: PostoFH }) {
   const faixas = (p.previsao?.faixas ?? []).filter((f) => f.valor != null);
   if (faixas.length === 0) return <p className="text-xs text-gray-500">Sem previsão numérica para este posto.</p>;
   const W = 420, H = 150, ML = 40, MR = 22, MT = 10, MB = 24;

@@ -202,3 +202,28 @@ Python; use o do `curl` (ou `curl`) ao chamar de scripts.
 (tabelas por fonte), `GET /api/fontes/saude/` (saúde das fontes) e `GET /api/stations/{id}/detalhe/` (acumulados 1 h/24 h e cotas
 do detalhe da estação). Detalhes em `tabelas-individuais-por-fonte.md`, `alerta-rio-niteroi-inea-e-saude-das-fontes.md` e
 `detalhe-da-estacao-cotagrama.md`.
+
+## Atualização 08-16/10/2026 — ações administrativas, rotas e variáveis novas
+Ações de `POST /api/admin/run/` (header `X-Admin-Secret`) criadas neste período, **todas somente leitura exceto `sync_floodhub`**:
+
+| Ação | Para quê |
+|---|---|
+| `teste_dsat` (`tipo`) | testa a descoberta de quadros do satélite DSAT/CPTEC a partir do servidor (tempo e erro por passo) |
+| `teste_redemet` (`caminhos`: lista de `/produtos/...`) | GET na API-REDEMET com a chave do servidor (nunca exibida); usada para achar a área `st` do radar de Santa Teresa |
+| `sync_floodhub` (`forcar`) | sincroniza o Google Flood Hub (situação, previsões; `forcar` refaz metadados/limiares/casamentos) — **escreve** em `FloodHub*` |
+| `floodhub_pares` | postos do Flood Hub casados com estações nossas |
+| `floodhub_proximas` (`raio` km) | estações hidrológicas nossas mais próximas de cada posto verificado (revisão de casamentos) |
+| `migrate` | aplicou a migração `0017_floodhub` em 16/10 |
+
+Rotas novas (todas exigem login): `/api/resumo/` (aba Resumo 24h), `/api/imagery/dsat/` (satélite DSAT), `/api/imagery/radar/?area=st|pc` (radar REDEMET,
+`area` validada), `/api/floodhub/` e `/api/floodhub/validacao/`.
+
+Variáveis de ambiente novas: `FLOODHUB_API_KEY` (Google Flood Hub; local em `backend/.env`, servidor em `~/cemadenrj_backend/.env`, enviada por SFTP com cópia
+`.env.bak-AAAAMMDD`). `REDEMET_API_KEY` já existia (só no servidor).
+
+**Atualização do Flood Hub sem cron novo:** a API do cPanel não cria cron (`add_line` bloqueado); `ingest source=inea` (cron de 15 min) chama
+`floodhub.sync_se_vencido(30)`, que sincroniza a cada 30 min e nunca derruba o ingest.
+
+**Deploy (resumo do que se usou):** backend por SFTP arquivo a arquivo para `~/cemadenrj_backend/<caminho>` (script `deploy_files.py`, caminhos `backend/...`);
+frontend: `next build` em cópia limpa, depois envio por SFTP (script `deploy_sftp_v2.py`); migrações e testes por `/api/admin/run/`. Os scripts de apoio ficam na pasta
+temporária da sessão (não estão no repositório): precisam da chave SSH `~/.ssh/hostgator_cemaden`.

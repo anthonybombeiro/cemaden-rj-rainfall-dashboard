@@ -7,6 +7,7 @@ GET /api/floodhub/validacao/  previsão (severidade) × observado (classe da cot
 from __future__ import annotations
 
 import datetime as dt
+from collections import defaultdict
 
 from django.db.models import Max
 from django.utils import timezone
@@ -49,7 +50,47 @@ def _resumo_previsao(g: FloodHubGauge, previsao):
     }
 
 
-def serializar(g: FloodHubGauge, previsao) -> dict:
+def _observados(gauges) -> dict:
+    """Nível que NÓS lemos na estação casada (últimas 72 h, 1 ponto por hora, em cm), tendência de 6 h e classe da cota.
+    Serve para os postos ANA, que no Google não têm previsão (só a situação), e como contraste nos demais."""
+    estacoes = {g.estacao_id: g.estacao for g in gauges if g.estacao_id}
+    if not estacoes:
+        return {}
+    desde = timezone.now() - dt.timedelta(hours=72)
+    pontos = defaultdict(list)
+    for sid, ts, v in (
+        Reading.objects.filter(station_id__in=list(estacoes), reading_type="nivel_m", timestamp__gte=desde)
+        .order_by("timestamp")
+        .values_list("station_id", "timestamp", "value")
+    ):
+        pontos[sid].append((ts, v * 100))  # m -> cm
+    saida = {}
+    for sid, pts in pontos.items():
+        horas = {}
+        for ts, v in pts:
+            horas[ts.replace(minute=0, second=0, microsecond=0)] = v
+        ultimo_ts, ultimo = pts[-1]
+        ref = next((v for ts, v in reversed(pts) if ts <= ultimo_ts - dt.timedelta(hours=6)), None)
+        delta = None if ref is None else round(ultimo - ref, 1)
+        tend = None if delta is None else ("RISE" if delta >= 5 else "FALL" if delta <= -5 else "NO_CHANGE")
+        cota = getattr(estacoes[sid], "cota", None)
+        saida[sid] = {
+            "nivel_cm": round(ultimo, 1),
+            "em": ultimo_ts,
+            "variacao_6h_cm": delta,
+            "tendencia": tend,
+            "classe_cota": cota.classificar(ultimo) if cota else None,
+            "cotas_cm": (
+                {"atencao": cota.atencao_cm, "alerta": cota.alerta_cm, "inundacao": cota.inundacao_cm, "extrema": cota.extrema_calculada_cm}
+                if cota
+                else None
+            ),
+            "serie": [[k.isoformat(), round(v, 1)] for k, v in sorted(horas.items())],
+        }
+    return saida
+
+
+def serializar(g: FloodHubGauge, previsao, observados=None) -> dict:
     return {
         "gauge_id": g.gauge_id,
         "fonte": g.source,
@@ -74,6 +115,7 @@ def serializar(g: FloodHubGauge, previsao) -> dict:
             else None
         ),
         "previsao": _resumo_previsao(g, previsao),
+        "observado": (observados or {}).get(g.estacao_id) if g.estacao_id else None,
     }
 
 
@@ -85,7 +127,7 @@ def _nivel(x: dict) -> int:
 
 class FloodHubView(APIView):
     def get(self, request):
-        qs = FloodHubGauge.objects.select_related("estacao")
+        qs = FloodHubGauge.objects.select_related("estacao", "estacao__cota")
         if request.query_params.get("estacao"):
             qs = qs.filter(estacao_id=request.query_params["estacao"])
         elif request.query_params.get("todos") != "1":
@@ -94,7 +136,8 @@ class FloodHubView(APIView):
         ultimas: dict = {}
         for f in FloodHubForecast.objects.filter(gauge__in=gauges).order_by("gauge_id", "-emitida_em"):
             ultimas.setdefault(f.gauge_id, f)
-        itens = [serializar(g, ultimas.get(g.id)) for g in gauges]
+        observados = _observados(gauges)
+        itens = [serializar(g, ultimas.get(g.id), observados) for g in gauges]
         itens.sort(key=lambda x: (-_nivel(x), x["municipio"], x["nome"]))
 
         # alerta informativo: posto verificado com situação ou previsão acima do normal (não aciona sirene)
@@ -151,6 +194,7 @@ class FloodHubValidacaoView(APIView):
                         "posto": g.site_name or g.river or g.gauge_id,
                         "estacao_id": g.estacao_id,
                         "estacao": g.estacao.name,
+                        "distancia_km": round(g.distancia_estacao_km or 0, 1),
                         "municipio": g.municipio,
                         "verificado": g.quality_verified,
                         "floodhub": s.severity if s else None,

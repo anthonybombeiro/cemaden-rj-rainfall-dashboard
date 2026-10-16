@@ -2,6 +2,7 @@
 
 import L from "leaflet";
 import CamadaGeografica from "@/components/CamadaGeografica";
+import FloodHubFicha from "@/components/FloodHubFicha";
 import type { PostoFH } from "@/lib/floodhub";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
@@ -788,6 +789,8 @@ export default function MapView({
   municipalityFilter = [],
   modo = "redes",
   floodhub = [],
+  floodhubTodos = false,
+  onFloodhubTodos,
   onModoChange,
   precipitacao = [],
   sirenes = [],
@@ -802,6 +805,8 @@ export default function MapView({
   /** Sirenes (tocando/não tocando) — modo "Sirenes". */
   sirenes?: SireneStation[];
   floodhub?: PostoFH[];
+  floodhubTodos?: boolean;
+  onFloodhubTodos?: (v: boolean) => void;
   carregandoModo?: boolean;
   onOpenStation?: (id: number) => void;
   stations: Station[];
@@ -816,6 +821,7 @@ export default function MapView({
   municipalityFilter?: string[];
 }) {
   const estacoesTocandoIds = new Set(activeAlertEvents.map((e) => e.station));
+  const [fichaFH, setFichaFH] = useState<PostoFH | null>(null);
 
   const [config, setConfig] = useState<ConfigCamada>({
     tipo: "nenhuma",
@@ -879,6 +885,7 @@ export default function MapView({
   );
 
   return (
+    <>
     <MapContainer center={RJ_CENTER} zoom={8} className="h-full w-full" scrollWheelZoom>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -907,7 +914,7 @@ export default function MapView({
       {config.mostrarEstacoes && modo === "chuva1h" && <CamadaChuva janela="1h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "chuva24h" && <CamadaChuva janela="24h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && modo === "vento" && <CamadaVento estacoes={stations} onOpenStation={onOpenStation} />}
-      {config.mostrarEstacoes && modo === "floodhub" && <CamadaFloodHub postos={floodhub} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "floodhub" && <CamadaFloodHub postos={floodhub} onAbrirFicha={setFichaFH} />}
       {config.mostrarEstacoes && modo === "redes" && stations.map((station) => {
         const tocando = estacoesTocandoIds.has(station.id);
         const cor = SOURCE_COLORS[station.source] ?? "#6b7280";
@@ -966,6 +973,8 @@ export default function MapView({
           onModoChange={onModoChange}
           carregando={carregandoModo}
           contagem={carregandoModo ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes, floodhub })}
+          floodhubTodos={floodhubTodos}
+          onFloodhubTodos={onFloodhubTodos}
         />
       )}
       <SeletorCamadaMeteorologica
@@ -979,5 +988,7 @@ export default function MapView({
         onAtualizarAgora={atualizarAgora}
       />
     </MapContainer>
+      {fichaFH && <FloodHubFicha posto={fichaFH} onClose={() => setFichaFH(null)} onOpenStation={onOpenStation} />}
+    </>
   );
 }

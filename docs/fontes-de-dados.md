@@ -1633,3 +1633,16 @@ saúde das fontes e preenchimento de lacunas do Wunderground: ver
   × 4). A nota antiga de que o nosso "Pico" é "equivalente ao TX-15" **estava errada** (Pico = maior
   balde individual em 24 h).
 - Tabelas de todas as fontes, regras de colunas e achados: `tabelas-individuais-por-fonte.md`.
+
+## Fontes adicionadas em outubro/2026 (DSAT/CPTEC, radar de Santa Teresa e Google Flood Hub)
+
+**Satélite DSAT/CPTEC-INPE (GOES-19)** — imagens JPG + world file `.jgw` (0,02°/pixel, lat/lon linear) a cada 10 min.
+Base atual: `https://satelite.cptec.inpe.br/repositoriogoes/goes19/goes19_web/<produto>/AAAA/MM/<prefixo>_AAAAMMDDHHMM.jpg` (sem listagem de diretório; o
+antigo `ftp.cptec.inpe.br/goes/goes19/` foi esvaziado em 08/10/2026). Produtos/prefixos: True Color `ams_rgb_natcolor` `S11161220`; IR realçado `ams_realcada_alta`
+`S11161222`; IR canal 13 `ams_ret_ch13_alta` `S11161113`; visível canal 02 `ams_ret_ch02_alta` `S11161102` (só de dia). Pública, sem login. Detalhes e
+reprojeção em `mapa-modos-de-visualizacao.md`.
+
+**Radar de Santa Teresa (REDEMET)** — API-REDEMET `/produtos/radar/{tipo}?area=st` (nome "Radar - Santa Teresa/MG", raio 400 km). Mesmos cortes do Pico do Couto (`pc`).
+
+**Google Flood Hub (Flood Forecasting API)** — `floodforecasting.googleapis.com/v1`, chave `FLOODHUB_API_KEY`, CC BY 4.0. Postos ANA (situação) e `hybas_*`
+(previsão de vazão com limiares). Ver `floodhub.md`.

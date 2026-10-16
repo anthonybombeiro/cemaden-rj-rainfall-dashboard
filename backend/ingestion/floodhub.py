@@ -42,7 +42,12 @@ LOOP = {
         {"latitude": -23.5, "longitude": -45.2},
     ]
 }
-RAIO_CASAMENTO_KM = 3.0
+RAIO_CASAMENTO_KM = 3.0  # posto virtual (hybas): estação nossa a até 3 km
+RAIO_MESMO_RIO_KM = 20.0  # posto ANA: estação nossa do MESMO RIO a até 20 km
+# Rios que escoam para o RJ (afluentes do Paraíba do Sul e do Itabapoana). Postos ANA FORA do RJ só entram se
+# estiverem nesses rios. Postos virtuais fora do RJ nunca entram: os verificados em 16/10/2026 ficavam todos em MG
+# a oeste de -43,9° (bacia do Rio das Mortes/Rio Grande, que corre para o Paraná) e não contribuem para o RJ.
+RIOS_QUE_ESCOAM_PARA_RJ = ("POMBA", "MURIAE", "CARANGOLA", "PARAIBA DO SUL", "PARAIBUNA", "PRETO", "PIABANHA", "ITABAPOANA", "DOIS RIOS")
 METADADOS_VALIDADE_H = 24
 TIMEOUT = 40
 GEOJSON = Path(__file__).resolve().parent / "data" / "rj_municipios.geojson"
@@ -56,6 +61,23 @@ def _headers() -> dict:
     if not chave:
         raise RuntimeError("FLOODHUB_API_KEY não configurada.")
     return {"X-Goog-Api-Key": chave, "Content-Type": "application/json"}
+
+
+def _req(metodo: str, url: str, tentativas: int = 3, **kw):
+    """Chamada HTTP com repetição (a API do Google às vezes derruba a conexão: `RemoteDisconnected`)."""
+    import time
+
+    ultimo = None
+    for i in range(tentativas):
+        try:
+            r = requests.request(metodo, url, timeout=TIMEOUT, **kw)
+            if r.status_code >= 500:
+                raise requests.HTTPError(f"HTTP {r.status_code}")
+            return r
+        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as exc:
+            ultimo = exc
+            time.sleep(1.5 * (i + 1))
+    raise ultimo  # type: ignore[misc]
 
 
 def _parse_dt(txt):
@@ -89,6 +111,21 @@ def _municipio(lat: float, lon: float) -> str:
     return ""
 
 
+def _chave_rio(nome: str) -> str:
+    import unicodedata
+
+    sem = unicodedata.normalize("NFKD", nome or "").encode("ascii", "ignore").decode("ascii").upper()
+    for pref in ("RIO ", "R. ", "CORREGO ", "CANAL "):
+        if sem.startswith(pref):
+            sem = sem[len(pref):]
+    return sem.strip()
+
+
+def _rio_relevante(rio: str) -> bool:
+    k = _chave_rio(rio)
+    return any(r in k for r in RIOS_QUE_ESCOAM_PARA_RJ)
+
+
 def _km(lat1, lon1, lat2, lon2) -> float:
     p = math.pi / 180
     a = math.sin((lat2 - lat1) * p / 2) ** 2 + math.cos(lat1 * p) * math.cos(lat2 * p) * math.sin((lon2 - lon1) * p / 2) ** 2
@@ -102,7 +139,7 @@ def _post_paginado(caminho: str, corpo: dict, chave: str) -> list:
         b = dict(corpo, pageSize=500)
         if token:
             b["pageToken"] = token
-        r = requests.post(BASE + caminho, headers=_headers(), json=b, timeout=TIMEOUT)
+        r = _req("POST", BASE + caminho, headers=_headers(), json=b)
         r.raise_for_status()
         d = r.json()
         saida += d.get(chave, [])
@@ -141,8 +178,10 @@ def _atualizar_metadados(resumo: dict) -> None:
     for x in postos:
         lat, lon = x["location"]["latitude"], x["location"]["longitude"]
         mun = _municipio(lat, lon)
-        if not mun and not x.get("qualityVerified"):
-            continue  # fora do RJ e sem verificação: ignora
+        if not mun:
+            # fora do RJ: só posto ANA verificado em rio que escoa para o RJ
+            if not (x.get("source") == "ANA" and x.get("qualityVerified") and _rio_relevante(x.get("river", ""))):
+                continue
         mantidos.append(x["gaugeId"])
         FloodHubGauge.objects.update_or_create(
             gauge_id=x["gaugeId"],
@@ -159,14 +198,16 @@ def _atualizar_metadados(resumo: dict) -> None:
             },
         )
     resumo["postos_mantidos"] = len(mantidos)
+    removidos, _ = FloodHubGauge.objects.exclude(gauge_id__in=mantidos).delete()
+    resumo["postos_removidos"] = removidos
     # limiares (só postos com modelo)
     com_modelo = list(FloodHubGauge.objects.filter(has_model=True).values_list("gauge_id", flat=True))
     for lote in _em_lotes(com_modelo, 40):
-        r = requests.get(
+        r = _req(
+            "GET",
             BASE + "gaugeModels:batchGet",
             headers=_headers(),
             params=[("names", f"gaugeModels/{g}") for g in lote],
-            timeout=TIMEOUT,
         )
         r.raise_for_status()
         for m in r.json().get("gaugeModels", []):
@@ -187,7 +228,13 @@ def _atualizar_metadados(resumo: dict) -> None:
         melhor, dist = None, None
         for s in candidatas:
             d = _km(g.latitude, g.longitude, s.latitude, s.longitude)
-            if d <= RAIO_CASAMENTO_KM and (dist is None or d < dist):
+            if g.source == "ANA":
+                # posto real da ANA: mesma régua/rio, até 20 km (ex.: Cardoso Moreira ↔ Italva, no Muriaé)
+                ok = d <= RAIO_MESMO_RIO_KM and g.river and s.rio_monitorado and _chave_rio(g.river) == _chave_rio(s.rio_monitorado)
+                ok = ok or d <= RAIO_CASAMENTO_KM
+            else:
+                ok = d <= RAIO_CASAMENTO_KM
+            if ok and (dist is None or d < dist):
                 melhor, dist = s, d
         if (g.estacao_id, g.distancia_estacao_km) != (melhor.id if melhor else None, dist):
             g.estacao, g.distancia_estacao_km = melhor, dist
@@ -242,11 +289,11 @@ def sync(forcar_metadados: bool = False) -> dict:
         inicio = (agora - dt.timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
         novas = 0
         for lote in _em_lotes([g.gauge_id for g in alvo], 40):
-            r = requests.get(
+            r = _req(
+                "GET",
                 BASE + "gauges:queryGaugeForecasts",
                 headers=_headers(),
                 params=[("gaugeIds", i) for i in lote] + [("issuedTimeStart", inicio)],
-                timeout=TIMEOUT,
             )
             r.raise_for_status()
             for gid, conj in (r.json().get("forecasts") or {}).items():

@@ -81,3 +81,9 @@ body {
   line-height: 1;
   letter-spacing: -0.02em;
 }
+
+/* Todo mapa Leaflet cria o próprio contexto de empilhamento: seus panes/controles (z-index até 1000) não vazam
+   para cima de painéis, modais e do histórico da estação (corrigido em 16/10/2026). */
+.leaflet-container {
+  isolation: isolate;
+}

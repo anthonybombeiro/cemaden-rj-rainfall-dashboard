@@ -13,6 +13,16 @@ export type PrevisaoFH = {
   severidade_prevista: SeveridadeFH | null;
 };
 
+export type ObservadoFH = {
+  nivel_cm: number;
+  em: string;
+  variacao_6h_cm: number | null;
+  tendencia: "RISE" | "FALL" | "NO_CHANGE" | null;
+  classe_cota: string | null;
+  cotas_cm: { atencao: number | null; alerta: number | null; inundacao: number | null; extrema: number | null } | null;
+  serie: [string, number][];
+};
+
 export type PostoFH = {
   gauge_id: string;
   fonte: string;
@@ -33,6 +43,8 @@ export type PostoFH = {
   previsao_fim: string | null;
   estacao: { id: number; nome: string; distancia_km: number } | null;
   previsao: PrevisaoFH | null;
+  /** Nível que NÓS lemos na estação casada (72 h), para postos que o Google não prevê (ANA) e como contraste. */
+  observado: ObservadoFH | null;
 };
 
 export type FloodHubResposta = {
@@ -50,6 +62,7 @@ export type ValidacaoLinha = {
   posto: string;
   estacao_id: number;
   estacao: string;
+  distancia_km: number;
   municipio: string;
   verificado: boolean;
   floodhub: SeveridadeFH | null;
