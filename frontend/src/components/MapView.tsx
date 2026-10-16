@@ -192,6 +192,8 @@ interface ConfigCamada {
   tipoRadar: TipoRadar;
   animacao: boolean;
   mostrarEstacoes: boolean;
+  /** Opacidade da imagem de satélite/radar (0,1–1), escolhida pelo usuário e lembrada no navegador. */
+  opacidade: number;
 }
 
 interface AnimacaoFrame {
@@ -459,7 +461,7 @@ function isoUtcFromRedemetTimestamp(timestamp: string): string {
  * público, sem precisar da nossa chave) e os limites geográficos dela —
  * `ImageOverlay` do Leaflet desenha a imagem exatamente nesses limites,
  * sem precisar calcular nada aqui. */
-function CamadaMeteorologica({ imagem }: { imagem: ImageryLayer | null }) {
+function CamadaMeteorologica({ imagem, opacidade }: { imagem: ImageryLayer | null; opacidade: number }) {
   if (!imagem || !imagem.bounds) return null;
   // `key` fixo (por tipo) em vez de `imagem.image_url` — chavear pela URL
   // forçava o React a desmontar e remontar o `<ImageOverlay>` do zero a
@@ -472,9 +474,9 @@ function CamadaMeteorologica({ imagem }: { imagem: ImageryLayer | null }) {
   // Imagens do DSAT/CPTEC são em graus lineares de lat/lon: o ImageOverlay (esticado em Mercator) as
   // desalinharia do mapa; a CamadaGeografica reprojeta linha a linha (09/10/2026).
   if (eDsat(imagem.tipo as TipoSatelite)) {
-    return <CamadaGeografica key="dsat" url={imagem.image_url} bounds={imagem.bounds as [[number, number], [number, number]]} opacity={0.8} zIndex={400} />;
+    return <CamadaGeografica key="dsat" url={imagem.image_url} bounds={imagem.bounds as [[number, number], [number, number]]} opacity={opacidade} zIndex={400} />;
   }
-  return <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={0.55} zIndex={400} />;
+  return <ImageOverlay key={imagem.tipo} url={imagem.image_url} bounds={imagem.bounds} opacity={opacidade} zIndex={400} />;
 }
 
 /** Botão flutuante pra alternar a camada de satélite/radar. Canto inferior
@@ -658,6 +660,26 @@ function SeletorCamadaMeteorologica({
             </div>
           )}
 
+          {/* Opacidade da imagem (satélite/radar) — fica acima do player de animação (pedido 16/10/2026) */}
+          {config.tipo !== "nenhuma" && (
+            <div className="mb-3 pb-3 border-b border-gray-100">
+              <label className="flex items-center justify-between gap-2 mb-1 font-medium text-gray-600" htmlFor="opacidade-imagem">
+                <span>Opacidade da imagem</span>
+                <span className="tabular-nums text-gray-500">{Math.round(config.opacidade * 100)}%</span>
+              </label>
+              <input
+                id="opacidade-imagem"
+                type="range"
+                min={10}
+                max={100}
+                step={5}
+                value={Math.round(config.opacidade * 100)}
+                onChange={(e) => onConfigChange({ ...config, opacidade: Number(e.target.value) / 100 })}
+                className="w-full accent-blue-600"
+              />
+            </div>
+          )}
+
           {/* Animação com player play/pause + atualizar agora — botão de
               atualizar é só o ícone (mesmo tamanho do play/pause), colado
               ao lado dele, pra não aumentar a altura do painel (pedido do
@@ -797,7 +819,24 @@ export default function MapView({
     tipoRadar: "maxcappi",
     animacao: false,
     mostrarEstacoes: true,
+    opacidade: 0.7,
   });
+  // lembra a opacidade escolhida (por navegador); falha silenciosa se o armazenamento estiver bloqueado
+  useEffect(() => {
+    try {
+      const v = parseFloat(localStorage.getItem("mapa-opacidade-imagem-v1") ?? "");
+      if (v >= 0.1 && v <= 1) setConfig((c) => ({ ...c, opacidade: v }));
+    } catch {
+      /* ignora */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("mapa-opacidade-imagem-v1", String(config.opacidade));
+    } catch {
+      /* ignora */
+    }
+  }, [config.opacidade]);
   const [animacaoPlaying, setAnimacaoPlaying] = useState(true);
 
   const {
@@ -841,7 +880,7 @@ export default function MapView({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <CamadaMeteorologica imagem={imagemAtual} />
+      <CamadaMeteorologica imagem={imagemAtual} opacidade={config.opacidade} />
       {/* Divisões administrativas (pedido do usuário, 2026-09-27): municípios
           primeiro (mais fino, fica por baixo) e REDECs por cima (mais
           grosso) — nenhuma das duas intercepta clique (`interactive:
