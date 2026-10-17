@@ -117,7 +117,7 @@ export function CamadaChuva({
       estacoes
         .map((s) => {
           const mm = janela === "1h" ? s.acumulado_1h_mm : s.acumulado_24h_mm;
-          const atrasado = getDelayStatus(s.updated_at).atrasado;
+          const atrasado = getDelayStatus(s.updated_at, s.source).atrasado;
           if (mm == null && !atrasado) return null; // sem dado de chuva nessa janela e em dia: não há o que mostrar
           return { s, mm, atrasado, cor: corChuva(janela, mm, atrasado) };
         })
@@ -700,7 +700,7 @@ export function ConteudoLegendaModo({ modo }: { modo: Exclude<ModoMapa, "redes">
           <div className="flex items-center gap-2">{bolinha("#dc2626")}<span className="text-gray-700">&gt; 70 mm</span></div>
         </>
       )}
-      <div className="flex items-center gap-2">{bolinha(COR_ATRASADA)}<span className="text-gray-700">Atrasada (&gt; 1 h sem atualizar)</span></div>
+      <div className="flex items-center gap-2">{bolinha(COR_ATRASADA)}<span className="text-gray-700">Atrasada (&gt; 1 h sem atualizar; INMET, horária: &gt; 3 h)</span></div>
       <p className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400">
         Valor oficial da fonte quando ela informa (CEMADEN, Alerta Rio, Niterói, INEA, Macaé, Paracambi); nas demais, soma das leituras.
       </p>
@@ -723,7 +723,7 @@ export function contagemModo(
   if (modo === "chuva1h" || modo === "chuva24h") {
     return dados.precipitacao.filter((s) => {
       const mm = modo === "chuva1h" ? s.acumulado_1h_mm : s.acumulado_24h_mm;
-      return mm != null || getDelayStatus(s.updated_at).atrasado;
+      return mm != null || getDelayStatus(s.updated_at, s.source).atrasado;
     }).length;
   }
   return dados.estacoes.length;

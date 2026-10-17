@@ -775,11 +775,20 @@ export const SOURCE_COLORS: Record<string, string> = {
  * ideia da coluna "Data" da Rede Salvar, mas com limiares adaptados: as
  * fontes de lá misturam redes hidrológicas de cadência bem mais lenta
  * (horas), enquanto as nossas atualizam tipicamente a cada 15min–1h. */
-export function getDelayStatus(iso: string | null): { color: string; label: string; atrasado: boolean } {
+/** Quantas horas sem leitura até a estação ser considerada ATRASADA, por fonte (padrão 1 h). Estações horárias (INMET) recebem o dado
+ * com atraso: 3 h evita pintá-las de cinza logo após a virada da hora. Em sincronia com `TOLERANCIA_ATRASO_H` (backend/api/views.py). */
+export const LIMITE_ATRASO_H_POR_FONTE: Record<string, number> = { inmet: 3 };
+
+export function limiteAtrasoH(source?: string | null): number {
+  return (source && LIMITE_ATRASO_H_POR_FONTE[source]) || 1;
+}
+
+export function getDelayStatus(iso: string | null, source?: string | null): { color: string; label: string; atrasado: boolean } {
   if (!iso) return { color: "#9ca3af", label: "sem leitura", atrasado: true };
   const horas = (Date.now() - new Date(iso).getTime()) / 3_600_000;
-  if (horas < 1) return { color: "#111827", label: "em dia", atrasado: false };
-  if (horas < 6) return { color: "#b45309", label: "atenção (1h–6h sem atualizar)", atrasado: true };
+  const limite = limiteAtrasoH(source);
+  if (horas < limite) return { color: "#111827", label: limite > 1 ? `em dia (fonte horária: tolerância de ${limite} h)` : "em dia", atrasado: false };
+  if (horas < Math.max(6, limite * 2)) return { color: "#b45309", label: `atenção (${limite}h–6h sem atualizar)`, atrasado: true };
   if (horas < 24) return { color: "#c2410c", label: "atrasado (6h–24h sem atualizar)", atrasado: true };
   return { color: "#991b1b", label: "muito atrasado (> 24h sem atualizar)", atrasado: true };
 }

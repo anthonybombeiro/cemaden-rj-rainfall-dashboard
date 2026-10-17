@@ -78,7 +78,7 @@ const JANELAS: { key: keyof PrecipitacaoStation; label: string; titulo: string }
 
 const COLUNAS_TEXTO = new Set(["name", "municipality", "redec", "source", "updated"]);
 
-// Só a coluna Estação fica fixa (sticky) rolando a tabela pro lado —
+// <b>Atrasada</b> = mais de 1 h sem atualizar; estações horárias (INMET) têm tolerância de 3 h, pois o dado de cada hora chega depois. Só a coluna Estação fica fixa (sticky) rolando a tabela pro lado —
 // pedido do usuário (2026-09-23): REDEC+Município+Estação sticky ao
 // mesmo tempo ficou ilegível (colunas espremidas pra caber), e em
 // celular era ruim demais. Estação sozinha ainda dá o contexto mínimo
@@ -273,7 +273,7 @@ const PrecipitationTable = forwardRef<
         </thead>
         <tbody>
           {sorted.map((s) => {
-            const atraso = getDelayStatus(s.updated_at);
+            const atraso = getDelayStatus(s.updated_at, s.source);
             // Nível de chuva em 24h — se a fonte só tem "hoje" (total corrido
             // do dia, ver rodapé), usa esse como aproximação do nível.
             const nivel = getChuva24hNivel(s.acumulado_24h_mm ?? s.acumulado_hoje_mm);

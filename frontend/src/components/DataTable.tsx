@@ -311,7 +311,7 @@ const DataTable = forwardRef<
         <tbody>
           {sorted.map((s) => {
             const updated = mostRecentUpdate(s);
-            const atraso = getDelayStatus(updated);
+            const atraso = getDelayStatus(updated, s.source);
             return (
               <tr key={`${s.source}-${s.id}`} className="border-b border-gray-100 hover:bg-gray-50">
                 <td

@@ -319,7 +319,7 @@ const HidrologicaTable = forwardRef<
         </thead>
         <tbody>
           {sorted.map((s) => {
-            const atraso = getDelayStatus(s.updated_at);
+            const atraso = getDelayStatus(s.updated_at, s.source);
             const faixa1h = getChuva1hFaixa(s.acumulado_1h_mm, atraso.atrasado);
             const bgFundo = faixa1h?.bg ?? "#ffffff";
             const corTexto = faixa1h?.text;

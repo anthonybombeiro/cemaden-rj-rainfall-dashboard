@@ -154,6 +154,7 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 16/10 | **Mapa:** bolinhas do Flood Hub nas cores originais do Google e sem transparência; imagens de satélite/radar e polígonos de chuva repentina passam para panes acima das estações (`imagensMeteo` 650, `eventosFH` 660), com clique atravessando para a estação. Ver `floodhub.md` |
 | 16/10 | **Ordem das camadas:** polígonos de chuva repentina do Flood Hub (pane 620) ficam sobre as estações e abaixo das imagens de radar/satélite (pane 650). Verificado localmente (satélite a 45% esmaece estações e polígonos). Ver `floodhub.md` |
 | 16/10 | **Mapa — temperatura/umidade e hidrologia:** 6 modos novos (Rios nível e cotas, Temperatura agora, Tmáx, Tmín, Umidade máx., Umidade mín.) com escalas/legendas; ver `mapa-modos-de-visualizacao.md`. **Tabela geral Precipitação revisada:** auditoria `auditoria_precip` (803 estações), "—" no lugar de 0,0 sem leitura, coerência entre janelas oficiais e calculadas, oficial no Plugfield/Wunderground, coluna Origem e qualificação; ver `tabelas-individuais-por-fonte.md` §8. Incidente de ~poucos min (500 por anotação Python 3.9) corrigido |
+| 17/10 | **Tolerância de atraso por fonte:** estações horárias do INMET só ficam "atrasadas" após 3 h (antes 1 h) em todas as tabelas e no mapa; janelas do INMET ancoradas na última leitura dentro da tolerância. Ver `tabelas-individuais-por-fonte.md` §9 |
 
 ## Pendências abertas (03/10/2026)
 

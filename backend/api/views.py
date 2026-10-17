@@ -73,6 +73,10 @@ PRECIPITACAO_RUNNING_DAILY_SOURCES: set[str] = set()
 # O nosso cálculo continua disponível nas colunas "Calc" das tabelas por rede.
 # {slug: {campo de `_calcular_precipitacao`: chave em `acc`}}
 OFICIAL_VALIDADE_H = 2
+# Tolerância (h) de atraso por fonte: estações HORÁRIAS recebem o dado com atraso (INMET: a leitura de cada hora chega depois). Dentro da
+# tolerância a estação NÃO é tratada como atrasada e as janelas (1 h, 3 h…) são contadas a partir da última leitura, não de "agora".
+# Mantenha em sincronia com `LIMITE_ATRASO_H_POR_FONTE` em frontend/src/lib/api.ts.
+TOLERANCIA_ATRASO_H = {"inmet": 3.0}
 MAPA_ACUMULADOS_OFICIAIS = {
     "alerta_rio": {
         "acumulado_5min_mm": "m05", "acumulado_10min_mm": "m10", "acumulado_15min_mm": "m15",
@@ -714,6 +718,11 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             )
             rows = sorted(by_station.get(station.id, []), key=lambda r: r["timestamp"])
             latest = rows[-1] if rows else None
+            tol_h = TOLERANCIA_ATRASO_H.get(slug, 0)
+            desloc = datetime.timedelta(0)
+            if latest and tol_h and datetime.timedelta(0) <= now - latest["timestamp"] <= datetime.timedelta(hours=tol_h):
+                desloc = now - latest["timestamp"]  # âncora = última leitura (fonte horária dentro da tolerância)
+            cut_est = {campo: c - desloc for campo, c in cutoffs.items()}
 
             entry = {
                 "id": station.id,
@@ -741,7 +750,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 # há dias mostrava 0,0 em todas as colunas (147 estações do CEMADEN Nacional) e parecia "sem chuva".
                 ultimo_ts = latest["timestamp"] if latest else None
                 entry["chuva_agora_mm"] = latest["value"] if latest else None
-                for campo, cutoff in cutoffs.items():
+                for campo, cutoff in cut_est.items():
                     entry[campo] = (
                         sum(r["value"] for r in rows if r["timestamp"] >= cutoff)
                         if ultimo_ts is not None and ultimo_ts >= cutoff

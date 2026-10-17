@@ -113,3 +113,15 @@ antes → depois) e causas:
 
 Efeito colateral positivo: a tabela Hidrológicos e os modos de chuva do mapa usam o mesmo cálculo e herdam a correção. **Não alterado:** o oficial do CEMADEN Nacional continua diferindo do nosso cálculo em ~95 de 392 estações em 96 h (a fonte inclui dados que chegam atrasados); a tabela mostra o oficial, como combinado em 06/10.
 **Incidente durante o deploy:** a primeira versão usou a anotação `dict | None` e o servidor (Python 3.9) devolveu erro 500 por alguns minutos; corrigido removendo a anotação. Regra: em arquivos sem `from __future__ import annotations`, não usar `X | Y` em anotações.
+
+## 9. Tolerância de atraso por fonte — estações horárias (17/10/2026)
+**Problema:** as estações do INMET (observação **horária**, com o dado de cada hora chegando depois) ficavam cinza/"atrasadas" logo após a virada da hora, porque o painel
+tratava qualquer fonte como atrasada com mais de **1 h** sem leitura.
+**Regra nova:** limite de atraso **por fonte** — padrão 1 h; **INMET 3 h** (`LIMITE_ATRASO_H_POR_FONTE` em `frontend/src/lib/api.ts`, `getDelayStatus(iso, source)`;
+espelhado em `TOLERANCIA_ATRASO_H` em `backend/api/views.py`). Para ajustar outra fonte horária (ex.: REDEMET/METAR) basta incluí-la nas duas listas.
+**Onde vale (todos os locais em que se vê o dado):** tabelas Precipitação, Hidrológicos, Meteorológicos, Ventos e a tabela individual de cada rede (cor "Atrasada" e cor da linha pela chuva de 1 h),
+modo "Chuva em 1 h/24 h" do mapa e a contagem do mapa; legendas e rodapés agora citam a exceção. Vento e clima do mapa já usavam 3 h e Rios 6 h (sem mudança).
+**Efeito nos cálculos (servidor):** para fonte horária dentro da tolerância, as janelas (15 min, 1 h, 3 h…) passam a ser contadas **a partir da última leitura**, e não de "agora";
+sem isso, a regra de "—" sem leitura na janela (item 8) deixaria o INMET vazio durante boa parte de cada hora. Fora da tolerância (leitura com mais de 3 h) volta a valer "—" nas janelas curtas.
+Verificado: leitura há 80 min → 1 h e 3 h preenchidas; há 4 h → 1 h e 3 h vazias (24 h preenchida); produção: 25 das 26 estações INMET com 1 h preenchido.
+Fora do escopo desta mudança: a faixa de "saúde das fontes" (coleta nossa atrasada) e a escala da Rede Salvar (>4 h) já tinham limites próprios.

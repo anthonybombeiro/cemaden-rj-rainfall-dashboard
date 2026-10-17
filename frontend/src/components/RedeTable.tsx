@@ -604,7 +604,7 @@ const RedeTable = forwardRef<
         </thead>
         <tbody>
           {sorted.map((s) => {
-            const atraso = getDelayStatus(s.referencia);
+            const atraso = getDelayStatus(s.referencia, source);
             const faixaAtraso = getDelayFaixaSalvar(s.referencia);
             const mostraRelogio = faixaAtraso.faixa !== "ok" && faixaAtraso.faixa !== "sem";
             const faixa1h = getChuva1hFaixa(get1h(s) ?? null, atraso.atrasado);

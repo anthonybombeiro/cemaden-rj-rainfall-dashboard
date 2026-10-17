@@ -371,7 +371,7 @@ const VentosTable = forwardRef<
         <tbody>
           {sorted.map((s) => {
             const updated = mostRecentUpdate(s);
-            const atraso = getDelayStatus(updated);
+            const atraso = getDelayStatus(updated, s.source);
             const vento = valorDe(s, "vento_ms");
             const rajadaMs = valorDe(s, "vento_rajada_ms");
             const rajadaKmh = rajadaMs !== null ? Math.round(rajadaMs * 3.6 * 10) / 10 : null;
