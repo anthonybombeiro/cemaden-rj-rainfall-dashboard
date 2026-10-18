@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Droplets, Sunrise, Sunset, Waves, Wind } fro
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import CartasSinoticasPanel from "@/components/CartasSinoticasPanel";
 import PrevisaoForm from "@/components/PrevisaoForm";
 import { AvisoMauTempo, fetchAvisosMauTempo, fetchDataUltimaPrevisao, fetchPrevisoes, Previsao, REDECS } from "@/lib/api";
 import { formatarDataHoraLocalIso, humanizarDescricao } from "@/lib/avisosMauTempo";
@@ -321,6 +322,7 @@ function AvisosMauTempoPainel() {
 const SUBABAS = [
   { key: "previsao", label: "Previsão" },
   { key: "avisos", label: "Avisos de mau tempo" },
+  { key: "cartas", label: "Cartas sinóticas" },
   { key: "cadastro", label: "Cadastro" },
 ] as const;
 
@@ -343,7 +345,7 @@ export default function MeteorologiaPanel() {
         ))}
       </div>
       <div className="min-h-0 flex-1">
-        {sub === "previsao" ? <PrevisaoDiaria /> : sub === "avisos" ? <AvisosMauTempoPainel /> : <PrevisaoForm />}
+        {sub === "previsao" ? <PrevisaoDiaria /> : sub === "avisos" ? <AvisosMauTempoPainel /> : sub === "cartas" ? <CartasSinoticasPanel /> : <PrevisaoForm />}
       </div>
     </div>
   );

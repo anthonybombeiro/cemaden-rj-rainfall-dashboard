@@ -1657,3 +1657,10 @@ reprojeção em `mapa-modos-de-visualizacao.md`.
 **Mapa:** nova `AvisosMapa.tsx` (Leaflet) na aba Meteorologia → Avisos de mau tempo, com polígonos coloridos por categoria (vento azul, ondas laranja, ressaca vermelho), contorno do RJ, tooltip/popup com o texto do aviso.
 **Cartas sinóticas (pedido b):** a Marinha protege `marinha.mil.br/chm` com Cloudflare (desafio gerenciado): o servidor do painel não consegue baixar as imagens (`.../files/AAAA-MM/CAAMMDDHH.png`, 00Z/12Z) nem o navegador as embute em `<img>`/iframe de outro site. Não implementado; alternativas na pendência abaixo.
 
+## Cartas sinóticas da Marinha via IDEM-DHN (18/10/2026) — IMPLEMENTADO
+O CHM (`marinha.mil.br/chm`) bloqueia as imagens com Cloudflare, mas o **IDEM-DHN** (`idem.marinha.mil.br`, link em CHM → BNDO → Acesso aos dados) é um **GeoServer público com CORS liberado** (`Access-Control-Allow-Origin: *`), sem login.
+* **Camadas:** `carta_sinotica:CAAMMDDHH_geo` (HH = 00/12 UTC), retém ~7 dias (14 cartas em 18/10). Lista obtida por `GetCapabilities` do workspace `carta_sinotica`. Cobertura −90…0° lon, −70…20° lat; CRS EPSG:3395/4326/3857.
+* **Aba Meteorologia → "Cartas sinóticas"** (`CartasSinoticasPanel.tsx`, `CartasSinoticasMapa.tsx`, `lib/cartasSinoticas.ts`): (1) **mapa Leaflet** com a carta como `WMSTileLayer` sobre o OSM, seletor de carta, anterior/próxima e opacidade; (2) **cartas originais 2 por vez** (imagem `GetMap` em Mercator EPSG:3395, fundo branco, 1000 px; link "Abrir em tamanho grande" = 1500 px), com paginação das mais recentes às mais antigas.
+* O navegador acessa o IDEM-DHN **direto** (nada passa pelo servidor HostGator, sem credenciais). Mostra isóbaras, frentes, centros de pressão, METAREA V e as observações; **não traz o mapa-base/contornos** da imagem do CHM (a camada é só o conteúdo meteorológico).
+* O IDEM-DHN também tem `smm:estacoes_meteorologicas` (estações da Marinha) e acervo histórico (`arquivo:*`) — candidatos a usos futuros.
+
