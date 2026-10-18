@@ -34,22 +34,3 @@ export async function fetchCartas(): Promise<Carta[]> {
   cartas.sort((a, b) => b.validade.localeCompare(a.validade));
   return cartas;
 }
-
-/** Carta "original": a camada renderizada inteira em Mercator (EPSG:3395), fundo branco, como a carta da Marinha. */
-export function urlCartaOriginal(camada: string, largura = 1000): string {
-  const altura = Math.round((largura * (2258423.65 + 11028513.63)) / 10018754.17);
-  const p = new URLSearchParams({
-    service: "WMS",
-    version: "1.1.1",
-    request: "GetMap",
-    layers: camada,
-    styles: "",
-    srs: "EPSG:3395",
-    format: "image/png",
-    bgcolor: "0xFFFFFF",
-    bbox: "-10018754.17,-11028513.63,0,2258423.65",
-    width: String(largura),
-    height: String(altura),
-  });
-  return `${CARTAS_WMS_URL}?${p.toString()}`;
-}
