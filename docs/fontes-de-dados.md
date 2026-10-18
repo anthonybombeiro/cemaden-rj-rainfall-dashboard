@@ -1646,3 +1646,14 @@ reprojeção em `mapa-modos-de-visualizacao.md`.
 
 **Google Flood Hub (Flood Forecasting API)** — `floodforecasting.googleapis.com/v1`, chave `FLOODHUB_API_KEY`, CC BY 4.0. Postos ANA (situação) e `hybas_*`
 (previsão de vazão com limiares). Ver `floodhub.md`.
+
+## Avisos de mau tempo da Marinha — filtro pelo litoral do RJ e mapa (18/10/2026)
+**Problema:** o painel mostrava todo aviso das áreas Charlie/Delta; o NR 763 (ressaca Chuí/RS–Florianópolis/SC) aparece na área Charlie mas não afeta o RJ.
+**Solução (somente código, `ingestion/connectors/marinha_avisos.py`):**
+* A página da Marinha traz um SVG (viewBox 818×1017) com o polígono de cada aviso em pixels, numa projeção Mercator. Calibração obtida casando os vértices de 6 avisos que trazem coordenadas no texto: `x = 19,2693·lon + 1129,495` e `y = −1078,491·ln(tan(45°+lat/2)) + 199,560` (resíduo ≈ 1 px ≈ 0,05°). Cada polígono é convertido para lon/lat e salvo em `geojson`.
+* `afeta_rj` = a área do aviso contém parte do estado **ou chega a até 100 km (~54 mn) da costa/contorno do RJ** (`DISTANCIA_LITORAL_KM`, medido contra os vértices de `rj_municipios.geojson`). Todos os avisos (inclusive Alfa/Bravo/Sul oceânica) passam a ser gravados; a API devolve só `afeta_rj=True` (`?todos_areas=1` devolve tudo).
+* Aviso sem polígono na página volta à regra antiga (Charlie/Delta ⇒ afeta). Novos campos em `AvisoMauTempo`: `categoria` (vento/onda/ressaca), `geojson`, `afeta_rj`, `sem_poligono` (migration `0019_aviso_poligono_afeta_rj`).
+* **Teste offline com a página salva (18/10):** mantidos 756 (onda, Bravo), 759 (onda), 760 (ressaca Ilhabela–Arraial do Cabo), 762 (vento Delta); excluídos 763 (Charlie e Alfa), 753–755, 757, 758, 761, 764–766.
+**Mapa:** nova `AvisosMapa.tsx` (Leaflet) na aba Meteorologia → Avisos de mau tempo, com polígonos coloridos por categoria (vento azul, ondas laranja, ressaca vermelho), contorno do RJ, tooltip/popup com o texto do aviso.
+**Cartas sinóticas (pedido b):** a Marinha protege `marinha.mil.br/chm` com Cloudflare (desafio gerenciado): o servidor do painel não consegue baixar as imagens (`.../files/AAAA-MM/CAAMMDDHH.png`, 00Z/12Z) nem o navegador as embute em `<img>`/iframe de outro site. Não implementado; alternativas na pendência abaixo.
+

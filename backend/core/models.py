@@ -472,6 +472,11 @@ class AvisoMauTempo(models.Model):
     valido_ate = models.DateTimeField(null=True, blank=True)
     fonte = models.CharField(max_length=120, blank=True, default="Marinha do Brasil - SMM/CHM")
     raw_payload = models.JSONField(default=dict, blank=True)
+    # 18/10/2026: polígono do aviso (o mesmo do mapa da página da Marinha, convertido para lon/lat) e filtro geográfico.
+    categoria = models.CharField(max_length=20, blank=True, help_text="vento | onda | ressaca (da página da Marinha).")
+    geojson = models.JSONField(null=True, blank=True, help_text="Geometria Polygon (lon, lat) da área do aviso.")
+    afeta_rj = models.BooleanField(default=True, help_text="Área do aviso toca o litoral do RJ (até 100 km da costa).")
+    sem_poligono = models.BooleanField(default=False)
     ingested_at = models.DateTimeField(auto_now=True)
 
     class Meta:

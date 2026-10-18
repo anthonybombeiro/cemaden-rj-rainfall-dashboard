@@ -49,9 +49,12 @@ dias), então essa heurística é segura dentro do intervalo observado.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
+import math
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -81,6 +84,116 @@ _AVISO_RE = re.compile(
     r"VÁLIDO\s+ATÉ\s+(?P<val_dia>\d{2})(?P<val_hora>\d{2})(?P<val_min>\d{2})Z\.?\s*$",
     re.IGNORECASE | re.DOTALL,
 )
+
+
+# --------------------------------------------------------------------------- polígonos e filtro geográfico (18/10/2026)
+# A página da Marinha traz um mapa SVG (viewBox 818x1017) com o polígono de cada aviso em coordenadas de pixel, numa projeção
+# Mercator. Calibração obtida em 18/10/2026 casando os vértices de 6 avisos que trazem coordenadas no texto (ex.: "27.9S048.1W,
+# 25S046.9W…"), com resíduo de ~1 px (~0,05°):
+#     x = AX * lon + BX            y = CY * ln(tan(45° + lat/2)) + DY     (lat/lon em graus; ln em radianos)
+# Se a Marinha mudar o mapa, `_calibracao_ok` falha nos avisos com coordenadas no texto e o polígono é descartado (aviso fica
+# "sem_poligono" e cai na regra antiga por área).
+CAL_AX, CAL_BX, CAL_CY, CAL_DY = 19.2693, 1129.495, -1078.491, 199.560
+DISTANCIA_LITORAL_KM = 100.0  # "litoral do RJ" = até 100 km (~54 mn) da costa do estado (inclui a própria faixa costeira)
+RJ_GEOJSON = Path(__file__).resolve().parent.parent / "data" / "rj_municipios.geojson"
+RJ_BBOX = (-45.1, -23.5, -40.8, -20.6)  # lon_min, lat_min, lon_max, lat_max (com folga)
+_rj_pontos = None
+
+
+def _px_para_lonlat(x: float, y: float):
+    lon = (x - CAL_BX) / CAL_AX
+    merc = (y - CAL_DY) / CAL_CY
+    lat = math.degrees(2 * math.atan(math.exp(merc)) - math.pi / 2)
+    return [round(lon, 4), round(lat, 4)]
+
+
+def _parse_poligonos(html_texto: str) -> dict:
+    """{numero: {"categoria", "cor", "geometry": Polygon}} a partir do SVG de avisos da página."""
+    ini = html_texto.find('viewBox="0 0 818 1017"')
+    if ini < 0:
+        return {}
+    fim = html_texto.find("</svg>", ini)
+    svg = html_texto[ini:fim]
+    saida = {}
+    padrao = re.compile(
+        r'<g id="aviso-\d+-area"[^>]*data-categoria="([^"]*)" data-numero="([^"]*)"[^>]*>(.*?)</g>', re.S
+    )
+    for categoria, numero, corpo in padrao.findall(svg):
+        pts = re.search(r'class="area-aviso" points="([^"]+)"', corpo)
+        if not pts:
+            continue
+        cor = re.search(r'class="area-aviso"[^>]*stroke="(#[0-9a-fA-F]{3,8})"', corpo)
+        try:
+            anel = [_px_para_lonlat(*map(float, p.split(","))) for p in pts.group(1).split()]
+        except ValueError:
+            continue
+        if len(anel) < 3:
+            continue
+        if anel[0] != anel[-1]:
+            anel.append(anel[0])
+        saida[numero] = {
+            "categoria": categoria,
+            "cor": cor.group(1) if cor else None,
+            "geometry": {"type": "Polygon", "coordinates": [anel]},
+        }
+    return saida
+
+
+def _carregar_rj_pontos():
+    """Vértices do contorno dos municípios do RJ (decimados) para medir a distância à costa."""
+    global _rj_pontos
+    if _rj_pontos is None:
+        geo = json.loads(RJ_GEOJSON.read_text(encoding="utf-8"))
+        pts = []
+        for f in geo["features"]:
+            g = f["geometry"]
+            partes = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
+            for pol in partes:
+                pts.extend(pol[0][::4])
+        _rj_pontos = pts
+    return _rj_pontos
+
+
+def _ponto_no_anel(lon: float, lat: float, anel) -> bool:
+    dentro = False
+    j = len(anel) - 1
+    for i in range(len(anel)):
+        xi, yi = anel[i]
+        xj, yj = anel[j]
+        if (yi > lat) != (yj > lat) and lon < (xj - xi) * (lat - yi) / (yj - yi) + xi:
+            dentro = not dentro
+        j = i
+    return dentro
+
+
+def _densificar(anel, passo_graus: float = 0.05):
+    saida = []
+    for (x1, y1), (x2, y2) in zip(anel, anel[1:]):
+        n = max(1, int(max(abs(x2 - x1), abs(y2 - y1)) / passo_graus))
+        for k in range(n):
+            saida.append((x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n))
+    return saida
+
+
+def toca_litoral_rj(geometry: dict, distancia_km: float = DISTANCIA_LITORAL_KM) -> bool:
+    """True se a área do aviso contém parte do RJ ou chega a até `distancia_km` da costa/contorno do estado."""
+    anel = geometry["coordinates"][0]
+    folga = distancia_km / 100.0 + 0.1  # graus (aprox.)
+    lons = [p[0] for p in anel]
+    lats = [p[1] for p in anel]
+    if max(lons) < RJ_BBOX[0] - folga or min(lons) > RJ_BBOX[2] + folga or max(lats) < RJ_BBOX[1] - folga or min(lats) > RJ_BBOX[3] + folga:
+        return False
+    rj = _carregar_rj_pontos()
+    if any(_ponto_no_anel(lon, lat, anel) for lon, lat in rj[::25]):  # área contém o estado
+        return True
+    limite2 = distancia_km**2
+    for lon, lat in _densificar(anel):
+        for rlon, rlat in rj:
+            dx = (lon - rlon) * 111.32 * math.cos(math.radians(lat))
+            dy = (lat - rlat) * 110.57
+            if dx * dx + dy * dy <= limite2:
+                return True
+    return False
 
 
 def _parse_emitido_em(match: re.Match) -> dt.datetime | None:
@@ -132,7 +245,7 @@ def _parse_avisos_pt(texto_paragrafos: list[str]) -> list[dict]:
             area_atual = m_area.group(1).upper().strip()
             continue
 
-        if area_atual not in AREAS_RELEVANTES:
+        if area_atual is None:
             continue
 
         match = _AVISO_RE.search(texto_limpo)
@@ -157,6 +270,7 @@ def _parse_avisos_pt(texto_paragrafos: list[str]) -> list[dict]:
 def fetch_avisos() -> list[dict]:
     resp = requests.get(URL, timeout=30)
     resp.raise_for_status()
+    poligonos = _parse_poligonos(resp.text)
 
     soup = BeautifulSoup(resp.text, "html.parser")
     bloco = soup.find("div", id="block-govbr-govbr-theme-system-main")
@@ -176,7 +290,24 @@ def fetch_avisos() -> list[dict]:
             fim_pt = i
             break
 
-    return _parse_avisos_pt(paragrafos[:fim_pt])
+    avisos = _parse_avisos_pt(paragrafos[:fim_pt])
+    saida = []
+    for a in avisos:
+        poli = poligonos.get(a["numero_externo"])
+        if poli:
+            a["categoria"] = poli["categoria"]
+            a["geojson"] = poli["geometry"]
+            a["sem_poligono"] = False
+            a["afeta_rj"] = toca_litoral_rj(poli["geometry"])
+            a["raw_payload"] = {**a["raw_payload"], "cor": poli["cor"]}
+        else:
+            # sem polígono na página: mantém a regra antiga por área (CHARLIE e DELTA cobrem o litoral do RJ)
+            a["categoria"] = ""
+            a["geojson"] = None
+            a["sem_poligono"] = True
+            a["afeta_rj"] = a["area"] in AREAS_RELEVANTES
+        saida.append(a)
+    return saida
 
 
 @dataclass

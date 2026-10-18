@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Droplets, Sunrise, Sunset, Waves, Wind } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import PrevisaoForm from "@/components/PrevisaoForm";
@@ -219,6 +220,12 @@ function tipoLegivel(tipo: string): string {
   return minusculo.charAt(0).toUpperCase() + minusculo.slice(1);
 }
 
+// Leaflet precisa de `window` — sem SSR.
+const AvisosMapa = dynamic(() => import("@/components/AvisosMapa"), {
+  ssr: false,
+  loading: () => <div className="flex h-80 items-center justify-center text-sm text-gray-400">Carregando mapa…</div>,
+});
+
 const AREA_LABEL: Record<string, string> = {
   CHARLIE: "Área Charlie",
   DELTA: "Área Delta",
@@ -232,7 +239,7 @@ function AvisoMauTempoCard({ aviso }: { aviso: AvisoMauTempo }) {
         <Waves size={22} className="shrink-0 text-sedec-600" />
       </div>
       <span className="mt-1 w-fit rounded-full bg-sedec-50 px-2 py-0.5 text-[11px] font-semibold text-sedec-700">
-        {AREA_LABEL[aviso.area] ?? aviso.area} · Litoral do RJ
+        {AREA_LABEL[aviso.area] ?? aviso.area} · Atinge o litoral do RJ
       </span>
 
       <p className="mt-3 text-sm leading-relaxed text-gray-700">{humanizarDescricao(aviso.descricao, aviso.emitido_em)}</p>
@@ -281,7 +288,7 @@ function AvisosMauTempoPainel() {
     <div className="h-full w-full overflow-auto bg-gray-50 p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 className="text-base font-bold text-gray-800">Avisos de mau tempo</h2>
-        <span className="text-xs text-gray-500">Marinha do Brasil — SMM/CHM, Áreas Charlie e Delta (litoral do RJ)</span>
+        <span className="text-xs text-gray-500">Marinha do Brasil — SMM/CHM, avisos que atingem o litoral do RJ (até 100 km da costa)</span>
       </div>
 
       {error && <div className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600">{error}</div>}
@@ -294,11 +301,18 @@ function AvisosMauTempoPainel() {
           <p className="text-sm text-gray-500">Nenhum aviso de mau tempo ativo no momento para o litoral do RJ.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {avisos.map((a) => (
-            <AvisoMauTempoCard key={a.id} aviso={a} />
-          ))}
-        </div>
+        <>
+          {avisos.some((a) => a.geojson) && (
+            <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
+              <AvisosMapa avisos={avisos} />
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {avisos.map((a) => (
+              <AvisoMauTempoCard key={a.id} aviso={a} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

@@ -96,7 +96,15 @@ class AvisoMauTempoSerializer(serializers.ModelSerializer):
             "emitido_em",
             "valido_ate",
             "fonte",
+            "categoria",
+            "geojson",
+            "cor",
         ]
+
+    cor = serializers.SerializerMethodField()
+
+    def get_cor(self, obj):
+        return (obj.raw_payload or {}).get("cor")
 
 
 class AlertEventSerializer(serializers.ModelSerializer):

@@ -1239,6 +1239,9 @@ class AvisoMauTempoViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = AvisoMauTempo.objects.all()
         params = self.request.query_params
+        # Só avisos cuja área toca o litoral do RJ (18/10/2026); `?todos_areas=1` devolve também os de outras regiões.
+        if params.get("todos_areas") != "1":
+            qs = qs.filter(afeta_rj=True)
         if area := params.get("area"):
             qs = qs.filter(area=area.upper())
         ativo = params.get("ativo", "true")
