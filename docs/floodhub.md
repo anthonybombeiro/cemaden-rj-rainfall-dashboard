@@ -117,3 +117,13 @@ postos, início/fim); *chuva repentina (flash flood)* = probabilidade de enchent
   Ajustado em 16/10/2026 a pedido: os polígonos de chuva repentina ficam **sobre as estações e abaixo das imagens** (a imagem, com a opacidade escolhida, também cobre os
   polígonos). Antes as imagens (zIndex 400 no mesmo pane das bolinhas) ficavam *abaixo* das estações. Os dois panes têm `pointer-events: none`, então o clique passa para a
   estação por baixo (verificado com o satélite a 100%); o contorno das áreas de evento continua clicável (CSS `.evento-fh { pointer-events: stroke }`).
+
+## Validação Flood Hub × observado — reavaliação de 18/10/2026
+Ação admin de leitura nova `floodhub_validacao` (mesma conta da aba). Histórico disponível: **4 dias** (15 a 18/10), 24 estações casadas, 331 linhas; só **57 comparações** têm os dois lados (o resto é "sem cota"
+em 4 estações, ou dia sem retrato do Google). Todas as 76 situações do Flood Hub no período foram **"Sem cheia"**.
+* **Confere em 41 de 57 (72%).** As 16 divergências são **todas "Flood Hub abaixo"** (nunca acima): estações cuja régua ficou em **atenção** (e Ponte de Ferro Capivari em **alerta** no dia 17) enquanto o Google dizia "Sem cheia".
+* **Por estação:** conferem em 100% São Pedro, Santo Antônio de Pádua, Laje do Muriaé, Guandu Dutra, Nogueira, Japuíba, Cachoeiras de Macacu e Banquete (sempre cota normal). Divergem Itaperuna (3 de 3), Guandu Seropédica (3 de 3), Barra do Sana (4 de 6), Italva (2 de 3),
+  Ponte Paraoquena (2 de 4) e Ponte de Ferro Capivari (2 de 3).
+* **Leitura:** nessas estações o nível ficou **estável por dias** (ex.: Itaperuna 315–323 cm, Italva 322–325 cm, Guandu Seropédica 565–570 cm), sem subida, em "atenção". Isso sugere que a cota de atenção está baixa em relação ao nível usual daquele ponto
+  (ou que a régua tem influência de maré/barramento, no caso do Guandu e do Capivari), e não que o Google tenha deixado de prever cheia. Vale o CEMADEN-RJ revisar as cotas dessas estações. Com 4 dias e sem nenhum evento de cheia, **ainda não dá para avaliar a capacidade do Flood Hub de antecipar cheias**; a conclusão só sai quando houver evento.
+* Apenas 15 das 57 comparações envolvem postos verificados pelo Google (o resto é posto virtual não verificado).

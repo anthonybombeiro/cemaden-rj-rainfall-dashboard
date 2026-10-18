@@ -777,7 +777,7 @@ export const SOURCE_COLORS: Record<string, string> = {
  * (horas), enquanto as nossas atualizam tipicamente a cada 15min–1h. */
 /** Quantas horas sem leitura até a estação ser considerada ATRASADA, por fonte (padrão 1 h). Estações horárias (INMET) recebem o dado
  * com atraso: 3 h evita pintá-las de cinza logo após a virada da hora. Em sincronia com `TOLERANCIA_ATRASO_H` (backend/api/views.py). */
-export const LIMITE_ATRASO_H_POR_FONTE: Record<string, number> = { inmet: 3 };
+export const LIMITE_ATRASO_H_POR_FONTE: Record<string, number> = { inmet: 3, redemet: 3 };
 
 export function limiteAtrasoH(source?: string | null): number {
   return (source && LIMITE_ATRASO_H_POR_FONTE[source]) || 1;

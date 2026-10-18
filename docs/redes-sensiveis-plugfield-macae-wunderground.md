@@ -434,3 +434,11 @@ uma só cidade); (2) colunas **"Calc" depois de todos os dados recebidos**; (3) 
 movido para o final; (4) coluna **Dir.** do vento (bússola + graus + cardeal, como na tabela Ventos) nas
 redes com direção. Em Macaé, "Status online/offline" continua antes das colunas Calc. Detalhes e
 colunas de todas as fontes em `tabelas-individuais-por-fonte.md`.
+
+## Reavaliação de 18/10/2026 (ação `analise_funcionamento`, somente leitura)
+| Rede | Em dia (≤ 4 h) | Paradas / sem dado | Observações |
+|---|---|---|---|
+| **Macaé (UFRJ)** | 8 de 26 | 18: 14 **nunca tiveram dado** (todas "inativa" na própria fonte) e 4 com dado antigo (Cabiúnas 477 h, Bicuda Grande 118 h, Córrego do Ouro 1 41 h, Costa do Sol 14 h) | Ativas intermitentes: Ajuda de Baixo (maior lacuna 88 h em 7 dias), CTR Macaé (28 h), Imboassica (19 h). Antes: "15 de 26 sem dado" |
+| **Plugfield** | 16 de 19 | 3: **Jacutinga (Cambuci) há 524 dias** e **Pitiribote (Cambuci) há 111 dias** (ativas no cadastro, sem enviar), e **Defesa Civil Areal** com 6,8 h sem dado e lacuna máxima de 10,1 h em 7 dias | As duas de Cambuci continuam paradas desde antes do projeto; Areal piorou em relação ao registro anterior (lacuna de 20 h) |
+| **Wunderground** | 108 de 121 | 13: 5 nunca tiveram dado (Petrópolis ×2, Rio das Ostras, Rio de Janeiro ×2) e 8 com dado antigo (Nova Iguaçu 649 h, Macaé 427 h, Lumiar 397 h…) | **IMARIC14 (Maricá) normalizou:** 0,2 h, 679 instantes em 7 dias, lacuna máx. 2 h. Estações com lacunas longas em 7 dias: Teresópolis 70 h, Nova Friburgo 46 h, Rio de Janeiro 39 h, Tamoios 38 h |
+**Pendências que restam:** Macaé (maioria sem dado na origem), 2 de Cambuci (Plugfield) e Areal (intermitente); as 13 do Wunderground (cadastro com status "desconhecido": candidatas a desativar se não voltarem).

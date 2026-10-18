@@ -125,3 +125,5 @@ modo "Chuva em 1 h/24 h" do mapa e a contagem do mapa; legendas e rodapés agora
 sem isso, a regra de "—" sem leitura na janela (item 8) deixaria o INMET vazio durante boa parte de cada hora. Fora da tolerância (leitura com mais de 3 h) volta a valer "—" nas janelas curtas.
 Verificado: leitura há 80 min → 1 h e 3 h preenchidas; há 4 h → 1 h e 3 h vazias (24 h preenchida); produção: 25 das 26 estações INMET com 1 h preenchido.
 Fora do escopo desta mudança: a faixa de "saúde das fontes" (coleta nossa atrasada) e a escala da Rede Salvar (>4 h) já tinham limites próprios.
+
+**Atualização de 18/10/2026:** o REDEMET (METAR, observação horária) passou a ter a mesma tolerância de **3 h** do INMET (`LIMITE_ATRASO_H_POR_FONTE` e `TOLERANCIA_ATRASO_H`). Vale em todas as tabelas e no mapa.

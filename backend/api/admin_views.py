@@ -90,6 +90,7 @@ ACOES_PERMITIDAS = {
     "floodhub_pares",
     "floodhub_proximas",
     "auditoria_precip",
+    "floodhub_validacao",
 }
 
 
@@ -605,6 +606,16 @@ class AdminOpsView(APIView):
                         m["updated_divergente"] += 1
                 # nomes repetidos entre fontes no mesmo município (possível duplicidade)
                 saida.write(json_module.dumps({"por_fonte": {k: dict(v) for k, v in por_fonte.items()}, "exemplos": dict(exemplos), "total": len(oficial)}, ensure_ascii=False, default=str))
+            elif action == "floodhub_validacao":
+                # SOMENTE LEITURA: mesma conta da aba Flood Hub → Validação (por dia e estação casada)
+                import json as json_module
+                from types import SimpleNamespace
+
+                from .floodhub_views import FloodHubValidacaoView
+
+                dias = str((request.data or {}).get("dias") or 14)
+                resp = FloodHubValidacaoView().get(SimpleNamespace(query_params={"dias": dias}))
+                saida.write(json_module.dumps(resp.data, ensure_ascii=False, default=str))
             elif action == "create_user":
                 from django.contrib.auth import get_user_model
 

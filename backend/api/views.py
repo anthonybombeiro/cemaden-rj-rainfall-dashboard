@@ -76,7 +76,7 @@ OFICIAL_VALIDADE_H = 2
 # Tolerância (h) de atraso por fonte: estações HORÁRIAS recebem o dado com atraso (INMET: a leitura de cada hora chega depois). Dentro da
 # tolerância a estação NÃO é tratada como atrasada e as janelas (1 h, 3 h…) são contadas a partir da última leitura, não de "agora".
 # Mantenha em sincronia com `LIMITE_ATRASO_H_POR_FONTE` em frontend/src/lib/api.ts.
-TOLERANCIA_ATRASO_H = {"inmet": 3.0}
+TOLERANCIA_ATRASO_H = {"inmet": 3.0, "redemet": 3.0}
 MAPA_ACUMULADOS_OFICIAIS = {
     "alerta_rio": {
         "acumulado_5min_mm": "m05", "acumulado_10min_mm": "m10", "acumulado_15min_mm": "m15",
