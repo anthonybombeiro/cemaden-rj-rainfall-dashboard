@@ -244,3 +244,13 @@ as consultas periódicas **pausam com a aba oculta** e, ao voltar, atualizam na 
 hidrologia do mapa, Flood Hub do mapa, Alertas, Riscos, saúde das fontes e camada de satélite/radar. **Exceção de segurança:** a checagem leve de "sirene tocando" continua a cada 3 min em segundo plano
 quando o aviso do navegador (push) está ativado. Medido no navegador local: 0 requisições em 130 s com a aba oculta (antes ≥ 10) e 4 imediatamente ao voltar à aba.
 **Atenção:** como o reforço das sirenes pausa em aba oculta, o cron de sirenes (hoje em `*/20`, deveria ser `*/2`) passa a ser a principal fonte de atualização quando ninguém está com o painel visível.
+
+## Cron de sirenes voltou a `*/20` pela 3ª vez — sirenes independentes da linha dedicada (18/10/2026)
+* **Fato:** o usuário corrigiu a linha de `sync_sirenes` para `*/2` e informou que ela voltou para `*/20` sem ninguém alterar. Estado lido às 09:55 de 18/10: `*/2` (`linekey` novo `2311784480`; a linha
+  antiga `*/20` tinha `2639992328`). As outras 12 linhas do crontab estavam corretas. Nenhum código do repositório altera o crontab (só lê); a causa continua **externa e não identificada**
+  (hipóteses: restauração pelo provedor ou uma tela de cron do cPanel aberta/salva com a versão antiga).
+* **Correção estrutural (18/10/2026):** o sync de sirenes agora **também roda como carona nas ingestões de 5 min de Niterói (`0-59/5`) e CEMADEN Nacional (`3-59/5`)**
+  (`backend/api/admin_views.py` + `refresh_views.sincronizar_sirenes_se_vencido`), respeitando o piso de 90 s entre syncs (`SIRENES_INTERVALO_MIN_S`) e sem nunca derrubar a ingestão. Mesmo que a linha
+  dedicada volte a `*/20`, as sirenes são atualizadas a cada ~2-3 min enquanto os outros jobs rodarem. Verificado em produção: a ingestão do CEMADEN Nacional devolveu "sirenes (carona): estações: 225 … erros: 0".
+  Escolhidos esses dois porque seus crons têm timeout longo (120 s e 280 s); o de Alerta Rio tem `-m 25` e não foi usado.
+* Segue valendo conferir o crontab de vez em quando (`fetchcron`, somente leitura) e o aviso vermelho do painel quando o status das sirenes passa de 5 min.

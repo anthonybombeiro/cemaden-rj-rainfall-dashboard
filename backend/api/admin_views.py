@@ -133,6 +133,12 @@ class AdminOpsView(APIView):
                     )
                 resultado = get_connector(source).run()
                 saida.write(resultado.summary())
+                if source in ("niteroi", "cemaden_mctic"):  # carona (cron de 5 min): mantém as sirenes em dia se a linha dedicada for revertida
+                    from .refresh_views import sincronizar_sirenes_se_vencido
+
+                    sir = sincronizar_sirenes_se_vencido()
+                    if sir is not None:
+                        saida.write(f"\n  sirenes (carona): {sir}")
                 if source == "inea":  # carona (cron de 15 min): atualiza o Google Flood Hub a cada 30 min
                     from ingestion import floodhub as floodhub_mod
 

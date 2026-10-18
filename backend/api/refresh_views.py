@@ -75,6 +75,22 @@ def _ultima_sincronizacao_sirenes():
     return Station.objects.filter(source__slug=SIRENES_SOURCE_SLUG).aggregate(m=Max("updated_at"))["m"]
 
 
+def sincronizar_sirenes_se_vencido(piso_s=SIRENES_INTERVALO_MIN_S):
+    """Roda o sync de sirenes só se o último tem mais de `piso_s` segundos. Usado como CARONA nas ingestões de 5 min
+    (Niterói e CEMADEN Nacional), para que as sirenes não dependam só da linha de cron dedicada, que já foi revertida
+    para `*/20` por causa externa três vezes. Nunca levanta erro: o sync normal das sirenes não pode ser afetado."""
+    try:
+        from django.utils import timezone
+
+        ultima = _ultima_sincronizacao_sirenes()
+        if ultima is not None and (timezone.now() - ultima).total_seconds() < piso_s:
+            return None
+        return _rodar_sirenes()
+    except Exception:  # noqa: BLE001
+        logger.exception("Falha na carona de sirenes")
+        return None
+
+
 class SirenesStatusView(APIView):
     """Idade do último sync de sirenes (o `updated_at` das estações é regravado
     a cada sync que chega ao fim). Existe porque o toque de sirene é dado de
