@@ -1,10 +1,13 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, ClipboardList, CloudSun, Droplets, Map as MapIcon, Sunrise, Sunset, TriangleAlert, Waves, Wind } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChartLine, ClipboardList, CloudSun, Droplets, Layers, Map as MapIcon, Sunrise, Sunset, TriangleAlert, Waves, Wind } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import CartasSinoticasPanel from "@/components/CartasSinoticasPanel";
+import MaresPanel from "@/components/MaresPanel";
+import MeteogramasPanel from "@/components/MeteogramasPanel";
+import ModelosMarinhaPanel from "@/components/ModelosMarinhaPanel";
 import PrevisaoForm from "@/components/PrevisaoForm";
 import { AvisoMauTempo, fetchAvisosMauTempo, fetchDataUltimaPrevisao, fetchPrevisoes, Previsao, REDECS } from "@/lib/api";
 import { formatarDataHoraLocalIso, humanizarDescricao } from "@/lib/avisosMauTempo";
@@ -323,6 +326,9 @@ const SUBABAS = [
   { key: "previsao", label: "Previsão", Icone: CloudSun },
   { key: "avisos", label: "Avisos de mau tempo", Icone: TriangleAlert },
   { key: "cartas", label: "Cartas sinóticas", Icone: MapIcon },
+  { key: "modelos", label: "Modelos", Icone: Layers },
+  { key: "meteogramas", label: "Meteogramas", Icone: ChartLine },
+  { key: "mares", label: "Marés", Icone: Waves },
   { key: "cadastro", label: "Cadastro", Icone: ClipboardList },
 ] as const;
 
@@ -330,7 +336,7 @@ export default function MeteorologiaPanel() {
   const [sub, setSub] = useState<(typeof SUBABAS)[number]["key"]>("previsao");
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="flex shrink-0 gap-1 border-b border-gray-200 bg-white px-3 py-1.5">
+      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 bg-white px-3 py-1.5">
         {SUBABAS.map(({ key, label, Icone }) => (
           <button
             key={key}
@@ -348,7 +354,17 @@ export default function MeteorologiaPanel() {
         ))}
       </div>
       <div className="min-h-0 flex-1">
-        {sub === "previsao" ? <PrevisaoDiaria /> : sub === "avisos" ? <AvisosMauTempoPainel /> : sub === "cartas" ? <CartasSinoticasPanel /> : <PrevisaoForm />}
+        {sub === "previsao" ? <PrevisaoDiaria /> : sub === "avisos" ? <AvisosMauTempoPainel /> : sub === "cartas" ? (
+          <CartasSinoticasPanel />
+        ) : sub === "modelos" ? (
+          <ModelosMarinhaPanel />
+        ) : sub === "meteogramas" ? (
+          <MeteogramasPanel />
+        ) : sub === "mares" ? (
+          <MaresPanel />
+        ) : (
+          <PrevisaoForm />
+        )}
       </div>
     </div>
   );

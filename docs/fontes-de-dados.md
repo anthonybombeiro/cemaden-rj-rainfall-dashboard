@@ -1666,3 +1666,4 @@ O CHM (`marinha.mil.br/chm`) bloqueia as imagens com Cloudflare, mas o **IDEM-DH
 
 **Ajustes de interface das Cartas sinóticas (18/10/2026, a pedido do usuário):** (1) sub-abas de Meteorologia viram **só ícones no celular** (uma linha; texto volta a partir de `sm`); (2) título e fonte numa linha: "**Cartas sinóticas** · MB/SMM/CHM (últimos 7 dias, 00Z e 12Z)"; (3) barra de controles compacta (setas e botões só com ícone no celular); (4) **"Comparar 2" só aparece no PC** (`lg`), pois no celular não há espaço para dividir a tela; (5) o mapa ocupa exatamente a altura disponível (flex), **sem barra de rolagem no PC**; (6) botão **"Carta inteira"** (`fitBounds` −70…20° lat, −90…0° lon) restaura o enquadramento da carta depois de dar zoom.
 
+> **Produtos da Marinha (modelos, meteogramas, marés) — 18/10/2026:** ver `produtos-marinha.md` (servidor `assets.marinha.mil.br`, IDEM-DHN, padrões de arquivo, rotina anual das tábuas de maré).
