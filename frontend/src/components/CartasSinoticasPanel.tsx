@@ -35,11 +35,11 @@ export default function CartasSinoticasPanel() {
   }, []);
 
   return (
-    <div className="h-full w-full overflow-auto bg-gray-50 p-2 sm:p-4">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-bold text-gray-800">Cartas sinóticas</h2>
-        <span className="text-xs text-gray-500">Marinha do Brasil — SMM/CHM, via IDEM-DHN (últimos ~7 dias, 00Z e 12Z)</span>
-      </div>
+    <div className="flex h-full w-full flex-col overflow-auto bg-gray-50 p-2 sm:p-3">
+      <h2 className="mb-1 shrink-0 text-sm text-gray-800">
+        <span className="font-bold">Cartas sinóticas</span>
+        <span className="text-xs text-gray-500"> · MB/SMM/CHM (últimos 7 dias, 00Z e 12Z)</span>
+      </h2>
 
       {erro && <div className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600">{erro}</div>}
 
@@ -50,7 +50,7 @@ export default function CartasSinoticasPanel() {
           Nenhuma carta disponível no momento.
         </div>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm sm:p-3">
+        <div className="flex min-h-[28rem] flex-1 flex-col rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
           <CartasSinoticasMapa cartas={cartas} />
         </div>
       )}

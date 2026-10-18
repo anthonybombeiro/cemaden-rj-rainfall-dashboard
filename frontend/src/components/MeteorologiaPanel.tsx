@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Droplets, Sunrise, Sunset, Waves, Wind } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, CloudSun, Droplets, Map as MapIcon, Sunrise, Sunset, TriangleAlert, Waves, Wind } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -320,10 +320,10 @@ function AvisosMauTempoPainel() {
 }
 
 const SUBABAS = [
-  { key: "previsao", label: "Previsão" },
-  { key: "avisos", label: "Avisos de mau tempo" },
-  { key: "cartas", label: "Cartas sinóticas" },
-  { key: "cadastro", label: "Cadastro" },
+  { key: "previsao", label: "Previsão", Icone: CloudSun },
+  { key: "avisos", label: "Avisos de mau tempo", Icone: TriangleAlert },
+  { key: "cartas", label: "Cartas sinóticas", Icone: MapIcon },
+  { key: "cadastro", label: "Cadastro", Icone: ClipboardList },
 ] as const;
 
 export default function MeteorologiaPanel() {
@@ -331,16 +331,19 @@ export default function MeteorologiaPanel() {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex shrink-0 gap-1 border-b border-gray-200 bg-white px-3 py-1.5">
-        {SUBABAS.map(({ key, label }) => (
+        {SUBABAS.map(({ key, label, Icone }) => (
           <button
             key={key}
             type="button"
             onClick={() => setSub(key)}
-            className={`rounded-full px-3 py-1 text-sm font-medium ${
+            title={label}
+            aria-label={label}
+            className={`flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium max-sm:flex-1 ${
               sub === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            {label}
+            <Icone size={18} className="shrink-0" />
+            <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
       </div>

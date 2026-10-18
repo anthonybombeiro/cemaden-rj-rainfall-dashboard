@@ -1,6 +1,7 @@
 "use client";
 
 import type { Map as LeafletMap } from "leaflet";
+import { Columns2, Maximize, Pause, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, useMap, WMSTileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -13,6 +14,11 @@ import { CARTAS_WMS_URL, Carta } from "@/lib/cartasSinoticas";
 const FRAMES_ANIMACAO = 7;
 const MS_POR_QUADRO = 900;
 const CENTRO: [number, number] = [-23, -41];
+// Limites da carta (lat/lon) para o botão "carta inteira".
+const LIMITES_CARTA: [[number, number], [number, number]] = [
+  [-70, -90],
+  [20, 0],
+];
 const zoomInicial = () => (typeof window !== "undefined" && window.innerWidth < 640 ? 4 : 5);
 
 type Registro = { mapas: Record<string, LeafletMap>; trava: boolean };
@@ -47,17 +53,15 @@ function MapaCarta({
   frames,
   atual,
   opacidade,
-  alturaClasse,
 }: {
   id: string;
   frames: Carta[];
   atual: Carta;
   opacidade: number;
-  alturaClasse: string;
 }) {
   return (
-    <div className="relative">
-      <MapContainer center={CENTRO} zoom={zoomInicial()} minZoom={2} className={`w-full rounded-lg ${alturaClasse}`} scrollWheelZoom>
+    <div className="relative h-full min-h-0 flex-1">
+      <MapContainer center={CENTRO} zoom={zoomInicial()} minZoom={2} className="h-full w-full rounded-lg" scrollWheelZoom>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Carta: Marinha do Brasil (IDEM-DHN)'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -104,16 +108,20 @@ export default function CartasSinoticasMapa({ cartas }: { cartas: Carta[] }) {
   const atual = cartas[idx];
   const anterior = cartas[idx + 1]; // no modo comparação: esquerda = carta anterior, direita = selecionada
   const passo = comparar ? 2 : 1;
-  const botao = "rounded bg-gray-100 px-2.5 py-1.5 text-gray-700 hover:bg-gray-200 disabled:opacity-40";
+  const botao = "rounded bg-gray-100 px-1.5 py-1.5 text-gray-700 hover:bg-gray-200 disabled:opacity-40";
 
   if (!atual) return null;
   const mostrandoComparacao = comparar && !animando && anterior;
   // No modo único (e na animação) carrega só as 7 últimas se animando; senão apenas a selecionada.
   const framesUnico = animando ? quadros : [atual];
 
+  const restaurar = () => {
+    for (const m of Object.values(registro.mapas)) m.fitBounds(LIMITES_CARTA, { animate: false });
+  };
+
   return (
-    <div>
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="mb-2 flex shrink-0 flex-wrap items-center gap-1 text-sm">
         <select
           aria-label="Carta"
           value={idx}
@@ -121,7 +129,7 @@ export default function CartasSinoticasMapa({ cartas }: { cartas: Carta[] }) {
             setAnimando(false);
             setIdx(Number(e.target.value));
           }}
-          className="rounded border border-gray-300 bg-white px-2 py-1.5"
+          className="rounded border border-gray-300 bg-white px-1 py-1 text-xs sm:text-sm"
         >
           {cartas.map((c, i) => (
             <option key={c.camada} value={i}>
@@ -129,45 +137,53 @@ export default function CartasSinoticasMapa({ cartas }: { cartas: Carta[] }) {
             </option>
           ))}
         </select>
-        <button type="button" disabled={idx >= cartas.length - passo} onClick={() => { setAnimando(false); setIdx(Math.min(idx + passo, cartas.length - 1)); }} className={botao}>
-          ◀ Anterior
+        <button type="button" title="Carta anterior" aria-label="Carta anterior" disabled={idx >= cartas.length - passo} onClick={() => { setAnimando(false); setIdx(Math.min(idx + passo, cartas.length - 1)); }} className={botao}>
+          ◀<span className="hidden sm:inline"> Anterior</span>
         </button>
-        <button type="button" disabled={idx <= 0} onClick={() => { setAnimando(false); setIdx(Math.max(idx - passo, 0)); }} className={botao}>
-          Próxima ▶
+        <button type="button" title="Próxima carta" aria-label="Próxima carta" disabled={idx <= 0} onClick={() => { setAnimando(false); setIdx(Math.max(idx - passo, 0)); }} className={botao}>
+          <span className="hidden sm:inline">Próxima </span>▶
         </button>
         <button
           type="button"
+          title={`Animar as ${Math.min(FRAMES_ANIMACAO, cartas.length)} últimas cartas`}
           onClick={() => {
             setComparar(false);
             setAnimando((a) => !a);
           }}
-          className={`rounded px-2.5 py-1.5 font-medium ${animando ? "bg-red-600 text-white hover:bg-red-700" : "bg-blue-600 text-white hover:bg-blue-700"}`}
+          className={`flex items-center gap-0.5 rounded px-1.5 py-1.5 font-medium ${animando ? "bg-red-600 text-white hover:bg-red-700" : "bg-blue-600 text-white hover:bg-blue-700"}`}
         >
-          {animando ? "⏸ Parar" : `▶ Animar (${Math.min(FRAMES_ANIMACAO, cartas.length)} últimas)`}
+          {animando ? <Pause size={15} /> : <Play size={15} />}
+          {animando ? "Parar" : "Animar"}
         </button>
         <button
           type="button"
+          title="Comparar 2 cartas lado a lado"
           onClick={() => {
             setAnimando(false);
             setComparar((c) => !c);
           }}
-          className={`rounded px-2.5 py-1.5 font-medium ${comparar ? "bg-sedec-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          className={`hidden items-center gap-1 rounded px-2 py-1.5 font-medium lg:flex ${comparar ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
         >
-          {comparar ? "Comparação: ligada" : "Comparar 2 cartas"}
+          <Columns2 size={15} />
+          Comparar 2
         </button>
-        <label className="flex items-center gap-1">
-          <span className="text-gray-600">Opacidade</span>
-          <input type="range" min={0.2} max={1} step={0.05} value={opacidade} onChange={(e) => setOpacidade(Number(e.target.value))} className="w-24" />
+        <button type="button" title="Voltar o zoom para a carta inteira" aria-label="Carta inteira" onClick={restaurar} className={`flex items-center gap-1 ${botao}`}>
+          <Maximize size={15} />
+          <span className="hidden sm:inline">Carta inteira</span>
+        </button>
+        <label className="flex items-center gap-1 text-gray-600" title="Opacidade da carta">
+          <span className="hidden sm:inline">Opacidade</span>
+          <input type="range" min={0.2} max={1} step={0.05} value={opacidade} onChange={(e) => setOpacidade(Number(e.target.value))} className="w-14 sm:w-24" />
         </label>
       </div>
 
       {mostrandoComparacao ? (
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-          <MapaCarta key="a" id="a" frames={[anterior]} atual={anterior} opacidade={opacidade} alturaClasse="h-[60vh] lg:h-[calc(100dvh-15rem)]" />
-          <MapaCarta key="b" id="b" frames={[atual]} atual={atual} opacidade={opacidade} alturaClasse="h-[60vh] lg:h-[calc(100dvh-15rem)]" />
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
+          <MapaCarta key="a" id="a" frames={[anterior]} atual={anterior} opacidade={opacidade} />
+          <MapaCarta key="b" id="b" frames={[atual]} atual={atual} opacidade={opacidade} />
         </div>
       ) : (
-        <MapaCarta key="u" id="u" frames={framesUnico} atual={atual} opacidade={opacidade} alturaClasse="h-[calc(100dvh-17rem)] min-h-[20rem]" />
+        <MapaCarta key="u" id="u" frames={framesUnico} atual={atual} opacidade={opacidade} />
       )}
     </div>
   );
