@@ -232,3 +232,15 @@ Atualização 16/10/2026 (eventos do Flood Hub): `sync_floodhub` também sincron
 `/api/floodhub/eventos/`; migração `0018_floodhub_eventos` aplicada por `migrate`.
 
 Ação admin de leitura nova (16/10/2026): `auditoria_precip` — coerência da tabela geral de Precipitação por fonte (janelas fora de ordem, oficial aplicado, estações sem leitura, diferenças oficial × nosso). Cuidado de deploy: o servidor roda **Python 3.9** (não usar `X | Y` em anotações sem `from __future__ import annotations`).
+
+## Incidente de 18/10/2026 — HTTP 429 no site e pausa das consultas em abas ocultas
+**O que houve:** das ~09:00 às 09:25 (BRT) o site `cemadenrj.preserve.rio.br` respondeu **HTTP 429 (Too Many Requests)** do **Apache**, antes do aplicativo, para todas as rotas (página, estáticos e API),
+inclusive para o cron do próprio servidor (as ingestões falharam nesse intervalo); os outros domínios da conta funcionaram. Voltou sozinho às 09:25. Não havia regra de limite no `.htaccess`.
+**Investigação no cPanel (somente leitura):** o plano (Plano M, servidor br722) **não tem "Uso de recursos" nem Gerenciador de processos**; o **Gator Protect** é o plano Free (só detecta: 0 ameaças nos arquivos,
+7.914 requisições suspeitas em 30 dias, bloqueio só no plano Business pago); **Bloqueador de IP** vazio. Não dá para reiniciar o Apache nem derrubar abas pelo cPanel. A causa exata ficou **não confirmada**
+(provável limite de requisições por tempo no servidor da HostGator; só o suporte vê). Texto sugerido para o chamado: ver `registro-de-acoes.md`.
+**Mitigação aplicada (18/10/2026):** cada aba do painel fazia ~5-8 requisições/min mesmo em segundo plano (inclusive o POST de reforço das sirenes a cada 2 min). Novo `frontend/src/lib/intervaloVisivel.ts`:
+as consultas periódicas **pausam com a aba oculta** e, ao voltar, atualizam na hora se já passou o intervalo. Aplicado a: sirene tocando/alertas ativos, status e reforço das sirenes, REDEMET (15 min), sirenes (aba e mapa), chuva do mapa,
+hidrologia do mapa, Flood Hub do mapa, Alertas, Riscos, saúde das fontes e camada de satélite/radar. **Exceção de segurança:** a checagem leve de "sirene tocando" continua a cada 3 min em segundo plano
+quando o aviso do navegador (push) está ativado. Medido no navegador local: 0 requisições em 130 s com a aba oculta (antes ≥ 10) e 4 imediatamente ao voltar à aba.
+**Atenção:** como o reforço das sirenes pausa em aba oculta, o cron de sirenes (hoje em `*/20`, deveria ser `*/2`) passa a ser a principal fonte de atualização quando ninguém está com o painel visível.

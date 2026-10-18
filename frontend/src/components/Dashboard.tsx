@@ -54,6 +54,7 @@ import {
   STATION_TYPE_LABELS,
   Station,
 } from "@/lib/api";
+import { intervaloVisivel } from "@/lib/intervaloVisivel";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
   ssr: false,
@@ -325,10 +326,10 @@ export default function Dashboard({
         });
     };
     carregar();
-    const intervalo = setInterval(carregar, 60_000);
+    const intervalo = intervaloVisivel(carregar, 60_000, pushEnabled ? 180_000 : null);
     return () => {
       cancelled = true;
-      clearInterval(intervalo);
+      intervalo();
     };
   }, [pushEnabled]);
 
@@ -362,12 +363,12 @@ export default function Dashboard({
         });
     };
     reforcar();
-    const idConsulta = setInterval(consultar, 60_000);
-    const idReforco = setInterval(reforcar, 120_000);
+    const idConsulta = intervaloVisivel(consultar, 60_000);
+    const idReforco = intervaloVisivel(reforcar, 120_000);
     return () => {
       cancelled = true;
-      clearInterval(idConsulta);
-      clearInterval(idReforco);
+      idConsulta();
+      idReforco();
     };
   }, []);
 
@@ -383,10 +384,10 @@ export default function Dashboard({
         })
         .catch(() => {});
     atualizar();
-    const intervalo = setInterval(atualizar, 15 * 60_000);
+    const intervalo = intervaloVisivel(atualizar, 15 * 60_000);
     return () => {
       cancelled = true;
-      clearInterval(intervalo);
+      intervalo();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -525,10 +526,10 @@ export default function Dashboard({
         });
     };
     carregar(!sirenesLoaded);
-    const intervalo = setInterval(() => carregar(false), 60_000);
+    const intervalo = intervaloVisivel(() => carregar(false), 60_000);
     return () => {
       cancelled = true;
-      clearInterval(intervalo);
+      intervalo();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, modoMapa]);
@@ -553,10 +554,10 @@ export default function Dashboard({
         });
     };
     carregar(true);
-    const id = setInterval(() => carregar(false), 300_000);
+    const id = intervaloVisivel(() => carregar(false), 300_000);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      id();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, modoMapa]);
@@ -582,10 +583,10 @@ export default function Dashboard({
         });
     };
     carregar();
-    const id = setInterval(carregar, 600_000);
+    const id = intervaloVisivel(carregar, 600_000);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      id();
     };
   }, [viewMode, modoMapa, floodhubTodosMapa]);
 
@@ -603,10 +604,10 @@ export default function Dashboard({
         })
         .catch(() => {});
     carregar();
-    const id = setInterval(carregar, 300_000);
+    const id = intervaloVisivel(carregar, 300_000);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      id();
     };
   }, [viewMode, modoMapa]);
 

@@ -37,6 +37,7 @@ import {
   contagemModo,
   SeletorModoMapa,
 } from "@/components/MapaBolhas";
+import { intervaloVisivel } from "@/lib/intervaloVisivel";
 
 const RJ_CENTER: [number, number] = [-22.25, -42.6];
 
@@ -410,10 +411,10 @@ function useCamadaMeteorologica(
     };
 
     buscar();
-    const id = setInterval(buscar, INTERVALO_ATUALIZACAO_CAMADA_MS);
+    const id = intervaloVisivel(buscar, INTERVALO_ATUALIZACAO_CAMADA_MS);
     return () => {
       cancelado = true;
-      clearInterval(id);
+      id();
     };
   }, [config.tipo, config.tipoSatelite, config.tipoRadar, config.animacao, forcarAtualizacaoEm]);
 

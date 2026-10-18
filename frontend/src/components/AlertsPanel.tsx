@@ -16,6 +16,7 @@ import {
 import ExportMapButton from "@/components/ExportMapButton";
 import RiscosOverviewPanel from "@/components/RiscosOverviewPanel";
 import RiskChoroplethMap, { RiskMapHandle, Selecao } from "@/components/RiskChoroplethMap";
+import { intervaloVisivel } from "@/lib/intervaloVisivel";
 
 const TIPOS: RiskAlertTipo[] = ["hidrologico", "geologico", "meteorologico", "incendio"];
 const NIVEIS: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
@@ -349,10 +350,10 @@ export default function AlertsPanel() {
     }
     desmontadoRef.current = false;
     carregar(true);
-    const intervalo = setInterval(() => carregar(false), INTERVALO_ATUALIZACAO_MS);
+    const intervalo = intervaloVisivel(() => carregar(false), INTERVALO_ATUALIZACAO_MS);
     return () => {
       desmontadoRef.current = true;
-      clearInterval(intervalo);
+      intervalo();
     };
   }, [tipo, carregar]);
 

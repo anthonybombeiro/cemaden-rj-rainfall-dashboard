@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchFontesSaude, FontesSaude } from "@/lib/api";
+import { intervaloVisivel } from "@/lib/intervaloVisivel";
 
 // Faixa de "saúde das fontes" (06/10/2026): o cron do servidor não avisa quando uma
 // coleta falha; aqui aparece quando alguma fonte está com a última coleta além do
@@ -28,10 +29,10 @@ export default function SaudeFontesBanner() {
         })
         .catch(() => {});
     consultar();
-    const id = setInterval(consultar, 300_000);
+    const id = intervaloVisivel(consultar, 300_000);
     return () => {
       cancelado = true;
-      clearInterval(id);
+      id();
     };
   }, []);
 
