@@ -12,7 +12,7 @@
  * "esqueleto" do app (HTML/JS/CSS/ícones) é cacheado, nunca dado.
  */
 
-const CACHE_VERSION = "cemadenrj-v2";
+const CACHE_VERSION = "cemadenrj-v3";
 const APP_SHELL = ["/", "/manifest.json", "/favicon.ico", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -67,8 +67,12 @@ self.addEventListener("fetch", (event) => {
         (cached) =>
           cached ||
           fetch(event.request).then((resp) => {
-            const clone = resp.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+            // Só guarda resposta OK: um 404 durante um deploy em andamento ficava
+            // cacheado para sempre e deixava o site em branco (18/10/2026).
+            if (resp.ok) {
+              const clone = resp.clone();
+              caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+            }
             return resp;
           }),
       ),
@@ -82,8 +86,10 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(event.request)
       .then((resp) => {
-        const clone = resp.clone();
-        caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+        if (resp.ok) {
+          const clone = resp.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+        }
         return resp;
       })
       .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/"))),
