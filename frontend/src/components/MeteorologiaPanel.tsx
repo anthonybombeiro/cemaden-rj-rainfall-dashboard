@@ -361,7 +361,11 @@ function AvisoInmetCard({ aviso }: { aviso: AvisoInmet }) {
         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700">INMET · {aviso.severidade}</span>
         {aviso.previsto && <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">Previsto</span>}
       </div>
-      {aviso.riscos[0] && <p className="mt-3 text-sm leading-relaxed text-gray-700">{aviso.riscos[0]}</p>}
+      {aviso.riscos.map((r) => (
+        <p key={r} className="mt-3 text-sm leading-relaxed text-gray-700">
+          {r}
+        </p>
+      ))}
       <dl className="mt-3 space-y-1 border-t border-gray-100 pt-2 text-xs text-gray-500">
         <div className="flex justify-between gap-2">
           <dt>Início</dt>
@@ -377,20 +381,23 @@ function AvisoInmetCard({ aviso }: { aviso: AvisoInmet }) {
         </div>
       </dl>
       <button type="button" onClick={() => setAberto((v) => !v)} className="mt-2 self-start text-xs font-medium text-blue-600 hover:underline">
-        {aberto ? "Ocultar detalhes" : "Ver municípios e instruções"}
+        {aberto ? "Ocultar instruções e municípios" : "Ver instruções e municípios"}
       </button>
       {aberto && (
         <div className="mt-2 space-y-2 text-xs text-gray-600">
+          {aviso.instrucoes.length > 0 && (
+            <div>
+              <b>Instruções:</b>
+              <ul className="mt-1 list-disc space-y-1 pl-4">
+                {aviso.instrucoes.map((i) => (
+                  <li key={i}>{i}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p>
             <b>Municípios:</b> {aviso.municipios.join(", ") || "—"}
           </p>
-          {aviso.instrucoes.length > 0 && (
-            <ul className="list-disc space-y-1 pl-4">
-              {aviso.instrucoes.map((i) => (
-                <li key={i}>{i}</li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
     </div>

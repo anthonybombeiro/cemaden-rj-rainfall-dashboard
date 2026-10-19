@@ -30,7 +30,9 @@ export async function fetchSondagemImagem(est: string, data: string, hora: strin
 
 // ---------------------------------------------------------------- análise sinótica
 export type AnaliseSinotica = { descricao: string; data: string; hora: string; responsavel: string };
-export const fetchAnalises = () => getJson<AnaliseSinotica[]>(`${API_PREV}/analises`);
+/** Mais recente primeiro (no mesmo dia, 12Z antes de 00Z). */
+export const fetchAnalises = async () =>
+  (await getJson<AnaliseSinotica[]>(`${API_PREV}/analises`)).sort((a, b) => `${b.data.split("T")[0]}${b.hora}`.localeCompare(`${a.data.split("T")[0]}${a.hora}`));
 export async function fetchCartaAnalise(a: AnaliseSinotica): Promise<string | null> {
   const r = await getJson<{ base64: string }[]>(`${API_COMMET}/ANALISE/AS/analise/${a.data.split("T")[0]}/${a.hora}:00`);
   return r[0]?.base64 ?? null;
@@ -75,6 +77,7 @@ export type AvisoInmet = {
 };
 
 function listaPython(s: unknown): string[] {
+  if (Array.isArray(s)) return s.map((x) => String(x).trim()).filter(Boolean); // a API devolve arrays JSON
   if (typeof s !== "string") return [];
   return s
     .replace(/^\[|\]$/g, "")
@@ -115,14 +118,30 @@ export async function fetchAvisosInmetRJ(): Promise<AvisoInmet[]> {
 
 // ---------------------------------------------------------------- VIME (COSMO)
 export type ModeloVime = "COSMO7" | "COSMO2P8";
-export const AREAS_VIME: Opcao[] = [
-  { sigla: "SE", nome: "Sudeste" },
-  { sigla: "S", nome: "Sul" },
-  { sigla: "CO", nome: "Centro-Oeste" },
-  { sigla: "NE", nome: "Nordeste" },
-  { sigla: "N", nome: "Norte" },
-  { sigla: "AS", nome: "América do Sul" },
-];
+export type AreaVime = Opcao & { grupo: string };
+/** Áreas oficiais do VIME por modelo (lidas do próprio site do INMET): o COSMO 2,8 km tem S, SE, NE e o zoom por estado
+ * (código `SE-RJ` etc.); o COSMO 7 km tem as áreas continentais. */
+export const AREAS_VIME: Record<ModeloVime, AreaVime[]> = {
+  COSMO2P8: [
+    { sigla: "SE", nome: "Sudeste", grupo: "Regiões" },
+    { sigla: "S", nome: "Sul", grupo: "Regiões" },
+    { sigla: "NE", nome: "Nordeste", grupo: "Regiões" },
+    { sigla: "SE-RJ", nome: "Rio de Janeiro", grupo: "Estados do Sudeste" },
+    { sigla: "SE-ES", nome: "Espírito Santo", grupo: "Estados do Sudeste" },
+    { sigla: "SE-MG", nome: "Minas Gerais", grupo: "Estados do Sudeste" },
+    { sigla: "SE-SP", nome: "São Paulo", grupo: "Estados do Sudeste" },
+  ],
+  COSMO7: [
+    { sigla: "SE", nome: "Sudeste", grupo: "Regiões" },
+    { sigla: "S", nome: "Sul", grupo: "Regiões" },
+    { sigla: "CO", nome: "Centro-Oeste", grupo: "Regiões" },
+    { sigla: "NE", nome: "Nordeste", grupo: "Regiões" },
+    { sigla: "N", nome: "Norte", grupo: "Regiões" },
+    { sigla: "BRA", nome: "Brasil", grupo: "Outras" },
+    { sigla: "AS", nome: "América do Sul", grupo: "Outras" },
+  ],
+};
+export const AREA_PADRAO_VIME: Record<ModeloVime, string> = { COSMO2P8: "SE-RJ", COSMO7: "SE" };
 export const fetchParametrosVime = (m: ModeloVime, area: string) => getJson<Opcao[]>(`${API_VIME}/parametros/${m}/${area}`);
 export const fetchRodadasVime = (m: ModeloVime, area: string, param: string) => getJson<Opcao[]>(`${API_VIME}/inicializacao/${m}/${area}/${param}`);
 export type QuadroVime = { validade: number; validade_extenso: string; base64: string };

@@ -165,7 +165,7 @@ export default function MaresPanel() {
       {dados && p && (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-sm">
-            <select aria-label="Porto" value={porto} onChange={(e) => setPorto(Number(e.target.value))} className="max-w-[16rem] rounded border border-gray-300 bg-white px-2 py-1.5 sm:max-w-none">
+            <select aria-label="Porto" value={porto} onChange={(e) => setPorto(Number(e.target.value))} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 sm:w-auto">
               {dados.portos.map((x, i) => (
                 <option key={x.codigo} value={i}>
                   {x.nome}

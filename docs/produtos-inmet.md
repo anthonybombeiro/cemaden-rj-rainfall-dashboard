@@ -72,3 +72,19 @@ Código: `frontend/src/lib/inmet.ts` (APIs) e os componentes abaixo. O navegador
 Sub-abas: Previsão · Avisos · Cartas · Modelos · Meteogramas · Sondagem · Marés · Cadastro (8 ícones numa linha no celular).
 **Não incluído (ideias):** previsão oficial por município (`apiprevmet3/previsao/{geocode}`), anomalias e mapas de precipitação do INMET, números da sondagem (CAPE/CIN).
 
+## 10. Ajustes de 19/10/2026 (feedback do usuário)
+* **Marés (celular):** o seletor de porto ocupa uma linha inteira e a navegação de dia (◀ data ▶ Hoje) fica na linha de baixo (a seta não fica mais sozinha).
+* **COSMO — áreas oficiais:** o VIME define as áreas por modelo (lido no código do site). **COSMO 2,8 km:** Sudeste, Sul, Nordeste + zoom por estado `SE-RJ`, `SE-ES`, `SE-MG`, `SE-SP` (padrão: Rio de Janeiro). **COSMO 7 km:** SE, S, CO, NE, N, Brasil (`BRA`), América do Sul (`AS`).
+  Antes o painel oferecia áreas que o COSMO 2,8 km não tem (N, CO, AS).
+* **Avisos INMET:** a API devolve `riscos` e `instrucoes` como **arrays JSON** (o código esperava texto) — por isso as instruções não apareciam. Agora o cartão mostra todos os riscos e, ao expandir, as **instruções** e os municípios.
+* **Cartas INMET:** ordenadas da mais recente para a mais antiga (no mesmo dia, 12Z antes de 00Z).
+
+## 11. Proposta (aguardando aprovação do usuário — nada implementado)
+1. **Previsão oficial do INMET por município** — `apiprevmet3/previsao/{geocode IBGE}`: 5 dias (manhã/tarde/noite nos primeiros), resumo, Tmáx/Tmín, vento, umidade mín/máx, tendência, nascer/ocaso (~220 KB por município, ícones em base64).
+   Ideia: na aba **Previsão**, mostrar ao lado da previsão do CEMADEN de cada região uma faixa "Referência INMET" com o município representativo da região (ex.: Metropolitana → Rio de Janeiro), destacando divergências de Tmáx/Tmín/chuva; mais um seletor livre dos 92 municípios. É referência: a previsão do CEMADEN continua sendo a principal.
+2. **Anomalias e precipitação acumulada** — `apitempo/anomalias/{data}` (2 mapas por dia: Tmín e Tmáx, Brasil) e `apiprec/{data}` (7 mapas do Brasil: acumulado de 1, 3, 5, 10, 15, 30 e 90 dias).
+   Ideia: uma sub-aba **"Clima"** com as duas coisas (alternância Anomalia | Chuva acumulada, seletor de data e de período), mapa com zoom/arrasto já enquadrado no Sudeste e botão "Brasil inteiro" (as imagens não são georreferenciadas, então não vão como camada do Leaflet).
+3. **Números da sondagem (CAPE/CIN)** — o INMET só publica a imagem. A **Universidade de Wyoming** publica o mesmo lançamento (Galeão 83746, 00Z e 12Z) em texto: perfil completo (pressão, altura, T, Td, UR, vento) e índices **MUCAPE, MUCIN, DCAPE, Showalter, LI virtual, K, Total/Cross/Vertical Totals, SWEAT, LCL, CCL, PWAT**.
+   Não tem CORS para o nosso site, então o painel precisaria de um **endpoint no backend** (`/api/sondagem/numerica/`) que baixa e interpreta a página, com cache de ~6 h. Na aba Sondagem entrariam: cartões dos índices com faixas de risco (ex.: CAPE fraco/moderado/forte), tabela dos níveis principais (1000/925/850/700/500/300/200 hPa) e, opcionalmente, um aviso em "Resumo 24h" quando CAPE e K indicarem ambiente favorável a tempestades.
+   Cuidados: serviço externo sem garantia (pode mudar o endereço); o horário do Wyoming é o sinótico (12Z) e o do INMET é o lançamento (11Z); testar antes se o servidor HostGator alcança o site de Wyoming.
+

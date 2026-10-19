@@ -3,7 +3,7 @@
 import { Pause, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { AREAS_VIME, fetchParametrosVime, fetchQuadrosVime, fetchRodadasVime, ModeloVime, Opcao, QuadroVime } from "@/lib/inmet";
+import { AREA_PADRAO_VIME, AREAS_VIME, fetchParametrosVime, fetchQuadrosVime, fetchRodadasVime, ModeloVime, Opcao, QuadroVime } from "@/lib/inmet";
 
 const MS_POR_QUADRO = 700;
 const PARAM_PADRAO = ["prec24h", "Vento10m", "T2mPress", "T2m"];
@@ -11,7 +11,7 @@ const PARAM_PADRAO = ["prec24h", "Vento10m", "T2mPress", "T2m"];
 /** Visualizador dos modelos COSMO do INMET (VIME): área, produto, rodada, barra de tempo e animação.
  * Cada série traz todos os quadros de uma vez (~4 MB), por isso só carrega depois de escolher o produto. */
 export default function ModelosInmetVisualizador({ modelo }: { modelo: ModeloVime }) {
-  const [area, setArea] = useState("SE");
+  const [area, setArea] = useState(AREA_PADRAO_VIME[modelo]);
   const [params, setParams] = useState<Opcao[]>([]);
   const [param, setParam] = useState("");
   const [rodadas, setRodadas] = useState<Opcao[]>([]);
@@ -87,10 +87,16 @@ export default function ModelosInmetVisualizador({ modelo }: { modelo: ModeloVim
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-2 flex shrink-0 flex-wrap items-center gap-1.5 text-sm">
         <select aria-label="Área" value={area} onChange={(e) => setArea(e.target.value)} className={sel}>
-          {AREAS_VIME.map((a) => (
-            <option key={a.sigla} value={a.sigla}>
-              {a.nome}
-            </option>
+          {Array.from(new Set(AREAS_VIME[modelo].map((a) => a.grupo))).map((g) => (
+            <optgroup key={g} label={g}>
+              {AREAS_VIME[modelo]
+                .filter((a) => a.grupo === g)
+                .map((a) => (
+                  <option key={a.sigla} value={a.sigla}>
+                    {a.nome}
+                  </option>
+                ))}
+            </optgroup>
           ))}
         </select>
         <select aria-label="Produto" value={param} onChange={(e) => setParam(e.target.value)} className={`${sel} max-w-[14rem] sm:max-w-md`}>
