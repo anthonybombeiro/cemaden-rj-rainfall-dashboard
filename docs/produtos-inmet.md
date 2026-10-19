@@ -1,7 +1,7 @@
 # Produtos do INMET (VIME, Sondagem, Meteogramas, Avisos) — levantamento de 18/10/2026
 
 Pedido do usuário: ver o que dá para extrair de `vime.inmet.gov.br`, `tempo.inmet.gov.br/Sondagem/…` e `meteograma.inmet.gov.br`, no estilo do que foi feito com a Marinha
-(`produtos-marinha.md`), aglutinando o que for semelhante. **Este documento é só o levantamento (nada foi implementado ainda).**
+(`produtos-marinha.md`), aglutinando o que for semelhante. Levantamento de 18/10 e **implementação de 19/10/2026** (seção 9).
 
 ## 1. Achados técnicos
 Os três sites são aplicativos React que consomem **APIs abertas** (sem login, sem token; `GET`), todas com `Access-Control-Allow-Origin` igual à origem de quem pergunta
@@ -60,3 +60,15 @@ O que só a Marinha tem: ondas, oceano (HYCOM), marés, cartas náuticas, METARE
 * APIs **não documentadas** (usadas pelo front dos sites): podem mudar sem aviso; mostrar mensagem de indisponível.
 * **Peso:** VIME envia todos os quadros de uma série em base64 (~4 MB) — usar carga sob demanda por produto e cache do navegador; no celular avisar.
 * Direitos/uso: dados públicos do INMET exibidos com a fonte citada; a conta de **token** do INMET (estações) é outra coisa e não é usada aqui.
+
+## 9. Implementado em 19/10/2026 (aba Meteorologia)
+Código: `frontend/src/lib/inmet.ts` (APIs) e os componentes abaixo. O navegador chama o INMET direto; cada bloco mostra mensagem quando a API não responde.
+1. **Sondagem** (`SondagemPanel.tsx`, nova sub-aba): Skew-T do **Galeão (83746)** por padrão; seletor das 33 estações (próximas ao RJ primeiro), dia (◀ ▶, 6 dias) e hora; texto "como ler".
+2. **Cartas** (`AnaliseSinoticaInmet.tsx`, `CartasSinoticasPanel.tsx`): botões **Marinha | INMET**; a visão INMET mostra a carta e o **texto da análise** do meteorologista (00Z/12Z).
+3. **Meteogramas** (`MeteogramasPanel.tsx`): um seletor de local (30 cidades do RJ pelo INMET + pontos no mar da Marinha + **coordenada livre**) e rodada 00Z/12Z. Para Rio, Niterói, Angra, Cabo Frio e Macaé (★) mostra **Marinha (ICON-LAM) e INMET (COSMO 2,8 km) lado a lado**.
+   Observação: as rotas `/data` e `/rodada` do INMET demoram ~20 s; o painel consulta a imagem direto (hoje → 2 dias atrás), em < 1 s.
+4. **Avisos** (`MeteorologiaPanel.tsx`, `AvisosMapa.tsx`): mapa único com os polígonos do INMET (cor = severidade do aviso; tracejado = previsto) e os da Marinha (vento/onda/ressaca); duas listas de cartões: INMET (descrição, severidade, vigência, nº de municípios do RJ, municípios e instruções ao expandir) e Marinha. Filtro: aviso do INMET com algum geocode IBGE `33…` (RJ).
+5. **Modelos** (`ModelosMarinhaPanel.tsx`, `ModelosInmetVisualizador.tsx`): abas **ICON 6,5 km · Marinha**, **COSMO 7 km · INMET**, **COSMO 2,8 km · INMET**, Ondas e Oceano. COSMO: área (6), produto (37/21, incluindo índices K/CAPE/Showalter/Totals), rodada (8 últimas), barra de tempo e animação; os quadros (~4 MB por série) só carregam ao escolher a combinação.
+Sub-abas: Previsão · Avisos · Cartas · Modelos · Meteogramas · Sondagem · Marés · Cadastro (8 ícones numa linha no celular).
+**Não incluído (ideias):** previsão oficial por município (`apiprevmet3/previsao/{geocode}`), anomalias e mapas de precipitação do INMET, números da sondagem (CAPE/CIN).
+

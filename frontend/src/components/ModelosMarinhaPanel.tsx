@@ -3,7 +3,19 @@
 import { Pause, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import ModelosInmetVisualizador from "@/components/ModelosInmetVisualizador";
+import { ModeloVime } from "@/lib/inmet";
 import { MODELOS, Modelo, RODADAS, Rodada } from "@/lib/produtosMarinha";
+
+// Fontes disponíveis na aba: modelos da Marinha (imagens) e COSMO do INMET (VIME).
+type FonteId = Modelo["id"] | "cosmo7" | "cosmo2p8";
+const ABAS: { id: FonteId; rotulo: string; vime?: ModeloVime }[] = [
+  { id: "atmosferico", rotulo: "ICON 6,5 km · Marinha" },
+  { id: "cosmo7", rotulo: "COSMO 7 km · INMET", vime: "COSMO7" },
+  { id: "cosmo2p8", rotulo: "COSMO 2,8 km · INMET", vime: "COSMO2P8" },
+  { id: "ondas", rotulo: "Ondas · Marinha" },
+  { id: "oceanografico", rotulo: "Oceano · Marinha" },
+];
 
 const MS_POR_QUADRO = 700;
 
@@ -133,18 +145,19 @@ function Visualizador({ modelo }: { modelo: Modelo }) {
   );
 }
 
-/** Sub-aba "Modelos" (Meteorologia): modelos numéricos do SMM/CHM — atmosférico, ondas e oceanográfico. */
+/** Sub-aba "Modelos" (Meteorologia): modelos numéricos da Marinha (atmosférico, ondas, oceano) e COSMO do INMET. */
 export default function ModelosMarinhaPanel() {
-  const [id, setId] = useState<Modelo["id"]>("atmosferico");
-  const modelo = MODELOS.find((m) => m.id === id) ?? MODELOS[0];
+  const [id, setId] = useState<FonteId>("atmosferico");
+  const aba = ABAS.find((a) => a.id === id) ?? ABAS[0];
+  const modelo = MODELOS.find((m) => m.id === id);
   return (
     <div className="flex h-full w-full flex-col overflow-auto bg-gray-50 p-2 sm:p-3">
       <h2 className="mb-1 shrink-0 text-sm text-gray-800">
         <span className="font-bold">Modelos numéricos</span>
-        <span className="text-xs text-gray-500"> · MB/SMM/CHM (previsão de até 96 h)</span>
+        <span className="text-xs text-gray-500"> · Marinha (SMM/CHM) e INMET (COSMO)</span>
       </h2>
-      <div className="mb-2 flex shrink-0 gap-1 text-sm" role="tablist" aria-label="Modelo">
-        {MODELOS.map((m) => (
+      <div className="mb-2 flex shrink-0 flex-wrap gap-1 text-sm" role="tablist" aria-label="Modelo">
+        {ABAS.map((m) => (
           <button
             key={m.id}
             type="button"
@@ -158,7 +171,7 @@ export default function ModelosMarinhaPanel() {
         ))}
       </div>
       <div className="flex min-h-[28rem] flex-1 flex-col rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
-        <Visualizador key={id} modelo={modelo} />
+        {aba.vime ? <ModelosInmetVisualizador key={id} modelo={aba.vime} /> : modelo ? <Visualizador key={id} modelo={modelo} /> : null}
       </div>
     </div>
   );
