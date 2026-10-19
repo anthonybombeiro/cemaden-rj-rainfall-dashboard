@@ -48,3 +48,6 @@ Previsão · Avisos · Cartas · **Modelos** · **Meteogramas** · **Marés** ·
 
 ## 7. Possíveis próximos passos
 Modelo Antártico; meteogramas em mapa (`/chm/meteogramas_mapa`); camadas `smm:metarea_v`/`seg_nav:navarea_v` no mapa de avisos; escolher a rodada mais recente automaticamente; **Meteoromarinha** (previsão de 24 h em texto, `/chm/dados-do-smm-meteoromarinha/previsao-24-horas`, ainda não analisada); **Programa PNBOIA** (boias) e estações meteorológicas costeiras da Marinha (dados medidos — o IDEM só tem a posição; os valores estão em páginas do CHM).
+
+> **INMET (VIME, Sondagem, meteogramas, avisos):** levantamento em `produtos-inmet.md` (18/10/2026), com proposta de aglutinação com os produtos da Marinha.
+
