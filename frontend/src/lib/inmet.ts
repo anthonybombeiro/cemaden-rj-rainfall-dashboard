@@ -6,6 +6,7 @@ const API_PREV = "https://apiprevmet3.inmet.gov.br";
 const API_COMMET = "https://apicommet.inmet.gov.br";
 const API_METEOGRAMA = "https://apimeteograma.inmet.gov.br";
 const API_VIME = "https://apivime.inmet.gov.br";
+const API_PREC = "https://apiprec.inmet.gov.br";
 
 async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url);
@@ -147,3 +148,74 @@ export const fetchRodadasVime = (m: ModeloVime, area: string, param: string) => 
 export type QuadroVime = { validade: number; validade_extenso: string; base64: string };
 export const fetchQuadrosVime = (m: ModeloVime, area: string, param: string, rodada: string) =>
   getJson<QuadroVime[]>(`${API_VIME}/${m}/${area}/${param}/${rodada}`);
+
+// ---------------------------------------------------------------- previsão oficial por município
+export type PeriodoPrevisaoInmet = {
+  resumo: string;
+  temp_max: number;
+  temp_min: number;
+  dir_vento: string;
+  int_vento: string;
+  umidade_max: number;
+  umidade_min: number;
+  icone: string | null;
+  nascer: string;
+  ocaso: string;
+};
+export type DiaPrevisaoInmet = {
+  /** AAAA-MM-DD */
+  iso: string;
+  diaSemana: string;
+  geral: PeriodoPrevisaoInmet;
+  /** Só nos primeiros dias: manhã, tarde e noite. */
+  periodos: Partial<Record<"manha" | "tarde" | "noite", PeriodoPrevisaoInmet>> | null;
+};
+type PeriodoCru = Record<string, string | number | null>;
+
+function periodo(p: PeriodoCru): PeriodoPrevisaoInmet {
+  const n = (v: unknown) => Number(v);
+  return {
+    resumo: String(p.resumo ?? ""),
+    temp_max: n(p.temp_max),
+    temp_min: n(p.temp_min),
+    dir_vento: String(p.dir_vento ?? ""),
+    int_vento: String(p.int_vento ?? ""),
+    umidade_max: n(p.umidade_max),
+    umidade_min: n(p.umidade_min),
+    icone: typeof p.icone === "string" ? p.icone : null,
+    nascer: String(p.nascer ?? ""),
+    ocaso: String(p.ocaso ?? ""),
+  };
+}
+
+/** Previsão do INMET (até 5 dias) para um município pelo código IBGE de 7 dígitos. */
+export async function fetchPrevisaoInmet(geocode: string): Promise<DiaPrevisaoInmet[]> {
+  const d = await getJson<Record<string, Record<string, PeriodoCru | Record<string, PeriodoCru>>>>(`${API_PREV}/previsao/${geocode}`);
+  const dias = d[geocode] ?? {};
+  return Object.entries(dias).map(([dataBr, v]) => {
+    const iso = dataBr.split("/").reverse().join("-");
+    const tem = "manha" in v;
+    const per = tem ? (v as Record<string, PeriodoCru>) : null;
+    const base = (per ? per.manha : (v as PeriodoCru)) as PeriodoCru;
+    return {
+      iso,
+      diaSemana: String(base.dia_semana ?? ""),
+      geral: periodo(base),
+      periodos: per ? { manha: periodo(per.manha), tarde: periodo(per.tarde ?? per.manha), noite: periodo(per.noite ?? per.manha) } : null,
+    };
+  });
+}
+
+// ---------------------------------------------------------------- anomalias e precipitação acumulada (mapas do Brasil)
+export type MapaInmet = { parametro: string; base64: string };
+/** Datas (AAAA-MM-DD) com mapas de anomalia diária, da mais recente para a mais antiga. */
+export async function fetchDatasAnomalia(): Promise<string[]> {
+  const l = await getJson<{ data: string }[]>(`${API_TEMPO}/anomalias/datas/disponiveis`);
+  return l.map((x) => x.data.split("T")[0]);
+}
+/** Mapas de anomalia de temperatura mínima e máxima do dia. */
+export const fetchAnomalias = (data: string) => getJson<MapaInmet[]>(`${API_TEMPO}/anomalias/${data}`);
+export type MapaPrecipitacao = { parametro: string; parametro_extenso: string; base64: string };
+/** Mapas de chuva acumulada (1, 3, 5, 10, 15, 30 e 90 dias) com fim na data (~1,7 MB). */
+export const fetchPrecipitacaoAcumulada = (data: string) => getJson<MapaPrecipitacao[]>(`${API_PREC}/${data}`);
+

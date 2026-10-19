@@ -1,14 +1,16 @@
 "use client";
 
-import { Activity, ChartLine, ChevronLeft, ChevronRight, ClipboardList, CloudSun, Droplets, Layers, Map as MapIcon, Sunrise, Sunset, TriangleAlert, Waves, Wind } from "lucide-react";
+import { Activity, ChartLine, ChevronLeft, ChevronRight, ClipboardList, CloudSun, CloudSunRain, Droplets, Layers, Map as MapIcon, Sunrise, Sunset, Thermometer, TriangleAlert, Waves, Wind } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import CartasSinoticasPanel from "@/components/CartasSinoticasPanel";
+import ClimaPanel from "@/components/ClimaPanel";
 import MaresPanel from "@/components/MaresPanel";
 import MeteogramasPanel from "@/components/MeteogramasPanel";
-import ModelosMarinhaPanel from "@/components/ModelosMarinhaPanel";
+import PrevisaoNumericaPanel from "@/components/PrevisaoNumericaPanel";
 import PrevisaoForm from "@/components/PrevisaoForm";
+import PrevisaoInmetPanel from "@/components/PrevisaoInmetPanel";
 import SondagemPanel from "@/components/SondagemPanel";
 import { AvisoMauTempo, fetchAvisosMauTempo, fetchDataUltimaPrevisao, fetchPrevisoes, Previsao, REDECS } from "@/lib/api";
 import { formatarDataHoraLocalIso, humanizarDescricao } from "@/lib/avisosMauTempo";
@@ -405,13 +407,15 @@ function AvisoInmetCard({ aviso }: { aviso: AvisoInmet }) {
 }
 
 const SUBABAS = [
-  { key: "previsao", label: "Previsão", Icone: CloudSun },
+  { key: "previsao", label: "Previsão CEMADEN-RJ", Icone: CloudSun },
+  { key: "previsaoinmet", label: "Previsão INMET", Icone: CloudSunRain },
   { key: "avisos", label: "Avisos de mau tempo", Icone: TriangleAlert },
   { key: "cartas", label: "Cartas sinóticas", Icone: MapIcon },
-  { key: "modelos", label: "Modelos", Icone: Layers },
+  { key: "modelos", label: "Previsão numérica", Icone: Layers },
   { key: "meteogramas", label: "Meteogramas", Icone: ChartLine },
   { key: "sondagem", label: "Sondagem", Icone: Activity },
   { key: "mares", label: "Marés", Icone: Waves },
+  { key: "clima", label: "Clima", Icone: Thermometer },
   { key: "cadastro", label: "Cadastro", Icone: ClipboardList },
 ] as const;
 
@@ -427,7 +431,7 @@ export default function MeteorologiaPanel() {
             onClick={() => setSub(key)}
             title={label}
             aria-label={label}
-            className={`flex items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-sm font-medium max-sm:flex-1 sm:px-3 ${
+            className={`flex items-center justify-center gap-1.5 rounded-full px-1.5 py-1.5 text-sm font-medium max-sm:flex-1 sm:px-3 ${
               sub === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
@@ -437,10 +441,10 @@ export default function MeteorologiaPanel() {
         ))}
       </div>
       <div className="min-h-0 flex-1">
-        {sub === "previsao" ? <PrevisaoDiaria /> : sub === "avisos" ? <AvisosMauTempoPainel /> : sub === "cartas" ? (
+        {sub === "previsao" ? <PrevisaoDiaria /> : sub === "previsaoinmet" ? <PrevisaoInmetPanel /> : sub === "clima" ? <ClimaPanel /> : sub === "avisos" ? <AvisosMauTempoPainel /> : sub === "cartas" ? (
           <CartasSinoticasPanel />
         ) : sub === "modelos" ? (
-          <ModelosMarinhaPanel />
+          <PrevisaoNumericaPanel />
         ) : sub === "meteogramas" ? (
           <MeteogramasPanel />
         ) : sub === "sondagem" ? (

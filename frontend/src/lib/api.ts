@@ -1017,3 +1017,19 @@ export type Resumo24h = {
 export async function fetchResumo24h(dia?: string): Promise<Resumo24h> {
   return getJson<Resumo24h>(`/resumo/${dia ? `?dia=${encodeURIComponent(dia)}` : ""}`);
 }
+
+/** Sondagem numérica (perfil + índices da Universidade de Wyoming) via backend — ver backend/api/sondagem_views.py. */
+export type SondagemNumerica = {
+  estacao: string;
+  data: string;
+  hora: string;
+  fonte: string;
+  lat: number | null;
+  lon: number | null;
+  indices: Record<string, { nome: string; valor: number; unidade: string }>;
+  perfil: Record<"pres" | "hght" | "temp" | "dwpt" | "relh" | "mixr" | "drct" | "sped" | "thta" | "thte" | "thtv", number | null>[];
+};
+export async function fetchSondagemNumerica(estacao: string, data: string, hora: string): Promise<SondagemNumerica> {
+  return getJson<SondagemNumerica>(`/sondagem/numerica/?estacao=${encodeURIComponent(estacao)}&data=${encodeURIComponent(data)}&hora=${encodeURIComponent(hora)}`);
+}
+

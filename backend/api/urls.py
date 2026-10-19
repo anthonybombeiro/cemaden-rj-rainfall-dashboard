@@ -17,6 +17,7 @@ from .dsat_imagery_views import DsatSateliteImageryView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetSateliteImageryView
 from .floodhub_views import FloodHubEventosView, FloodHubValidacaoView, FloodHubView
 from .resumo_views import Resumo24hView
+from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
 from .refresh_views import RefreshNowView, RefreshRedemetView, RefreshSirenesView, SirenesStatusView
 from .views import (
@@ -66,6 +67,7 @@ urlpatterns = [
     path("sirenes/status/", SirenesStatusView.as_view(), name="sirenes-status"),
     path("fontes/saude/", FontesSaudeView.as_view(), name="fontes-saude"),
     path("resumo/", Resumo24hView.as_view(), name="resumo-24h"),
+    path("sondagem/numerica/", SondagemNumericaView.as_view(), name="sondagem-numerica"),
     path("floodhub/", FloodHubView.as_view(), name="floodhub"),
     path("floodhub/eventos/", FloodHubEventosView.as_view(), name="floodhub-eventos"),
     path("floodhub/validacao/", FloodHubValidacaoView.as_view(), name="floodhub-validacao"),

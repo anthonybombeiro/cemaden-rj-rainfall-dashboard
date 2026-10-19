@@ -88,3 +88,5 @@ Sub-abas: Previsão · Avisos · Cartas · Modelos · Meteogramas · Sondagem ·
    Não tem CORS para o nosso site, então o painel precisaria de um **endpoint no backend** (`/api/sondagem/numerica/`) que baixa e interpreta a página, com cache de ~6 h. Na aba Sondagem entrariam: cartões dos índices com faixas de risco (ex.: CAPE fraco/moderado/forte), tabela dos níveis principais (1000/925/850/700/500/300/200 hPa) e, opcionalmente, um aviso em "Resumo 24h" quando CAPE e K indicarem ambiente favorável a tempestades.
    Cuidados: serviço externo sem garantia (pode mudar o endereço); o horário do Wyoming é o sinótico (12Z) e o do INMET é o lançamento (11Z); testar antes se o servidor HostGator alcança o site de Wyoming.
 
+## 12. Implementado em 19/10/2026
+Previsão oficial por município e comparação com o CEMADEN-RJ (sub-aba **Previsão INMET**), anomalias e chuva acumulada (sub-aba **Clima**), COSMO (VIME) dentro da **Previsão numérica** e Wyoming para os números da sondagem. Detalhes em `previsao-numerica.md`.

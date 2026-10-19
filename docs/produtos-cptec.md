@@ -75,3 +75,5 @@ App React ("hub") com API própria em `https://nowcasting.cptec.inpe.br/api/v1` 
 3. **Estrutura vertical/instabilidade** (junto de "Previsão numérica"): MUCAPE + cisalhamento 0–6 km, IVT e θe 850 do MONAN (WMS) ao lado do K/CAPE do INMET.
 4. Risco: serviço novo ("Experimental", tags de teste), pode mudar; mostrar mensagem quando uma fonte estiver parada (ex.: Guaratiba) e manter a fonte nas imagens.
 
+## 8. Implementado em 19/10/2026
+Modelos MONAN/WRF/BRAMS/BAM/Wwatch na **Previsão numérica** unificada; subsazonal e sazonal na sub-aba **Clima**; sondagem observada e do MONAN na aba **Sondagem** (com os números de Wyoming). **Meteogramas por município do CPTEC: decisão do usuário de não implementar** (parados desde 27/08). Radares, TATHU e LightningCast do Nowcasting: ainda não. Detalhes em `previsao-numerica.md`.

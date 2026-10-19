@@ -51,3 +51,4 @@ Modelo Antártico; meteogramas em mapa (`/chm/meteogramas_mapa`); camadas `smm:m
 
 > **INMET (VIME, Sondagem, meteogramas, avisos):** levantamento em `produtos-inmet.md` (18/10/2026), com proposta de aglutinação com os produtos da Marinha.
 
+> **Atualização de 19/10/2026:** as abas "Modelos" foram substituídas pela **Previsão numérica** unificada (`previsao-numerica.md`). Descoberta importante: os arquivos de `assets.marinha.mil.br/.../smm/` têm `Cache-Control` de 10 anos e as pastas `00`/`12` são sobrescritas a cada rodada (publicadas ~19,5 h e ~8 h depois do horário da rodada); as imagens passaram a levar um parâmetro de versão.

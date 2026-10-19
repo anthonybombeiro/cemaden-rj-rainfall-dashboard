@@ -25,7 +25,9 @@ export const PONTOS_METEOGRAMA: PontoMeteograma[] = [
 ];
 
 export function urlMeteograma(ponto: PontoMeteograma, rodada: Rodada, grafico: 0 | 1): string {
-  return `${MARINHA_FILES}/smm/${rodada}/meteogramas/${ponto.arquivo}${ponto.sufixos[grafico]}.jpg`;
+  // Cache-Control de 10 anos no servidor da Marinha + arquivo sobrescrito a cada rodada: `t` muda a cada 3 h.
+  const t = Math.floor(Date.now() / (3 * 3600 * 1000));
+  return `${MARINHA_FILES}/smm/${rodada}/meteogramas/${ponto.arquivo}${ponto.sufixos[grafico]}.jpg?t=${t}`;
 }
 
 // ---------------------------------------------------------------- modelos (atmosférico, ondas, oceanográfico)

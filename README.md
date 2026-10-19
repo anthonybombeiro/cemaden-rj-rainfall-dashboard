@@ -30,7 +30,7 @@ projeto. Este README cobre só o "como rodar".
 ```
 backend/    Django + Django REST Framework + Celery (API + ingestão de dados)
 frontend/   Next.js (mapa + painel, responsivo)
-docs/       Levantamento das APIs de cada fonte de dados (ver também docs/produtos-marinha.md, produtos-inmet.md e produtos-cptec.md)
+docs/       Levantamento das APIs de cada fonte de dados (ver também docs/produtos-marinha.md, produtos-inmet.md, produtos-cptec.md e previsao-numerica.md)
 ```
 
 ## Rodando localmente (sem Docker)
