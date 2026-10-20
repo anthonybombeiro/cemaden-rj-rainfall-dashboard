@@ -179,7 +179,7 @@ Executados do mais fácil ao mais difícil; cada item conferido em produção (C
 2. **Cartas sinóticas:** dois painéis independentes lado a lado (INMET×Marinha, Marinha×Marinha em horas diferentes, INMET×INMET), análise do INMET abaixo da carta, animação também no INMET, opacidade só na Marinha (`PainelCarta.tsx`, `CartasSinoticasPanel.tsx`; removidos `CartasSinoticasMapa.tsx` e `AnaliseSinoticaInmet.tsx`).
 3. **Marés:** gráfico maior, escala de hora em hora no PC (3 em 3 h no celular), valor ao passar o mouse/dedo, valores e horas de preamar/baixa-mar no gráfico, ☀ no nascer e ☾ no pôr do Sol, indicador enchendo/vazando (`MareGrafico.tsx`). Bug corrigido: o pôr do Sol saía 12:13 por causa do sinal da longitude; conferido (05:16/17:59 × INMET 05h20/18h00). Tideschart/tabuademares são terceiros e **não** foram copiados; Niterói usa o Porto do Rio de Janeiro (Ilha Fiscal).
 4. **Previsão numérica:** refeita com fonte → produto → área nativos por quadro e hora individual (detalhes em `previsao-numerica.md` §5; `lib/catalogoModelos.ts` novo).
-5. **Mapa → Previsão (mapa por REDEC com a previsão CEMADEN-RJ e exportação para Instagram):** em andamento.
+5. **Mapa → Previsão:** nova sub-aba com a previsão do CEMADEN-RJ no mapa das 11 REDECs (sem mapa-base), cartões com ícone e mín/máx, detalhes ao clicar e exportação em post (imagem quadrada com as duas logos, texto para WhatsApp e versão em tabela). Ver `docs/mapa-previsao.md`.
 
 Sugestão para os Guarda-Vidas (ainda não decidida): estágio futuro com praia, ondas e marés juntas.
 

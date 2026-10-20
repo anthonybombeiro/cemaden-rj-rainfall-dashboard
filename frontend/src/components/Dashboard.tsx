@@ -8,6 +8,7 @@ import AlertsPanel from "@/components/AlertsPanel";
 import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable";
 import FilterToggleBar from "@/components/FilterToggleBar";
 import ContatosMap from "@/components/ContatosMap";
+import PrevisaoMapa from "@/components/PrevisaoMapa";
 import Footer from "@/components/Footer";
 import HidrologicaTable from "@/components/HidrologicaTable";
 import MeteorologiaPanel from "@/components/MeteorologiaPanel";
@@ -197,7 +198,7 @@ export default function Dashboard({
   const [mapFiltersOpen, setMapFiltersOpen] = useState(false);
   // Sub-abas da aba Mapa (pedido do usuário, 2026-09-24): "Estações" (mapa
   // antigo) e "Contatos" (mapa de REDECs com contatos de prefeitos/gestores).
-  const [mapaSub, setMapaSub] = useState<"estacoes" | "contatos">("estacoes");
+  const [mapaSub, setMapaSub] = useState<"estacoes" | "contatos" | "previsao">("estacoes");
   // Visualização das bolinhas do mapa (botão "Estações", 08/10/2026): por rede (padrão), sirenes,
   // chuva 1 h, chuva 24 h ou rajada de vento. A escolha fica salva no navegador.
   const [modoMapa, setModoMapa] = useState<ModoMapa>("redes");
@@ -1090,6 +1091,7 @@ export default function Dashboard({
                 {([
                   ["estacoes", "Estações"],
                   ["contatos", "Contatos"],
+                  ["previsao", "Previsão"],
                 ] as const).map(([k, l]) => (
                   <button
                     key={k}
@@ -1106,6 +1108,10 @@ export default function Dashboard({
               {mapaSub === "contatos" ? (
                 <div className="min-h-0 flex-1">
                   <ContatosMap />
+                </div>
+              ) : mapaSub === "previsao" ? (
+                <div className="min-h-0 flex-1">
+                  <PrevisaoMapa />
                 </div>
               ) : (
                 <div className="relative min-h-0 flex-1">
