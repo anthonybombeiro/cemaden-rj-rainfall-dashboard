@@ -4,12 +4,12 @@ import { toPng } from "html-to-image";
 import { ChevronLeft, ChevronRight, Share2, Smartphone, Table2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { CartaoRedec, CorpoPost, CorpoStory, LegendaTempo, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
+import { CartaoRedec, CorpoFeed, CorpoStory, FEED_H, FEED_W, LegendaTempo, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
 import ShareModal from "@/components/ShareModal";
 import { fetchDataUltimaPrevisao, fetchPrevisoes, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
 import { EMOJI_POR_ICONE } from "@/lib/meteorologia";
-import { copiarImagemParaAreaDeTransferencia, ehDispositivoMovel, ShareData } from "@/lib/shareExport";
+import { copiarImagemParaAreaDeTransferencia, copiarParaAreaDeTransferencia, ehDispositivoMovel, ShareData } from "@/lib/shareExport";
 
 const TZ = "America/Sao_Paulo";
 const hojeIso = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
@@ -24,8 +24,8 @@ const dataExtenso = (iso: string) => {
 };
 const r0 = (n: number) => Math.round(Number(n));
 
-/** Modal do story vertical 1080×1920: prévia reduzida e exportação em tamanho real (PNG 1080×1920). */
-function StoryModal({ geo, previsoes, data, sol, onClose }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; data: string; sol: { nascer: string; por: string } | null; onClose: () => void }) {
+/** Modal de exportação em tamanho real (story 1080×1920 ou post 1080×1350): prévia reduzida, PNG exato, copiar imagem/texto. */
+function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { titulo: string; w: number; h: number; nomeArquivo: string; texto: string; onClose: () => void; children: React.ReactNode }) {
   const alvo = useRef<HTMLDivElement>(null);
   const caixa = useRef<HTMLDivElement>(null);
   const [escala, setEscala] = useState(0.3);
@@ -36,84 +36,75 @@ function StoryModal({ geo, previsoes, data, sol, onClose }: { geo: GeoJsonFeatur
   useEffect(() => {
     const el = caixa.current;
     if (!el) return;
-    const calc = () => setEscala(Math.min(el.clientWidth / STORY_W, (window.innerHeight * 0.68) / STORY_H));
+    const calc = () => setEscala(Math.min(el.clientWidth / w, (window.innerHeight * 0.66) / h));
     calc();
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [w, h]);
 
   const gerar = async (): Promise<Blob> => {
-    if (!alvo.current) throw new Error("Story não está pronto");
-    const opcoes = { width: STORY_W, height: STORY_H, pixelRatio: 1, backgroundColor: "#ffffff", style: { transform: "none" } };
-    let url: string;
-    try {
-      url = await toPng(alvo.current, opcoes);
-    } catch {
-      // a primeira captura pode falhar enquanto as imagens ainda carregam: tenta de novo
-      await new Promise((r) => setTimeout(r, 800));
-      url = await toPng(alvo.current, opcoes);
+    if (!alvo.current) throw new Error("Imagem não está pronta");
+    const opcoes = { width: w, height: h, pixelRatio: 1, backgroundColor: "#ffffff", style: { transform: "none" } };
+    // a 1ª captura pode falhar ou travar enquanto as imagens ainda carregam: até 3 tentativas, cada uma com limite de 8 s
+    let url = "";
+    for (let t = 0; t < 3 && !url; t++) {
+      try {
+        url = await Promise.race([toPng(alvo.current, opcoes), new Promise<string>((_, rej) => setTimeout(() => rej(new Error("tempo esgotado")), 8000))]);
+      } catch {
+        await new Promise((r) => setTimeout(r, 600));
+      }
     }
+    if (!url) throw new Error("Não foi possível gerar a imagem. Tente de novo em alguns segundos.");
     return (await fetch(url)).blob();
   };
-  const baixar = async () => {
+  const executar = async (acao: (blob: Blob) => Promise<void>) => {
     setBusy(true);
     setMsg(null);
     try {
-      const blob = await gerar();
+      await acao(await gerar());
+    } catch (e) {
+      if (!(e instanceof Error && e.name === "AbortError")) setMsg(e instanceof Error ? e.message : "Erro ao gerar a imagem");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const baixar = () =>
+    executar(async (blob) => {
       const u = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = u;
-      a.download = `cemaden-rj-previsao-story-${data}.png`;
+      a.download = `${nomeArquivo}.png`;
       a.click();
       URL.revokeObjectURL(u);
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Erro ao gerar a imagem");
-    } finally {
-      setBusy(false);
-    }
-  };
-  const copiar = async () => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      const ok = await copiarImagemParaAreaDeTransferencia(await gerar());
+    });
+  const copiar = () =>
+    executar(async (blob) => {
+      const ok = await copiarImagemParaAreaDeTransferencia(blob);
       setMsg(ok ? "Imagem copiada." : "Copiar não é suportado neste navegador — use Baixar.");
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Erro ao copiar");
-    } finally {
-      setBusy(false);
-    }
-  };
-  const compartilhar = async () => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      const blob = await gerar();
-      const arq = new File([blob], `cemaden-rj-previsao-story-${data}.png`, { type: "image/png" });
-      if (navigator.canShare?.({ files: [arq] })) await navigator.share({ files: [arq], title: "Previsão do tempo — CEMADEN-RJ" });
+    });
+  const compartilhar = () =>
+    executar(async (blob) => {
+      const arq = new File([blob], `${nomeArquivo}.png`, { type: "image/png" });
+      if (navigator.canShare?.({ files: [arq] })) await navigator.share({ files: [arq], title: titulo });
       else setMsg("Compartilhamento direto não suportado — use Baixar.");
-    } catch (e) {
-      if (e instanceof Error && e.name !== "AbortError") setMsg(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
+    });
+  const copiarTexto = async () => setMsg((await copiarParaAreaDeTransferencia(texto)) ? "Texto copiado." : "Não foi possível copiar o texto.");
 
   return (
     <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-2" onClick={onClose}>
       <div className="flex max-h-[96vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-2.5">
-          <h2 className="text-sm font-bold text-gray-800">Story 1080×1920</h2>
+          <h2 className="text-sm font-bold text-gray-800">{titulo}</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700" aria-label="Fechar">
             ✕
           </button>
         </div>
         <div ref={caixa} className="min-h-0 flex-1 overflow-auto bg-gray-100 p-2">
-          <div className="mx-auto overflow-hidden shadow" style={{ width: STORY_W * escala, height: STORY_H * escala }}>
-            <div style={{ transform: `scale(${escala})`, transformOrigin: "top left", width: STORY_W, height: STORY_H }}>
-              <div ref={alvo} style={{ width: STORY_W, height: STORY_H }}>
-                <CorpoStory geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} sol={sol} />
+          <div className="mx-auto overflow-hidden shadow" style={{ width: w * escala, height: h * escala }}>
+            <div style={{ transform: `scale(${escala})`, transformOrigin: "top left", width: w, height: h }}>
+              <div ref={alvo} style={{ width: w, height: h }}>
+                {children}
               </div>
             </div>
           </div>
@@ -122,7 +113,7 @@ function StoryModal({ geo, previsoes, data, sol, onClose }: { geo: GeoJsonFeatur
           {msg && <div className="rounded bg-amber-50 p-2 text-xs text-amber-800">{msg}</div>}
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={baixar} disabled={busy} className="rounded bg-sedec-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sedec-700 disabled:opacity-50">
-              🖼️ Baixar imagem (1080×1920)
+              🖼️ Baixar imagem ({w}×{h})
             </button>
             <button type="button" onClick={copiar} disabled={busy} className="rounded border border-sedec-300 px-3 py-1.5 text-xs font-medium text-sedec-700 hover:bg-sedec-50 disabled:opacity-50">
               📋 Copiar imagem
@@ -132,6 +123,9 @@ function StoryModal({ geo, previsoes, data, sol, onClose }: { geo: GeoJsonFeatur
                 📤 Compartilhar
               </button>
             )}
+            <button type="button" onClick={copiarTexto} className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+              📝 Copiar texto
+            </button>
           </div>
         </div>
       </div>
@@ -148,7 +142,7 @@ export default function PrevisaoMapa() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
-  const [compartilhar, setCompartilhar] = useState<"mapa" | "tabela" | "story" | null>(null);
+  const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "story" | null>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -185,38 +179,26 @@ export default function PrevisaoMapa() {
     };
   }, [data]);
 
-  const capital = previsoes.find((p) => p.regiao === "CAPITAL") ?? previsoes[0];
-  const sol = useMemo(() => (capital?.nascer_sol && capital?.por_sol ? { nascer: capital.nascer_sol.slice(0, 5), por: capital.por_sol.slice(0, 5) } : null), [capital]);
   const ordenadas = useMemo(() => ORDEM_REDEC.map((r) => ({ regiao: r, p: previsoes.find((x) => x.regiao === r) })), [previsoes]);
-
-  const dadosMapa: ShareData | null = useMemo(() => {
-    if (!geo || !data) return null;
-    const texto = [
-      `*Previsão do tempo — CEMADEN-RJ*`,
+  const hm = (t?: string) => (t ? t.slice(0, 5) : "—");
+  const texto = useMemo(() => {
+    if (!data) return "";
+    return [
+      "*Previsão do tempo — CEMADEN-RJ*",
       `📅 ${dataExtenso(data)}`,
       "",
       ...ordenadas
         .filter((x) => x.p)
         .flatMap(({ regiao, p }) => [
           `${EMOJI_POR_ICONE[p!.icone] ?? "▪️"} *${nomeBonito(regiao)}* — ${rotuloTempo(p!.icone)}`,
-          `🌡 ${r0(p!.temperatura_minima)}° / ${r0(p!.temperatura_maxima)}° · 💧 UR ${textoUmidade(p!)} · 🌬 ${textoVento(p!)}`,
+          `🌡 ${r0(p!.temperatura_minima)}° / ${r0(p!.temperatura_maxima)}° · 💧 Umidade ${textoUmidade(p!)} · 💨 Vento ${textoVento(p!)}`,
+          `🌅 Nasce ${hm(p!.nascer_sol)} · 🌇 Pôr do sol ${hm(p!.por_sol)}`,
           ...(p!.comentario ? [p!.comentario] : []),
           "",
         ]),
-      ...(sol ? [`☀ Nasce ${sol.nascer} · ☾ Pôr do sol ${sol.por} (Capital)`, ""] : []),
       "📡 CEMADEN-RJ / SEDEC-RJ",
     ].join("\n");
-    return {
-      titulo: "Previsão do tempo — CEMADEN-RJ",
-      dataHora: dataExtenso(data),
-      colunas: [],
-      linhas: [],
-      fonteTexto: "Previsão: CEMADEN-RJ · Defesa Civil do Estado do Rio de Janeiro",
-      nomeArquivo: `cemaden-rj-previsao-${data}`,
-      corpo: <CorpoPost geo={geo} previsoes={previsoes} sol={sol} />,
-      textoPronto: texto,
-    };
-  }, [geo, data, previsoes, sol, ordenadas]);
+  }, [data, ordenadas]);
 
   const dadosTabela: ShareData | null = useMemo(() => {
     if (!data) return null;
@@ -224,12 +206,13 @@ export default function PrevisaoMapa() {
       titulo: "Previsão do tempo por REDEC — CEMADEN-RJ",
       dataHora: dataExtenso(data),
       colunas: [
-        { chave: "regiao", rotulo: "REDEC", larguraPct: 21 },
-        { chave: "tempo", rotulo: "Situação", larguraPct: 26 },
-        { chave: "min", rotulo: "Mín", alinhamento: "center", larguraPct: 7 },
-        { chave: "max", rotulo: "Máx", alinhamento: "center", larguraPct: 7 },
-        { chave: "ur", rotulo: "Umidade", alinhamento: "center", larguraPct: 11 },
-        { chave: "vento", rotulo: "Vento", larguraPct: 28 },
+        { chave: "regiao", rotulo: "REDEC", larguraPct: 19 },
+        { chave: "tempo", rotulo: "Situação", larguraPct: 22 },
+        { chave: "min", rotulo: "Mín", alinhamento: "center", larguraPct: 6 },
+        { chave: "max", rotulo: "Máx", alinhamento: "center", larguraPct: 6 },
+        { chave: "ur", rotulo: "Umidade", alinhamento: "center", larguraPct: 10 },
+        { chave: "vento", rotulo: "Vento", larguraPct: 22 },
+        { chave: "sol", rotulo: "Sol", alinhamento: "center", larguraPct: 15 },
       ],
       linhas: ordenadas
         .filter((x) => x.p)
@@ -241,6 +224,7 @@ export default function PrevisaoMapa() {
             max: `${r0(p!.temperatura_maxima)}°`,
             ur: textoUmidade(p!),
             vento: textoVento(p!),
+            sol: `${hm(p!.nascer_sol)} / ${hm(p!.por_sol)}`,
           },
         })),
       fonteTexto: "Previsão: CEMADEN-RJ · Defesa Civil do Estado do Rio de Janeiro",
@@ -265,9 +249,9 @@ export default function PrevisaoMapa() {
             <Smartphone size={15} />
             Story
           </button>
-          <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("mapa")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Post quadrado com o mapa">
+          <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("feed")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Post de feed 1080×1350">
             <Share2 size={15} />
-            Post do mapa
+            Post
           </button>
           <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("tabela")} className={`${btn} bg-gray-100 text-gray-700 hover:bg-gray-200`} title="Post em tabela">
             <Table2 size={15} />
@@ -285,7 +269,7 @@ export default function PrevisaoMapa() {
         <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
           <div className="lg:sticky lg:top-0 lg:self-start">
             <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={460} selecionada={selecionada} onSelecionar={(r) => setSelecionada((a) => (a === r ? null : r))} className="w-full rounded-lg bg-sky-50" />
-            <LegendaTempo sol={sol} className="mt-2 text-[11px]" />
+            <LegendaTempo className="mt-2 text-[11px]" />
           </div>
           <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
             {ordenadas.map(({ regiao, p }) => (
@@ -295,9 +279,17 @@ export default function PrevisaoMapa() {
         </div>
       )}
 
-      {compartilhar === "mapa" && dadosMapa && <ShareModal data={dadosMapa} onClose={() => setCompartilhar(null)} />}
       {compartilhar === "tabela" && dadosTabela && <ShareModal data={dadosTabela} onClose={() => setCompartilhar(null)} />}
-      {compartilhar === "story" && geo && data && <StoryModal geo={geo} previsoes={previsoes} data={data} sol={sol} onClose={() => setCompartilhar(null)} />}
+      {compartilhar === "story" && geo && data && (
+        <ExportModal titulo="Story 1080×1920" w={STORY_W} h={STORY_H} nomeArquivo={`cemaden-rj-previsao-story-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>
+          <CorpoStory geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} />
+        </ExportModal>
+      )}
+      {compartilhar === "feed" && geo && data && (
+        <ExportModal titulo="Post 1080×1350" w={FEED_W} h={FEED_H} nomeArquivo={`cemaden-rj-previsao-post-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>
+          <CorpoFeed geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} />
+        </ExportModal>
+      )}
     </div>
   );
 }

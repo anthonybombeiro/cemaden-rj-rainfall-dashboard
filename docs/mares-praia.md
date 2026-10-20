@@ -31,3 +31,12 @@ Aba Meteorologia → **Marés**, abaixo do gráfico: cartões "Sol e Lua", "Mar�
 
 ## Proposta de continuação (não implementada)
 Boletim por praia (Niterói, Rio, Cabo Frio, Arraial…) com coordenadas das praias e envio no formato Story; avaliar integrar medições reais (boias/estações costeiras) se houver acesso.
+
+## Praias do Estado (20/10/2026, tarde)
+Pedido do usuário: ter marés e condições para cada praia do Estado.
+* **Lista:** `frontend/public/praias-rj.json` — **351 praias** nomeadas ("Praia…", "Prainha…") em **22 municípios**, do OpenStreetMap (© colaboradores do OpenStreetMap, ODbL) via Overpass; gerada por `backend/scripts/gerar_praias_rj.py` (tenta espelhos do Overpass, atribui o município pela malha do IBGE; praias na linha de costa usam o município do vértice mais próximo, até ~4 km). Sem município na malha = descartada. Maior cobertura: Angra dos Reis 83, Rio 57, Mangaratiba 40, Paraty 38, Búzios 25, Niterói 24. **Limite:** só entra o que está nomeado no OSM (litoral norte/Campos e Macaé têm poucas); para atualizar, rode o script e publique o JSON.
+* **Na aba Marés:** caixa **Buscar praia** (sem acento, por nome ou município) ao lado do seletor de porto. Com uma praia escolhida:
+  * **Maré:** do **porto da tábua mais próximo** (haversine) — a tela diz qual porto e a distância em km e avisa que horários/alturas são de referência. Portos disponíveis: Rio (Ilha Fiscal), Itaguaí, Ilha Guaíba, Angra, Arraial do Cabo (Forno), Açu (São João da Barra) e Macaé (Imbetiba). Praias distantes do porto (ex.: Itaipuaçu, 33 km do Rio) usam a referência e têm esse aviso.
+  * **Sol, Lua, ondas, temperatura da água, vento, UV e tempo:** do **ponto da praia** (por isso Copacabana dá ondas de 1,5 m enquanto o porto na baía dá 1,0 m).
+  * Teste: amostra de 39 praias (1 a cada 9) no Open-Meteo Marine — todas com onda e temperatura da água; Angra/Paraty (baías abrigadas) recebem o valor do modelo do mar aberto próximo, que **superestima** ondas dentro de baías.
+* Arquivos novos: `lib/praias.ts`, `backend/scripts/gerar_praias_rj.py`, `public/praias-rj.json`; `MaresPanel.tsx` alterado.

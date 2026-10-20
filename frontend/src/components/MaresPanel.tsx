@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import CondicoesDia from "@/components/CondicoesDia";
 import MareGrafico, { alturaEm, ExtremoMare, PontoMare, solNascerOcaso } from "@/components/MareGrafico";
+import { fetchPraias, normaliza, Praia, portoMaisProximo } from "@/lib/praias";
 import { fetchMares, MaresAno, PortoMare } from "@/lib/produtosMarinha";
 
 const TZ = "America/Sao_Paulo";
@@ -39,11 +40,24 @@ export default function MaresPanel() {
   const [dados, setDados] = useState<MaresAno | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [porto, setPorto] = useState(0);
+  const [praias, setPraias] = useState<Praia[]>([]);
+  const [praia, setPraia] = useState<Praia | null>(null);
+  const [busca, setBusca] = useState("");
   const [dia, setDia] = useState(() => hojeLocal().data);
 
   useEffect(() => {
     const t = setInterval(() => setHoje(hojeLocal()), 60_000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    let cancelado = false;
+    fetchPraias()
+      .then((l) => !cancelado && setPraias(l))
+      .catch(() => {});
+    return () => {
+      cancelado = true;
+    };
   }, []);
 
   const ano = Number(dia.slice(0, 4));
@@ -64,7 +78,13 @@ export default function MaresPanel() {
     };
   }, [ano]);
 
-  const p = dados?.portos[porto];
+  // com uma praia escolhida, a maré é a do porto da tábua mais próximo e o clima/Sol/Lua são do ponto da praia
+  const proximo = useMemo(() => (praia && dados ? portoMaisProximo(praia, dados.portos) : null), [praia, dados]);
+  const p = proximo?.porto ?? dados?.portos[porto];
+  const lat = praia?.lat ?? p?.latitude ?? null;
+  const lon = praia?.lon ?? p?.longitude ?? null;
+  const termo = normaliza(busca.trim());
+  const opcoesPraia = useMemo(() => (termo.length < 2 ? [] : praias.filter((x) => normaliza(`${x.n} ${x.m}`).includes(termo)).slice(0, 12)), [praias, termo]);
   const pontos = useMemo(() => (p ? pontosDoDia(p, dia) : []), [p, dia]);
   const doDia = useMemo(() => p?.dias[dia] ?? [], [p, dia]);
   const ehHoje = dia === hoje.data;
@@ -82,7 +102,7 @@ export default function MaresPanel() {
   }, [doDia, pontos]);
 
   const extremos: ExtremoMare[] = doDia.map(([hh, h], i) => ({ t: minutosDe(hh), h, tipo: classif[i] as "Preamar" | "Baixa-mar", hhmm: hh }));
-  const sol = p && p.latitude != null && p.longitude != null ? solNascerOcaso(dia, p.latitude, p.longitude) : null;
+  const sol = lat != null && lon != null ? solNascerOcaso(dia, lat, lon) : null;
   const alturaAgora = ehHoje ? alturaEm(pontos, hoje.minutos) : null;
   const enchendo = ehHoje && alturaAgora !== null ? (alturaEm(pontos, hoje.minutos + 10) ?? alturaAgora) > alturaAgora : null;
   const proxima = ehHoje ? doDia.map(([hh, h], i) => ({ hh, h, tipo: classif[i], t: minutosDe(hh) })).find((x) => x.t > hoje.minutos) : undefined;
@@ -103,13 +123,49 @@ export default function MaresPanel() {
       {dados && p && (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-sm">
-            <select aria-label="Porto" value={porto} onChange={(e) => setPorto(Number(e.target.value))} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 sm:w-auto">
+            <select aria-label="Porto" value={porto} onChange={(e) => { setPorto(Number(e.target.value)); setPraia(null); }} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 sm:w-auto" title="Porto da tábua da Marinha">
               {dados.portos.map((x, i) => (
                 <option key={x.codigo} value={i}>
                   {x.nome}
                 </option>
               ))}
             </select>
+            <div className="relative w-full sm:w-64">
+              <input
+                type="search"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder={praias.length ? `Buscar praia (${praias.length} no Estado)…` : "Buscar praia…"}
+                className="w-full rounded border border-gray-300 bg-white px-2 py-1.5"
+                aria-label="Buscar praia"
+              />
+              {opcoesPraia.length > 0 && (
+                <ul className="absolute left-0 top-full z-20 mt-1 max-h-72 w-full min-w-[16rem] overflow-auto rounded border border-gray-200 bg-white text-sm shadow-lg">
+                  {opcoesPraia.map((x) => (
+                    <li key={`${x.n}-${x.m}`}>
+                      <button
+                        type="button"
+                        className="block w-full px-2 py-1.5 text-left hover:bg-gray-50"
+                        onClick={() => {
+                          setPraia(x);
+                          setBusca("");
+                        }}
+                      >
+                        <span className="font-medium text-gray-900">{x.n}</span> <span className="text-xs text-gray-500">· {x.m}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {praia && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-800">
+                🏖 {praia.n} · {praia.m}
+                <button type="button" onClick={() => setPraia(null)} aria-label="Limpar praia" className="ml-1 text-blue-500 hover:text-blue-900">
+                  ✕
+                </button>
+              </span>
+            )}
             <button type="button" aria-label="Dia anterior" onClick={() => setDia(somaDias(dia, -1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200">
               <ChevronLeft size={16} />
             </button>
@@ -130,7 +186,9 @@ export default function MaresPanel() {
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
               <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm lg:col-span-2">
                 <div className="mb-1 text-xs text-gray-500">
-                  {p.nome} · Lat {p.latitude} · Lon {p.longitude}
+                  {praia && proximo
+                    ? `${praia.n} (${praia.m}) · maré do ${p.nome}, a ${proximo.km < 10 ? proximo.km.toFixed(1).replace(".", ",") : Math.round(proximo.km)} km — horários e alturas de referência, podem variar na praia`
+                    : `${p.nome} · Lat ${p.latitude} · Lon ${p.longitude}`}
                 </div>
                 {alturaAgora !== null && proxima && (
                   <div className="mb-1 flex flex-wrap items-baseline gap-2">
@@ -167,8 +225,8 @@ export default function MaresPanel() {
             </div>
           )}
 
-          {p.latitude != null && p.longitude != null && (
-            <CondicoesDia lat={p.latitude} lon={p.longitude} dia={dia} minutosAgora={ehHoje ? hoje.minutos : null} sol={sol} amplitude={amplitude} amplitudeMaxMes={amplitudeMaxMes} />
+          {lat != null && lon != null && (
+            <CondicoesDia lat={lat} lon={lon} dia={dia} minutosAgora={ehHoje ? hoje.minutos : null} sol={sol} amplitude={amplitude} amplitudeMaxMes={amplitudeMaxMes} />
           )}
 
           <details className="mt-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">

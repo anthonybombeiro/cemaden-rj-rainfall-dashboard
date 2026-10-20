@@ -195,6 +195,12 @@ Testado em servidor local com dados simulados, em PC e celular, antes de publica
 
 Aprendizados: o service worker mantém JS antigo (limpar ao testar); html-to-image pode falhar na 1ª captura (agora tenta de novo); comentários reais da previsão têm ~58 caracteres.
 
+## 20/10/2026 (3ª rodada) — mapa quase perfeito + praias do Estado
+
+1. **Mapa → Previsão:** nascer/pôr do Sol de cada região em todos os cartões e formatos; post quadrado trocado por post de feed 1080x1350 com umidade, vento, Sol e comentário; texto para copiar com todos os campos. Ver docs/mapa-previsao.md.
+2. **Marés para cada praia do Estado:** 351 praias (OpenStreetMap) em 22 municípios, busca na aba Marés, maré do porto mais próximo e clima/mar/Sol/Lua do ponto da praia. Ver docs/mares-praia.md.
+Testado em servidor local (PC e celular) antes de publicar.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

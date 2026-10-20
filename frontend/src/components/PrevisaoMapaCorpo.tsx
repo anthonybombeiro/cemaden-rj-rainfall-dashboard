@@ -116,18 +116,29 @@ export function MapaRedec({
 }
 
 // ---------------------------------------------------------------- cartão
-export type VarianteCartao = "tela" | "post" | "story";
+export type VarianteCartao = "tela" | "feed" | "story";
+const hm = (t?: string) => (t ? t.slice(0, 5) : "—");
 
-/** Cartão de uma REDEC com todos os dados. `post` é compacto (sem comentário); `story` e `tela` trazem o comentário. */
+/** Maior tamanho de letra (px) em que o maior comentário cabe em `altura` px de uma caixa de `largura` px (estimativa por largura média do caractere). */
+export function ajustarComentarioPx(maiorTexto: number, largura: number, altura: number, max: number, min = 10): number {
+  for (let px = max; px >= min; px--) {
+    const porLinha = Math.floor(largura / (px * 0.54));
+    const linhas = Math.ceil(maiorTexto / Math.max(porLinha, 1));
+    if (linhas * px * 1.2 <= altura) return px;
+  }
+  return min;
+}
+
+/** Cartão de uma REDEC com todos os dados: situação, mín/máx, nascer/pôr do Sol da região, umidade, vento e comentário. */
 export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx }: { regiao: string; p?: Previsao; variante: VarianteCartao; ativo?: boolean; onClick?: () => void; comentarioPx?: number }) {
   const n = ORDEM_REDEC.indexOf(regiao) + 1;
-  const s = variante === "story";
-  const c = variante === "post";
-  const tam = s
-    ? { badge: "h-9 w-9 text-[20px]", nome: "text-[22px] leading-[26px]", sit: "text-[18px] leading-[22px]", temp: "h-10 text-[32px] leading-10", info: "text-[18px] leading-[22px]", icone: 46, com: "shrink-0 overflow-hidden", pad: "px-4 py-2" }
-    : c
-      ? { badge: "h-5 w-5 text-[11px]", nome: "text-[11px]", sit: "text-[9.5px]", temp: "text-[17px]", info: "text-[9.5px]", icone: 30, com: "", pad: "px-2 py-1" }
-      : { badge: "h-6 w-6 text-[12px]", nome: "text-sm", sit: "text-xs", temp: "text-2xl", info: "text-xs", icone: 44, com: "text-xs leading-relaxed", pad: "p-3" };
+  const fixo = variante !== "tela"; // story/feed: tamanhos em px, comentário ajustado ao espaço
+  const tam =
+    variante === "story"
+      ? { badge: "h-9 w-9 text-[20px]", nome: "text-[22px] leading-[26px]", sit: "text-[18px] leading-[22px]", temp: "h-10 text-[32px] leading-10", sol: "text-[17px]", info: "text-[18px] leading-[22px]", icone: 46, pad: "px-4 py-2" }
+      : variante === "feed"
+        ? { badge: "h-7 w-7 text-[16px]", nome: "text-[18px] leading-[21px]", sit: "text-[14px] leading-[17px]", temp: "h-8 text-[26px] leading-8", sol: "text-[14px]", info: "text-[14px] leading-[18px]", icone: 38, pad: "px-3 py-1.5" }
+        : { badge: "h-6 w-6 text-[12px]", nome: "text-sm", sit: "text-xs", temp: "text-2xl", sol: "text-xs", info: "text-xs", icone: 44, pad: "p-3" };
   return (
     <div
       onClick={onClick}
@@ -146,19 +157,25 @@ export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx 
       </div>
       {p && (
         <>
-          <div className={`flex shrink-0 items-baseline gap-1.5 whitespace-nowrap font-extrabold ${tam.temp}`}>
-            <span className="text-blue-700">{r0(p.temperatura_minima)}°</span>
-            <span className="text-[0.5em] font-normal text-slate-400">mín / máx</span>
-            <span className="text-red-600">{r0(p.temperatura_maxima)}°</span>
+          <div className="flex shrink-0 items-center justify-between gap-2 whitespace-nowrap">
+            <div className={`flex items-baseline gap-1.5 font-extrabold ${tam.temp}`}>
+              <span className="text-blue-700">{r0(p.temperatura_minima)}°</span>
+              <span className="text-[0.5em] font-normal text-slate-400">mín / máx</span>
+              <span className="text-red-600">{r0(p.temperatura_maxima)}°</span>
+            </div>
+            <div className={`flex gap-2 text-slate-600 ${tam.sol}`} title="Nascer e pôr do Sol na região">
+              <span>🌅 {hm(p.nascer_sol)}</span>
+              <span>🌇 {hm(p.por_sol)}</span>
+            </div>
           </div>
           <div className={`flex shrink-0 flex-wrap gap-x-3 text-slate-700 ${tam.info}`}>
-            <span>💧 {c ? "UR" : "Umidade"} {textoUmidade(p)}</span>
-            <span>💨 {c ? "" : "Vento "}{textoVento(p)}</span>
+            <span>💧 {variante === "feed" ? "UR" : "Umidade"} {textoUmidade(p)}</span>
+            <span>💨 {variante === "feed" ? "" : "Vento "}{textoVento(p)}</span>
           </div>
-          {!c && p.comentario && (
+          {p.comentario && (
             <p
-              className={`mt-1 text-slate-600 ${tam.com}`}
-              style={s && comentarioPx ? { fontSize: comentarioPx, lineHeight: `${Math.round(comentarioPx * 1.2)}px`, maxHeight: Math.round(comentarioPx * 1.2) * 5 } : undefined}
+              className={`mt-1 min-h-0 text-slate-600 ${fixo ? "overflow-hidden" : "text-xs leading-relaxed"}`}
+              style={fixo && comentarioPx ? { fontSize: comentarioPx, lineHeight: `${Math.round(comentarioPx * 1.2)}px` } : undefined}
             >
               {p.comentario}
             </p>
@@ -169,7 +186,7 @@ export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx 
   );
 }
 
-export function LegendaTempo({ sol, className }: { sol?: { nascer: string; por: string } | null; className?: string }) {
+export function LegendaTempo({ className }: { className?: string }) {
   return (
     <div className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-slate-600 ${className ?? "text-[10px]"}`}>
       {CLASSES_TEMPO.map((c) => (
@@ -178,59 +195,48 @@ export function LegendaTempo({ sol, className }: { sol?: { nascer: string; por: 
           {c.rotulo}
         </span>
       ))}
-      {sol && (
-        <span>
-          · ☀ {sol.nascer} · ☾ {sol.por} (Capital)
-        </span>
-      )}
     </div>
   );
 }
 
 const ordenar = (previsoes: Previsao[]) => ORDEM_REDEC.map((r) => ({ regiao: r, p: previsoes.find((x) => x.regiao === r) }));
+const maiorComentario = (previsoes: Previsao[]) => Math.max(0, ...previsoes.map((x) => (x.comentario ?? "").length));
 
-// ---------------------------------------------------------------- composições
-/** Corpo do post quadrado (cabeçalho e rodapé vêm do ShareModal): mapa numerado + cartões compactos. */
-export function CorpoPost({ geo, previsoes, sol }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; sol: { nascer: string; por: string } | null }) {
+function Cabecalho({ titulo, data, altura, fonteTitulo, logo }: { titulo: string; data: string; altura: number; fonteTitulo: number; logo: number }) {
   return (
-    <div className="flex h-full w-full flex-col gap-1.5">
-      <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={250} raioNumero={11} className="h-[236px] w-full shrink-0 rounded-lg bg-sky-50" />
-      <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1">
-        {ordenar(previsoes).map(({ regiao, p }) => (
-          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="post" />
-        ))}
+    <div className="flex shrink-0 items-center justify-between bg-[#0f4c81] px-10" style={{ height: altura }}>
+      <div className="min-w-0 text-white">
+        <div className="font-extrabold leading-tight" style={{ fontSize: fonteTitulo }}>
+          {titulo}
+        </div>
+        <div className="text-sky-100" style={{ fontSize: Math.round(fonteTitulo * 0.6) }}>
+          {data}
+        </div>
       </div>
-      <LegendaTempo sol={sol} className="text-[9px]" />
+      <div className="flex shrink-0 items-center gap-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-defesa-civil.png" alt="" style={{ height: logo, width: "auto" }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-cemadenrj.png" alt="" style={{ height: logo, width: "auto" }} />
+      </div>
     </div>
   );
 }
 
+// ---------------------------------------------------------------- composições exportáveis
 export const STORY_W = 1080;
 export const STORY_H = 1920;
-/** Story vertical 1080×1920: cabeçalho com as logos, mapa e os 11 cartões com comentário (2 colunas). */
-export function CorpoStory({ geo, previsoes, titulo, data, sol }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; sol: { nascer: string; por: string } | null }) {
+/** Story vertical 1080×1920: logos, mapa e os 11 cartões (2 colunas) com sol, umidade, vento e o comentário inteiro. */
+export function CorpoStory({ geo, previsoes, titulo, data }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string }) {
   const itens = ordenar(previsoes);
-  // o comentário nunca é cortado: a letra diminui conforme o maior texto do dia (até 5 linhas por cartão)
-  const maior = Math.max(0, ...previsoes.map((x) => (x.comentario ?? "").length));
-  const comentarioPx = maior <= 110 ? 20 : maior <= 170 ? 17 : maior <= 230 ? 15 : maior <= 290 ? 13 : 12;
+  const comentarioPx = ajustarComentarioPx(maiorComentario(previsoes), 484, 100, 20);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
-      <div className="flex shrink-0 items-center justify-between bg-[#0f4c81] px-10" style={{ height: 170 }}>
-        <div className="min-w-0 text-white">
-          <div className="text-[46px] font-extrabold leading-tight">{titulo}</div>
-          <div className="text-[28px] text-sky-100">{data}</div>
-        </div>
-        <div className="flex shrink-0 items-center gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-defesa-civil.png" alt="" style={{ height: 84, width: "auto" }} />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-cemadenrj.png" alt="" style={{ height: 84, width: "auto" }} />
-        </div>
-      </div>
+      <Cabecalho titulo={titulo} data={data} altura={170} fonteTitulo={46} logo={84} />
       <div className="shrink-0 bg-sky-50" style={{ height: 290 }}>
         <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={290} raioNumero={17} className="h-full w-full" />
       </div>
-      <LegendaTempo sol={sol} className="shrink-0 py-2 text-[18px]" />
+      <LegendaTempo className="shrink-0 py-2 text-[18px]" />
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 px-4 pb-2" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
         {itens.map(({ regiao, p }) => (
           <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} />
@@ -238,6 +244,32 @@ export function CorpoStory({ geo, previsoes, titulo, data, sol }: { geo: GeoJson
         <div className="flex flex-col justify-center rounded-lg bg-[#0f4c81] px-5 py-3 text-white">
           <div className="text-[22px] font-bold">Defesa Civil RJ</div>
           <div className="text-[17px] leading-snug text-sky-100">Previsão do CEMADEN-RJ · acompanhe os alertas e siga as orientações da Defesa Civil. Emergência: 199</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const FEED_W = 1080;
+export const FEED_H = 1350;
+/** Post de feed 1080×1350 (4:5): mesmo conteúdo do story em formato menor. */
+export function CorpoFeed({ geo, previsoes, titulo, data }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string }) {
+  const itens = ordenar(previsoes);
+  const comentarioPx = ajustarComentarioPx(maiorComentario(previsoes), 484, 36, 15);
+  return (
+    <div className="flex flex-col overflow-hidden bg-white" style={{ width: FEED_W, height: FEED_H }}>
+      <Cabecalho titulo={titulo} data={data} altura={120} fonteTitulo={40} logo={68} />
+      <div className="shrink-0 bg-sky-50" style={{ height: 215 }}>
+        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={215} raioNumero={13} className="h-full w-full" />
+      </div>
+      <LegendaTempo className="shrink-0 py-1.5 text-[15px]" />
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 px-3 pb-2" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
+        {itens.map(({ regiao, p }) => (
+          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="feed" comentarioPx={comentarioPx} />
+        ))}
+        <div className="flex flex-col justify-center rounded-lg bg-[#0f4c81] px-4 py-2 text-white">
+          <div className="text-[18px] font-bold">Defesa Civil RJ</div>
+          <div className="text-[14px] leading-snug text-sky-100">Previsão do CEMADEN-RJ · acompanhe os alertas e siga as orientações da Defesa Civil. Emergência: 199</div>
         </div>
       </div>
     </div>
