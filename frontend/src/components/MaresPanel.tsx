@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import MareGrafico, { alturaEm, ExtremoMare, PontoMare, solNascerOcaso } from "@/components/MareGrafico";
 import { fetchMares, MaresAno, PortoMare } from "@/lib/produtosMarinha";
 
 const TZ = "America/Sao_Paulo";
@@ -23,82 +24,11 @@ const minutosDe = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 const nf = (v: number) => v.toFixed(2).replace(".", ",");
 
-type Ponto = { t: number; h: number }; // t = minutos desde 00:00 do dia exibido (pode ser <0 ou >1440)
+type Ponto = PontoMare;
 
 function pontosDoDia(porto: PortoMare, dia: string): Ponto[] {
   const mk = (iso: string, deslocamento: number): Ponto[] => (porto.dias[iso] ?? []).map(([hh, h]) => ({ t: minutosDe(hh) + deslocamento, h }));
   return [...mk(somaDias(dia, -1), -1440), ...mk(dia, 0), ...mk(somaDias(dia, 1), 1440)];
-}
-
-/** Altura estimada por interpolação cossenoidal entre extremos consecutivos (aproximação usual entre preamar e baixa-mar). */
-function alturaEm(pontos: Ponto[], t: number): number | null {
-  for (let i = 0; i < pontos.length - 1; i++) {
-    const a = pontos[i];
-    const b = pontos[i + 1];
-    if (t >= a.t && t <= b.t) return (a.h + b.h) / 2 + ((a.h - b.h) / 2) * Math.cos((Math.PI * (t - a.t)) / (b.t - a.t));
-  }
-  return null;
-}
-
-function GraficoMare({ pontos, nivelMedio, agora }: { pontos: Ponto[]; nivelMedio: number | null; agora: number | null }) {
-  const W = 720;
-  const H = 240;
-  const m = { l: 36, r: 10, t: 12, b: 26 };
-  const hs = pontos.filter((p) => p.t >= -180 && p.t <= 1620).map((p) => p.h);
-  if (hs.length === 0) return null;
-  const min = Math.floor((Math.min(...hs) - 0.1) * 10) / 10;
-  const max = Math.ceil((Math.max(...hs) + 0.1) * 10) / 10;
-  const x = (t: number) => m.l + (t / 1440) * (W - m.l - m.r);
-  const y = (h: number) => m.t + (1 - (h - min) / (max - min)) * (H - m.t - m.b);
-  const curva: string[] = [];
-  for (let t = 0; t <= 1440; t += 10) {
-    const h = alturaEm(pontos, t);
-    if (h != null) curva.push(`${curva.length ? "L" : "M"}${x(t).toFixed(1)},${y(h).toFixed(1)}`);
-  }
-  const marcas = pontos.filter((p) => p.t >= 0 && p.t <= 1440);
-  const passoY = max - min > 1.2 ? 0.5 : 0.25;
-  const linhasY: number[] = [];
-  for (let v = Math.ceil(min / passoY) * passoY; v <= max; v += passoY) linhasY.push(Math.round(v * 100) / 100);
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="max-h-80 w-full" role="img" aria-label="Curva da maré no dia">
-      {linhasY.map((v) => (
-        <g key={v}>
-          <line x1={m.l} x2={W - m.r} y1={y(v)} y2={y(v)} stroke="#e5e7eb" />
-          <text x={m.l - 4} y={y(v) + 3} textAnchor="end" fontSize="10" fill="#6b7280">
-            {nf(v)}
-          </text>
-        </g>
-      ))}
-      {[0, 3, 6, 9, 12, 15, 18, 21, 24].map((hh) => (
-        <g key={hh}>
-          <line x1={x(hh * 60)} x2={x(hh * 60)} y1={m.t} y2={H - m.b} stroke="#f3f4f6" />
-          <text x={x(hh * 60)} y={H - 8} textAnchor="middle" fontSize="10" fill="#6b7280">
-            {String(hh).padStart(2, "0")}h
-          </text>
-        </g>
-      ))}
-      {nivelMedio != null && nivelMedio >= min && nivelMedio <= max && (
-        <g>
-          <line x1={m.l} x2={W - m.r} y1={y(nivelMedio)} y2={y(nivelMedio)} stroke="#9ca3af" strokeDasharray="4 3" />
-          <text x={W - m.r - 2} y={y(nivelMedio) - 3} textAnchor="end" fontSize="9" fill="#6b7280">
-            nível médio {nf(nivelMedio)} m
-          </text>
-        </g>
-      )}
-      <path d={curva.join(" ")} fill="none" stroke="#2563eb" strokeWidth="2" />
-      {marcas.map((p) => (
-        <circle key={p.t} cx={x(p.t)} cy={y(p.h)} r="3.5" fill="#1d4ed8" />
-      ))}
-      {agora != null && (
-        <g>
-          <line x1={x(agora)} x2={x(agora)} y1={m.t} y2={H - m.b} stroke="#dc2626" strokeWidth="1.5" />
-          <text x={x(agora) + 3} y={m.t + 9} fontSize="10" fill="#dc2626">
-            agora
-          </text>
-        </g>
-      )}
-    </svg>
-  );
 }
 
 /** Sub-aba "Marés" (Meteorologia): tábuas de maré da Marinha (CHM/DHN) para os portos do RJ. Dados extraídos dos PDFs
@@ -150,6 +80,10 @@ export default function MaresPanel() {
     });
   }, [doDia, pontos]);
 
+  const extremos: ExtremoMare[] = doDia.map(([hh, h], i) => ({ t: minutosDe(hh), h, tipo: classif[i] as "Preamar" | "Baixa-mar", hhmm: hh }));
+  const sol = p && p.latitude != null && p.longitude != null ? solNascerOcaso(dia, p.latitude, p.longitude) : null;
+  const alturaAgora = ehHoje ? alturaEm(pontos, hoje.minutos) : null;
+  const enchendo = ehHoje && alturaAgora !== null ? (alturaEm(pontos, hoje.minutos + 10) ?? alturaAgora) > alturaAgora : null;
   const proxima = ehHoje ? doDia.map(([hh, h], i) => ({ hh, h, tipo: classif[i], t: minutosDe(hh) })).find((x) => x.t > hoje.minutos) : undefined;
   const mes = dia.slice(0, 7);
   const diasDoMes = p ? Object.keys(p.dias).filter((k) => k.startsWith(mes)).sort() : [];
@@ -194,8 +128,17 @@ export default function MaresPanel() {
                 <div className="mb-1 text-xs text-gray-500">
                   {p.nome} · Lat {p.latitude} · Lon {p.longitude}
                 </div>
-                <GraficoMare pontos={pontos} nivelMedio={p.nivel_medio} agora={ehHoje ? hoje.minutos : null} />
-                <p className="mt-1 text-[11px] text-gray-400">Curva estimada por interpolação entre as preamares e baixa-mares da tábua (aproximação); os pontos azuis são os valores oficiais.</p>
+                {alturaAgora !== null && proxima && (
+                  <div className="mb-1 flex flex-wrap items-baseline gap-2">
+                    <span className="text-2xl font-bold text-gray-900">{nf(alturaAgora)} m</span>
+                    <span className="text-xs text-gray-500">
+                      {enchendo ? "sobe" : "desce"} até {nf(proxima.h)} m às {proxima.hh}
+                    </span>
+                    <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{enchendo ? "↑ enchendo" : "↓ vazando"}</span>
+                  </div>
+                )}
+                <MareGrafico pontos={pontos} extremos={extremos} nivelMedio={p.nivel_medio} agora={ehHoje ? hoje.minutos : null} sol={sol} />
+                <p className="mt-1 text-[11px] text-gray-400">Passe o mouse (ou o dedo) sobre o gráfico para ver a altura em cada instante. Curva estimada por interpolação entre as preamares e baixa-mares oficiais (círculos); ☀ nascer e ☾ pôr do Sol calculados para o local. Para Niterói use o Porto do Rio de Janeiro (Ilha Fiscal), a ~2 km.</p>
               </div>
               <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                 <h3 className="mb-1 text-sm font-bold text-gray-700">{dataBR(dia)}</h3>

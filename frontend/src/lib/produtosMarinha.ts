@@ -141,8 +141,8 @@ export type MareHora = [string, number]; // ["HH:MM", altura em m]
 export type PortoMare = {
   codigo: number;
   nome: string;
-  latitude: string;
-  longitude: string;
+  latitude: number | null;
+  longitude: number | null;
   nivel_medio: number | null;
   /** AAAA-MM-DD → preamares/baixa-mares do dia (horário local, UTC-3). */
   dias: Record<string, MareHora[]>;

@@ -171,6 +171,18 @@ git e de resumos de sessões anteriores; as de 03/10 foram registradas na hora.
 | 19/10 | **Nowcasting do CPTEC investigado (a pedido do usuário; corrige a conclusão de que o CPTEC não tinha sondagem):** radiossondagem observada (43 estações, inclui Galeão; Skew-T + hodógrafa + CAPE/CINE/LFC/EL/SRH/K na própria imagem), sondagem do modelo MONAN (67 pontos, Rio = RJR, 3 em 3 h até 72 h), radares do RJ (Pico do Couto e Macaé atuais; Guaratiba parado desde 23/09) com VIL/Echotop/chuva, TATHU, LightningCast, camadas MONAN (MUCAPE/cisalhamento, IVT…). API sem CORS (precisa proxy); imagens/WMS abertos. Nada implementado; aguardando aprovação. Ver `produtos-cptec.md` seção 7 |
 | 19/10 | **Entrega da aba Meteorologia (a pedido do usuário):** nova **Previsão numérica** unificada (CPTEC, Marinha e INMET por tema, 1–4 quadros alinhados pela hora de validade, animação, setas do teclado, quadros empilhados no celular; Wwatch × ondas da Marinha; estrutura vertical); **Sondagem** com CPTEC observada, INMET, MONAN prevista e **números de Wyoming (CAPE/CIN, índices) via novo endpoint `/api/sondagem/numerica/`** (backend implantado; servidor alcança Wyoming); **Clima** (anomalias e chuva acumulada INMET; subsazonal e sazonal CPTEC com notas técnicas); **Previsão INMET** (92 municípios, 5 dias) com comparação por região com o CEMADEN-RJ; aba antiga renomeada **Previsão CEMADEN-RJ**. Sem meteogramas do CPTEC (decisão do usuário). Correções: cache de 10 anos dos arquivos da Marinha (parâmetro de versão, também nos meteogramas), nova tentativa em 503 do CPTEC. Deploy backend+frontend e verificado no Chrome (PC e 390 px). Ver `previsao-numerica.md` |
 
+## 20/10/2026 — retorno do usuário sobre Meteorologia (5 itens)
+
+Executados do mais fácil ao mais difícil; cada item conferido em produção (Chrome) após o deploy.
+
+1. **Clima:** imagens sempre inteiras (`object-contain`, botão "Ampliar"); Tendência em 2 por vez no PC/tablet e 1 por vez no celular, com paginação ◀ ▶ (`ClimaPanel.tsx`, `lib/useMedia.ts`).
+2. **Cartas sinóticas:** dois painéis independentes lado a lado (INMET×Marinha, Marinha×Marinha em horas diferentes, INMET×INMET), análise do INMET abaixo da carta, animação também no INMET, opacidade só na Marinha (`PainelCarta.tsx`, `CartasSinoticasPanel.tsx`; removidos `CartasSinoticasMapa.tsx` e `AnaliseSinoticaInmet.tsx`).
+3. **Marés:** gráfico maior, escala de hora em hora no PC (3 em 3 h no celular), valor ao passar o mouse/dedo, valores e horas de preamar/baixa-mar no gráfico, ☀ no nascer e ☾ no pôr do Sol, indicador enchendo/vazando (`MareGrafico.tsx`). Bug corrigido: o pôr do Sol saía 12:13 por causa do sinal da longitude; conferido (05:16/17:59 × INMET 05h20/18h00). Tideschart/tabuademares são terceiros e **não** foram copiados; Niterói usa o Porto do Rio de Janeiro (Ilha Fiscal).
+4. **Previsão numérica:** refeita com fonte → produto → área nativos por quadro e hora individual (detalhes em `previsao-numerica.md` §5; `lib/catalogoModelos.ts` novo).
+5. **Mapa → Previsão (mapa por REDEC com a previsão CEMADEN-RJ e exportação para Instagram):** em andamento.
+
+Sugestão para os Guarda-Vidas (ainda não decidida): estágio futuro com praia, ondas e marés juntas.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

@@ -3,75 +3,49 @@
 import { Pause, Play, StepBack, StepForward } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchQuadrosVime, fetchRodadasVime, ModeloVime, QuadroVime } from "@/lib/inmet";
+import { fetchParametrosVime, fetchQuadrosVime, fetchRodadasVime, AREA_PADRAO_VIME, AREAS_VIME, ModeloVime, Opcao as OpcaoInmet, QuadroVime } from "@/lib/inmet";
 import {
-  areaDaFonte,
+  areaPadrao,
+  areasDaFonte,
   ehInmet,
   faixaFonte,
   FONTES,
   fonteDe,
   FonteId,
-  REGIOES,
-  RegiaoId,
+  produtoPadrao,
+  produtosDaFonte,
   Rodada,
   rodadasCptec,
   rodadasMarinha,
   rotuloValidade,
-  TEMAS,
   urlQuadro,
-  Variante,
 } from "@/lib/previsaoNumerica";
+import { useMedia } from "@/lib/useMedia";
 
 const HORA = 3600000;
-const PASSO_MS = 3 * HORA;
 const MS_ANIMACAO = 900;
+const MAX_QUADROS = 3;
 const campo = "rounded border border-gray-300 bg-white px-2 py-1.5 text-sm";
-
-type Info = { iniMs: number; fimMs: number } | null;
+const FONTES_INICIAIS: FonteId[] = ["monan", "marinha", "wrf"];
 
 /** Cache em memória das séries do VIME (cada uma pesa ~4 MB). */
 const cacheVime = new Map<string, QuadroVime[]>();
+const modeloVime = (f: FonteId): ModeloVime => (f === "cosmo7" ? "COSMO7" : "COSMO2P8");
 
-function fontesDaVariante(v: Variante): FonteId[] {
-  return FONTES.map((f) => f.id).filter((id) => v.produtos[id]);
+type Config = { fonte: FonteId; produto: string; area: string };
+function configInicial(fonte: FonteId): Config {
+  if (ehInmet(fonte)) return { fonte, produto: "", area: AREA_PADRAO_VIME[modeloVime(fonte)] };
+  const lista = produtosDaFonte(fonte) ?? [];
+  const produto = produtoPadrao(lista);
+  return { fonte, produto, area: areaPadrao(fonte, areasDaFonte(fonte, lista.find((p) => p.id === produto))) };
 }
 
-/** Escolhe as fontes dos quadros: mantém as atuais que existem na variante e completa com as de maior prioridade
- * (as do INMET só entram se não houver outra, porque cada série pesa ~4 MB). */
-function ajustarFontes(v: Variante, atuais: FonteId[]): FonteId[] {
-  const disp = fontesDaVariante(v);
-  const leves = disp.filter((f) => !ehInmet(f));
-  const ordem = [...leves, ...disp.filter((f) => ehInmet(f))];
-  const out: FonteId[] = [];
-  for (const f of atuais) if (disp.includes(f) && !out.includes(f)) out.push(f);
-  for (const f of ordem) if (out.length < 4 && !out.includes(f)) out.push(f);
-  while (out.length < 4) out.push(ordem[0]);
-  return out.slice(0, 4);
-}
-
-// ---------------------------------------------------------------- um quadro
-function Quadro({
-  idx,
-  fonte,
-  variante,
-  regiao,
-  vt,
-  disponiveis,
-  onFonte,
-  onInfo,
-}: {
-  idx: number;
-  fonte: FonteId;
-  variante: Variante;
-  regiao: RegiaoId;
-  vt: number | null;
-  disponiveis: FonteId[];
-  onFonte: (f: FonteId) => void;
-  onInfo: (idx: number, info: Info) => void;
-}) {
-  const produto = variante.produtos[fonte] as string;
-  const { area, rotulo: rotuloArea, aviso } = areaDaFonte(fonte, produto, regiao);
+// ---------------------------------------------------------------- um quadro (fonte, produto, área, rodada e hora próprios)
+function Quadro({ idx, fonteInicial, sync, vtSync, onVtSync }: { idx: number; fonteInicial: FonteId; sync: boolean; vtSync: number | null; onVtSync: (vt: number) => void }) {
+  const [cfg, setCfg] = useState<Config>(() => configInicial(fonteInicial));
+  const { fonte, produto, area } = cfg;
   const inmet = ehInmet(fonte);
+  const [paramsInmet, setParamsInmet] = useState<OpcaoInmet[]>([]);
   const [rodadas, setRodadas] = useState<Rodada[]>([]);
   const [rodadaId, setRodadaId] = useState<string | null>(null);
   const [quadros, setQuadros] = useState<QuadroVime[]>([]);
@@ -79,9 +53,68 @@ function Quadro({
   const [carregando, setCarregando] = useState(true);
   const [falhou, setFalhou] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState<Record<string, number>>({});
+  const [vtLocal, setVtLocal] = useState<number | null>(null);
+  const [tocando, setTocando] = useState(false);
+  const [agora] = useState(() => Date.now());
+
+  const listaProdutos = produtosDaFonte(fonte);
+  const produtoCat = listaProdutos?.find((p) => p.id === produto);
+  const areas: OpcaoInmet[] = inmet ? AREAS_VIME[modeloVime(fonte)].map((a) => ({ sigla: a.sigla, nome: a.nome })) : areasDaFonte(fonte, produtoCat).map((a) => ({ sigla: a.id, nome: a.rotulo }));
+
+  const trocarFonte = (f: FonteId) => {
+    setTocando(false);
+    setFalhou(null);
+    setCfg(configInicial(f));
+  };
+  const trocarProduto = (p: string) => {
+    setTocando(false);
+    setFalhou(null);
+    setCfg((c) => {
+      if (inmet) return { ...c, produto: p };
+      const cat = listaProdutos?.find((x) => x.id === p);
+      const ar = areasDaFonte(c.fonte, cat);
+      return { ...c, produto: p, area: ar.some((a) => a.id === c.area) ? c.area : areaPadrao(c.fonte, ar) };
+    });
+  };
+  const trocarArea = (a: string) => {
+    setTocando(false);
+    setFalhou(null);
+    setCfg((c) => ({ ...c, area: a, produto: inmet ? "" : c.produto }));
+  };
+
+  // INMET: os produtos dependem da área
+  useEffect(() => {
+    if (!inmet) return;
+    let cancelado = false;
+    Promise.resolve().then(() => {
+      if (cancelado) return;
+      setCarregando(true);
+      setMsg(null);
+      setParamsInmet([]);
+    });
+    fetchParametrosVime(modeloVime(fonte), area)
+      .then((l) => {
+        if (cancelado) return;
+        setParamsInmet(l);
+        setCfg((c) => (c.fonte !== fonte || c.area !== area ? c : l.some((x) => x.sigla === c.produto) ? c : { ...c, produto: (l.find((x) => x.sigla === "Vento10m") ?? l[0])?.sigla ?? "" }));
+        if (!l.length) {
+          setMsg("Sem produtos nesta área.");
+          setCarregando(false);
+        }
+      })
+      .catch(() => {
+        if (cancelado) return;
+        setMsg("Não foi possível listar os produtos do INMET.");
+        setCarregando(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [inmet, fonte, area]);
 
   // rodadas disponíveis
   useEffect(() => {
+    if (inmet && !produto) return;
     let cancelado = false;
     Promise.resolve().then(async () => {
       if (cancelado) return;
@@ -91,12 +124,11 @@ function Quadro({
       try {
         let lista: Rodada[];
         if (inmet) {
-          const l = await fetchRodadasVime(fonte === "cosmo7" ? "COSMO7" : "COSMO2P8", area, produto);
+          const l = await fetchRodadasVime(modeloVime(fonte), area, produto);
           lista = l.slice(0, 6).map((r) => {
             const [d, h] = r.sigla.split("H");
             const [a, m, dd] = d.split("-").map(Number);
-            const runMs = Date.UTC(a, m - 1, dd, Number(h.split(":")[0]));
-            return { id: r.sigla, rotulo: r.nome, runMs };
+            return { id: r.sigla, rotulo: r.nome, runMs: Date.UTC(a, m - 1, dd, Number(h.split(":")[0])) };
           });
         } else if (fonte === "marinha" || fonte === "marinha-ondas" || fonte === "marinha-oceano") {
           lista = rodadasMarinha(Date.now());
@@ -125,7 +157,7 @@ function Quadro({
   // séries do INMET (VIME): todos os quadros de uma vez
   useEffect(() => {
     if (!inmet || !rodada) return;
-    const modelo: ModeloVime = fonte === "cosmo7" ? "COSMO7" : "COSMO2P8";
+    const modelo = modeloVime(fonte);
     const chave = `${modelo}|${area}|${produto}|${rodada.id}`;
     const pronto = cacheVime.get(chave);
     let cancelado = false;
@@ -155,52 +187,58 @@ function Quadro({
     };
   }, [inmet, fonte, area, produto, rodada]);
 
-  // faixa de validades que este quadro cobre
-  const info: Info = useMemo(() => {
-    if (!rodada) return null;
-    if (inmet) {
-      if (!quadros.length) return null;
-      return { iniMs: rodada.runMs + quadros[0].validade * HORA, fimMs: rodada.runMs + quadros[quadros.length - 1].validade * HORA };
-    }
+  // validades que este quadro tem (cada fonte tem o seu passo)
+  const validades = useMemo(() => {
+    if (!rodada) return [] as number[];
+    if (inmet) return quadros.map((q) => rodada.runMs + q.validade * HORA);
     const f = faixaFonte(fonte, rodada);
-    return { iniMs: f.iniMs, fimMs: f.fimMs };
+    const out: number[] = [];
+    for (let t = f.iniMs; t <= f.fimMs; t += f.passoH * HORA) out.push(t);
+    return out;
   }, [rodada, inmet, quadros, fonte]);
-  const iniMs = info?.iniMs;
-  const fimMs = info?.fimMs;
+
+  const alvo = (sync && vtSync !== null ? vtSync : vtLocal) ?? agora;
+  const iVt = validades.length ? validades.reduce((m, t, i) => (Math.abs(t - alvo) < Math.abs(validades[m] - alvo) ? i : m), 0) : -1;
+  const vt = iVt >= 0 ? validades[iVt] : null;
+  const irPara = (i: number) => {
+    const t = validades[Math.min(Math.max(i, 0), validades.length - 1)];
+    if (t === undefined) return;
+    setVtLocal(t);
+    if (sync) onVtSync(t);
+  };
+
+  // animação própria do quadro (com a sincronia ligada, os outros acompanham)
   useEffect(() => {
-    onInfo(idx, iniMs !== undefined && fimMs !== undefined ? { iniMs, fimMs } : null);
-    return () => onInfo(idx, null);
-  }, [idx, iniMs, fimMs, onInfo]);
+    if (!tocando || validades.length < 2) return;
+    const t = setInterval(() => {
+      const atual = (sync && vtSync !== null ? vtSync : vtLocal) ?? agora;
+      const i = validades.findIndex((v) => v > atual);
+      const prox = validades[i < 0 ? 0 : i];
+      setVtLocal(prox);
+      if (sync) onVtSync(prox);
+    }, MS_ANIMACAO);
+    return () => clearInterval(t);
+  }, [tocando, validades, sync, vtSync, vtLocal, agora, onVtSync]);
 
   // imagem da validade atual
   let src: string | null = null;
-  let aproximado = false;
   if (vt !== null && rodada) {
-    if (inmet) {
-      const h = (vt - rodada.runMs) / HORA;
-      const exato = quadros.find((q) => q.validade === h);
-      const antes = [...quadros].reverse().find((q) => q.validade <= h);
-      const q = exato ?? antes;
-      if (q && (exato || h - q.validade < 6)) {
-        src = q.base64;
-        aproximado = !exato;
-      }
-    } else {
-      src = urlQuadro(fonte, produto, area, rodada, vt);
-    }
+    if (inmet) src = quadros.find((q) => rodada.runMs + q.validade * HORA === vt)?.base64 ?? null;
+    else src = urlQuadro(fonte, produto, area, rodada, vt);
   }
 
   // pré-carrega os próximos quadros (só fontes de imagem por endereço)
   useEffect(() => {
-    if (inmet || !rodada || vt === null) return;
+    if (inmet || !rodada || iVt < 0) return;
     for (let k = 1; k <= 2; k++) {
-      const u = urlQuadro(fonte, produto, area, rodada, vt + k * PASSO_MS);
+      const t = validades[iVt + k];
+      const u = t !== undefined ? urlQuadro(fonte, produto, area, rodada, t) : null;
       if (u) {
         const i = new Image();
         i.src = u;
       }
     }
-  }, [inmet, fonte, produto, area, rodada, vt]);
+  }, [inmet, fonte, produto, area, rodada, iVt, validades]);
 
   const chaveFalha = src ?? "";
   // os servidores do CPTEC devolvem 503 de forma intermitente: até 3 novas tentativas com pausa crescente
@@ -214,256 +252,155 @@ function Quadro({
     window.setTimeout(() => setTentativa((t) => ({ ...t, [chaveFalha]: (t[chaveFalha] ?? 0) + 1 })), 700 * (n503 + 1));
   };
   const nomeFonte = fonteDe(fonte);
+  const rotuloProduto = inmet ? (paramsInmet.find((p) => p.sigla === produto)?.nome ?? produto) : (produtoCat?.rotulo ?? produto);
+  const sel = `${campo} min-w-0 !py-1 text-xs`;
+
   return (
     <figure className="flex min-w-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
-      <figcaption className="flex flex-wrap items-center gap-1.5 border-b border-gray-100 p-2 text-xs">
-        <select aria-label={`Fonte do quadro ${idx + 1}`} value={fonte} onChange={(e) => onFonte(e.target.value as FonteId)} className={`${campo} !py-1 text-xs font-semibold`}>
+      <figcaption className="grid grid-cols-2 gap-1.5 border-b border-gray-100 p-2 text-xs">
+        <select aria-label={`Fonte do quadro ${idx + 1}`} value={fonte} onChange={(e) => trocarFonte(e.target.value as FonteId)} className={`${sel} font-semibold`}>
           {(["CPTEC", "Marinha", "INMET"] as const).map((g) => (
             <optgroup key={g} label={g}>
-              {disponiveis
-                .filter((f) => fonteDe(f).grupo === g)
-                .map((f) => (
-                  <option key={f} value={f}>
-                    {fonteDe(f).rotulo}
-                  </option>
-                ))}
+              {FONTES.filter((f) => f.grupo === g).map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.rotulo}
+                </option>
+              ))}
             </optgroup>
           ))}
         </select>
-        <select aria-label="Rodada" value={rodadaId ?? ""} onChange={(e) => setRodadaId(e.target.value)} className={`${campo} !py-1 text-xs`} disabled={!rodadas.length}>
+        <select aria-label="Rodada" value={rodadaId ?? ""} onChange={(e) => setRodadaId(e.target.value)} className={sel} disabled={!rodadas.length}>
           {rodadas.map((r) => (
             <option key={r.id} value={r.id}>
               Rodada {r.rotulo}
             </option>
           ))}
         </select>
-        <span className="text-[11px] text-gray-500">
-          {nomeFonte.grupo} · {rotuloArea}
-        </span>
-        {aviso && <span className="text-[11px] text-amber-700">{aviso}</span>}
-        {src && !inmet && (
-          <a href={src} target="_blank" rel="noopener noreferrer" className="ml-auto text-[11px] text-blue-600 hover:underline">
-            abrir
-          </a>
-        )}
+        <select aria-label="Produto" value={produto} onChange={(e) => trocarProduto(e.target.value)} className={`${sel} col-span-2`} disabled={inmet ? !paramsInmet.length : false}>
+          {inmet
+            ? paramsInmet.map((p) => (
+                <option key={p.sigla} value={p.sigla}>
+                  {p.nome}
+                </option>
+              ))
+            : (listaProdutos ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.rotulo}
+                </option>
+              ))}
+        </select>
+        <select aria-label="Área" value={area} onChange={(e) => trocarArea(e.target.value)} className={sel}>
+          {areas.map((a) => (
+            <option key={a.sigla} value={a.sigla}>
+              {a.nome}
+            </option>
+          ))}
+        </select>
+        <div className="flex items-center justify-end gap-2 text-[11px] text-gray-500">
+          <span>{nomeFonte.grupo}</span>
+          {src && !inmet && (
+            <a href={src} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              abrir
+            </a>
+          )}
+        </div>
       </figcaption>
+
       <div className="flex min-h-[12rem] items-center justify-center p-1">
         {carregando ? (
           <p className="p-6 text-center text-sm text-gray-400">{inmet ? "Carregando série do INMET (até ~4 MB)…" : "Carregando…"}</p>
         ) : msg ? (
           <p className="p-6 text-center text-sm text-gray-500">{msg}</p>
         ) : !src ? (
-          <p className="p-6 text-center text-sm text-gray-500">
-            Sem quadro para esta hora nesta rodada
-            {info && <span className="block text-[11px] text-gray-400">cobre de {rotuloValidade(info.iniMs)} a {rotuloValidade(info.fimMs)}</span>}
-          </p>
+          <p className="p-6 text-center text-sm text-gray-500">Sem quadro para esta hora nesta rodada.</p>
         ) : falhou === chaveFalha ? (
           <p className="p-6 text-center text-sm text-gray-500">Imagem indisponível nesta fonte/horário.</p>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={`${src.slice(0, 200)}#${n503}`} src={srcTentativa ?? src} alt={`${nomeFonte.rotulo} — ${variante.rotulo}`} className="h-auto w-full object-contain" onError={aoFalhar} />
+          <img key={`${src.slice(0, 200)}#${n503}`} src={srcTentativa ?? src} alt={`${nomeFonte.rotulo} — ${rotuloProduto}`} className="h-auto max-h-[calc(100dvh-16rem)] w-full object-contain" onError={aoFalhar} />
         )}
       </div>
-      {aproximado && <p className="px-2 pb-1 text-[11px] text-amber-700">Quadro mais próximo anterior (esta fonte não tem exatamente esta hora).</p>}
+
+      {/* controle de hora deste quadro */}
+      <div className="flex items-center gap-1.5 border-t border-gray-100 p-2 text-xs">
+        <button type="button" aria-label="Hora anterior" onClick={() => { setTocando(false); irPara(iVt - 1); }} disabled={iVt <= 0} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200 disabled:opacity-40">
+          <StepBack size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setTocando((t) => !t)}
+          disabled={validades.length < 2}
+          aria-label={tocando ? "Parar" : "Animar"}
+          className={`rounded p-1.5 text-white disabled:opacity-40 ${tocando ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}
+        >
+          {tocando ? <Pause size={14} /> : <Play size={14} />}
+        </button>
+        <button type="button" aria-label="Próxima hora" onClick={() => { setTocando(false); irPara(iVt + 1); }} disabled={iVt < 0 || iVt >= validades.length - 1} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200 disabled:opacity-40">
+          <StepForward size={14} />
+        </button>
+        <input type="range" min={0} max={Math.max(validades.length - 1, 0)} value={Math.max(iVt, 0)} onChange={(e) => { setTocando(false); irPara(Number(e.target.value)); }} className="min-w-0 flex-1" aria-label="Hora de validade" disabled={validades.length < 2} />
+        <span className="w-24 shrink-0 text-right font-semibold text-gray-800">{vt !== null ? rotuloValidade(vt) : "—"}</span>
+      </div>
     </figure>
   );
 }
 
 // ---------------------------------------------------------------- painel
-/** Sub-aba "Previsão numérica": modelos da Marinha, INMET e CPTEC por tema, com 1 a 4 quadros alinhados pela validade. */
+/** Sub-aba "Previsão numérica": até 3 quadros, cada um com a SUA fonte, produto, área, rodada e hora (dá para comparar, por
+ * exemplo, COSMO 2,8 km × COSMO 7 km, ou duas rodadas do mesmo modelo). "Sincronizar horas" faz os quadros andarem juntos. */
 export default function PrevisaoNumericaPanel() {
-  const [temaId, setTemaId] = useState("vento");
-  const tema = TEMAS.find((t) => t.id === temaId) ?? TEMAS[0];
-  const [varId, setVarId] = useState(tema.variantes[0].id);
-  const variante = tema.variantes.find((v) => v.id === varId) ?? tema.variantes[0];
-  const [regiao, setRegiao] = useState<RegiaoId>("sud");
   const [n, setN] = useState(2);
-  const [fontes, setFontes] = useState<FonteId[]>(() => ajustarFontes(TEMAS[0].variantes[0], []));
-  const [infos, setInfos] = useState<Record<number, Info>>({});
-  const [agora] = useState(() => Date.now());
-  const [vtPref, setVtPref] = useState<number | null>(null);
-  const [tocando, setTocando] = useState(false);
+  const [ativo, setAtivo] = useState(0); // celular: um quadro por vez
+  const [sync, setSync] = useState(false);
+  const [vtSync, setVtSync] = useState<number | null>(null);
+  const largo = useMedia("(min-width: 768px)");
+  const colunas = n === 1 ? "grid-cols-1" : n === 2 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+  const nAtivo = Math.min(ativo, n - 1);
 
-  const trocarTema = (id: string) => {
-    const t = TEMAS.find((x) => x.id === id) ?? TEMAS[0];
-    setTemaId(t.id);
-    setVarId(t.variantes[0].id);
-    setFontes((f) => ajustarFontes(t.variantes[0], f));
-  };
-  const trocarVariante = (id: string) => {
-    const v = tema.variantes.find((x) => x.id === id) ?? tema.variantes[0];
-    setVarId(v.id);
-    setFontes((f) => ajustarFontes(v, f));
-  };
-  const disponiveis = fontesDaVariante(variante);
-  const fontesAtivas = fontes.slice(0, n).map((f) => (disponiveis.includes(f) ? f : disponiveis[0]));
-
-  const onInfo = useMemo(
-    () => (idx: number, info: Info) =>
-      setInfos((prev) => {
-        const a = prev[idx];
-        if ((a === null || a === undefined) && (info === null || info === undefined)) return prev;
-        if (a && info && a.iniMs === info.iniMs && a.fimMs === info.fimMs) return prev;
-        return { ...prev, [idx]: info };
-      }),
-    [],
-  );
-
-  // linha do tempo comum (de 3 em 3 h) às rodadas dos quadros visíveis
-  const { grade, sobreposto } = useMemo(() => {
-    const ativos = Array.from({ length: n }, (_, i) => infos[i]).filter((x): x is { iniMs: number; fimMs: number } => !!x);
-    if (!ativos.length) return { grade: [] as number[], sobreposto: true };
-    let ini = Math.max(...ativos.map((a) => a.iniMs));
-    let fim = Math.min(...ativos.map((a) => a.fimMs));
-    let ok = true;
-    if (ini > fim) {
-      ok = false;
-      ini = Math.min(...ativos.map((a) => a.iniMs));
-      fim = Math.max(...ativos.map((a) => a.fimMs));
-    }
-    const g: number[] = [];
-    for (let t = Math.ceil(ini / PASSO_MS) * PASSO_MS; t <= fim; t += PASSO_MS) g.push(t);
-    return { grade: g, sobreposto: ok };
-  }, [infos, n]);
-
-  // validade atual = a escolhida pelo usuário (ou a mais próxima de "agora") presa à grade
-  const vt = useMemo(() => {
-    if (!grade.length) return null;
-    const alvo = vtPref ?? agora;
-    return grade.reduce((melhor, t) => (Math.abs(t - alvo) < Math.abs(melhor - alvo) ? t : melhor), grade[0]);
-  }, [grade, vtPref, agora]);
-  const iVt = vt === null ? 0 : grade.indexOf(vt);
-
-  const ir = (delta: number) => {
-    if (!grade.length) return;
-    const i = Math.min(Math.max(iVt + delta, 0), grade.length - 1);
-    setVtPref(grade[i]);
-  };
-
-  // animação
-  useEffect(() => {
-    if (!tocando || grade.length < 2) return;
-    const t = setInterval(() => {
-      setVtPref((p) => {
-        const atual = p ?? agora;
-        const i = grade.findIndex((g) => g >= atual);
-        return grade[(i + 1) % grade.length];
-      });
-    }, MS_ANIMACAO);
-    return () => clearInterval(t);
-  }, [tocando, grade, agora]);
-
-  // setas do teclado
-  useEffect(() => {
-    const aoTeclar = (e: KeyboardEvent) => {
-      const alvo = e.target as HTMLElement | null;
-      if (alvo && ["INPUT", "SELECT", "TEXTAREA"].includes(alvo.tagName) && (alvo as HTMLInputElement).type !== "range") return;
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        setTocando(false);
-        ir(-1);
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        setTocando(false);
-        ir(1);
-      }
-    };
-    window.addEventListener("keydown", aoTeclar);
-    return () => window.removeEventListener("keydown", aoTeclar);
-  });
-
-  const colunas = n === 1 ? "grid-cols-1" : n === 2 ? "grid-cols-1 md:grid-cols-2" : n === 3 ? "grid-cols-1 lg:grid-cols-3" : "grid-cols-1 md:grid-cols-2";
   return (
     <div className="h-full w-full overflow-auto bg-gray-50 p-2 sm:p-3">
       <h2 className="mb-2 text-sm text-gray-800">
         <span className="font-bold">Previsão numérica</span>
-        <span className="text-xs text-gray-500"> · CPTEC, Marinha e INMET lado a lado, na mesma hora de validade</span>
+        <span className="text-xs text-gray-500"> · cada quadro escolhe a sua fonte, produto, área, rodada e hora</span>
       </h2>
 
-      <div className="mb-2 flex flex-wrap items-center gap-1.5 text-sm">
-        <select aria-label="Tema" value={temaId} onChange={(e) => trocarTema(e.target.value)} className={campo}>
-          {TEMAS.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.rotulo}
-            </option>
-          ))}
-        </select>
-        <select aria-label="Produto" value={varId} onChange={(e) => trocarVariante(e.target.value)} className={`${campo} max-w-[15rem] sm:max-w-none`}>
-          {tema.variantes.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.rotulo}
-            </option>
-          ))}
-        </select>
-        <select aria-label="Região" value={regiao} onChange={(e) => setRegiao(e.target.value as RegiaoId)} className={campo}>
-          {REGIOES.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.rotulo}
-            </option>
-          ))}
-        </select>
-        <div className="flex overflow-hidden rounded border border-gray-300" role="group" aria-label="Quadros">
-          {[1, 2, 3, 4].map((k) => (
-            <button key={k} type="button" onClick={() => setN(k)} className={`px-2.5 py-1.5 font-medium ${n === k ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-100"}`} title={`${k} quadro${k > 1 ? "s" : ""}`}>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex overflow-hidden rounded border border-gray-300" role="group" aria-label="Número de quadros">
+          {Array.from({ length: MAX_QUADROS }, (_, i) => i + 1).map((k) => (
+            <button key={k} type="button" onClick={() => setN(k)} className={`px-3 py-1.5 font-medium ${n === k ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-100"}`} title={`${k} quadro${k > 1 ? "s" : ""}`}>
               {k}
             </button>
           ))}
         </div>
-        <span className="hidden text-xs text-gray-400 lg:inline">← → mudam a hora</span>
+        <span className="text-xs text-gray-500">quadro{n > 1 ? "s" : ""}</span>
+        {n > 1 && (
+          <label className="flex cursor-pointer items-center gap-1.5 rounded bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200">
+            <input type="checkbox" checked={sync} onChange={(e) => setSync(e.target.checked)} />
+            Sincronizar horas
+          </label>
+        )}
       </div>
 
-      {/* controle de tempo único (fica visível ao rolar os quadros) */}
-      <div className="sticky top-0 z-10 mb-2 flex items-center gap-2 rounded-lg border border-gray-200 bg-white/95 p-2 text-xs shadow-sm backdrop-blur">
-        <button type="button" aria-label="Hora anterior" onClick={() => { setTocando(false); ir(-1); }} disabled={iVt <= 0} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200 disabled:opacity-40">
-          <StepBack size={15} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setTocando((t) => !t)}
-          disabled={grade.length < 2}
-          className={`flex items-center gap-1 rounded px-2 py-1.5 font-medium disabled:opacity-40 ${tocando ? "bg-red-600 text-white hover:bg-red-700" : "bg-blue-600 text-white hover:bg-blue-700"}`}
-        >
-          {tocando ? <Pause size={14} /> : <Play size={14} />}
-          {tocando ? "Parar" : "Animar"}
-        </button>
-        <button type="button" aria-label="Próxima hora" onClick={() => { setTocando(false); ir(1); }} disabled={iVt >= grade.length - 1} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200 disabled:opacity-40">
-          <StepForward size={15} />
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={Math.max(grade.length - 1, 0)}
-          value={iVt}
-          onChange={(e) => {
-            setTocando(false);
-            setVtPref(grade[Number(e.target.value)]);
-          }}
-          className="min-w-0 flex-1"
-          aria-label="Hora de validade"
-          disabled={!grade.length}
-        />
-        <span className="w-28 shrink-0 text-right font-semibold text-gray-800">{vt !== null ? rotuloValidade(vt) : "—"}</span>
-      </div>
-      {!sobreposto && <p className="mb-2 rounded bg-amber-50 p-2 text-xs text-amber-800">As rodadas escolhidas não têm horas em comum. Escolha rodadas mais próximas nos quadros.</p>}
+      {!largo && n > 1 && (
+        <div className="mb-2 flex overflow-hidden rounded border border-gray-300" role="tablist" aria-label="Quadros">
+          {Array.from({ length: n }, (_, i) => (
+            <button key={i} type="button" role="tab" aria-selected={nAtivo === i} onClick={() => setAtivo(i)} className={`flex-1 px-2 py-1.5 text-sm font-medium ${nAtivo === i ? "bg-blue-600 text-white" : "bg-white text-gray-700"}`}>
+              Quadro {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className={`grid gap-2 ${colunas}`}>
-        {fontesAtivas.map((f, i) => (
-          <Quadro
-            key={`${i}-${f}-${varId}`}
-            idx={i}
-            fonte={f}
-            variante={variante}
-            regiao={regiao}
-            vt={vt}
-            disponiveis={disponiveis}
-            onFonte={(nova) => setFontes((atual) => atual.map((x, k) => (k === i ? nova : x)))}
-            onInfo={onInfo}
-          />
+        {Array.from({ length: n }, (_, i) => (
+          <div key={i} className={!largo && i !== nAtivo ? "hidden" : ""}>
+            <Quadro idx={i} fonteInicial={FONTES_INICIAIS[i]} sync={sync} vtSync={vtSync} onVtSync={setVtSync} />
+          </div>
         ))}
       </div>
 
       <p className="mt-3 text-[11px] text-gray-400">
-        Fontes: CPTEC/INPE (MONAN, WRF, BRAMS, BAM, Wwatch), Marinha do Brasil — SMM/CHM (ICON-LAM, ondas, HYCOM) e INMET (COSMO, VIME). A data das rodadas da Marinha é inferida pelo horário de
+        Fontes: CPTEC/INPE (MONAN, WRF, BRAMS, BAM, Wwatch), Marinha do Brasil — SMM/CHM (ICON-LAM, ondas, HYCOM) e INMET (COSMO 2,8 km e 7 km, VIME). A data das rodadas da Marinha é inferida pelo horário de
         publicação das pastas. As séries do INMET (~4 MB cada) só carregam quando escolhidas. Para sondagem e instabilidade observada veja a aba Sondagem.
       </p>
     </div>
