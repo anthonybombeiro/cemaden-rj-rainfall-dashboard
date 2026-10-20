@@ -69,6 +69,7 @@ export default function PainelCarta({
   const [opacidade, setOpacidade] = useState(0.9);
   const [animando, setAnimando] = useState(false);
   const [cartaInmet, setCartaInmet] = useState<Record<string, string | null>>({});
+  const [recarga, setRecarga] = useState(0);
 
   const marinha = fonte === "marinha";
   const total = marinha ? cartas.length : analises.length;
@@ -108,7 +109,7 @@ export default function PainelCarta({
     return () => {
       cancelado = true;
     };
-  }, [marinha, animando, analises, idxI]);
+  }, [marinha, animando, analises, idxI, recarga]);
 
   const frames = useMemo(() => (animando && marinha ? cartas.slice(0, FRAMES_ANIMACAO).reverse() : cartas[idxM] ? [cartas[idxM]] : []), [animando, marinha, cartas, idxM]);
   const atualM = cartas[idxM];
@@ -196,7 +197,24 @@ export default function PainelCarta({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={cartaInmet[chaveAnalise(atualI)] as string} alt={`Carta sinótica INMET ${rotuloAnalise(atualI)}`} className="max-h-full max-w-full object-contain" />
             ) : chaveAnalise(atualI) in cartaInmet ? (
-              <p className="text-sm text-gray-500">Carta indisponível.</p>
+              <div className="px-4 text-center text-sm text-gray-600">
+                <p>A imagem da carta do INMET está fora do ar neste momento (o servidor de imagens do INMET não responde). O texto da análise segue abaixo.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = chaveAnalise(atualI);
+                    setCartaInmet((c) => {
+                      const n = { ...c };
+                      delete n[k];
+                      return n;
+                    });
+                    setRecarga((r) => r + 1);
+                  }}
+                  className="mt-2 rounded bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-700"
+                >
+                  Tentar de novo
+                </button>
+              </div>
             ) : (
               <p className="text-sm text-gray-400">Carregando carta…</p>
             )}

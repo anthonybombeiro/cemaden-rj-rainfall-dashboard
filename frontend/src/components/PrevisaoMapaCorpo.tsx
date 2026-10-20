@@ -4,15 +4,15 @@ import { useMemo } from "react";
 
 import { Previsao } from "@/lib/api";
 import { computeBBox, geometryToPath, GeoJsonFeature, GeoJsonFeatureCollection, makeProjector } from "@/lib/geo";
-import { iconeSrc } from "@/lib/meteorologia";
+import { iconeSrc, ICONES_TEMPO } from "@/lib/meteorologia";
 
-/** Mapa de previsão por REDEC (sem mapa-base): cada REDEC é pintada pela condição do tempo e tem um cartão com ícone,
- * nome e temperaturas, ligado à região por uma linha. É o mesmo desenho na tela e na imagem exportada (formato de post). */
-export const MAPA_W = 712;
-export const MAPA_H = 560;
-const CARD_W = 114;
-const CARD_H = 56;
-const INSET = { x: 122, y: 66, w: MAPA_W - 244, h: MAPA_H - 132 };
+/** Previsão do CEMADEN-RJ por REDEC: mapa (sem mapa-base) com as regiões numeradas e cartões com TODOS os dados do dia
+ * (situação, mín/máx, umidade, vento, comentário). Três composições do mesmo conteúdo: tela (responsiva), post (quadrado)
+ * e story (1080×1920). */
+
+/** Ordem fixa (a numeração do mapa e dos cartões). */
+export const ORDEM_REDEC = ["CAPITAL", "METROPOLITANA", "BAIXADA FLUMINENSE", "COSTA VERDE", "SUL I", "SUL II", "SERRANA I", "SERRANA II", "BAIXADA LITORÂNEA", "NORTE", "NOROESTE"];
+export const nomeBonito = (r: string) => r.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()).replace(/ i$/i, " I").replace(/ ii$/i, " II");
 
 export function corDoTempo(icone: string | undefined): string {
   if (!icone) return "#f1f5f9";
@@ -27,14 +27,18 @@ export function corDoTempo(icone: string | undefined): string {
 export const CLASSES_TEMPO: { rotulo: string; cor: string }[] = [
   { rotulo: "Céu claro", cor: "#fcd34d" },
   { rotulo: "Poucas nuvens", cor: "#fde9a3" },
-  { rotulo: "Parcialmente nublado", cor: "#e2e8f0" },
+  { rotulo: "Parc. nublado", cor: "#e2e8f0" },
   { rotulo: "Nublado/encoberto", cor: "#94a3b8" },
   { rotulo: "Chuva", cor: "#7cb7f5" },
   { rotulo: "Chuva e raios", cor: "#a78bfa" },
 ];
+export const rotuloTempo = (icone: string) => ICONES_TEMPO.find((i) => i.key === icone)?.label ?? icone;
+const r0 = (n: number) => Math.round(Number(n));
+export const textoVento = (p: Previsao) => `${p.vento_velocidade}${p.vento_direcao ? ` (${p.vento_direcao})` : ""}`;
+export const textoUmidade = (p: Previsao) => `${r0(p.umidade_minima)}–${r0(p.umidade_maxima)}%`;
 
+// ---------------------------------------------------------------- mapa
 type Ponto = [number, number];
-
 function centroideMaiorAnel(f: GeoJsonFeature, proj: (lon: number, lat: number) => Ponto): Ponto {
   const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates as number[][][]] : (f.geometry.coordinates as number[][][][]);
   let melhor: { area: number; c: Ponto } = { area: -1, c: [0, 0] };
@@ -57,138 +61,185 @@ function centroideMaiorAnel(f: GeoJsonFeature, proj: (lon: number, lat: number) 
   return melhor.c;
 }
 
-/** Coordenada ao longo do contorno do retângulo (sentido horário a partir do canto superior esquerdo) do ponto onde o raio
- * centro→p atravessa a borda. */
-function posicaoNoContorno(p: Ponto): number {
-  const cx = MAPA_W / 2;
-  const cy = MAPA_H / 2;
-  const dx = p[0] - cx;
-  const dy = p[1] - cy;
-  const sx = dx === 0 ? Infinity : (dx > 0 ? MAPA_W - cx : cx) / Math.abs(dx);
-  const sy = dy === 0 ? Infinity : (dy > 0 ? MAPA_H - cy : cy) / Math.abs(dy);
-  const s = Math.min(sx, sy);
-  const qx = cx + dx * s;
-  const qy = cy + dy * s;
-  if (Math.abs(qy) < 0.5) return qx;
-  if (Math.abs(qx - MAPA_W) < 0.5) return MAPA_W + qy;
-  if (Math.abs(qy - MAPA_H) < 0.5) return MAPA_W + MAPA_H + (MAPA_W - qx);
-  return 2 * MAPA_W + MAPA_H + (MAPA_H - qy);
-}
-const PERIMETRO = 2 * (MAPA_W + MAPA_H);
-function pontoDoContorno(u: number): Ponto {
-  const v = ((u % PERIMETRO) + PERIMETRO) % PERIMETRO;
-  if (v <= MAPA_W) return [v, 0];
-  if (v <= MAPA_W + MAPA_H) return [MAPA_W, v - MAPA_W];
-  if (v <= 2 * MAPA_W + MAPA_H) return [MAPA_W - (v - MAPA_W - MAPA_H), MAPA_H];
-  return [0, MAPA_H - (v - 2 * MAPA_W - MAPA_H)];
-}
-const distCircular = (a: number, b: number) => {
-  const d = Math.abs(a - b) % PERIMETRO;
-  return Math.min(d, PERIMETRO - d);
-};
-
-type Item = { redec: string; nome: string; centro: Ponto; card: Ponto; d: string };
-
-export default function PrevisaoMapaCorpo({
+/** Mapa das REDECs pintado pela condição do tempo, com o número de cada região. Escala pelo `viewBox` (use `className` para o tamanho). */
+export function MapaRedec({
   geo,
   previsoes,
+  largura = 720,
+  altura = 400,
   selecionada,
   onSelecionar,
+  raioNumero = 13,
+  className,
 }: {
   geo: GeoJsonFeatureCollection;
   previsoes: Previsao[];
+  largura?: number;
+  altura?: number;
   selecionada?: string | null;
   onSelecionar?: (redec: string) => void;
+  raioNumero?: number;
+  className?: string;
 }) {
-  const itens = useMemo<Item[]>(() => {
-    const proj0 = makeProjector(computeBBox(geo), INSET.w, INSET.h, 0);
-    const proj = (lon: number, lat: number): Ponto => {
-      const [x, y] = proj0(lon, lat);
-      return [x + INSET.x, y + INSET.y];
-    };
-    const base = geo.features.map((f) => ({ redec: f.properties.redec, nome: f.properties.nome, centro: centroideMaiorAnel(f, proj), d: geometryToPath(f.geometry, proj) }));
-    // cartões nos pontos do contorno (igualmente espaçados), na mesma ordem em que as regiões aparecem no mapa
-    const n = base.length;
-    const slots = Array.from({ length: n }, (_, k) => ((k + 0.5) * PERIMETRO) / n);
-    const us = base.map((b) => posicaoNoContorno(b.centro));
-    const ordem = base.map((_, i) => i).sort((a, b) => us[a] - us[b]);
-    let melhorShift = 0;
-    let melhorCusto = Infinity;
-    for (let s = 0; s < n; s++) {
-      let custo = 0;
-      ordem.forEach((i, j) => (custo += distCircular(us[i], slots[(j + s) % n])));
-      if (custo < melhorCusto) {
-        melhorCusto = custo;
-        melhorShift = s;
-      }
-    }
-    const out: Item[] = [];
-    ordem.forEach((i, j) => {
-      const [px, py] = pontoDoContorno(slots[(j + melhorShift) % n]);
-      const card: Ponto = [Math.min(Math.max(px, CARD_W / 2 + 4), MAPA_W - CARD_W / 2 - 4), Math.min(Math.max(py, CARD_H / 2 + 4), MAPA_H - CARD_H / 2 - 4)];
-      out.push({ ...base[i], card });
-    });
-    return out;
-  }, [geo]);
-
-  const porRedec = useMemo(() => new Map(previsoes.map((p) => [p.regiao, p])), [previsoes]);
-
+  const itens = useMemo(() => {
+    const proj = makeProjector(computeBBox(geo), largura, altura, 6);
+    return geo.features.map((f) => ({ redec: f.properties.redec, d: geometryToPath(f.geometry, proj), centro: centroideMaiorAnel(f, proj) }));
+  }, [geo, largura, altura]);
+  const por = useMemo(() => new Map(previsoes.map((p) => [p.regiao, p])), [previsoes]);
   return (
-    <div className="relative shrink-0 overflow-hidden rounded-lg bg-sky-50" style={{ width: MAPA_W, height: MAPA_H }}>
-      <svg width={MAPA_W} height={MAPA_H} viewBox={`0 0 ${MAPA_W} ${MAPA_H}`} className="absolute inset-0" role="img" aria-label="Previsão do tempo por REDEC">
-        {itens.map((it) => {
-          const p = porRedec.get(it.redec);
-          return (
-            <path
-              key={it.redec}
-              d={it.d}
-              fill={corDoTempo(p?.icone)}
-              stroke={selecionada === it.redec ? "#1d4ed8" : "#ffffff"}
-              strokeWidth={selecionada === it.redec ? 3.5 : 2.5}
-              strokeLinejoin="round"
-              className={onSelecionar ? "cursor-pointer" : undefined}
-              onClick={onSelecionar ? () => onSelecionar(it.redec) : undefined}
-            />
-          );
-        })}
-        {itens.map((it) => (
-          <g key={`l-${it.redec}`}>
-            <line x1={it.centro[0]} y1={it.centro[1]} x2={it.card[0]} y2={it.card[1]} stroke="#475569" strokeWidth={1.3} />
-            <circle cx={it.centro[0]} cy={it.centro[1]} r={3.5} fill="#1e293b" stroke="#fff" strokeWidth={1.5} />
-          </g>
-        ))}
-      </svg>
+    <svg viewBox={`0 0 ${largura} ${altura}`} className={className} role="img" aria-label="Previsão do tempo por REDEC">
+      {itens.map((it) => (
+        <path
+          key={it.redec}
+          d={it.d}
+          fill={corDoTempo(por.get(it.redec)?.icone)}
+          stroke={selecionada === it.redec ? "#1d4ed8" : "#ffffff"}
+          strokeWidth={selecionada === it.redec ? 4 : 2.5}
+          strokeLinejoin="round"
+          className={onSelecionar ? "cursor-pointer" : undefined}
+          onClick={onSelecionar ? () => onSelecionar(it.redec) : undefined}
+        />
+      ))}
       {itens.map((it) => {
-        const p = porRedec.get(it.redec);
-        const ativo = selecionada === it.redec;
+        const n = ORDEM_REDEC.indexOf(it.redec) + 1;
         return (
-          <div
-            key={`c-${it.redec}`}
-            onClick={onSelecionar ? () => onSelecionar(it.redec) : undefined}
-            className={`absolute flex items-center gap-1.5 rounded-lg border bg-white px-1.5 shadow-sm ${ativo ? "border-blue-600 ring-2 ring-blue-500" : "border-slate-300"} ${onSelecionar ? "cursor-pointer" : ""}`}
-            style={{ width: CARD_W, height: CARD_H, left: it.card[0] - CARD_W / 2, top: it.card[1] - CARD_H / 2 }}
-          >
-            {p?.icone ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={iconeSrc(p.icone)} alt="" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" />
-            ) : (
-              <div className="h-9 w-9 shrink-0 rounded-full bg-slate-100" />
-            )}
-            <div className="min-w-0 flex-1 leading-tight">
-              <div className="truncate text-[9px] font-bold uppercase tracking-tight text-slate-600">{it.nome}</div>
-              {p ? (
-                <div className="mt-0.5 flex items-baseline gap-1 whitespace-nowrap">
-                  <span className="text-[15px] font-extrabold text-blue-700">{Math.round(p.temperatura_minima)}°</span>
-                  <span className="text-[10px] text-slate-400">/</span>
-                  <span className="text-[15px] font-extrabold text-red-600">{Math.round(p.temperatura_maxima)}°</span>
-                </div>
-              ) : (
-                <div className="mt-0.5 text-[10px] text-slate-400">sem previsão</div>
-              )}
-            </div>
-          </div>
+          <g key={`n-${it.redec}`} pointerEvents="none">
+            <circle cx={it.centro[0]} cy={it.centro[1]} r={raioNumero} fill="#0f2a4a" stroke="#fff" strokeWidth={2} />
+            <text x={it.centro[0]} y={it.centro[1] + raioNumero * 0.36} textAnchor="middle" fontSize={raioNumero * 1.05} fontWeight="700" fill="#fff">
+              {n}
+            </text>
+          </g>
         );
       })}
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------- cartão
+export type VarianteCartao = "tela" | "post" | "story";
+
+/** Cartão de uma REDEC com todos os dados. `post` é compacto (sem comentário); `story` e `tela` trazem o comentário. */
+export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx }: { regiao: string; p?: Previsao; variante: VarianteCartao; ativo?: boolean; onClick?: () => void; comentarioPx?: number }) {
+  const n = ORDEM_REDEC.indexOf(regiao) + 1;
+  const s = variante === "story";
+  const c = variante === "post";
+  const tam = s
+    ? { badge: "h-9 w-9 text-[20px]", nome: "text-[22px] leading-[26px]", sit: "text-[18px] leading-[22px]", temp: "h-10 text-[32px] leading-10", info: "text-[18px] leading-[22px]", icone: 46, com: "shrink-0 overflow-hidden", pad: "px-4 py-2" }
+    : c
+      ? { badge: "h-5 w-5 text-[11px]", nome: "text-[11px]", sit: "text-[9.5px]", temp: "text-[17px]", info: "text-[9.5px]", icone: 30, com: "", pad: "px-2 py-1" }
+      : { badge: "h-6 w-6 text-[12px]", nome: "text-sm", sit: "text-xs", temp: "text-2xl", info: "text-xs", icone: 44, com: "text-xs leading-relaxed", pad: "p-3" };
+  return (
+    <div
+      onClick={onClick}
+      className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white ${ativo ? "border-blue-600 ring-2 ring-blue-500" : "border-slate-300"} ${onClick ? "cursor-pointer" : ""} ${tam.pad}`}
+    >
+      <div className="flex items-center gap-2">
+        <span className={`flex shrink-0 items-center justify-center rounded-full bg-[#0f2a4a] font-bold text-white ${tam.badge}`}>{n}</span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className={`truncate font-bold uppercase tracking-tight text-slate-800 ${tam.nome}`}>{nomeBonito(regiao)}</div>
+          <div className={`truncate text-slate-600 ${tam.sit}`}>{p ? rotuloTempo(p.icone) : "Sem previsão"}</div>
+        </div>
+        {p?.icone && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={iconeSrc(p.icone)} alt="" width={tam.icone} height={tam.icone} className="shrink-0 object-contain" style={{ width: tam.icone, height: tam.icone }} />
+        )}
+      </div>
+      {p && (
+        <>
+          <div className={`flex shrink-0 items-baseline gap-1.5 whitespace-nowrap font-extrabold ${tam.temp}`}>
+            <span className="text-blue-700">{r0(p.temperatura_minima)}°</span>
+            <span className="text-[0.5em] font-normal text-slate-400">mín / máx</span>
+            <span className="text-red-600">{r0(p.temperatura_maxima)}°</span>
+          </div>
+          <div className={`flex shrink-0 flex-wrap gap-x-3 text-slate-700 ${tam.info}`}>
+            <span>💧 {c ? "UR" : "Umidade"} {textoUmidade(p)}</span>
+            <span>💨 {c ? "" : "Vento "}{textoVento(p)}</span>
+          </div>
+          {!c && p.comentario && (
+            <p
+              className={`mt-1 text-slate-600 ${tam.com}`}
+              style={s && comentarioPx ? { fontSize: comentarioPx, lineHeight: `${Math.round(comentarioPx * 1.2)}px`, maxHeight: Math.round(comentarioPx * 1.2) * 5 } : undefined}
+            >
+              {p.comentario}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+export function LegendaTempo({ sol, className }: { sol?: { nascer: string; por: string } | null; className?: string }) {
+  return (
+    <div className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-slate-600 ${className ?? "text-[10px]"}`}>
+      {CLASSES_TEMPO.map((c) => (
+        <span key={c.rotulo} className="flex items-center gap-1">
+          <i className="inline-block h-[0.9em] w-[0.9em] rounded-sm border border-black/10" style={{ background: c.cor }} />
+          {c.rotulo}
+        </span>
+      ))}
+      {sol && (
+        <span>
+          · ☀ {sol.nascer} · ☾ {sol.por} (Capital)
+        </span>
+      )}
+    </div>
+  );
+}
+
+const ordenar = (previsoes: Previsao[]) => ORDEM_REDEC.map((r) => ({ regiao: r, p: previsoes.find((x) => x.regiao === r) }));
+
+// ---------------------------------------------------------------- composições
+/** Corpo do post quadrado (cabeçalho e rodapé vêm do ShareModal): mapa numerado + cartões compactos. */
+export function CorpoPost({ geo, previsoes, sol }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; sol: { nascer: string; por: string } | null }) {
+  return (
+    <div className="flex h-full w-full flex-col gap-1.5">
+      <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={250} raioNumero={11} className="h-[236px] w-full shrink-0 rounded-lg bg-sky-50" />
+      <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1">
+        {ordenar(previsoes).map(({ regiao, p }) => (
+          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="post" />
+        ))}
+      </div>
+      <LegendaTempo sol={sol} className="text-[9px]" />
+    </div>
+  );
+}
+
+export const STORY_W = 1080;
+export const STORY_H = 1920;
+/** Story vertical 1080×1920: cabeçalho com as logos, mapa e os 11 cartões com comentário (2 colunas). */
+export function CorpoStory({ geo, previsoes, titulo, data, sol }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; sol: { nascer: string; por: string } | null }) {
+  const itens = ordenar(previsoes);
+  // o comentário nunca é cortado: a letra diminui conforme o maior texto do dia (até 5 linhas por cartão)
+  const maior = Math.max(0, ...previsoes.map((x) => (x.comentario ?? "").length));
+  const comentarioPx = maior <= 110 ? 20 : maior <= 170 ? 17 : maior <= 230 ? 15 : maior <= 290 ? 13 : 12;
+  return (
+    <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
+      <div className="flex shrink-0 items-center justify-between bg-[#0f4c81] px-10" style={{ height: 170 }}>
+        <div className="min-w-0 text-white">
+          <div className="text-[46px] font-extrabold leading-tight">{titulo}</div>
+          <div className="text-[28px] text-sky-100">{data}</div>
+        </div>
+        <div className="flex shrink-0 items-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-defesa-civil.png" alt="" style={{ height: 84, width: "auto" }} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-cemadenrj.png" alt="" style={{ height: 84, width: "auto" }} />
+        </div>
+      </div>
+      <div className="shrink-0 bg-sky-50" style={{ height: 290 }}>
+        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={290} raioNumero={17} className="h-full w-full" />
+      </div>
+      <LegendaTempo sol={sol} className="shrink-0 py-2 text-[18px]" />
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 px-4 pb-2" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
+        {itens.map(({ regiao, p }) => (
+          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} />
+        ))}
+        <div className="flex flex-col justify-center rounded-lg bg-[#0f4c81] px-5 py-3 text-white">
+          <div className="text-[22px] font-bold">Defesa Civil RJ</div>
+          <div className="text-[17px] leading-snug text-sky-100">Previsão do CEMADEN-RJ · acompanhe os alertas e siga as orientações da Defesa Civil. Emergência: 199</div>
+        </div>
+      </div>
     </div>
   );
 }

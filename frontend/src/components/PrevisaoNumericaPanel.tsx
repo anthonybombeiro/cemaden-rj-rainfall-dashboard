@@ -256,7 +256,7 @@ function Quadro({ idx, fonteInicial, sync, vtSync, onVtSync }: { idx: number; fo
   const sel = `${campo} min-w-0 !py-1 text-xs`;
 
   return (
-    <figure className="flex min-w-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+    <figure className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
       <figcaption className="grid grid-cols-2 gap-1.5 border-b border-gray-100 p-2 text-xs">
         <select aria-label={`Fonte do quadro ${idx + 1}`} value={fonte} onChange={(e) => trocarFonte(e.target.value as FonteId)} className={`${sel} font-semibold`}>
           {(["CPTEC", "Marinha", "INMET"] as const).map((g) => (
@@ -306,7 +306,7 @@ function Quadro({ idx, fonteInicial, sync, vtSync, onVtSync }: { idx: number; fo
         </div>
       </figcaption>
 
-      <div className="flex min-h-[12rem] items-center justify-center p-1">
+      <div className="flex min-h-[12rem] flex-1 items-center justify-center overflow-hidden p-1">
         {carregando ? (
           <p className="p-6 text-center text-sm text-gray-400">{inmet ? "Carregando série do INMET (até ~4 MB)…" : "Carregando…"}</p>
         ) : msg ? (
@@ -317,7 +317,7 @@ function Quadro({ idx, fonteInicial, sync, vtSync, onVtSync }: { idx: number; fo
           <p className="p-6 text-center text-sm text-gray-500">Imagem indisponível nesta fonte/horário.</p>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={`${src.slice(0, 200)}#${n503}`} src={srcTentativa ?? src} alt={`${nomeFonte.rotulo} — ${rotuloProduto}`} className="h-auto max-h-[calc(100dvh-16rem)] w-full object-contain" onError={aoFalhar} />
+          <img key={`${src.slice(0, 200)}#${n503}`} src={srcTentativa ?? src} alt={`${nomeFonte.rotulo} — ${rotuloProduto}`} className="max-h-full max-w-full object-contain" onError={aoFalhar} />
         )}
       </div>
 
@@ -358,48 +358,42 @@ export default function PrevisaoNumericaPanel() {
   const nAtivo = Math.min(ativo, n - 1);
 
   return (
-    <div className="h-full w-full overflow-auto bg-gray-50 p-2 sm:p-3">
-      <h2 className="mb-2 text-sm text-gray-800">
-        <span className="font-bold">Previsão numérica</span>
-        <span className="text-xs text-gray-500"> · cada quadro escolhe a sua fonte, produto, área, rodada e hora</span>
-      </h2>
-
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+    <div className="flex h-full w-full flex-col overflow-auto bg-gray-50 p-2 sm:p-3">
+      <div className="mb-2 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+        <h2 className="font-bold text-gray-800">Previsão numérica</h2>
         <div className="flex overflow-hidden rounded border border-gray-300" role="group" aria-label="Número de quadros">
           {Array.from({ length: MAX_QUADROS }, (_, i) => i + 1).map((k) => (
-            <button key={k} type="button" onClick={() => setN(k)} className={`px-3 py-1.5 font-medium ${n === k ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-100"}`} title={`${k} quadro${k > 1 ? "s" : ""}`}>
+            <button key={k} type="button" onClick={() => setN(k)} className={`px-3 py-1 font-medium ${n === k ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-100"}`} title={`${k} quadro${k > 1 ? "s" : ""}`}>
               {k}
             </button>
           ))}
         </div>
-        <span className="text-xs text-gray-500">quadro{n > 1 ? "s" : ""}</span>
         {n > 1 && (
-          <label className="flex cursor-pointer items-center gap-1.5 rounded bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200">
+          <label className="flex cursor-pointer items-center gap-1.5 rounded bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200">
             <input type="checkbox" checked={sync} onChange={(e) => setSync(e.target.checked)} />
             Sincronizar horas
           </label>
         )}
+        {!largo && n > 1 && (
+          <div className="flex min-w-0 flex-1 overflow-hidden rounded border border-gray-300" role="tablist" aria-label="Quadros">
+            {Array.from({ length: n }, (_, i) => (
+              <button key={i} type="button" role="tab" aria-selected={nAtivo === i} onClick={() => setAtivo(i)} className={`flex-1 px-2 py-1 text-sm font-medium ${nAtivo === i ? "bg-blue-600 text-white" : "bg-white text-gray-700"}`}>
+                Quadro {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {!largo && n > 1 && (
-        <div className="mb-2 flex overflow-hidden rounded border border-gray-300" role="tablist" aria-label="Quadros">
-          {Array.from({ length: n }, (_, i) => (
-            <button key={i} type="button" role="tab" aria-selected={nAtivo === i} onClick={() => setAtivo(i)} className={`flex-1 px-2 py-1.5 text-sm font-medium ${nAtivo === i ? "bg-blue-600 text-white" : "bg-white text-gray-700"}`}>
-              Quadro {i + 1}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className={`grid gap-2 ${colunas}`}>
+      <div className={`grid min-h-0 flex-1 auto-rows-[minmax(0,1fr)] gap-2 ${colunas}`}>
         {Array.from({ length: n }, (_, i) => (
-          <div key={i} className={!largo && i !== nAtivo ? "hidden" : ""}>
+          <div key={i} className={`min-h-[24rem] min-w-0 ${!largo && i !== nAtivo ? "hidden" : ""}`}>
             <Quadro idx={i} fonteInicial={FONTES_INICIAIS[i]} sync={sync} vtSync={vtSync} onVtSync={setVtSync} />
           </div>
         ))}
       </div>
 
-      <p className="mt-3 text-[11px] text-gray-400">
+      <p className="mt-2 hidden shrink-0 text-[11px] text-gray-400 sm:block">
         Fontes: CPTEC/INPE (MONAN, WRF, BRAMS, BAM, Wwatch), Marinha do Brasil — SMM/CHM (ICON-LAM, ondas, HYCOM) e INMET (COSMO 2,8 km e 7 km, VIME). A data das rodadas da Marinha é inferida pelo horário de
         publicação das pastas. As séries do INMET (~4 MB cada) só carregam quando escolhidas. Para sondagem e instabilidade observada veja a aba Sondagem.
       </p>

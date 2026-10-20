@@ -25,18 +25,19 @@ const MODOS: { id: Modo; rotulo: string; fonte: string }[] = [
   { id: "sazonal", rotulo: "Sazonal", fonte: "CPTEC" },
 ];
 
-const campo = "rounded border border-gray-300 bg-white px-2 py-1.5 text-sm";
+const campo = "min-w-0 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm";
+const linhaSeletores = "mb-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center";
 const dataBr = (iso: string) => iso.split("-").reverse().join("/");
 const isoDeAAAAMMDD = (s: string) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 
 /** Imagem sempre INTEIRA na tela (sem cortes), com botão para ampliar em tela cheia. `alturaClasse` limita a altura. */
-function ImagemInteira({ src, alt, alturaClasse = "h-[calc(100dvh-16rem)] min-h-[16rem]", onErro }: { src: string; alt: string; alturaClasse?: string; onErro?: () => void }) {
+function ImagemInteira({ src, alt, alturaClasse = "max-h-[calc(100dvh-17rem)]", onErro }: { src: string; alt: string; alturaClasse?: string; onErro?: () => void }) {
   const [ampliada, setAmpliada] = useState(false);
   return (
     <>
-      <div className={`relative flex w-full items-center justify-center rounded-lg border border-gray-200 bg-white p-1 ${alturaClasse}`}>
+      <div className="relative flex w-full items-center justify-center rounded-lg border border-gray-200 bg-white p-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt={alt} className="max-h-full max-w-full object-contain" onError={onErro} />
+        <img src={src} alt={alt} className={`h-auto w-auto max-w-full object-contain ${alturaClasse}`} onError={onErro} />
         <button type="button" onClick={() => setAmpliada(true)} className="absolute right-2 top-2 rounded bg-black/55 px-2 py-1 text-[11px] font-medium text-white hover:bg-black/75">
           Ampliar
         </button>
@@ -90,7 +91,7 @@ function Anomalias() {
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className={linhaSeletores}>
         <select aria-label="Data" value={data} onChange={(e) => setData(e.target.value)} className={campo}>
           {datas.map((d) => (
             <option key={d} value={d}>
@@ -105,7 +106,7 @@ function Anomalias() {
             </button>
           ))}
         </div>
-        <span className="text-xs text-gray-500">Anomalia diária da temperatura em relação à normal climatológica (INMET).</span>
+        <span className="col-span-2 text-xs text-gray-500 sm:col-auto">Anomalia diária da temperatura em relação à normal climatológica (INMET).</span>
       </div>
       {erro && <p className="mb-2 rounded bg-amber-50 p-2 text-sm text-amber-800">{erro}</p>}
       {carregando ? <p className="p-6 text-center text-sm text-gray-400">Carregando…</p> : mapas[qual] && <ImagemInteira src={mapas[qual].base64} alt={`Anomalia ${mapas[qual].parametro}`} />}
@@ -140,7 +141,7 @@ function ChuvaAcumulada() {
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className={linhaSeletores}>
         <select aria-label="Data final" value={data} onChange={(e) => setData(e.target.value)} className={campo}>
           {dias.map((d) => (
             <option key={d} value={d}>
@@ -148,7 +149,7 @@ function ChuvaAcumulada() {
             </option>
           ))}
         </select>
-        <div className="flex flex-wrap gap-1 text-sm" role="group" aria-label="Período">
+        <div className="col-span-2 flex flex-wrap gap-1 text-sm sm:col-auto" role="group" aria-label="Período">
           {mapas.map((m, i) => (
             <button key={m.parametro} type="button" onClick={() => setQual(i)} className={`rounded px-2.5 py-1.5 font-medium ${qual === i ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
               {m.parametro_extenso || m.parametro}
@@ -182,7 +183,7 @@ function Tendencia({ tipo }: { tipo: "subsazonal" | "sazonal" }) {
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className={linhaSeletores}>
         <select aria-label={tipo === "subsazonal" ? "Inicialização" : "Mês de emissão"} value={data} onChange={(e) => { setData(e.target.value); setFalhas({}); setPagina(0); }} className={campo}>
           {datas.map((d) => (
             <option key={d} value={d}>
@@ -250,7 +251,7 @@ function Tendencia({ tipo }: { tipo: "subsazonal" | "sazonal" }) {
                     {falhas[url] ? (
                       <p className="p-8 text-center text-sm text-gray-500">Figura não publicada para esta combinação.</p>
                     ) : (
-                      <ImagemInteira src={url} alt={`${v.rotulo} — ${nomeUnidade(n)}`} alturaClasse={porPagina === 2 ? "h-[calc(100dvh-19rem)] min-h-[14rem]" : "h-[calc(100dvh-20rem)] min-h-[14rem]"} onErro={() => setFalhas((f) => ({ ...f, [url]: true }))} />
+                      <ImagemInteira src={url} alt={`${v.rotulo} — ${nomeUnidade(n)}`} alturaClasse={porPagina === 2 ? "max-h-[calc(100dvh-16rem)]" : "max-h-[calc(100dvh-18rem)]"} onErro={() => setFalhas((f) => ({ ...f, [url]: true }))} />
                     )}
                   </figure>
                 );

@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import CondicoesDia from "@/components/CondicoesDia";
 import MareGrafico, { alturaEm, ExtremoMare, PontoMare, solNascerOcaso } from "@/components/MareGrafico";
 import { fetchMares, MaresAno, PortoMare } from "@/lib/produtosMarinha";
 
@@ -87,6 +88,9 @@ export default function MaresPanel() {
   const proxima = ehHoje ? doDia.map(([hh, h], i) => ({ hh, h, tipo: classif[i], t: minutosDe(hh) })).find((x) => x.t > hoje.minutos) : undefined;
   const mes = dia.slice(0, 7);
   const diasDoMes = p ? Object.keys(p.dias).filter((k) => k.startsWith(mes)).sort() : [];
+  const amplitudeDe = (v: [string, number][]) => (v.length ? Math.max(...v.map((x) => x[1])) - Math.min(...v.map((x) => x[1])) : null);
+  const amplitude = amplitudeDe(doDia);
+  const amplitudeMaxMes = p ? Math.max(0, ...diasDoMes.map((d) => amplitudeDe(p.dias[d]) ?? 0)) || null : null;
 
   return (
     <div className="h-full w-full overflow-auto bg-gray-50 p-2 sm:p-3">
@@ -161,6 +165,10 @@ export default function MaresPanel() {
                 {p.nivel_medio != null && <p className="mt-2 text-xs text-gray-500">Nível médio: {nf(p.nivel_medio)} m</p>}
               </div>
             </div>
+          )}
+
+          {p.latitude != null && p.longitude != null && (
+            <CondicoesDia lat={p.latitude} lon={p.longitude} dia={dia} minutosAgora={ehHoje ? hoje.minutos : null} sol={sol} amplitude={amplitude} amplitudeMaxMes={amplitudeMaxMes} />
           )}
 
           <details className="mt-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">

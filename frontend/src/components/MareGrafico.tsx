@@ -8,7 +8,10 @@ export type PontoMare = { t: number; h: number }; // t = minutos desde 00:00 do 
 export type ExtremoMare = { t: number; h: number; tipo: "Preamar" | "Baixa-mar"; hhmm: string };
 
 const nf = (v: number) => v.toFixed(2).replace(".", ",");
-const hhmm = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, "0")}:${String(Math.round(min % 60)).padStart(2, "0")}`;
+export const hhmm = (min: number) => {
+  const t = Math.round(min);
+  return `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+};
 
 /** Altura estimada por interpolação cossenoidal entre extremos consecutivos (aproximação usual entre preamar e baixa-mar). */
 export function alturaEm(pontos: PontoMare[], t: number): number | null {

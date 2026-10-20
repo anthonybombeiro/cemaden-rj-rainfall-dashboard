@@ -183,6 +183,18 @@ Executados do mais fácil ao mais difícil; cada item conferido em produção (C
 
 Sugestão para os Guarda-Vidas (ainda não decidida): estágio futuro com praia, ondas e marés juntas.
 
+## 20/10/2026 (2ª rodada) — segunda revisão do usuário
+
+Testado em servidor local com dados simulados, em PC e celular, antes de publicar.
+
+1. **Previsão numérica:** título + botões + Sincronizar horas na mesma linha; texto explicativo removido; figuras ocupam toda a altura útil sem barra de rolagem (PC 1024x768 e celular 375x812).
+2. **Cartas do INMET fora do ar:** o servidor de imagens apicommet.inmet.gov.br está resetando as conexões (curl e navegador, ontem e hoje); a lista de análises (apiprevmet3) funciona. A aba agora mostra imagem fora do ar, o texto da análise segue abaixo, e botão Tentar de novo. Dependência do INMET; rever quando voltar.
+3. **Clima:** imagens sem espaço em branco nem corte (altura máxima em vez de caixa fixa), seletores em 2 colunas no celular.
+4. **Mapa → Previsão refeito** (dados completos, mapa numerado, sem linhas no celular, story 1080x1920 com comentário): ver docs/mapa-previsao.md.
+5. **Marés + condições de praia** a partir dos links do usuário: ver docs/mares-praia.md.
+
+Aprendizados: o service worker mantém JS antigo (limpar ao testar); html-to-image pode falhar na 1ª captura (agora tenta de novo); comentários reais da previsão têm ~58 caracteres.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
