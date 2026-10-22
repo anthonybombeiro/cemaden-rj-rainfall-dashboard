@@ -124,3 +124,14 @@ class RecomendacaoAlarmeAdmin(admin.ModelAdmin):
     list_filter = ("acionaram", "probabilidade", "gatilho", "municipio")
     search_fields = ("numero", "municipio", "estacao", "observacao", "sirenes_acionadas")
     date_hierarchy = "data"
+
+
+from core.models import AcionamentoMunicipio  # noqa: E402
+
+
+@admin.register(AcionamentoMunicipio)
+class AcionamentoMunicipioAdmin(admin.ModelAdmin):
+    list_display = ("municipio", "data", "hora", "sirene", "tipo_alarme", "quantidade", "responsavel")
+    list_filter = ("municipio", "tipo_alarme")
+    search_fields = ("municipio", "sirene", "observacao")
+    date_hierarchy = "data"

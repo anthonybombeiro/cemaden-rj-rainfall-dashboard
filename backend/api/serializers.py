@@ -4,7 +4,20 @@ from rest_framework import serializers
 
 from core.municipios import canonico_ou_original
 from core.sol import sol_para
-from core.models import AlertEvent, AvisoMauTempo, Previsao, Reading, RecomendacaoAlarme, RiskAlert, Source, Station
+from django.utils import timezone
+
+from core.models import (
+    AcionamentoMunicipio,
+    AlertEvent,
+    AvisoMauTempo,
+    GatilhoPluviometrico,
+    Previsao,
+    Reading,
+    RecomendacaoAlarme,
+    RiskAlert,
+    Source,
+    Station,
+)
 
 
 class SourceSerializer(serializers.ModelSerializer):
@@ -176,18 +189,25 @@ class PrevisaoSerializer(serializers.ModelSerializer):
 
 
 class RecomendacaoAlarmeSerializer(serializers.ModelSerializer):
-    """Recomendação de alarme (risco geológico). O número (NN_AAAA) é gerado quando não informado."""
+    """Recomendação de alarme (risco geológico). Fluxo em duas etapas: 1) envio (município, data/hora, estação, chuva, gatilho)
+    e 2) validação posterior (acionaram? quantas e quais sirenes?). Sem `acionaram` a recomendação fica "aguardando validação".
+    O número (NN_AAAA) é gerado quando não informado."""
+
+    validada = serializers.SerializerMethodField()
 
     class Meta:
         model = RecomendacaoAlarme
         fields = [
             "id", "numero", "municipio", "data", "hora", "probabilidade", "estacao", "indice_alcancado",
             "chuva_1h_mm", "chuva_24h_mm", "chuva_96h_mm", "chuva_30d_mm", "gatilho", "estagio_operacional",
-            "acionaram", "sirenes_acionadas", "responsavel", "observacao", "origem",
-            "criado_por", "criado_em", "atualizado_por", "atualizado_em",
+            "acionaram", "sirenes_qtd", "sirenes_acionadas", "responsavel", "observacao", "origem", "validada",
+            "validado_por", "validado_em", "criado_por", "criado_em", "atualizado_por", "atualizado_em",
         ]
-        read_only_fields = ["origem", "criado_por", "criado_em", "atualizado_por", "atualizado_em"]
-        extra_kwargs = {"numero": {"required": False, "allow_blank": True}}
+        read_only_fields = ["origem", "validada", "validado_por", "validado_em", "criado_por", "criado_em", "atualizado_por", "atualizado_em"]
+        extra_kwargs = {"numero": {"required": False, "allow_blank": True}, "acionaram": {"required": False, "allow_null": True}}
+
+    def get_validada(self, obj):
+        return obj.acionaram is not None
 
     def validate_municipio(self, v):
         from core.municipios import canonico_ou_original, is_municipio_valido
@@ -195,6 +215,10 @@ class RecomendacaoAlarmeSerializer(serializers.ModelSerializer):
         v = canonico_ou_original((v or "").strip())
         if not is_municipio_valido(v):
             raise serializers.ValidationError("Município inválido (use um dos 92 municípios do RJ).")
+        # só recomendamos para os municípios cujas sirenes o CEMADEN-RJ gerencia (os que têm gatilhos cadastrados)
+        gerenciados = set(GatilhoPluviometrico.objects.values_list("municipio", flat=True))
+        if gerenciados and v not in gerenciados:
+            raise serializers.ValidationError("O CEMADEN-RJ só emite recomendação para os municípios com gestão de sirenes: " + ", ".join(sorted(gerenciados)) + ".")
         return v
 
     def validate_numero(self, v):
@@ -211,7 +235,12 @@ class RecomendacaoAlarmeSerializer(serializers.ModelSerializer):
             v = get(k)
             if v is not None and (v < 0 or v > 2000):
                 raise serializers.ValidationError({k: "Valor de chuva fora do intervalo plausível (0 a 2000 mm)."})
-        if not get("acionaram") and (get("sirenes_acionadas") or "").strip() not in ("", "-", "—"):
+        acionaram = get("acionaram")
+        qtd = get("sirenes_qtd")
+        nomes = (get("sirenes_acionadas") or "").strip() not in ("", "-", "—")
+        if acionaram is None and (nomes or qtd):
+            raise serializers.ValidationError({"acionaram": "Informe se o município acionou (Sim/Não) antes de lançar as sirenes."})
+        if acionaram is False and (nomes or (qtd or 0) > 0):
             raise serializers.ValidationError({"sirenes_acionadas": "Há sirenes informadas, mas 'Acionaram?' está como Não."})
         numero = attrs.get("numero")
         if numero:
@@ -222,21 +251,31 @@ class RecomendacaoAlarmeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"numero": "Já existe uma recomendação com esse número."})
         return attrs
 
-    def create(self, validated_data):
+    def _nome(self):
         quem = self.context["request"].user
-        nome = quem.first_name or quem.username
+        return quem.first_name or quem.username
+
+    def create(self, validated_data):
+        nome = self._nome()
         validated_data["criado_por"] = validated_data["atualizado_por"] = nome
         if not (validated_data.get("responsavel") or "").strip():
             validated_data["responsavel"] = nome
         if not validated_data.get("numero"):
             validated_data["numero"] = proximo_numero_recomendacao(validated_data["data"].year)
+        if validated_data.get("acionaram") is not None:
+            validated_data["validado_por"] = nome
+            validated_data["validado_em"] = timezone.now()
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        quem = self.context["request"].user
-        validated_data["atualizado_por"] = quem.first_name or quem.username
+        nome = self._nome()
+        validated_data["atualizado_por"] = nome
         if "numero" in validated_data and not validated_data["numero"]:
             validated_data.pop("numero")
+        # primeira validação (acionaram deixou de ser nulo): registra quem validou e quando
+        if instance.acionaram is None and validated_data.get("acionaram") is not None:
+            validated_data["validado_por"] = nome
+            validated_data["validado_em"] = timezone.now()
         return super().update(instance, validated_data)
 
 
@@ -249,3 +288,33 @@ def proximo_numero_recomendacao(ano: int) -> str:
         except ValueError:
             continue
     return f"{maior + 1:02d}_{ano}"
+
+
+class AcionamentoMunicipioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AcionamentoMunicipio
+        fields = [
+            "id", "municipio", "data", "hora", "probabilidade", "sirene", "tipo_alarme", "quantidade", "responsavel",
+            "observacao", "origem", "criado_por", "criado_em", "atualizado_por", "atualizado_em",
+        ]
+        read_only_fields = ["origem", "criado_por", "criado_em", "atualizado_por", "atualizado_em"]
+        extra_kwargs = {"hora": {"required": False, "allow_null": True}}
+
+    def validate_municipio(self, v):
+        from core.municipios import canonico_ou_original, is_municipio_valido
+
+        v = canonico_ou_original((v or "").strip())
+        if not is_municipio_valido(v):
+            raise serializers.ValidationError("Município inválido (use um dos 92 municípios do RJ).")
+        return v
+
+    def create(self, validated_data):
+        quem = self.context["request"].user
+        nome = quem.first_name or quem.username
+        validated_data["criado_por"] = validated_data["atualizado_por"] = nome
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        quem = self.context["request"].user
+        validated_data["atualizado_por"] = quem.first_name or quem.username
+        return super().update(instance, validated_data)

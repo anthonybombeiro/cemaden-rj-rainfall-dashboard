@@ -59,6 +59,8 @@ export type ShareData = {
    * tabela e `textoPronto` é o texto para copiar/enviar (`gerarTextoCompartilhavel` é ignorado). */
   corpo?: import("react").ReactNode;
   textoPronto?: string;
+  /** Rótulo antes de `dataHora` no cabeçalho do card (padrão "Dados de"). */
+  rotuloData?: string;
 };
 
 /** Texto WhatsApp-nativo: negrito (*texto*), emojis de círculo por grupo

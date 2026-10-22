@@ -1,9 +1,10 @@
 "use client";
 
-import { Download, LayoutGrid, Pencil, Table2, Trash2 } from "lucide-react";
+import { Download, LayoutGrid, Pencil, Send, Table2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RecomendacaoForm from "@/components/RecomendacaoForm";
+import RecomendacaoMensagem from "@/components/RecomendacaoMensagem";
 import { downloadCsv } from "@/lib/csvExport";
 import { MUNICIPIOS_CANONICOS } from "@/lib/municipios-canonical";
 import {
@@ -33,10 +34,13 @@ function Etiqueta({ children, cor }: { children: React.ReactNode; cor?: { fundo:
 }
 
 function Acionaram({ r }: { r: Recomendacao }) {
+  if (r.acionaram === null) return <Etiqueta cor={{ fundo: "#fef3c7", texto: "#92400e" }}>Aguardando validação</Etiqueta>;
   return r.acionaram ? <Etiqueta cor={{ fundo: "#d1fae5", texto: "#065f46" }}>Acionaram: SIM</Etiqueta> : <Etiqueta cor={{ fundo: "#fee2e2", texto: "#991b1b" }}>Acionaram: NÃO</Etiqueta>;
 }
 
-function Cartao({ r, onEditar, onApagar, admin }: { r: Recomendacao; onEditar: () => void; onApagar: () => void; admin: boolean }) {
+const sirenesTexto = (r: Recomendacao) => [r.sirenes_qtd != null && r.acionaram ? `${r.sirenes_qtd} sirene${r.sirenes_qtd === 1 ? "" : "s"}` : "", r.sirenes_acionadas].filter(Boolean).join(" · ");
+
+function Cartao({ r, onEditar, onValidar, onMensagem, onApagar, admin }: { r: Recomendacao; onEditar: () => void; onValidar: () => void; onMensagem: () => void; onApagar: () => void; admin: boolean }) {
   const cor = COR_PROBABILIDADE[r.probabilidade] ?? COR_PROBABILIDADE.Moderada;
   // o texto só aparece quando foi digitado à mão (os valores de chuva já aparecem nos quadradinhos)
   const indice = r.indice_alcancado && r.indice_alcancado !== indiceAutomatico(r) ? r.indice_alcancado : "";
@@ -50,6 +54,9 @@ function Cartao({ r, onEditar, onApagar, admin }: { r: Recomendacao; onEditar: (
           <h3 className="truncate text-base font-bold text-gray-900">{r.municipio}</h3>
         </div>
         <div className="flex shrink-0 gap-1">
+          <button type="button" onClick={onMensagem} aria-label="Enviar mensagem" title="Gerar a mensagem de envio da recomendação" className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50">
+            <Send size={15} />
+          </button>
           <button type="button" onClick={onEditar} aria-label="Editar" title="Editar" className="rounded p-1.5 text-gray-500 hover:bg-gray-100">
             <Pencil size={15} />
           </button>
@@ -96,20 +103,25 @@ function Cartao({ r, onEditar, onApagar, admin }: { r: Recomendacao; onEditar: (
             ))}
           </div>
         )}
-        {r.acionaram && r.sirenes_acionadas && (
+        {r.acionaram && sirenesTexto(r) && (
           <div>
             <dt className="inline font-semibold text-gray-600">Sirenes acionadas: </dt>
-            <dd className="inline text-gray-900">{r.sirenes_acionadas}</dd>
+            <dd className="inline text-gray-900">{sirenesTexto(r)}</dd>
           </div>
         )}
         {r.observacao && <p className="rounded bg-gray-50 p-2 text-xs text-gray-700">{r.observacao}</p>}
       </dl>
+      {r.acionaram === null && (
+        <button type="button" onClick={onValidar} className="mt-2 rounded bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-600">
+          Validar (município acionou?)
+        </button>
+      )}
       <footer className="mt-auto pt-2 text-[11px] text-gray-400">Responsável: {r.responsavel || "—"}</footer>
     </article>
   );
 }
 
-function Tabela({ itens, onEditar, onApagar, admin }: { itens: Recomendacao[]; onEditar: (r: Recomendacao) => void; onApagar: (r: Recomendacao) => void; admin: boolean }) {
+function Tabela({ itens, onEditar, onValidar, onMensagem, onApagar, admin }: { itens: Recomendacao[]; onEditar: (r: Recomendacao) => void; onValidar: (r: Recomendacao) => void; onMensagem: (r: Recomendacao) => void; onApagar: (r: Recomendacao) => void; admin: boolean }) {
   return (
     <div className="overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
       <table className="w-full min-w-[78rem] text-left text-xs">
@@ -145,10 +157,18 @@ function Tabela({ itens, onEditar, onApagar, admin }: { itens: Recomendacao[]; o
                 <td className="px-2 py-1.5">
                   <Acionaram r={r} />
                 </td>
-                <td className="min-w-[9rem] px-2 py-1.5">{r.acionaram ? r.sirenes_acionadas || "—" : "—"}</td>
+                <td className="min-w-[9rem] px-2 py-1.5">{r.acionaram ? sirenesTexto(r) || "—" : "—"}</td>
                 <td className="whitespace-nowrap px-2 py-1.5">{r.responsavel}</td>
                 <td className="min-w-[14rem] px-2 py-1.5 text-gray-600">{r.observacao}</td>
                 <td className="whitespace-nowrap px-2 py-1.5">
+                  <button type="button" onClick={() => onMensagem(r)} aria-label="Enviar mensagem" title="Gerar a mensagem de envio" className="rounded p-1 text-emerald-600 hover:bg-emerald-50">
+                    <Send size={14} />
+                  </button>
+                  {r.acionaram === null && (
+                    <button type="button" onClick={() => onValidar(r)} className="mr-1 rounded bg-amber-500 px-1.5 py-0.5 text-[11px] font-semibold text-white hover:bg-amber-600">
+                      Validar
+                    </button>
+                  )}
                   <button type="button" onClick={() => onEditar(r)} aria-label="Editar" className="rounded p-1 text-gray-500 hover:bg-gray-100">
                     <Pencil size={14} />
                   </button>
@@ -175,7 +195,8 @@ export default function RecomendacoesPanel({ admin, responsavelPadrao, recarrega
   const [itens, setItens] = useState<Recomendacao[] | null>(null);
   const [resumo, setResumo] = useState<ResumoRecomendacoes | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [editando, setEditando] = useState<Recomendacao | null>(null);
+  const [editando, setEditando] = useState<{ rec: Recomendacao; modo: "editar" | "validacao" } | null>(null);
+  const [mensagem, setMensagem] = useState<Recomendacao | null>(null);
   const [versao, setVersao] = useState(0);
 
   const anoAtual = new Date().getFullYear();
@@ -217,8 +238,8 @@ export default function RecomendacoesPanel({ admin, responsavelPadrao, recarrega
     if (!itens) return;
     downloadCsv(
       `recomendacoes-cemaden-rj-${new Date().toISOString().slice(0, 10)}.csv`,
-      ["Número", "Município", "Data", "Hora", "Probabilidade de deslizamento", "Estação pluviométrica", "Índice alcançado", "mm/1h", "mm/24h", "mm/96h", "30 dias", "Gatilho", "Estágio operacional", "Acionaram?", "Sirenes acionadas", "Responsável", "Observação"],
-      itens.map((r) => [r.numero, r.municipio, dataBr(r.data), horaCurta(r.hora), r.probabilidade, r.estacao, r.indice_alcancado || indiceAutomatico(r), r.chuva_1h_mm, r.chuva_24h_mm, r.chuva_96h_mm, r.chuva_30d_mm, r.gatilho, r.estagio_operacional, r.acionaram ? "SIM" : "NÃO", r.sirenes_acionadas, r.responsavel, r.observacao]),
+      ["Número", "Município", "Data", "Hora", "Probabilidade de deslizamento", "Estação pluviométrica", "Índice alcançado", "mm/1h", "mm/24h", "mm/96h", "30 dias", "Gatilho", "Estágio operacional", "Acionaram?", "Qtd. sirenes", "Sirenes acionadas", "Responsável", "Observação"],
+      itens.map((r) => [r.numero, r.municipio, dataBr(r.data), horaCurta(r.hora), r.probabilidade, r.estacao, r.indice_alcancado || indiceAutomatico(r), r.chuva_1h_mm, r.chuva_24h_mm, r.chuva_96h_mm, r.chuva_30d_mm, r.gatilho, r.estagio_operacional, r.acionaram === null ? "AGUARDANDO" : r.acionaram ? "SIM" : "NÃO", r.sirenes_qtd, r.sirenes_acionadas, r.responsavel, r.observacao]),
     );
   };
 
@@ -231,9 +252,9 @@ export default function RecomendacoesPanel({ admin, responsavelPadrao, recarrega
         <div className="mb-2 grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             ["Recomendações", String(resumo.total), "#1d4ed8"],
-            ["Acionaram a sirene", String(resumo.acionaram), "#047857"],
-            ["Não acionaram", String(resumo.nao_acionaram), "#b91c1c"],
-            ["Acatamento", resumo.pct_acatamento == null ? "—" : `${String(resumo.pct_acatamento).replace(".", ",")}%`, "#7c3aed"],
+            ["Aguardando validação", String(resumo.pendentes), "#b45309"],
+            ["Acionaram / não acionaram", `${resumo.acionaram} / ${resumo.nao_acionaram}`, "#047857"],
+            ["Acatamento (validadas)", resumo.pct_acatamento == null ? "—" : `${String(resumo.pct_acatamento).replace(".", ",")}%`, "#7c3aed"],
           ].map(([t, v, c]) => (
             <div key={t} className="rounded-lg border border-gray-200 bg-white p-2 text-center shadow-sm">
               <div className="text-2xl font-extrabold" style={{ color: c }}>
@@ -278,6 +299,11 @@ export default function RecomendacoesPanel({ admin, responsavelPadrao, recarrega
             </option>
           ))}
         </select>
+        <select aria-label="Validação" value={filtro.validacao ?? ""} onChange={(e) => set("validacao", e.target.value)} className={campo}>
+          <option value="">Validação</option>
+          <option value="pendente">Aguardando</option>
+          <option value="validada">Validadas</option>
+        </select>
         <select aria-label="Acionaram" value={filtro.acionaram ?? ""} onChange={(e) => set("acionaram", e.target.value)} className={campo}>
           <option value="">Acionaram?</option>
           <option value="true">Sim</option>
@@ -320,19 +346,21 @@ export default function RecomendacoesPanel({ admin, responsavelPadrao, recarrega
         modo === "cards" ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {itens.map((r) => (
-              <Cartao key={r.id} r={r} admin={admin} onEditar={() => setEditando(r)} onApagar={() => apagar(r)} />
+              <Cartao key={r.id} r={r} admin={admin} onEditar={() => setEditando({ rec: r, modo: "editar" })} onValidar={() => setEditando({ rec: r, modo: "validacao" })} onMensagem={() => setMensagem(r)} onApagar={() => apagar(r)} />
             ))}
           </div>
         ) : (
-          <Tabela itens={itens} admin={admin} onEditar={setEditando} onApagar={apagar} />
+          <Tabela itens={itens} admin={admin} onEditar={(r) => setEditando({ rec: r, modo: "editar" })} onValidar={(r) => setEditando({ rec: r, modo: "validacao" })} onMensagem={setMensagem} onApagar={apagar} />
         )
       ) : null}
 
+      {mensagem && <RecomendacaoMensagem rec={mensagem} onClose={() => setMensagem(null)} />}
       {editando && (
         <div className="fixed inset-0 z-[3000] flex items-start justify-center overflow-auto bg-black/50 p-2 sm:p-6" onClick={() => setEditando(null)}>
           <div className="w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
             <RecomendacaoForm
-              editando={editando}
+              editando={editando.rec}
+              modo={editando.modo}
               responsavelPadrao={responsavelPadrao}
               onCancelar={() => setEditando(null)}
               onSalvo={() => {

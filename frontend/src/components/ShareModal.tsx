@@ -160,7 +160,7 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
             <div className="flex shrink-0 items-center justify-between gap-3 bg-sedec-600 px-5 py-4">
               <div className="min-w-0">
                 <h3 className="text-[15px] font-bold leading-tight text-white">{data.titulo}</h3>
-                <p className="mt-0.5 text-[11px] text-sedec-100">Dados de: {data.dataHora}</p>
+                <p className="mt-0.5 text-[11px] text-sedec-100">{data.rotuloData ?? "Dados de"}: {data.dataHora}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <img src="/logo-defesa-civil.png" alt="" className="h-10 w-auto" />

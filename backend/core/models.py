@@ -692,8 +692,13 @@ class RecomendacaoAlarme(models.Model):
     chuva_30d_mm = models.FloatField(null=True, blank=True)
     gatilho = models.CharField(max_length=3, choices=Gatilho.choices, blank=True)
     estagio_operacional = models.CharField(max_length=15, choices=Estagio.choices, blank=True)
-    acionaram = models.BooleanField(default=False, help_text="O município acionou a(s) sirene(s) após a recomendação?")
-    sirenes_acionadas = models.TextField(blank=True)
+    # A recomendação é enviada primeiro; a validação (acionaram? quantas e quais sirenes?) vem depois — enquanto isso,
+    # `acionaram` fica nulo ("aguardando validação").
+    acionaram = models.BooleanField(null=True, blank=True, default=None, help_text="O município acionou a(s) sirene(s) após a recomendação? Nulo = aguardando validação.")
+    sirenes_qtd = models.PositiveSmallIntegerField("quantidade de sirenes acionadas", null=True, blank=True)
+    sirenes_acionadas = models.TextField(blank=True, help_text="Nomes das sirenes acionadas (texto livre).")
+    validado_por = models.CharField(max_length=150, blank=True)
+    validado_em = models.DateTimeField(null=True, blank=True)
     responsavel = models.CharField(max_length=150, blank=True)
     observacao = models.TextField(blank=True)
     origem = models.CharField(max_length=12, default="painel", help_text="'painel' ou 'planilha' (importada).")
@@ -715,3 +720,37 @@ class RecomendacaoAlarme(models.Model):
 
     def __str__(self):
         return f"{self.numero} · {self.municipio}"
+
+
+class AcionamentoMunicipio(models.Model):
+    """Mobilização de sirene feita pelo PRÓPRIO município, sem recomendação do CEMADEN-RJ (aba "Acionamento pelo Município"
+    da planilha de controle). Qualquer um dos 92 municípios (inclui os autônomos, como Angra)."""
+
+    municipio = models.CharField(max_length=120, db_index=True)
+    data = models.DateField(db_index=True)
+    hora = models.TimeField(null=True, blank=True)
+    probabilidade = models.CharField(max_length=12, blank=True, help_text="Probabilidade de deslizamento na hora (texto da planilha, normalizado).")
+    sirene = models.TextField(blank=True, help_text="Nome(s) da(s) sirene(s) mobilizada(s).")
+    tipo_alarme = models.CharField(max_length=30, default="MOBILIZAÇÃO")
+    quantidade = models.PositiveSmallIntegerField(null=True, blank=True)
+    responsavel = models.CharField("responsável/usuário do município", max_length=150, blank=True)
+    observacao = models.TextField(blank=True)
+    origem = models.CharField(max_length=12, default="painel")
+    criado_por = models.CharField(max_length=150, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_por = models.CharField(max_length=150, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data", "-hora", "-id"]
+        verbose_name = "acionamento pelo município"
+        verbose_name_plural = "acionamentos pelo município"
+
+    def save(self, *args, **kwargs):
+        from core.municipios import canonico_ou_original
+
+        self.municipio = canonico_ou_original(self.municipio)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.municipio} · {self.data}"

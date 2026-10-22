@@ -655,6 +655,18 @@ class MigrateSuperuserView(APIView):
         return Response({"ok": True, "output": saida.getvalue()[-2000:]})
 
 
+class ImportarRecomendacoesSuperuserView(APIView):
+    """POST /api/admin/importar-recomendacoes/ — importa a planilha de recomendações 2020-2026 (superusuário logado, sessão + CSRF).
+    Corpo opcional `{"dry_run": true}` só conta. Idempotente: o que já existe é pulado."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        from core.importacao_recomendacoes import importar
+
+        return Response({"ok": True, **importar(dry_run=bool(request.data.get("dry_run")))})
+
+
 class SyncAvisosMauTempoSuperuserView(APIView):
     """POST /api/admin/sync-avisos-mau-tempo/ — sessão + CSRF, sem precisar
     do segredo. Existe só pra testar/disparar manualmente pela sessão do

@@ -22,30 +22,37 @@ export type Recomendacao = {
   chuva_30d_mm: number | null;
   gatilho: "" | "I" | "II" | "III" | "IV";
   estagio_operacional: "" | "ATENÇÃO" | "ALERTA" | "ALERTA MÁXIMO";
-  acionaram: boolean;
+  /** null = aguardando validação (a recomendação é enviada primeiro; o município responde depois). */
+  acionaram: boolean | null;
+  sirenes_qtd: number | null;
   sirenes_acionadas: string;
   responsavel: string;
   observacao: string;
   origem: string;
+  validada: boolean;
+  validado_por: string;
+  validado_em: string | null;
   criado_por: string;
   criado_em: string;
   atualizado_por: string;
   atualizado_em: string;
 };
 
-export type RecomendacaoInput = Omit<Recomendacao, "id" | "origem" | "criado_por" | "criado_em" | "atualizado_por" | "atualizado_em">;
+export type RecomendacaoInput = Omit<Recomendacao, "id" | "origem" | "validada" | "validado_por" | "validado_em" | "criado_por" | "criado_em" | "atualizado_por" | "atualizado_em">;
 
 export type FiltroRecomendacao = {
   ano?: string;
   municipio?: string;
   probabilidade?: string;
   acionaram?: "" | "true" | "false";
+  validacao?: "" | "pendente" | "validada";
   gatilho?: string;
   q?: string;
 };
 
 export type ResumoRecomendacoes = {
   total: number;
+  pendentes: number;
   acionaram: number;
   nao_acionaram: number;
   pct_acatamento: number | null;
@@ -112,6 +119,8 @@ const ROTULO_CAMPO: Record<string, string> = {
   chuva_96h_mm: "Chuva 96h",
   chuva_30d_mm: "Chuva 30 dias",
   gatilho: "Gatilho",
+  acionaram: "Acionaram?",
+  sirenes_qtd: "Quantidade de sirenes",
   sirenes_acionadas: "Sirenes acionadas",
 };
 
@@ -147,3 +156,78 @@ export function indiceAutomatico(r: Pick<RecomendacaoInput, "chuva_1h_mm" | "chu
   if (r.chuva_30d_mm != null) partes.push(`${nf(r.chuva_30d_mm)} mm/30d`);
   return partes.join(" · ");
 }
+
+// ---------------------------------------------------------------- municípios com gestão de sirenes e gatilhos
+export type MunicipioGatilho = { municipio: string; gi_1h: number | null; gii_1h: number | null; gii_24h: number | null; giii_1h: number | null; giii_96h: number | null; giv_1h: number | null; giv_30d: number | null };
+let cacheMunicipios: Promise<MunicipioGatilho[]> | null = null;
+/** Municípios para os quais o CEMADEN-RJ recomenda (13 com sirenes gerenciadas) e seus limiares. */
+export function fetchMunicipiosRecomendacao(): Promise<MunicipioGatilho[]> {
+  cacheMunicipios ??= getJson<MunicipioGatilho[]>("/recomendacoes/municipios/");
+  return cacheMunicipios;
+}
+
+/** Gatilhos atingidos pelos valores informados (I: 1h; II: 1h+24h; III: 1h+96h; IV: 1h+30 dias — todos independentes). */
+export function gatilhosAtingidos(m: MunicipioGatilho | undefined, c1: number | null, c24: number | null, c96: number | null, c30: number | null): string[] {
+  if (!m || c1 == null) return [];
+  const ok = (v: number | null, lim: number | null) => v != null && lim != null && v >= lim;
+  const out: string[] = [];
+  if (ok(c1, m.gi_1h)) out.push("I");
+  if (ok(c1, m.gii_1h) && ok(c24, m.gii_24h)) out.push("II");
+  if (ok(c1, m.giii_1h) && ok(c96, m.giii_96h)) out.push("III");
+  if (ok(c1, m.giv_1h) && ok(c30, m.giv_30d)) out.push("IV");
+  return out;
+}
+
+// ---------------------------------------------------------------- mensagem de envio
+/** Texto da recomendação no padrão enviado ao município (WhatsApp/Telegram; *negrito*). */
+export function mensagemRecomendacao(r: Pick<Recomendacao, "numero" | "municipio" | "data" | "hora" | "estacao" | "gatilho">): string {
+  const [n, ano] = r.numero.split("_");
+  const [hh, mi] = r.hora.slice(0, 5).split(":");
+  return [
+    "SEDEC-RJ",
+    "CEMADEN-RJ",
+    "",
+    `*${r.municipio.toUpperCase()}*`,
+    "",
+    `RECOMENDAÇÃO DE MOBILIZAÇÃO n° ${n}/${ano}`,
+    `Data: ${dataBr(r.data)}`,
+    `Hora: ${hh}h${mi}`,
+    ...(r.estacao ? [`Pluviômetro: ${r.estacao}`] : []),
+    ...(r.gatilho ? [`Gatilho: ${r.gatilho}`] : []),
+    "",
+    "Fonte: CEMADEN-RJ - SEDEC",
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------- acionamentos pelo município
+export type AcionamentoMunicipio = {
+  id: number;
+  municipio: string;
+  data: string;
+  hora: string | null;
+  probabilidade: string;
+  sirene: string;
+  tipo_alarme: string;
+  quantidade: number | null;
+  responsavel: string;
+  observacao: string;
+  origem: string;
+  criado_por: string;
+  atualizado_por: string;
+};
+export type AcionamentoInput = Omit<AcionamentoMunicipio, "id" | "origem" | "criado_por" | "atualizado_por">;
+
+export async function fetchAcionamentosMunicipio(f: { ano?: string; municipio?: string; q?: string } = {}): Promise<AcionamentoMunicipio[]> {
+  const todos: AcionamentoMunicipio[] = [];
+  let proximo: string | null = `/acionamentos-municipio/?${consulta(f)}${consulta(f) ? "&" : ""}limit=200`;
+  while (proximo) {
+    const pag: { results: AcionamentoMunicipio[]; next: string | null } | AcionamentoMunicipio[] = await getJson(proximo);
+    if (Array.isArray(pag)) return pag;
+    todos.push(...pag.results);
+    proximo = pag.next;
+  }
+  return todos;
+}
+export const salvarAcionamentoMunicipio = (d: AcionamentoInput, id?: number) =>
+  (id ? enviar(`/acionamentos-municipio/${id}/`, "PATCH", d) : enviar("/acionamentos-municipio/", "POST", d)) as Promise<AcionamentoMunicipio>;
+export const apagarAcionamentoMunicipio = (id: number) => enviar(`/acionamentos-municipio/${id}/`, "DELETE") as Promise<null>;

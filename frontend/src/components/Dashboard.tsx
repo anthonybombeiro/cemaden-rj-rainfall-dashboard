@@ -8,6 +8,7 @@ import AlertsPanel from "@/components/AlertsPanel";
 import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable";
 import FilterToggleBar from "@/components/FilterToggleBar";
 import ContatosMap from "@/components/ContatosMap";
+import AcionamentosMunicipioPanel from "@/components/AcionamentosMunicipioPanel";
 import PrevisaoMapa from "@/components/PrevisaoMapa";
 import RecomendacaoForm from "@/components/RecomendacaoForm";
 import RecomendacoesPanel from "@/components/RecomendacoesPanel";
@@ -76,7 +77,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
 type ViewMode = "mapa" | "meteorologia" | "dados" | "geologia" | "alertas" | "resumo";
 // Aba Geologia (22/10/2026): Sirenes (a antiga aba) + recomendações de alarme (consulta e cadastro).
-type GeologiaSub = "sirenes" | "recomendacoes" | "cadastro";
+type GeologiaSub = "sirenes" | "recomendacoes" | "cadastro" | "acionamentos";
 type DadosSub =
   | "precipitacao"
   | "cemaden"
@@ -1062,6 +1063,7 @@ export default function Dashboard({
                 ["sirenes", "Sirenes"],
                 ["recomendacoes", "Recomendações"],
                 ["cadastro", "Cadastrar recomendação"],
+                ["acionamentos", "Acionamentos do município"],
               ] as const
             ).map(([k, l]) => (
               <button
@@ -1282,6 +1284,7 @@ export default function Dashboard({
             />
           )}
           {viewMode === "geologia" && geoSub === "recomendacoes" && <RecomendacoesPanel admin={user.role === "admin"} responsavelPadrao={user.first_name || user.username} recarregar={recargaRec} />}
+          {viewMode === "geologia" && geoSub === "acionamentos" && <AcionamentosMunicipioPanel admin={user.role === "admin"} />}
           {viewMode === "geologia" && geoSub === "cadastro" && (
             <div className="h-full overflow-auto bg-gray-50 p-2 sm:p-3">
               <RecomendacaoForm responsavelPadrao={user.first_name || user.username} onSalvo={() => setRecargaRec((n) => n + 1)} />

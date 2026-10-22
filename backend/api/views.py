@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from core.gatilhos import aplicar_estado_real, avaliar_gatilhos
 from core.municipios import canonico_ou_original
 from core.models import (
+    AcionamentoMunicipio,
     AlertEvent,
     AvisoMauTempo,
     GatilhoPluviometrico,
@@ -26,6 +27,7 @@ from core.models import (
 )
 
 from .serializers import (
+    AcionamentoMunicipioSerializer,
     AlertEventSerializer,
     AvisoMauTempoSerializer,
     PrevisaoSerializer,
@@ -1343,6 +1345,10 @@ class RecomendacaoAlarmeViewSet(viewsets.ModelViewSet):
             qs = qs.filter(data__lte=v)
         if (v := p.get("acionaram")) in ("true", "false"):
             qs = qs.filter(acionaram=(v == "true"))
+        if (v := p.get("validacao")) == "pendente":
+            qs = qs.filter(acionaram__isnull=True)
+        elif v == "validada":
+            qs = qs.filter(acionaram__isnull=False)
         if v := p.get("probabilidade"):
             qs = qs.filter(probabilidade=v)
         if v := p.get("gatilho"):
@@ -1372,23 +1378,71 @@ class RecomendacaoAlarmeViewSet(viewsets.ModelViewSet):
         return Response({"numero": proximo_numero_recomendacao(ano)})
 
     @action(detail=False, methods=["get"])
+    def municipios(self, request):
+        """Municípios para os quais o CEMADEN-RJ recomenda (gestão de sirenes) com os limiares dos gatilhos I–IV."""
+        out = []
+        for g in GatilhoPluviometrico.objects.order_by("municipio"):
+            out.append(
+                {
+                    "municipio": g.municipio,
+                    "gi_1h": g.gatilho_i_1h_mm,
+                    "gii_1h": g.gatilho_ii_1h_mm,
+                    "gii_24h": g.gatilho_ii_24h_mm,
+                    "giii_1h": g.gatilho_iii_1h_mm,
+                    "giii_96h": g.gatilho_iii_96h_mm,
+                    "giv_1h": g.gatilho_iv_1h_mm,
+                    "giv_30d": g.gatilho_iv_30d_mm,
+                }
+            )
+        return Response(out)
+
+    @action(detail=False, methods=["get"])
     def resumo(self, request):
-        """Totais para os cartões do topo (respeita os mesmos filtros): total, acionaram/não, % de acatamento,
-        por probabilidade, por município (top 10) e por ano."""
+        """Totais para os cartões do topo (respeita os mesmos filtros): total, validadas/pendentes, acionaram/não,
+        % de acatamento (sobre as já validadas), por probabilidade, por município (top 10) e por ano."""
         qs = self.filtrar(RecomendacaoAlarme.objects.all())
         total = qs.count()
+        pendentes = qs.filter(acionaram__isnull=True).count()
         sim = qs.filter(acionaram=True).count()
+        nao = qs.filter(acionaram=False).count()
+        validadas = sim + nao
         por_prob = {r["probabilidade"]: r["n"] for r in qs.values("probabilidade").annotate(n=Count("id"))}
         por_mun = list(qs.values("municipio").annotate(n=Count("id")).order_by("-n", "municipio")[:10])
         por_ano = list(qs.values("data__year").annotate(n=Count("id"), acionaram=Count("id", filter=Q(acionaram=True))).order_by("data__year"))
         return Response(
             {
                 "total": total,
+                "pendentes": pendentes,
                 "acionaram": sim,
-                "nao_acionaram": total - sim,
-                "pct_acatamento": round(100 * sim / total, 1) if total else None,
+                "nao_acionaram": nao,
+                "pct_acatamento": round(100 * sim / validadas, 1) if validadas else None,
                 "por_probabilidade": por_prob,
                 "por_municipio": por_mun,
                 "por_ano": [{"ano": r["data__year"], "total": r["n"], "acionaram": r["acionaram"]} for r in por_ano],
             }
         )
+
+
+class AcionamentoMunicipioViewSet(viewsets.ModelViewSet):
+    """Mobilizações de sirene feitas pelo próprio município (sem recomendação do CEMADEN-RJ). Apagar: só superusuário.
+    Filtros: ?ano=, ?municipio=, ?q=."""
+
+    serializer_class = AcionamentoMunicipioSerializer
+
+    def get_permissions(self):
+        from rest_framework.permissions import IsAdminUser
+
+        if self.action == "destroy":
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        qs = AcionamentoMunicipio.objects.all()
+        p = self.request.query_params
+        if v := p.get("ano"):
+            qs = qs.filter(data__year=v)
+        if v := p.get("municipio"):
+            qs = qs.filter(municipio=canonico_ou_original(v))
+        if v := (p.get("q") or "").strip():
+            qs = qs.filter(Q(municipio__icontains=v) | Q(sirene__icontains=v) | Q(responsavel__icontains=v) | Q(observacao__icontains=v))
+        return qs
