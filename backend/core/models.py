@@ -112,6 +112,7 @@ class Reading(models.Model):
         VENTO_RAJADA_MS = "vento_rajada_ms", "Rajada de vento (m/s)"
         VENTO_DIR_GRAUS = "vento_dir_graus", "Direção do vento (graus)"
         MARE_M = "mare_m", "Maré (m)"
+        VAZAO_M3S = "vazao_m3s", "Vazão (m³/s)"
         # Extras meteorológicos (2026-09-25). max/min vêm da FONTE (INMET: extremo da
         # hora; Plugfield: extremo do dia até agora; Alerta Rio: min/max informados).
         TEMPERATURA_MAX_C = "temperatura_max_c", "Temperatura máxima (°C)"

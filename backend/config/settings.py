@@ -211,6 +211,9 @@ MACAE_UFRJ_USERNAME = os.environ.get("MACAE_UFRJ_USERNAME", "")
 MACAE_UFRJ_PASSWORD = os.environ.get("MACAE_UFRJ_PASSWORD", "")
 
 INMET_API_TOKEN = os.environ.get("INMET_API_TOKEN", "")
+# ANA HidroWebService (Hidrotelemetria) — credenciais só no .env do servidor; ver docs/ana-hidrowebservice.md
+ANA_HIDRO_IDENTIFICADOR = os.environ.get("ANA_HIDRO_IDENTIFICADOR", "")
+ANA_HIDRO_SENHA = os.environ.get("ANA_HIDRO_SENHA", "")
 
 # RESERVA (desligada por padrão desde 2026-09-25, quando o token da API do INMET
 # passou a ser o método primário): faz scraping da tabela

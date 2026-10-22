@@ -1,4 +1,5 @@
 from .alerta_rio import AlertaRioConnector
+from .ana_hidroweb import AnaHidroWebConnector
 from .base import BaseConnector, IngestResult
 from .cemaden_nacional import CemadenNacionalConnector
 from .cemaden_rj_pluviometros import CemadenMcticConnector
@@ -34,6 +35,7 @@ REGISTRY: dict[str, type[BaseConnector]] = {
     EcowittParacambiConnector.slug: EcowittParacambiConnector,
     MacaeUfrjConnector.slug: MacaeUfrjConnector,
     RedemetConnector.slug: RedemetConnector,
+    AnaHidroWebConnector.slug: AnaHidroWebConnector,
 }
 
 

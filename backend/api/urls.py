@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .admin_views import (
     AdminOpsView,
+    AnaDiagnosticoSuperuserView,
     EnvCheckView,
     FixSirenesChuvaSobrepostaSuperuserView,
     ImportarRecomendacoesSuperuserView,
@@ -47,6 +48,7 @@ urlpatterns = [
     path("ingest/readings/", RemoteReadingsIngestView.as_view(), name="ingest-readings"),
     path("admin/env-check/", EnvCheckView.as_view(), name="admin-env-check"),
     path("admin/migrate/", MigrateSuperuserView.as_view(), name="admin-migrate"),
+    path("admin/ana/", AnaDiagnosticoSuperuserView.as_view(), name="admin-ana"),
     path("admin/importar-recomendacoes/", ImportarRecomendacoesSuperuserView.as_view(), name="admin-importar-recomendacoes"),
     path("admin/populate-sirene-ref/", PopulateSireneRefSuperuserView.as_view(), name="admin-populate-sirene-ref"),
     path("admin/set-risco-sirene/", SetRiscoSireneSuperuserView.as_view(), name="admin-set-risco-sirene"),

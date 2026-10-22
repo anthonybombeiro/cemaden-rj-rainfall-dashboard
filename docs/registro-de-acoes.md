@@ -221,6 +221,10 @@ Recomendação com mais de um gatilho (campo `gatilho` como lista, migração 00
 
 Aba Acionamentos do município restrita aos 17 municípios com sirenes, em lista editável no Admin (modelo `MunicipioComSirene`, migração 0023). Ver docs/geologia-recomendacoes.md (5ª etapa).
 
+## 22/10/2026 — API HidroWebService da ANA (levantamento e conector)
+
+Leitura do OpenAPI, do manual oficial e da resposta da ANA; conector `ana_hidroweb.py` (fonte `ana`, inativa até haver credencial), tipo de leitura `vazao_m3s` (migração 0024) e rota de diagnóstico somente leitura `/api/admin/ana/`. A senha **não** foi vista nem registrada. Ver docs/ana-hidrowebservice.md.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

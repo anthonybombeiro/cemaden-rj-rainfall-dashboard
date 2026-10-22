@@ -667,6 +667,48 @@ class ImportarRecomendacoesSuperuserView(APIView):
         return Response({"ok": True, **importar(dry_run=bool(request.data.get("dry_run")))})
 
 
+class AnaDiagnosticoSuperuserView(APIView):
+    """POST /api/admin/ana/ — diagnóstico SOMENTE LEITURA da API HidroWebService da ANA (superusuário logado, sessão + CSRF).
+    Corpo: {"acao": "inventario"} lista as estações do RJ que entrariam (e as descartadas, por motivo);
+           {"acao": "serie", "codigo": "58880001"} devolve os primeiros itens BRUTOS da série adotada (serve para conferir o
+           nome dos parâmetros, o fuso e a unidade). Não grava nada no banco. Credenciais: ANA_HIDRO_IDENTIFICADOR/SENHA no .env."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        import datetime as dt
+
+        from ingestion.connectors import ana_hidroweb as ana
+
+        acao = (request.data or {}).get("acao")
+        try:
+            con = ana.AnaHidroWebConnector()
+            if acao == "inventario":
+                itens = con.cliente.inventario(con.uf)
+                aceitas = {e["external_id"]: e for e in (ana.estacao_de_inventario(i) for i in itens) if e}
+                return Response(
+                    {
+                        "ok": True,
+                        "total_inventario": len(itens),
+                        "entram": len(aceitas),
+                        "estacoes": [
+                            {"codigo": c, "nome": e["name"], "municipio": e["municipality"], "tipo": e["station_type"], "operadora": e["raw_metadata"].get("operadora"), "bacia": e["raw_metadata"].get("bacia")}
+                            for c, e in sorted(aceitas.items())
+                        ],
+                        "campos_do_inventario": sorted(itens[0].keys()) if itens else [],
+                    }
+                )
+            if acao == "serie":
+                codigo = str((request.data or {}).get("codigo") or "").strip()
+                if not codigo:
+                    return Response({"detail": "Informe o código da estação."}, status=400)
+                itens = con.cliente.serie_adotada(codigo, dt.datetime.now(con.fuso).date(), (request.data or {}).get("intervalo") or "HORA_6")
+                return Response({"ok": True, "codigo": codigo, "quantidade": len(itens), "primeiros": itens[:5], "ultimos": itens[-3:], "agora_utc": dt.datetime.now(dt.timezone.utc).isoformat()})
+            return Response({"detail": "acao deve ser 'inventario' ou 'serie'."}, status=400)
+        except ana.AnaErro as exc:
+            return Response({"ok": False, "detail": str(exc)}, status=502)
+
+
 class SyncAvisosMauTempoSuperuserView(APIView):
     """POST /api/admin/sync-avisos-mau-tempo/ — sessão + CSRF, sem precisar
     do segredo. Existe só pra testar/disparar manualmente pela sessão do
