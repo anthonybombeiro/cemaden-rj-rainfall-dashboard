@@ -31,7 +31,7 @@ const COR_RAJADA: Record<string, { bg: string; text: string }> = Object.fromEntr
 const NOME_FONTE: Record<string, string> = {
   alerta_rio: "Alerta Rio", niteroi: "Niterói", inea: "INEA", inmet: "INMET", redemet: "REDEMET",
   cemaden_mctic: "CEMADEN Nacional", cemaden_rj_sirenes: "CEMADEN-RJ", plugfield: "Plugfield",
-  macae_ufrj: "Macaé", wunderground: "Wunderground", ecowitt_paracambi: "Paracambi",
+  ana: "ANA", macae_ufrj: "Macaé", wunderground: "Wunderground", ecowitt_paracambi: "Paracambi",
 };
 
 function Chip({ rotulo, cores }: { rotulo: string | null; cores: Record<string, { bg: string; text: string }> }) {

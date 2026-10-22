@@ -89,6 +89,7 @@ type DadosSub =
   | "macae"
   | "wunderground"
   | "inea"
+  | "ana"
   | "inmet"
   | "ecowitt"
   | "redemet"
@@ -113,6 +114,7 @@ const REDE_DE_SUB: Partial<Record<DadosSub, RedeSource>> = {
   macae: "macae_ufrj",
   wunderground: "wunderground",
   inea: "inea",
+  ana: "ana",
   inmet: "inmet",
   ecowitt: "ecowitt_paracambi",
   redemet: "redemet",
@@ -125,6 +127,7 @@ const NOME_REDE: Record<RedeSource, string> = {
   macae_ufrj: "Macaé",
   wunderground: "Wunderground",
   inea: "INEA",
+  ana: "ANA",
   inmet: "INMET",
   ecowitt_paracambi: "Paracambi",
   redemet: "REDEMET",
@@ -141,6 +144,7 @@ const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "macae", label: "Macaé" },
   { key: "wunderground", label: "Wunderground" },
   { key: "inea", label: "INEA" },
+  { key: "ana", label: "ANA" },
   { key: "inmet", label: "INMET" },
   { key: "ecowitt", label: "Paracambi" },
   { key: "redemet", label: "REDEMET" },

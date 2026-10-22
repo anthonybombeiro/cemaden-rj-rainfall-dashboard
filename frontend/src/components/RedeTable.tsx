@@ -61,6 +61,7 @@ const PRESSAO = {
 };
 
 const NIVEL = { key: "nivel", label: "Nível m", titulo: "Nível do rio em metros (última leitura; só estações com régua)", get: (s: RedeStation) => s.atual.nivel, tipo: "num" as const };
+const VAZAO = { key: "vazao", label: "Vazão m³/s", titulo: "Vazão em m³/s (última leitura; só estações com curva-chave)", get: (s: RedeStation) => s.atual.vazao, tipo: "num" as const };
 const ORVALHO = { key: "orvalho", label: "Td °C", titulo: "Ponto de orvalho (última leitura)", get: (s: RedeStation) => s.atual.orvalho, tipo: "num" as const };
 const TMAX_H = { key: "tmax", label: "Tmáx", titulo: "Temperatura máxima da hora (INMET informa extremos por hora, não do dia)", get: (s: RedeStation) => s.atual.tmax, tipo: "num" as const };
 const TMIN_H = { key: "tmin", label: "Tmín", titulo: "Temperatura mínima da hora (INMET informa extremos por hora, não do dia)", get: (s: RedeStation) => s.atual.tmin, tipo: "num" as const };
@@ -201,6 +202,27 @@ const CONFIG: Record<RedeSource, Config> = {
     coluna24h: nosso("24"),
     nota:
       "INMET (estações automáticas): publicam 1 observação por hora; a chuva é o total de cada hora e os acumulados são a soma das horas que gravamos (a fonte não entrega acumulados prontos). Tmáx/Tmín são extremos da hora, não do dia. Estações sem sensor mostram “—”.",
+  },
+  ana: {
+    nome: "ANA (Hidrotelemetria)",
+    municipio: true,
+    redec: true,
+    chuva: [
+      ...nossasJanelas((j) => `Acumulado nas últimas ${j} h (soma das chuvas de 15 a 60 min da ANA que gravamos)`),
+      { key: "nhoje", label: "Hoje", titulo: "Acumulado desde 00h (soma das chuvas gravadas)", get: nosso("hoje"), tipo: "mm" },
+    ],
+    meteo: [NIVEL, VAZAO],
+    direcao: false,
+    situacao: {
+      rotulo: "Operadora",
+      titulo: "Entidade que opera a estação (SGB-CPRM, Light, Quanta, Axia…)",
+      texto: (s) => ({ texto: String(s.extra.operadora ?? "—") }),
+    },
+    calc: [],
+    coluna1h: nosso("1"),
+    coluna24h: nosso("24"),
+    nota:
+      "ANA (Hidrotelemetria, API HidroWebService): estações pluviométricas e fluviométricas telemétricas do RJ operadas pela ANA/SGB-CPRM e por empresas (Light, Quanta, Axia…). Ficam de fora as redes que o painel já recebe pela fonte própria (CEMADEN, INEA/Infoper e INMET). Chuva de cada intervalo (15–60 min) somada em janelas; Nível = cota em metros; Vazão em m³/s. As leituras chegam em rodízio (cada estação ~1 vez por hora). Estação sem leitura recente = sem transmissão para a ANA.",
   },
   redemet: {
     nome: "REDEMET (aeroportos)",

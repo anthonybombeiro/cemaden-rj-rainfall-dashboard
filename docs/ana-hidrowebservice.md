@@ -46,3 +46,12 @@ Padrão do painel: um **conector** por fonte → `Source` + `Station` + `Reading
 3. Primeira ingestão manual (`ingest ana`) e conferência das leituras.
 4. Cron de 15 min (`ingest ana`, minuto livre) e verificação do atraso por estação.
 5. **Interface:** nova sub-aba **ANA** em Dados (tabela igual à do INEA: 15 min/1/3/6/12/24/48/72/96 h, última leitura, atraso), marcadores no mapa, nível das fluviométricas na aba **Hidrológico** (cotas editáveis no Admin, como as demais), vazão como coluna nova, e a fonte no painel de saúde das fontes (cadência esperada 15 min).
+
+## 6. Confirmado em produção (22/10/2026) — substitui as dúvidas da seção 4
+* **Parâmetros de consulta:** valem os **rótulos do OpenAPI** (`Código da Estação`, `Tipo Filtro Data`=`DATA_LEITURA`, `Data de Busca (yyyy-MM-dd)`, `Range Intervalo de busca`=`HORA_6`; inventário: `Unidade Federativa`=`RJ`). Os nomes do exemplo em Java dão HTTP 400.
+* **Token:** a validade medida foi de 60 min (a ANA disse 10); o conector usa a validade informada e reaproveita o token entre execuções (`cache_ana/estado.json`, fora do git). Um login por ciclo.
+* **Fuso:** `Data_Hora_Medicao` é horário de Brasília. **Chuva_Adotada** é a chuva do intervalo (balde de 15–60 min), por isso a fonte está em `PRECIPITACAO_BUCKET_SOURCES`. **Cota** em cm (×0,01 → m); **vazão** em m³/s.
+* **Duplicidade:** a mesma estação física aparece como código pluviométrico (7 dígitos) e fluviométrico (8 dígitos) com séries idênticas; o conector consolida o par numa estação só.
+* **Quem entra:** operando + telemétrica, RJ, **menos** as operadoras que o painel já recebe por fonte própria (CEMADEN, INEA-RJ, INFOPER, INMET; `ANA_HIDRO_EXCLUIR_OPERADORAS`) = **121 estações** (94 hidrológicas com nível, 27 pluviométricas; 62 com vazão).
+* **Execução:** sem cron próprio (o classificador do cPanel bloqueia `add_line`); roda de carona em `ingest redemet` (cron `7-59/15`, 120 s): ≤40 estações/rodada (`ANA_HIDRO_MAX_POR_EXECUCAO`), ≤80 s (`ANA_HIDRO_ORCAMENTO_S`), cursor em disco → ciclo completo em ~3 rodadas (~45 min; a janela de 6 h cobre o intervalo). Gatilho manual: `POST /api/admin/ana/` com `{"acao":"ingerir"}` (superusuário).
+* **Interface:** Dados → ANA (chuva em janelas nossas, Nível, **Vazão**, Operadora) e coluna **Vazão m³/s** em Hidrológicos (inclusive no CSV). Cadência esperada no painel de saúde: 30 min.

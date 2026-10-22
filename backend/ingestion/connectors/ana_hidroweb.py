@@ -19,10 +19,9 @@ Credenciais ficam só no `.env` do servidor (`ANA_HIDRO_IDENTIFICADOR`, `ANA_HID
 
 ATENÇÃO — pontos que dependem de teste com a credencial (não havia acesso à API quando este arquivo foi escrito; o manual traz só a
 resposta, não o nome exato dos parâmetros de consulta):
-  1. nomes dos parâmetros (`PARAMETROS_SERIE`: o exemplo em Java do manual usa CodigoDaEstacao/TipoFiltroData/RangeIntervaloDeBusca;
-     o OpenAPI mostra os rótulos com espaço e acento);
-  2. fuso horário de `Data_Hora_Medicao` (assumido horário de Brasília, `ANA_HIDRO_FUSO`);
-  3. se `Chuva_Adotada` é a chuva do intervalo (balde) — tratada assim, como no INMET e no INEA.
+  1. (CONFIRMADO em 22/10/2026) os parâmetros são os rótulos do OpenAPI, com acento e espaço; o exemplo em Java do manual dá HTTP 400;
+  2. (CONFIRMADO) `Data_Hora_Medicao` está em horário de Brasília (última medição 11:15 atualizada às 11:22, com a hora local 11:49);
+  3. (A VERIFICAR com chuva real) se `Chuva_Adotada` é a chuva do intervalo (balde) — tratada assim, como no INMET e no INEA.
 """
 
 from __future__ import annotations
@@ -44,14 +43,18 @@ from .base import BaseConnector
 logger = logging.getLogger("ingestion")
 
 BASE_URL = "https://www.ana.gov.br/hidrowebservice/EstacoesTelemetricas"
-TOKEN_VALIDADE_S = 8 * 60  # a ANA informa 10 min; renovamos antes
+TOKEN_VALIDADE_S = 8 * 60  # padrão conservador (a ANA respondeu 10 min) quando a resposta não traz a validade
 PAUSA_ENTRE_CHAMADAS_S = 0.5
 TENTATIVAS = 3
 INVENTARIO_VALIDADE_S = 24 * 3600
 
-# Nomes dos parâmetros de consulta da série adotada (ver "ATENÇÃO" acima — a confirmar com a credencial).
-PARAMETROS_SERIE = {"estacao": "CodigoDaEstacao", "filtro": "TipoFiltroData", "data": "DataDeBusca", "intervalo": "RangeIntervaloDeBusca"}
+# Nomes dos parâmetros de consulta, CONFIRMADOS em 22/10/2026 com a credencial: são os rótulos do OpenAPI (com acento e espaço);
+# os nomes do exemplo em Java do manual (CodigoDaEstacao etc.) devolvem HTTP 400.
+PARAMETROS_SERIE = {"estacao": "Código da Estação", "filtro": "Tipo Filtro Data", "data": "Data de Busca (yyyy-MM-dd)", "intervalo": "Range Intervalo de busca"}
 PARAMETRO_UF = "Unidade Federativa"
+# Quem opera a estação: estas redes já entram no painel pelas suas próprias fontes (CEMADEN, INEA e a empresa que o mantém, INMET);
+# a ANA só as republica. Ficam de fora por padrão (ANA_HIDRO_EXCLUIR_OPERADORAS troca a lista; vazio = entram todas).
+OPERADORAS_JA_NO_PAINEL = "CEMADEN,INEA-RJ,INFOPER,INMET"
 
 
 class AnaErro(RuntimeError):
@@ -87,6 +90,21 @@ def _num(v) -> float | None:
         return None
 
 
+def _epoch_validade(texto: str) -> float | None:
+    """'Thu Oct 22 12:48:12 GMT-03:00 2026' -> epoch (None se não reconhecer)."""
+    import re
+
+    m = re.match(r"\w{3} (\w{3}) (\d{1,2}) (\d{2}):(\d{2}):(\d{2}) GMT([+-])(\d{2}):?(\d{2}) (\d{4})", texto)
+    if not m:
+        return None
+    meses = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6, "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+    mes, dia, hh, mm_, ss, sinal, oh, om, ano = m.groups()
+    if mes not in meses:
+        return None
+    desloc = dt.timedelta(hours=int(oh), minutes=int(om)) * (1 if sinal == "+" else -1)
+    return dt.datetime(int(ano), meses[mes], int(dia), int(hh), int(mm_), int(ss), tzinfo=dt.timezone(desloc)).timestamp()
+
+
 class ClienteAna:
     """Autenticação com token em cache, chamadas em série e novas tentativas. Não guarda nem loga credenciais."""
 
@@ -100,7 +118,7 @@ class ClienteAna:
     # -- token
     def token(self, forcar: bool = False) -> str:
         estado = _ler_json("estado.json")
-        if not forcar and estado.get("token") and time.time() - float(estado.get("token_em", 0)) < TOKEN_VALIDADE_S:
+        if not forcar and estado.get("token") and time.time() < float(estado.get("token_ate", 0)):
             return estado["token"]
         r = self.http.get(f"{BASE_URL}/OAUth/v1", headers={"Identificador": self._id, "Senha": self._senha}, timeout=30)
         if r.status_code != 200:
@@ -109,7 +127,13 @@ class ClienteAna:
         token = itens.get("tokenautenticacao") or itens.get("token")
         if not token:
             raise AnaErro(f"Resposta de autenticação sem token ({str(itens.get('retorno') or itens.get('respostaautenticacao') or '')[:120]}).")
-        estado.update({"token": token, "token_em": time.time()})
+        # a ANA informa a validade ("Thu Oct 22 12:48:12 GMT-03:00 2026" — medido: 60 min; a resposta por e-mail disse 10 min): usamos o
+        # menor entre a validade informada menos 2 min e 25 min, e nunca menos de 5 min
+        ate = time.time() + TOKEN_VALIDADE_S
+        validade = _epoch_validade(str(itens.get("validade") or ""))
+        if validade:
+            ate = min(max(validade - 120, time.time() + 300), time.time() + 25 * 60)
+        estado.update({"token": token, "token_ate": ate})
         _gravar_json("estado.json", estado)
         return token
 
@@ -164,8 +188,8 @@ def estacao_de_inventario(item: dict) -> dict | None:
         return None
     if str(item.get("Operando", "1")) != "1":
         return None
-    # só telemétricas: com início de período telemétrico e sem fim
-    if "Data_Periodo_Telemetrica_Inicio" in item and not item.get("Data_Periodo_Telemetrica_Inicio"):
+    # só telemétricas: a flag Tipo_Estacao_Telemetrica = 1 (no RJ, 704 das 1.967 do inventário) e sem fim do período telemétrico
+    if "Tipo_Estacao_Telemetrica" in item and str(item.get("Tipo_Estacao_Telemetrica")) != "1":
         return None
     if item.get("Data_Periodo_Telemetrica_Fim"):
         return None
@@ -196,6 +220,25 @@ def estacao_de_inventario(item: dict) -> dict | None:
             "uf": item.get("UF_Estacao"),
         },
     }
+
+
+def consolidar_pares(estacoes: list[dict]) -> list[dict]:
+    """A mesma estação física aparece duas vezes no inventário — código pluviométrico (7 dígitos) e fluviométrico (8 dígitos), mesmo
+    nome e coordenadas — e a série devolve os dois juntos (chuva + cota + vazão) por qualquer dos códigos. Fica UMA: a fluviométrica
+    (tipo hidrológica), com o código pluviométrico anotado nos metadados."""
+    def chave(e):
+        return (e["name"].strip().lower(), e["raw_metadata"].get("operadora"), round(e["latitude"], 1), round(e["longitude"], 1))
+
+    grupos: dict = {}
+    for e in estacoes:
+        grupos.setdefault(chave(e), []).append(e)
+    out = []
+    for g in grupos.values():
+        flu = [e for e in g if e["station_type"] == Station.StationType.HIDROLOGICA]
+        base = (flu or g)[0]
+        base["raw_metadata"]["codigos_ana"] = sorted(e["external_id"] for e in g)
+        out.append(base)
+    return out
 
 
 def leituras_da_serie(codigo: str, itens: list[dict], fuso: ZoneInfo) -> list[dict]:
@@ -237,9 +280,12 @@ class AnaHidroWebConnector(BaseConnector):
     def __init__(self, cliente: ClienteAna | None = None):
         self._cliente = cliente
         self.uf = os.environ.get("ANA_HIDRO_UF", "RJ")
-        self.max_por_execucao = int(os.environ.get("ANA_HIDRO_MAX_POR_EXECUCAO", "25"))
+        self.max_por_execucao = int(os.environ.get("ANA_HIDRO_MAX_POR_EXECUCAO", "40"))
+        self.orcamento_s = float(os.environ.get("ANA_HIDRO_ORCAMENTO_S", "80"))  # tempo máximo lendo estações por rodada
         self.fuso = ZoneInfo(os.environ.get("ANA_HIDRO_FUSO", "America/Sao_Paulo"))
         self.excluir = {c.strip() for c in os.environ.get("ANA_HIDRO_EXCLUIR", "").split(",") if c.strip()}
+        operadoras = os.environ.get("ANA_HIDRO_EXCLUIR_OPERADORAS", OPERADORAS_JA_NO_PAINEL)
+        self.excluir_operadoras = {o.strip().upper() for o in operadoras.split(",") if o.strip()}
         self.extras = [c.strip() for c in os.environ.get("ANA_HIDRO_INCLUIR", "").split(",") if c.strip()]
 
     @property
@@ -262,7 +308,9 @@ class AnaHidroWebConnector(BaseConnector):
         return itens
 
     def fetch_stations(self) -> list[dict]:
-        estacoes = [e for e in (estacao_de_inventario(i) for i in self._inventario()) if e and e["external_id"] not in self.excluir]
+        estacoes = [e for e in (estacao_de_inventario(i) for i in self._inventario()) if e]
+        estacoes = [e for e in estacoes if str(e["raw_metadata"].get("operadora") or "").upper() not in self.excluir_operadoras]
+        estacoes = [e for e in consolidar_pares(estacoes) if e["external_id"] not in self.excluir]
         return sorted(estacoes, key=lambda e: e["external_id"])
 
     def fetch_readings(self, stations: list[dict]) -> list[dict]:
@@ -275,12 +323,17 @@ class AnaHidroWebConnector(BaseConnector):
         lote = [stations[(inicio + k) % len(stations)] for k in range(min(self.max_por_execucao, len(stations)))]
         hoje = dt.datetime.now(self.fuso).date()
         leituras: list[dict] = []
+        limite = time.time() + self.orcamento_s
+        feitas = 0
         for est in lote:
+            if feitas and time.time() > limite:
+                break  # sem estourar o tempo do CGI: o que faltou fica para a próxima rodada (cursor)
+            feitas += 1
             try:
                 leituras += leituras_da_serie(est["external_id"], self.cliente.serie_adotada(est["external_id"], hoje), self.fuso)
             except AnaErro as exc:
                 logger.warning("ANA %s: %s", est["external_id"], exc)
         estado = _ler_json("estado.json")
-        estado["cursor"] = (inicio + len(lote)) % len(stations)
+        estado["cursor"] = (inicio + feitas) % len(stations)
         _gravar_json("estado.json", estado)
         return leituras

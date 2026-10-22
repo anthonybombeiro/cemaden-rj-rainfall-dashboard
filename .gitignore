@@ -20,3 +20,4 @@ frontend/.env*.local
 Thumbs.db
 
 backend/.env.local
+backend/cache_ana/

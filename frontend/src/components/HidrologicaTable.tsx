@@ -180,6 +180,7 @@ const HidrologicaTable = forwardRef<
       "Estação",
       "Rio Monitorado",
       "Nível Atual (m)",
+      "Vazão (m³/s)",
       "Cota (classe)",
       "Situação",
       ...JANELAS_CHUVA.map((j) => `${j.label} (mm)`),
@@ -196,6 +197,7 @@ const HidrologicaTable = forwardRef<
       s.name,
       s.rio_monitorado || "",
       s.nivel_atual_m ?? "",
+      s.vazao_atual_m3s ?? "",
       s.cota_classe ? COTA_ESTILOS[s.cota_classe].label : "",
       s.tendencia ? TENDENCIA_ESTILO[s.tendencia].titulo : "",
       ...JANELAS_CHUVA.map((j) => (s[j.key] as number | null) ?? ""),
@@ -273,6 +275,14 @@ const HidrologicaTable = forwardRef<
             >
               Nível Atual{arrow("nivel_atual_m")}
               {resizer("nivel")}
+            </th>
+            <th
+              className={`${TH_BASE} !bg-sedec-50 text-center`}
+              style={wStyle("situacao")}
+              onClick={() => toggleSort("vazao_atual_m3s")}
+              title="Vazão do rio em m³/s (última leitura; hoje só as estações da ANA informam)"
+            >
+              Vazão m³/s{arrow("vazao_atual_m3s")}
             </th>
             <th
               className={`${TH_BASE} !bg-sedec-50 text-center`}
@@ -358,6 +368,9 @@ const HidrologicaTable = forwardRef<
                   title={`${cotaEstilo ? cotaEstilo.label + " — " : ""}${cotaTitulo(s)}`}
                 >
                   {formatMetros(s.nivel_atual_m)}
+                </td>
+                <td className="whitespace-nowrap px-1.5 py-1 text-center align-middle text-gray-800" style={{ backgroundColor: bgFundo }} title={s.vazao_max_24h_m3s != null ? `Máxima nas últimas 24 h: ${s.vazao_max_24h_m3s.toFixed(1).replace(".", ",")} m³/s` : "Sem vazão informada"}>
+                  {s.vazao_atual_m3s == null ? "—" : s.vazao_atual_m3s.toFixed(1).replace(".", ",")}
                 </td>
                 <td className="px-1 py-1 text-center align-middle" style={{ backgroundColor: bgFundo }}>
                   <SetaSituacao tendencia={s.tendencia} />

@@ -10,14 +10,17 @@ from core.models import Reading, Station
 from ingestion.connectors import ana_hidroweb as ana
 
 INVENTARIO = [
-    # fluviométrica telemétrica operando (Petrópolis aprox.)
-    {"codigoestacao": "58880001", "Estacao_Nome": "PETROPOLIS - FAZENDA SAO JOAO", "Latitude": "-22.5113", "Longitude": "-43.1779", "Altitude": "810", "Tipo_Estacao": "Fluviometrica", "Operando": "1", "Municipio_Nome": "PETROPOLIS", "Bacia_Nome": "RIO PARAIBA DO SUL", "Operadora_Sigla": "SGB", "Responsavel_Sigla": "ANA", "UF_Estacao": "RJ", "Data_Periodo_Telemetrica_Inicio": "2012-01-01 00:00:00.0", "Data_Periodo_Telemetrica_Fim": None},
-    # pluviométrica telemétrica
-    {"codigoestacao": "58880002", "Estacao_Nome": "TERESOPOLIS", "Latitude": "-22.4122", "Longitude": "-42.9658", "Tipo_Estacao": "Pluviometrica", "Operando": "1", "Municipio_Nome": "TERESOPOLIS", "Data_Periodo_Telemetrica_Inicio": "2010-01-01 00:00:00.0", "Data_Periodo_Telemetrica_Fim": None},
+    # mesma estação física, duas linhas (fluviométrica de 8 dígitos e pluviométrica de 7) — vira uma só
+    {"codigoestacao": "58880001", "Estacao_Nome": "PETROPOLIS - FAZENDA SAO JOAO", "Latitude": "-22.5113", "Longitude": "-43.1779", "Altitude": "810", "Tipo_Estacao": "Fluviometrica", "Operando": "1", "Tipo_Estacao_Telemetrica": "1", "Municipio_Nome": "PETROPOLIS", "Bacia_Nome": "RIO PARAIBA DO SUL", "Operadora_Sigla": "SGB-CPRM", "Responsavel_Sigla": "ANA", "UF_Estacao": "RJ", "Data_Periodo_Telemetrica_Inicio": "2012-01-01 00:00:00.0", "Data_Periodo_Telemetrica_Fim": None},
+    {"codigoestacao": "2243001", "Estacao_Nome": "PETROPOLIS - FAZENDA SAO JOAO", "Latitude": "-22.5113", "Longitude": "-43.1779", "Tipo_Estacao": "Pluviometrica", "Operando": "1", "Tipo_Estacao_Telemetrica": "1", "Operadora_Sigla": "SGB-CPRM", "Data_Periodo_Telemetrica_Inicio": "2012-01-01 00:00:00.0", "Data_Periodo_Telemetrica_Fim": None},
+    # pluviométrica telemétrica sozinha
+    {"codigoestacao": "58880002", "Estacao_Nome": "TERESOPOLIS", "Latitude": "-22.4122", "Longitude": "-42.9658", "Tipo_Estacao": "Pluviometrica", "Operando": "1", "Tipo_Estacao_Telemetrica": "1", "Operadora_Sigla": "LIGHT", "Municipio_Nome": "TERESOPOLIS", "Data_Periodo_Telemetrica_Inicio": "2010-01-01 00:00:00.0", "Data_Periodo_Telemetrica_Fim": None},
+    # já entra no painel por outra fonte (CEMADEN/INEA/INMET): fica de fora por padrão
+    {"codigoestacao": "6", "Estacao_Nome": "DO CEMADEN", "Latitude": "-22.5", "Longitude": "-43.1", "Tipo_Estacao": "Pluviometrica", "Operando": "1", "Tipo_Estacao_Telemetrica": "1", "Operadora_Sigla": "CEMADEN"},
     # fora: não opera, convencional (sem telemetria), com fim de telemetria, sem coordenada, tipo desconhecido
-    {"codigoestacao": "1", "Estacao_Nome": "PARADA", "Latitude": "-22.5", "Longitude": "-43.1", "Tipo_Estacao": "Fluviometrica", "Operando": "0", "Data_Periodo_Telemetrica_Inicio": "2010-01-01"},
-    {"codigoestacao": "2", "Estacao_Nome": "MANUAL", "Latitude": "-22.5", "Longitude": "-43.1", "Tipo_Estacao": "Pluviometrica", "Operando": "1", "Data_Periodo_Telemetrica_Inicio": None},
-    {"codigoestacao": "3", "Estacao_Nome": "ENCERRADA", "Latitude": "-22.5", "Longitude": "-43.1", "Tipo_Estacao": "Pluviometrica", "Operando": "1", "Data_Periodo_Telemetrica_Inicio": "2010-01-01", "Data_Periodo_Telemetrica_Fim": "2020-01-01"},
+    {"codigoestacao": "1", "Estacao_Nome": "PARADA", "Latitude": "-22.5", "Longitude": "-43.1", "Tipo_Estacao": "Fluviometrica", "Operando": "0", "Tipo_Estacao_Telemetrica": "1"},
+    {"codigoestacao": "2", "Estacao_Nome": "MANUAL", "Latitude": "-22.5", "Longitude": "-43.1", "Tipo_Estacao": "Pluviometrica", "Operando": "1", "Tipo_Estacao_Telemetrica": "0"},
+    {"codigoestacao": "3", "Estacao_Nome": "ENCERRADA", "Latitude": "-22.5", "Longitude": "-43.1", "Tipo_Estacao": "Pluviometrica", "Operando": "1", "Tipo_Estacao_Telemetrica": "1", "Data_Periodo_Telemetrica_Fim": "2020-01-01"},
     {"codigoestacao": "4", "Estacao_Nome": "SEM COORD", "Tipo_Estacao": "Pluviometrica", "Operando": "1"},
     {"codigoestacao": "5", "Estacao_Nome": "OUTRO", "Latitude": "-22.5", "Longitude": "-43.1", "Tipo_Estacao": "Sedimentometrica", "Operando": "1"},
 ]
@@ -49,7 +52,7 @@ class SessaoFalsa:
         if url.endswith("/OAUth/v1"):
             assert headers["Identificador"] == "id" and headers["Senha"] == "senha"
             self.logins += 1
-            return Resposta(200, {"status": "OK", "code": 200, "items": {"tokenautenticacao": f"tok{self.logins}", "sucesso": "true"}})
+            return Resposta(200, {"status": "OK", "code": 200, "items": {"tokenautenticacao": f"tok{self.logins}", "sucesso": "true", "validade": "Thu Oct 22 12:48:12 GMT-03:00 2026"}})
         assert headers["Authorization"].startswith("Bearer tok")
         if self.token_recusado_uma_vez:
             self.token_recusado_uma_vez = False
@@ -58,8 +61,9 @@ class SessaoFalsa:
             assert params["Unidade Federativa"] == "RJ"
             return Resposta(200, {"status": "OK", "code": 200, "items": INVENTARIO})
         if url.endswith("/HidroinfoanaSerieTelemetricaAdotada/v1"):
-            self.consultas.append(params["CodigoDaEstacao"])
-            return Resposta(200, {"status": "OK", "code": 200, "items": SERIE if params["CodigoDaEstacao"] == "58880001" else []})
+            self.consultas.append(params["Código da Estação"])
+            assert params["Tipo Filtro Data"] == "DATA_LEITURA" and "Range Intervalo de busca" in params and "Data de Busca (yyyy-MM-dd)" in params
+            return Resposta(200, {"status": "OK", "code": 200, "items": SERIE if params["Código da Estação"] == "58880001" else []})
         raise AssertionError(url)
 
 
@@ -77,8 +81,10 @@ class AnaTest(TestCase):
     def test_inventario_vira_estacoes_e_descarta_o_que_nao_serve(self):
         con = ana.AnaHidroWebConnector(ana.ClienteAna("id", "senha", SessaoFalsa()))
         est = con.fetch_stations()
+        # o par pluviométrico+fluviométrico vira uma estação só; "do CEMADEN", parada, manual, encerrada, sem coordenada e tipo outro saem
         self.assertEqual([e["external_id"] for e in est], ["58880001", "58880002"])
         flu = est[0]
+        self.assertEqual(flu["raw_metadata"]["codigos_ana"], ["2243001", "58880001"])
         self.assertEqual((flu["station_type"], flu["municipality"], flu["name"]), (Station.StationType.HIDROLOGICA, "Petrópolis", "Petropolis - Fazenda Sao Joao"))
         self.assertEqual(est[1]["station_type"], Station.StationType.PLUVIOMETRICA)
 
@@ -93,6 +99,15 @@ class AnaTest(TestCase):
         self.assertNotIn((Reading.ReadingType.NIVEL_M, "02:15"), por)
         self.assertNotIn((Reading.ReadingType.VAZAO_M3S, "02:15"), por)
         self.assertEqual(por[(Reading.ReadingType.CHUVA_MM, "02:15")], 2.4)
+
+    def test_operadoras_ja_no_painel_so_entram_se_pedido(self):
+        with mock.patch.dict("os.environ", {"ANA_HIDRO_EXCLUIR_OPERADORAS": ""}):
+            con = ana.AnaHidroWebConnector(ana.ClienteAna("id", "senha", SessaoFalsa()))
+            self.assertIn("6", [e["external_id"] for e in con.fetch_stations()])
+
+    def test_validade_do_token_informada_pela_ana(self):
+        self.assertEqual(ana._epoch_validade("Thu Oct 22 12:48:12 GMT-03:00 2026"), dt.datetime(2026, 10, 22, 15, 48, 12, tzinfo=dt.timezone.utc).timestamp())
+        self.assertIsNone(ana._epoch_validade("lixo"))
 
     def test_token_e_reaproveitado_e_renovado_se_recusado(self):
         sessao = SessaoFalsa()

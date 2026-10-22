@@ -354,7 +354,8 @@ export type RedeSource =
   | "ecowitt_paracambi"
   | "inmet"
   | "redemet"
-  | "cemaden_rj_sirenes";
+  | "cemaden_rj_sirenes"
+  | "ana";
 
 /** Linha da tabela de uma rede. `oficial` depende da fonte: Macaé
  * {"1","24","96"}; Plugfield {"hoje","mes","ano"}; Wunderground {"hoje","taxa"}.
@@ -381,6 +382,8 @@ export type RedeStation = {
     tmin?: number;
     rad?: number;
     nivel?: number;
+    /** Vazão em m³/s (ANA). */
+    vazao?: number;
   };
   extra: Record<string, string | number | boolean | null | undefined>;
   qualidade: "suspeito" | "invalido" | null;
@@ -468,6 +471,10 @@ export type HidrologicaStation = PrecipitacaoStation & {
   nivel_max_24h_m: number | null;
   nivel_min_24h_m: number | null;
   nivel_atualizado_em: string | null;
+  /** Vazão (m³/s) — hoje só a ANA informa; null nas demais. */
+  vazao_atual_m3s: number | null;
+  vazao_max_24h_m3s: number | null;
+  vazao_atualizada_em: string | null;
   /** Direção do nível nas 3 últimas leituras (null = menos de 3 leituras). */
   tendencia: TendenciaNivel | null;
   rio_monitorado: string;
@@ -741,6 +748,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   ecowitt_paracambi: "Paracambi (Defesa Civil)",
   macae_ufrj: "Macaé (Defesa Civil/UFRJ)",
   redemet: "REDEMET (Aeronáutica)",
+  ana: "ANA — Hidrotelemetria",
 };
 
 /** Uma cor fixa por fonte, pra dar pra distinguir de relance numa tabela
@@ -769,6 +777,7 @@ export const SOURCE_COLORS: Record<string, string> = {
   ecowitt_paracambi: "#0EA5E9", // emprestado da cor do SIMGE lá
   macae_ufrj: "#7C3AED", // emprestado da cor do CEMADEN-MG lá
   redemet: "#1E3A8A", // azul-marinho — remete à farda/identidade da Aeronáutica
+  ana: "#0891B2", // ciano — rede nova (22/10/2026), distinta do INEA (verde-água)
 };
 
 /** Faixas de atraso (tempo desde a última leitura) e cor associada — mesma
@@ -777,7 +786,7 @@ export const SOURCE_COLORS: Record<string, string> = {
  * (horas), enquanto as nossas atualizam tipicamente a cada 15min–1h. */
 /** Quantas horas sem leitura até a estação ser considerada ATRASADA, por fonte (padrão 1 h). Estações horárias (INMET) recebem o dado
  * com atraso: 3 h evita pintá-las de cinza logo após a virada da hora. Em sincronia com `TOLERANCIA_ATRASO_H` (backend/api/views.py). */
-export const LIMITE_ATRASO_H_POR_FONTE: Record<string, number> = { inmet: 3, redemet: 3 };
+export const LIMITE_ATRASO_H_POR_FONTE: Record<string, number> = { inmet: 3, redemet: 3, ana: 2 };
 
 export function limiteAtrasoH(source?: string | null): number {
   return (source && LIMITE_ATRASO_H_POR_FONTE[source]) || 1;

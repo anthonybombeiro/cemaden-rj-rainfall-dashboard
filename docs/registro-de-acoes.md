@@ -225,6 +225,10 @@ Aba Acionamentos do município restrita aos 17 municípios com sirenes, em lista
 
 Leitura do OpenAPI, do manual oficial e da resposta da ANA; conector `ana_hidroweb.py` (fonte `ana`, inativa até haver credencial), tipo de leitura `vazao_m3s` (migração 0024) e rota de diagnóstico somente leitura `/api/admin/ana/`. A senha **não** foi vista nem registrada. Ver docs/ana-hidrowebservice.md.
 
+## 22/10/2026 (tarde) — ANA em produção
+
+Credenciais enviadas ao `.env` do servidor por SFTP (sem exibir valores). Fonte `ana` ligada: 121 estações (94 com nível, 62 com vazão), primeira ingestão em produção sem erros, coluna **Vazão (m³/s)** na tabela Hidrológicos e nova sub-aba **Dados → ANA**. Sem cron próprio: a ANA roda de **carona no cron da REDEMET** (`7-59/15`, 120 s), lote de até 40 estações por rodada em rodízio, com orçamento de 80 s. Detalhes e achados confirmados em docs/ana-hidrowebservice.md (seção 6).
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

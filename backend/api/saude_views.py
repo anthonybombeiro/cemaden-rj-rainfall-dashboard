@@ -31,6 +31,7 @@ CADENCIA_MIN = {
     "inmet": 15,
     "redemet": 15,
     "ecowitt_paracambi": 15,
+    "ana": 30,  # rodízio: cada estação é lida ~1 vez por hora
 }
 # Sirenes têm faixa própria (`SirenesStatusView`); estas não têm coleta periódica de estações.
 IGNORAR = {"cemaden_rj_sirenes", "cemaden_rj", "cemaden_nacional", "rio_chuva_bairro", "marinha_avisos"}

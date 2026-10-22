@@ -140,6 +140,14 @@ class AdminOpsView(APIView):
                     sir = sincronizar_sirenes_se_vencido()
                     if sir is not None:
                         saida.write(f"\n  sirenes (carona): {sir}")
+                if source == "redemet":  # carona (cron de 15 min, 120 s): lê um lote da ANA em rodízio; não depende de cron próprio
+                    from ingestion.connectors import ana_hidroweb
+
+                    try:
+                        saida.write("\n  ana (carona): " + ana_hidroweb.AnaHidroWebConnector().run().summary())
+                    except Exception as exc:  # noqa: BLE001 - a carona nunca derruba a ingestão da REDEMET
+                        logger.exception("Falha na carona da ANA")
+                        saida.write(f"\n  ana (carona): falhou ({exc.__class__.__name__})")
                 if source == "inea":  # carona (cron de 15 min): atualiza o Google Flood Hub a cada 30 min
                     from ingestion import floodhub as floodhub_mod
 
@@ -668,10 +676,10 @@ class ImportarRecomendacoesSuperuserView(APIView):
 
 
 class AnaDiagnosticoSuperuserView(APIView):
-    """POST /api/admin/ana/ — diagnóstico SOMENTE LEITURA da API HidroWebService da ANA (superusuário logado, sessão + CSRF).
+    """POST /api/admin/ana/ — diagnóstico da API HidroWebService da ANA (superusuário logado, sessão + CSRF).
     Corpo: {"acao": "inventario"} lista as estações do RJ que entrariam (e as descartadas, por motivo);
            {"acao": "serie", "codigo": "58880001"} devolve os primeiros itens BRUTOS da série adotada (serve para conferir o
-           nome dos parâmetros, o fuso e a unidade). Não grava nada no banco. Credenciais: ANA_HIDRO_IDENTIFICADOR/SENHA no .env."""
+           nome dos parâmetros, o fuso e a unidade). Só a ação "ingerir" grava (um lote do rodízio, igual à carona do cron). Credenciais: ANA_HIDRO_IDENTIFICADOR/SENHA no .env."""
 
     def post(self, request):
         if not request.user.is_superuser:
@@ -698,13 +706,20 @@ class AnaDiagnosticoSuperuserView(APIView):
                         "campos_do_inventario": sorted(itens[0].keys()) if itens else [],
                     }
                 )
+            if acao == "inventario_bruto":
+                itens = con.cliente.inventario(con.uf)
+                campos = ["codigoestacao", "Estacao_Nome", "Tipo_Estacao", "Operando", "Tipo_Estacao_Telemetrica", "Data_Periodo_Telemetrica_Inicio", "Data_Periodo_Telemetrica_Fim", "Operadora_Sigla", "Responsavel_Sigla", "Municipio_Nome", "Rio_Nome", "Bacia_Nome", "Latitude", "Longitude", "Data_Ultima_Atualizacao", "Tipo_Estacao_Pluviometro", "Tipo_Estacao_Registrador_Chuva", "Tipo_Estacao_Registrador_Nivel", "Tipo_Estacao_Escala", "Tipo_Estacao_Desc_Liquida"]
+                return Response({"ok": True, "total": len(itens), "linhas": [[i.get(c) for c in campos] for i in itens], "campos": campos})
             if acao == "serie":
                 codigo = str((request.data or {}).get("codigo") or "").strip()
                 if not codigo:
                     return Response({"detail": "Informe o código da estação."}, status=400)
                 itens = con.cliente.serie_adotada(codigo, dt.datetime.now(con.fuso).date(), (request.data or {}).get("intervalo") or "HORA_6")
                 return Response({"ok": True, "codigo": codigo, "quantidade": len(itens), "primeiros": itens[:5], "ultimos": itens[-3:], "agora_utc": dt.datetime.now(dt.timezone.utc).isoformat()})
-            return Response({"detail": "acao deve ser 'inventario' ou 'serie'."}, status=400)
+            if acao == "ingerir":  # grava no banco: um lote do rodízio (mesmo que a carona do cron)
+                resultado = con.run()
+                return Response({"ok": True, "resumo": resultado.summary(), "erros": resultado.errors[:10]})
+            return Response({"detail": "acao deve ser 'inventario', 'serie' ou 'ingerir'."}, status=400)
         except ana.AnaErro as exc:
             return Response({"ok": False, "detail": str(exc)}, status=502)
 

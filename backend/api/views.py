@@ -68,6 +68,7 @@ PRECIPITACAO_BUCKET_SOURCES = {
     "plugfield",
     "macae_ufrj",
     "ecowitt_paracambi",  # incluída em 06/10/2026 (o conector converte o total do dia em balde)
+    "ana",  # 22/10/2026: Chuva_Adotada da ANA é a chuva de cada intervalo de 15-60 min (confirmado com a API)
 }
 PRECIPITACAO_RUNNING_DAILY_SOURCES: set[str] = set()
 
@@ -82,7 +83,7 @@ OFICIAL_VALIDADE_H = 2
 # Tolerância (h) de atraso por fonte: estações HORÁRIAS recebem o dado com atraso (INMET: a leitura de cada hora chega depois). Dentro da
 # tolerância a estação NÃO é tratada como atrasada e as janelas (1 h, 3 h…) são contadas a partir da última leitura, não de "agora".
 # Mantenha em sincronia com `LIMITE_ATRASO_H_POR_FONTE` em frontend/src/lib/api.ts.
-TOLERANCIA_ATRASO_H = {"inmet": 3.0, "redemet": 3.0}
+TOLERANCIA_ATRASO_H = {"inmet": 3.0, "redemet": 3.0, "ana": 2.0}  # ANA: lemos em rodízio (ciclo de ~1 h)
 MAPA_ACUMULADOS_OFICIAIS = {
     "alerta_rio": {
         "acumulado_5min_mm": "m05", "acumulado_10min_mm": "m10", "acumulado_15min_mm": "m15",
@@ -937,7 +938,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
 
     REDES_TABELA = (
         "plugfield", "macae_ufrj", "wunderground", "niteroi", "alerta_rio", "inea", "ecowitt_paracambi", "inmet", "redemet",
-        "cemaden_rj_sirenes",
+        "cemaden_rj_sirenes", "ana",
     )
 
     @action(detail=False, methods=["get"])
@@ -974,6 +975,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             "temperatura_min_c": "tmin",
             "radiacao_wm2": "rad",
             "nivel_m": "nivel",
+            "vazao_m3s": "vazao",
         }
         atuais: dict = {}
         for sid, rt, valor in (
@@ -1027,6 +1029,9 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 oficial = dict(snap.get("acc") or {})
                 codigo = str(meta.get("codigo_inea") or st.external_id)
                 extra = {"tipo_inea": meta.get("tipo_inea")}
+            elif slug == "ana":
+                codigo = st.external_id
+                extra = {"operadora": meta.get("operadora"), "bacia": meta.get("bacia"), "responsavel": meta.get("responsavel"), "tipo_ana": meta.get("tipo_ana")}
             elif slug == "cemaden_rj_sirenes":
                 if not meta.get("tem_pluviometro"):
                     continue  # só as sirenes com pluviômetro entram na tabela de chuva
@@ -1143,6 +1148,11 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         for r in leituras_nivel:
             nivel_por_estacao[r["station_id"]].append(r)
 
+        # Vazão (m³/s; hoje só a ANA informa): última leitura e máximo das últimas 24 h
+        vazao_por_estacao = defaultdict(list)
+        for r in Reading.objects.filter(station_id__in=station_ids, reading_type=Reading.ReadingType.VAZAO_M3S, timestamp__gte=cutoff_24h).values("station_id", "value", "timestamp"):
+            vazao_por_estacao[r["station_id"]].append(r)
+
         chuva_por_estacao = {
             entry["id"]: entry for entry in self._calcular_precipitacao(stations)
         }
@@ -1150,6 +1160,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         data = []
         for station in stations:
             rows = sorted(nivel_por_estacao.get(station.id, []), key=lambda r: r["timestamp"])
+            vazoes = sorted(vazao_por_estacao.get(station.id, []), key=lambda r: r["timestamp"])
             latest = rows[-1] if rows else None
             chuva = chuva_por_estacao.get(station.id, {})
             entry = {
@@ -1165,6 +1176,9 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 "nivel_max_24h_m": max((r["value"] for r in rows), default=None),
                 "nivel_min_24h_m": min((r["value"] for r in rows), default=None),
                 "nivel_atualizado_em": latest["timestamp"] if latest else None,
+                "vazao_atual_m3s": vazoes[-1]["value"] if vazoes else None,
+                "vazao_max_24h_m3s": max((r["value"] for r in vazoes), default=None),
+                "vazao_atualizada_em": vazoes[-1]["timestamp"] if vazoes else None,
                 "tendencia": tendencia_nivel([r["value"] for r in rows[-3:]]),
                 "rio_monitorado": station.rio_monitorado,
                 "regiao_hidrografica": station.regiao_hidrografica,
