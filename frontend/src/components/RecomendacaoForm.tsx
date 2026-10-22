@@ -12,6 +12,7 @@ import {
   fetchProximoNumero,
   GATILHOS,
   gatilhosAtingidos,
+  gatilhosDe,
   horaCurta,
   indiceAutomatico,
   MunicipioGatilho,
@@ -51,7 +52,7 @@ type Estado = {
   c24: string;
   c96: string;
   c30: string;
-  gatilho: string;
+  gatilho: string[];
   estagio: string;
   acionaram: boolean | null;
   qtd: string;
@@ -82,7 +83,7 @@ function inicial(r: Recomendacao | undefined, responsavel: string, pre?: PreReco
       c24: s(pre.chuva_24h_mm),
       c96: s(pre.chuva_96h_mm),
       c30: s(pre.chuva_30d_mm),
-      gatilho: pre.gatilho,
+      gatilho: pre.gatilhos,
       estagio: "",
       acionaram: null,
       qtd: "",
@@ -103,7 +104,7 @@ function inicial(r: Recomendacao | undefined, responsavel: string, pre?: PreReco
     c24: s(r?.chuva_24h_mm),
     c96: s(r?.chuva_96h_mm),
     c30: s(r?.chuva_30d_mm),
-    gatilho: r?.gatilho ?? "",
+    gatilho: gatilhosDe(r?.gatilho),
     estagio: r?.estagio_operacional ?? "",
     acionaram: r?.acionaram ?? null,
     qtd: s(r?.sirenes_qtd),
@@ -216,7 +217,7 @@ export default function RecomendacaoForm({
       estacao: f.estacao.trim(),
       indice_alcancado: f.indice_alcancado.trim() || indiceAutomatico(base),
       ...base,
-      gatilho: f.gatilho as RecomendacaoInput["gatilho"],
+      gatilho: f.gatilho.join(","),
       estagio_operacional: f.estagio as RecomendacaoInput["estagio_operacional"],
       acionaram: f.acionaram,
       sirenes_qtd: f.acionaram === null ? null : qtd,
@@ -246,7 +247,7 @@ export default function RecomendacaoForm({
       <h2 className="text-base font-bold text-gray-800">{titulo}</h2>
       {m === "envio" && preenchimento && !editando && (
         <div className="rounded border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900">
-          Pré-preenchida a partir da tabela de sirenes (<b>{preenchimento.origem}</b> · gatilho {preenchimento.gatilho}) com as chuvas atuais do pluviômetro <b>{preenchimento.estacao}</b>. Confira a data, a hora e os valores antes de cadastrar. Sirenes ligadas a este pluviômetro: {preenchimento.sirenes.join("; ") || "—"}.
+          Pré-preenchida a partir da tabela de sirenes (<b>{preenchimento.origem}</b> · gatilho {preenchimento.gatilhos.join(" + ")}) com as chuvas atuais do pluviômetro <b>{preenchimento.estacao}</b>. Confira a data, a hora e os valores antes de cadastrar. Sirenes ligadas a este pluviômetro: {preenchimento.sirenes.join("; ") || "—"}.
         </div>
       )}
       {m === "envio" && <p className="text-xs text-gray-500">Cadastre no momento do envio. A validação (o município acionou? quais sirenes?) é lançada depois, pelo botão <b>Validar</b> do cartão.</p>}
@@ -326,8 +327,17 @@ export default function RecomendacaoForm({
           </fieldset>
 
           <div>
-            <label className={rotulo}>Gatilho</label>
-            <Segmentos valor={f.gatilho} opcoes={[["", "—"], ...GATILHOS.map((g) => [g, g] as [string, string])]} onChange={(v) => set("gatilho", v)} rotuloAria="Gatilho" />
+            <label className={rotulo}>Gatilho(s) — pode marcar mais de um</label>
+            <div className="flex overflow-hidden rounded border border-gray-300" role="group" aria-label="Gatilho">
+              {GATILHOS.map((g) => {
+                const on = f.gatilho.includes(g);
+                return (
+                  <button key={g} type="button" aria-pressed={on} onClick={() => set("gatilho", on ? f.gatilho.filter((x) => x !== g) : [...f.gatilho, g].sort((x, y) => GATILHOS.indexOf(x as "I") - GATILHOS.indexOf(y as "I")))} className={`flex-1 px-2 py-1.5 text-sm font-medium ${on ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-100"}`}>
+                    {g}
+                  </button>
+                );
+              })}
+            </div>
             {limiares && (
               <p className="mt-1 text-[11px] text-gray-500">
                 Limiares de {limiares.municipio}: I ≥ {limiares.gi_1h ?? "—"} mm/1h · II ≥ {limiares.gii_1h ?? "—"}/1h + {limiares.gii_24h ?? "—"}/24h · III ≥ {limiares.giii_1h ?? "—"}/1h + {limiares.giii_96h ?? "—"}/96h · IV ≥ {limiares.giv_1h ?? "—"}/1h + {limiares.giv_30d ?? "—"}/30d
@@ -336,11 +346,9 @@ export default function RecomendacaoForm({
             {atingidos.length > 0 && (
               <p className="mt-1 text-xs text-emerald-800">
                 Pelos valores informados, atingidos: <b>{atingidos.join(", ")}</b>{" "}
-                {atingidos.length > 0 && (
-                  <button type="button" onClick={() => set("gatilho", atingidos[atingidos.length - 1])} className="ml-1 rounded bg-emerald-100 px-2 py-0.5 font-semibold hover:bg-emerald-200">
-                    usar {atingidos[atingidos.length - 1]}
-                  </button>
-                )}
+                <button type="button" onClick={() => set("gatilho", atingidos)} className="ml-1 rounded bg-emerald-100 px-2 py-0.5 font-semibold hover:bg-emerald-200">
+                  usar {atingidos.join(" + ")}
+                </button>
               </p>
             )}
           </div>

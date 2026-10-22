@@ -1352,7 +1352,8 @@ class RecomendacaoAlarmeViewSet(viewsets.ModelViewSet):
         if v := p.get("probabilidade"):
             qs = qs.filter(probabilidade=v)
         if v := p.get("gatilho"):
-            qs = qs.filter(gatilho=v)
+            # o campo guarda "I", "I,IV"…: casa o gatilho como item da lista
+            qs = qs.filter(Q(gatilho=v) | Q(gatilho__startswith=f"{v},") | Q(gatilho__endswith=f",{v}") | Q(gatilho__contains=f",{v},"))
         if v := (p.get("q") or "").strip():
             qs = qs.filter(
                 Q(numero__icontains=v)

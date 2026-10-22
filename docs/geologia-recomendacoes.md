@@ -93,3 +93,12 @@ Backend (`manage.py test api.test_recomendacoes`, 8 testes): fluxo de validaçã
 * Arquivos: `components/GatilhosEmAndamento.tsx`, `SirenesTable.tsx` (coluna), `RecomendacaoForm.tsx` (`preenchimento`), `lib/recomendacoes.ts` (`maiorGatilho`, `preDeSirene`, `candidatasDeSirenes`), `Dashboard.tsx`.
 * Teste (servidor local; os dados de gatilho foram simulados no navegador porque a base local não tinha gatilho ativo): botão aparece nas sirenes com gatilho, abre o cadastro com tudo preenchido (Petrópolis · 24 de Maio 2 — Morro do Estado · IV · 52/80/140/520 mm), e o quadro lista os pluviômetros.
 * Pendência: avaliar o uso do limiar "condicionado" (≥ 95 %) como ponto de partida; se a equipe quiser só "obrigatório" ou "acionado", é um ajuste de uma linha em `maiorGatilho`.
+
+
+## 4ª etapa (22/10/2026, noite): vários gatilhos e nova recomendação no mesmo dia
+Decisões do usuário: o botão **liga sempre que o gatilho estiver "condicionado"** (já era assim: qualquer status não nulo, a partir de 95 % do limiar); o mesmo pluviômetro pode ser recomendado **mais de uma vez no dia, em gatilhos diferentes**, e **mais de um gatilho pode estar ativo ao mesmo tempo**.
+* **Vários gatilhos numa recomendação:** o campo `gatilho` guarda a lista (`"I,IV"`, ordem crescente, sem repetição; migração 0022). O formulário tem os botões I, II, III e IV **liga/desliga** (marque quantos quiser); "usar I + IV" aplica todos os atingidos pelas chuvas informadas. A API valida e normaliza (`"IV, i"` → `"I,IV"`; `V` é recusado) e o filtro `?gatilho=I` acha tanto `I` quanto `I,IV` (mas não `II`).
+* **Mensagem:** `Gatilho: I` (um) ou `Gatilhos: I e IV` / `I, II e IV` (vários), no texto e no card.
+* **Sirenes → pré-preenchimento:** o botão da coluna Recomendação mostra **todos** os gatilhos em andamento da sirene (ex.: **Recomendar I+IV**) e o quadro "Gatilhos em andamento agora" une os gatilhos de todas as sirenes do mesmo pluviômetro.
+* **Mesmo pluviômetro, mesmo dia:** o quadro mostra o que já foi recomendado hoje **por gatilho** (nº, gatilho e hora) e pré-preenche **só os gatilhos ainda não recomendados** ("novo(s): IV"); se todos já foram, o botão vira "Recomendar de novo" (pré-preenche tudo).
+* Teste local: gatilhos I (condicionado) e IV (obrigatório) simulados em Teresópolis/Caleme 1 com a recomendação nº 50 (gatilho I) já feita hoje → o quadro mostrou "novo(s): IV" e o botão "Pré-preencher (IV)"; marcando I e IV gerou a nº 51 com "Gatilhos: I e IV". Backend: 9 testes (incl. vários gatilhos e filtro).

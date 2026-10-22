@@ -74,6 +74,19 @@ class RecomendacaoAlarmeAPITest(APITestCase):
         self.assertEqual(self.client.post("/api/recomendacoes/", base(municipio="Niterói"), format="json").status_code, 400)
         self.assertEqual(self.client.post("/api/recomendacoes/", base(municipio="Angra dos Reis"), format="json").status_code, 400)
 
+    def test_varios_gatilhos_na_mesma_recomendacao(self):
+        self.client.force_authenticate(self.op)
+        r = self.client.post("/api/recomendacoes/", base(gatilho="IV, i"), format="json")
+        self.assertEqual((r.status_code, r.data["gatilho"]), (201, "I,IV"))
+        self.client.post("/api/recomendacoes/", base(gatilho="II"), format="json")
+        self.client.post("/api/recomendacoes/", base(gatilho="I"), format="json")
+        self.assertEqual(self.client.get("/api/recomendacoes/?gatilho=I").data["count"], 2)  # "I,IV" e "I" (não "II")
+        self.assertEqual(self.client.get("/api/recomendacoes/?gatilho=IV").data["count"], 1)
+        self.assertEqual(self.client.get("/api/recomendacoes/?gatilho=II").data["count"], 1)
+        self.assertEqual(self.client.post("/api/recomendacoes/", base(gatilho="V"), format="json").status_code, 400)
+        # a mesma estação pode ser recomendada de novo no mesmo dia, em outro gatilho
+        self.assertEqual(self.client.post("/api/recomendacoes/", base(gatilho="III"), format="json").status_code, 201)
+
     def test_filtros_resumo_edicao_e_exclusao(self):
         self.client.force_authenticate(self.op)
         a = self.client.post("/api/recomendacoes/", base(acionaram=True, sirenes_qtd=1, sirenes_acionadas="1"), format="json").data

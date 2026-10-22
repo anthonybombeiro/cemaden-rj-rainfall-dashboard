@@ -690,7 +690,7 @@ class RecomendacaoAlarme(models.Model):
     chuva_24h_mm = models.FloatField(null=True, blank=True)
     chuva_96h_mm = models.FloatField(null=True, blank=True)
     chuva_30d_mm = models.FloatField(null=True, blank=True)
-    gatilho = models.CharField(max_length=3, choices=Gatilho.choices, blank=True)
+    gatilho = models.CharField(max_length=15, blank=True, help_text="Gatilho(s) atingido(s): I, II, III e/ou IV; vários separados por vírgula (ex.: \"I,IV\").")
     estagio_operacional = models.CharField(max_length=15, choices=Estagio.choices, blank=True)
     # A recomendação é enviada primeiro; a validação (acionaram? quantas e quais sirenes?) vem depois — enquanto isso,
     # `acionaram` fica nulo ("aguardando validação").

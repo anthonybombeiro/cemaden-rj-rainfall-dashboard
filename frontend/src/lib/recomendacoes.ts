@@ -20,7 +20,8 @@ export type Recomendacao = {
   chuva_24h_mm: number | null;
   chuva_96h_mm: number | null;
   chuva_30d_mm: number | null;
-  gatilho: "" | "I" | "II" | "III" | "IV";
+  /** Um ou mais gatilhos atingidos, separados por vírgula ("I", "I,IV"). */
+  gatilho: string;
   estagio_operacional: "" | "ATENÇÃO" | "ALERTA" | "ALERTA MÁXIMO";
   /** null = aguardando validação (a recomendação é enviada primeiro; o município responde depois). */
   acionaram: boolean | null;
@@ -166,6 +167,13 @@ export function fetchMunicipiosRecomendacao(): Promise<MunicipioGatilho[]> {
   return cacheMunicipios;
 }
 
+/** "I,IV" -> ["I","IV"] */
+export const gatilhosDe = (g: string | null | undefined): string[] => (g ? g.split(",").map((x) => x.trim()).filter(Boolean) : []);
+/** "I,IV" -> "I + IV" (cartões e tabela). */
+export const rotuloGatilhos = (g: string | null | undefined) => gatilhosDe(g).join(" + ");
+/** "I e IV", "I, II e IV" (mensagem). */
+const listaPortugues = (l: string[]) => (l.length <= 1 ? l.join("") : `${l.slice(0, -1).join(", ")} e ${l[l.length - 1]}`);
+
 /** Gatilhos atingidos pelos valores informados (I: 1h; II: 1h+24h; III: 1h+96h; IV: 1h+30 dias — todos independentes). */
 export function gatilhosAtingidos(m: MunicipioGatilho | undefined, c1: number | null, c24: number | null, c96: number | null, c30: number | null): string[] {
   if (!m || c1 == null) return [];
@@ -193,7 +201,7 @@ export function mensagemRecomendacao(r: Pick<Recomendacao, "numero" | "municipio
     `Data: ${dataBr(r.data)}`,
     `Hora: ${hh}h${mi}`,
     ...(r.estacao ? [`Pluviômetro: ${r.estacao}`] : []),
-    ...(r.gatilho ? [`Gatilho: ${r.gatilho}`] : []),
+    ...(gatilhosDe(r.gatilho).length ? [`${gatilhosDe(r.gatilho).length > 1 ? "Gatilhos" : "Gatilho"}: ${listaPortugues(gatilhosDe(r.gatilho))}`] : []),
     "",
     "Fonte: CEMADEN-RJ - SEDEC",
   ].join("\n");
@@ -242,9 +250,9 @@ export type PreRecomendacao = {
   chuva_24h_mm: number | null;
   chuva_96h_mm: number | null;
   chuva_30d_mm: number | null;
-  /** Maior gatilho atingido (IV > III > II > I). */
-  gatilho: "I" | "II" | "III" | "IV";
-  /** Status do gatilho escolhido (condicionado / obrigatório / acionado). */
+  /** Todos os gatilhos em andamento (condicionado ou acima), em ordem crescente: ["I","IV"]. */
+  gatilhos: string[];
+  /** Pior status entre eles (condicionado < obrigatório < acionado). */
   situacao: Exclude<GatilhoStatus, null>;
   /** Sirenes que usam esse pluviômetro (sugestão para a validação). */
   sirenes: string[];
@@ -252,22 +260,23 @@ export type PreRecomendacao = {
   origem: string;
 };
 
-const ORDEM_GATILHOS: ["GIV", "GIII", "GII", "GI"] = ["GIV", "GIII", "GII", "GI"];
+const CHAVES = ["GI", "GII", "GIII", "GIV"] as const;
 const ROMANO = { GI: "I", GII: "II", GIII: "III", GIV: "IV" } as const;
+const PESO_SITUACAO = { acionado: 3, obrigatorio: 2, condicionado: 1 } as const;
 
-/** Maior gatilho em andamento da sirene (qualquer status não nulo: do "condicionado" — ≥ 95 % do limiar — ao acionado). */
-export function maiorGatilho(s: SireneStation): { gatilho: PreRecomendacao["gatilho"]; situacao: Exclude<GatilhoStatus, null> } | null {
+/** Gatilhos em andamento da sirene — TODOS os que estão com status (do "condicionado", ≥ 95 % do limiar, ao acionado):
+ * vários podem estar ativos ao mesmo tempo e a recomendação pode citar mais de um. */
+export function gatilhosEmAndamento(s: SireneStation): { gatilhos: string[]; situacao: Exclude<GatilhoStatus, null> } | null {
   if (!s.gatilho_definido) return null;
-  for (const k of ORDEM_GATILHOS) {
-    const st = s.gatilhos[k];
-    if (st) return { gatilho: ROMANO[k], situacao: st };
-  }
-  return null;
+  const ativos = CHAVES.filter((k) => s.gatilhos[k]);
+  if (!ativos.length) return null;
+  const situacao = ativos.map((k) => s.gatilhos[k] as Exclude<GatilhoStatus, null>).sort((a, b) => PESO_SITUACAO[b] - PESO_SITUACAO[a])[0];
+  return { gatilhos: ativos.map((k) => ROMANO[k]), situacao };
 }
 
 /** Monta o pré-preenchimento da recomendação para uma sirene; `todas` serve para achar as irmãs do mesmo pluviômetro. */
 export function preDeSirene(s: SireneStation, todas: SireneStation[]): PreRecomendacao | null {
-  const g = maiorGatilho(s);
+  const g = gatilhosEmAndamento(s);
   if (!g) return null;
   const chave = (x: SireneStation) => `${x.municipality}|${x.ref_id ?? `p${x.id}`}`;
   const irmas = todas.filter((x) => chave(x) === chave(s)).map((x) => x.name);
@@ -278,24 +287,33 @@ export function preDeSirene(s: SireneStation, todas: SireneStation[]): PreRecome
     chuva_24h_mm: s.chuva_24h_mm,
     chuva_96h_mm: s.chuva_96h_mm,
     chuva_30d_mm: s.chuva_30d_mm,
-    gatilho: g.gatilho,
+    gatilhos: g.gatilhos,
     situacao: g.situacao,
     sirenes: Array.from(new Set(irmas)).sort(),
     origem: s.name,
   };
 }
 
-/** Pluviômetros com gatilho em andamento agora (um por município+pluviômetro), do mais grave ao menos grave. */
+/** Pluviômetros com gatilho em andamento agora (um por município+pluviômetro, com a UNIÃO dos gatilhos das sirenes que o usam),
+ * do mais grave ao menos grave. */
 export function candidatasDeSirenes(todas: SireneStation[]): PreRecomendacao[] {
   const vistos = new Map<string, PreRecomendacao>();
-  const peso = { acionado: 3, obrigatorio: 2, condicionado: 1 } as const;
-  const romano = { I: 1, II: 2, III: 3, IV: 4 } as const;
   for (const s of todas) {
     const pre = preDeSirene(s, todas);
     if (!pre) continue;
     const k = `${pre.municipio}|${pre.estacao}`;
     const atual = vistos.get(k);
-    if (!atual || romano[pre.gatilho] > romano[atual.gatilho] || (romano[pre.gatilho] === romano[atual.gatilho] && peso[pre.situacao] > peso[atual.situacao])) vistos.set(k, pre);
+    if (!atual) {
+      vistos.set(k, pre);
+      continue;
+    }
+    atual.gatilhos = Array.from(new Set([...atual.gatilhos, ...pre.gatilhos])).sort((x, y) => ["I", "II", "III", "IV"].indexOf(x) - ["I", "II", "III", "IV"].indexOf(y));
+    if (PESO_SITUACAO[pre.situacao] > PESO_SITUACAO[atual.situacao]) atual.situacao = pre.situacao;
+    atual.chuva_1h_mm ??= pre.chuva_1h_mm;
+    atual.chuva_24h_mm ??= pre.chuva_24h_mm;
+    atual.chuva_96h_mm ??= pre.chuva_96h_mm;
+    atual.chuva_30d_mm ??= pre.chuva_30d_mm;
   }
-  return [...vistos.values()].sort((a, b) => peso[b.situacao] - peso[a.situacao] || romano[b.gatilho] - romano[a.gatilho] || a.municipio.localeCompare(b.municipio));
+  const mais = (p: PreRecomendacao) => ["I", "II", "III", "IV"].indexOf(p.gatilhos[p.gatilhos.length - 1]);
+  return [...vistos.values()].sort((a, b) => PESO_SITUACAO[b.situacao] - PESO_SITUACAO[a.situacao] || mais(b) - mais(a) || a.municipio.localeCompare(b.municipio));
 }

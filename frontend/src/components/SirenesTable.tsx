@@ -6,7 +6,7 @@ import ColumnResizer from "@/components/ColumnResizer";
 import { CampoClicavel, HistoricoIconLink, W_HISTORICO } from "@/components/EstacaoCellLinks";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import { GatilhoStatus, SireneStation } from "@/lib/api";
-import { maiorGatilho } from "@/lib/recomendacoes";
+import { gatilhosEmAndamento } from "@/lib/recomendacoes";
 import { downloadCsv } from "@/lib/csvExport";
 import { ShareData } from "@/lib/shareExport";
 import { useColumnWidths } from "@/lib/useColumnWidths";
@@ -501,16 +501,16 @@ const SirenesTable = forwardRef<
                 </td>
                 <td className={`${td} text-center`} style={{ backgroundColor: bgFundo }}>
                   {(() => {
-                    const g = maiorGatilho(s);
+                    const g = gatilhosEmAndamento(s);
                     if (!g) return <span className="text-gray-300">—</span>;
                     return (
                       <button
                         type="button"
                         onClick={() => onRecomendar?.(s)}
                         className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
-                        title={`Gatilho ${g.gatilho} em andamento (${GATILHO_ROTULO[g.situacao]}) — cadastrar recomendação pré-preenchida`}
+                        title={`Gatilho ${g.gatilhos.join(" + ")} em andamento (${GATILHO_ROTULO[g.situacao]}) — cadastrar recomendação pré-preenchida`}
                       >
-                        Recomendar {g.gatilho}
+                        Recomendar {g.gatilhos.join("+")}
                       </button>
                     );
                   })()}

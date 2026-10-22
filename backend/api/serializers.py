@@ -227,6 +227,15 @@ class RecomendacaoAlarmeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Número no formato NN_AAAA (ex.: 07_2026).")
         return v
 
+    def validate_gatilho(self, v):
+        """Um ou mais gatilhos (I, II, III, IV) — ex.: "IV,I" vira "I,IV" (ordem crescente, sem repetição)."""
+        partes = [p.strip().upper() for p in re.split(r"[,;+/ ]+", v or "") if p.strip()]
+        ordem = ["I", "II", "III", "IV"]
+        invalidos = [p for p in partes if p not in ordem]
+        if invalidos:
+            raise serializers.ValidationError("Gatilho deve ser I, II, III e/ou IV.")
+        return ",".join(g for g in ordem if g in partes)
+
     def validate(self, attrs):
         def get(k):
             return attrs.get(k, getattr(self.instance, k, None))

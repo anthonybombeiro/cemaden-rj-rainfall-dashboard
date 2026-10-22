@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 import ShareModal from "@/components/ShareModal";
-import { dataBr, horaCurta, mensagemRecomendacao, Recomendacao } from "@/lib/recomendacoes";
+import { dataBr, gatilhosDe, horaCurta, mensagemRecomendacao, Recomendacao } from "@/lib/recomendacoes";
 import { ShareData } from "@/lib/shareExport";
 
 /** Envio da recomendação ao município: card (imagem) + texto no padrão já usado, pelo mesmo modal "Compartilhar" das tabelas
@@ -42,7 +42,7 @@ export default function RecomendacaoMensagem({ rec, onClose }: { rec: Pick<Recom
           {linha("Data", dataBr(rec.data))}
           {linha("Hora", hh)}
           {rec.estacao && linha("Pluviômetro", rec.estacao)}
-          {rec.gatilho && linha("Gatilho", rec.gatilho)}
+          {rec.gatilho && linha(gatilhosDe(rec.gatilho).length > 1 ? "Gatilhos" : "Gatilho", gatilhosDe(rec.gatilho).join(" e "))}
         </div>
       ),
       textoPronto: mensagemRecomendacao(rec),

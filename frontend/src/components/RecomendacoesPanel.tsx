@@ -20,6 +20,7 @@ import {
   mm,
   PROBABILIDADES,
   Recomendacao,
+  rotuloGatilhos,
   ResumoRecomendacoes,
 } from "@/lib/recomendacoes";
 
@@ -69,7 +70,7 @@ function Cartao({ r, onEditar, onValidar, onMensagem, onApagar, admin }: { r: Re
       </header>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         <Etiqueta cor={cor}>Probabilidade {r.probabilidade}</Etiqueta>
-        {r.gatilho && <Etiqueta>Gatilho {r.gatilho}</Etiqueta>}
+        {r.gatilho && <Etiqueta>Gatilho{r.gatilho.includes(",") ? "s" : ""} {rotuloGatilhos(r.gatilho)}</Etiqueta>}
         {r.estagio_operacional && <Etiqueta>{r.estagio_operacional}</Etiqueta>}
         <Acionaram r={r} />
       </div>
@@ -152,7 +153,7 @@ function Tabela({ itens, onEditar, onValidar, onMensagem, onApagar, admin }: { i
                 <td className="px-2 py-1.5">{r.chuva_24h_mm ?? "—"}</td>
                 <td className="px-2 py-1.5">{r.chuva_96h_mm ?? "—"}</td>
                 <td className="px-2 py-1.5">{r.chuva_30d_mm ?? "—"}</td>
-                <td className="px-2 py-1.5 text-center">{r.gatilho || "—"}</td>
+                <td className="whitespace-nowrap px-2 py-1.5 text-center">{rotuloGatilhos(r.gatilho) || "—"}</td>
                 <td className="whitespace-nowrap px-2 py-1.5">{r.estagio_operacional || "—"}</td>
                 <td className="px-2 py-1.5">
                   <Acionaram r={r} />
