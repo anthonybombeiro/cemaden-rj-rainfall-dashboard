@@ -24,6 +24,7 @@ from .views import (
     AlertEventViewSet,
     AvisoMauTempoViewSet,
     PrevisaoViewSet,
+    RecomendacaoAlarmeViewSet,
     RiskAlertViewSet,
     SourceViewSet,
     StationViewSet,
@@ -34,6 +35,7 @@ router.register("sources", SourceViewSet, basename="source")
 router.register("stations", StationViewSet, basename="station")
 router.register("alerts", AlertEventViewSet, basename="alert")
 router.register("previsoes", PrevisaoViewSet, basename="previsao")
+router.register("recomendacoes", RecomendacaoAlarmeViewSet, basename="recomendacao")
 router.register("risk-alerts", RiskAlertViewSet, basename="risk-alert")
 router.register("avisos-mau-tempo", AvisoMauTempoViewSet, basename="aviso-mau-tempo")
 

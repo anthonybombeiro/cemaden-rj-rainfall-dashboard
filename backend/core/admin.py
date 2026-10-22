@@ -113,3 +113,14 @@ class AvisoMauTempoAdmin(admin.ModelAdmin):
     list_filter = ("area",)
     search_fields = ("numero_externo", "tipo", "descricao")
     date_hierarchy = "emitido_em"
+
+
+from core.models import RecomendacaoAlarme  # noqa: E402
+
+
+@admin.register(RecomendacaoAlarme)
+class RecomendacaoAlarmeAdmin(admin.ModelAdmin):
+    list_display = ("numero", "municipio", "data", "hora", "probabilidade", "gatilho", "acionaram", "responsavel")
+    list_filter = ("acionaram", "probabilidade", "gatilho", "municipio")
+    search_fields = ("numero", "municipio", "estacao", "observacao", "sirenes_acionadas")
+    date_hierarchy = "data"

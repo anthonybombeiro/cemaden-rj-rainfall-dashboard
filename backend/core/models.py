@@ -652,3 +652,66 @@ class FloodHubEvento(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} · {self.chave[:12]}…"
+
+
+class RecomendacaoAlarme(models.Model):
+    """Recomendação de alarme/acionamento de sirene emitida pelo CEMADEN-RJ (risco geológico).
+
+    Substitui a planilha de controle "Recomendação Cemaden" (campos NÚMERO, MUNICÍPIO, DATA, HORA, PROBABILIDADE,
+    ESTAÇÃO, ÍNDICE, GATILHO, ACIONARAM?, SIRENES, RESPONSÁVEL, OBSERVAÇÃO) e acrescenta as colunas de chuva e o estágio
+    operacional que a planilha já trazia. Pedido do usuário, 22/10/2026.
+    """
+
+    class Probabilidade(models.TextChoices):
+        BAIXA = "Baixa", "Baixa"
+        MODERADA = "Moderada", "Moderada"
+        ALTA = "Alta", "Alta"
+        MUITO_ALTA = "Muito Alta", "Muito Alta"
+
+    class Gatilho(models.TextChoices):
+        I = "I", "I"  # noqa: E741
+        II = "II", "II"
+        III = "III", "III"
+        IV = "IV", "IV"
+
+    class Estagio(models.TextChoices):
+        ATENCAO = "ATENÇÃO", "Atenção"
+        ALERTA = "ALERTA", "Alerta"
+        ALERTA_MAXIMO = "ALERTA MÁXIMO", "Alerta máximo"
+
+    numero = models.CharField(max_length=12, unique=True, help_text="NN_AAAA (sequencial do ano da recomendação).")
+    municipio = models.CharField(max_length=120, db_index=True)
+    data = models.DateField(db_index=True)
+    hora = models.TimeField()
+    probabilidade = models.CharField(max_length=12, choices=Probabilidade.choices)
+    estacao = models.CharField("estação pluviométrica", max_length=250, blank=True)
+    indice_alcancado = models.CharField("índice alcançado (texto livre)", max_length=200, blank=True)
+    chuva_1h_mm = models.FloatField(null=True, blank=True)
+    chuva_24h_mm = models.FloatField(null=True, blank=True)
+    chuva_96h_mm = models.FloatField(null=True, blank=True)
+    chuva_30d_mm = models.FloatField(null=True, blank=True)
+    gatilho = models.CharField(max_length=3, choices=Gatilho.choices, blank=True)
+    estagio_operacional = models.CharField(max_length=15, choices=Estagio.choices, blank=True)
+    acionaram = models.BooleanField(default=False, help_text="O município acionou a(s) sirene(s) após a recomendação?")
+    sirenes_acionadas = models.TextField(blank=True)
+    responsavel = models.CharField(max_length=150, blank=True)
+    observacao = models.TextField(blank=True)
+    origem = models.CharField(max_length=12, default="painel", help_text="'painel' ou 'planilha' (importada).")
+    criado_por = models.CharField(max_length=150, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_por = models.CharField(max_length=150, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data", "-hora", "-id"]
+        verbose_name = "recomendação de alarme"
+        verbose_name_plural = "recomendações de alarme"
+
+    def save(self, *args, **kwargs):
+        from core.municipios import canonico_ou_original
+
+        self.municipio = canonico_ou_original(self.municipio)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.numero} · {self.municipio}"

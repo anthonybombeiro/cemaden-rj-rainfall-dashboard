@@ -146,6 +146,8 @@ CORS_ALLOW_CREDENTIALS = True
 # teria que ficar False, daí o default seguir o mesmo DEBUG usado acima.
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+# Só para teste local com o frontend em outra porta (em produção front e back são o mesmo domínio e isto fica vazio).
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 
 # --- Ingestão de dados de fontes externas -----------------------------------
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")

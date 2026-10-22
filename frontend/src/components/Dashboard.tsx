@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Bell, BellOff, BookOpen, ClipboardList, CloudSun, Database, Filter, LogOut, Map, Siren, User, X } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, BookOpen, ClipboardList, CloudSun, Database, Filter, LogOut, Map, Mountain, User, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -9,6 +9,8 @@ import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable"
 import FilterToggleBar from "@/components/FilterToggleBar";
 import ContatosMap from "@/components/ContatosMap";
 import PrevisaoMapa from "@/components/PrevisaoMapa";
+import RecomendacaoForm from "@/components/RecomendacaoForm";
+import RecomendacoesPanel from "@/components/RecomendacoesPanel";
 import Footer from "@/components/Footer";
 import HidrologicaTable from "@/components/HidrologicaTable";
 import MeteorologiaPanel from "@/components/MeteorologiaPanel";
@@ -72,7 +74,9 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // "Dados" (mesmo padrão de sub-aba que "Mapa" já tinha com
 // Estações/Contatos) — 5 itens principais cabem bem tanto no menu
 // horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
-type ViewMode = "mapa" | "meteorologia" | "dados" | "sirenes" | "alertas" | "resumo";
+type ViewMode = "mapa" | "meteorologia" | "dados" | "geologia" | "alertas" | "resumo";
+// Aba Geologia (22/10/2026): Sirenes (a antiga aba) + recomendações de alarme (consulta e cadastro).
+type GeologiaSub = "sirenes" | "recomendacoes" | "cadastro";
 type DadosSub =
   | "precipitacao"
   | "cemaden"
@@ -93,7 +97,7 @@ const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "mapa", label: "Mapa", Icone: Map },
   { key: "meteorologia", label: "Meteorologia", Icone: CloudSun },
   { key: "dados", label: "Dados", Icone: Database },
-  { key: "sirenes", label: "Sirenes", Icone: Siren },
+  { key: "geologia", label: "Geologia", Icone: Mountain },
   { key: "alertas", label: "Alertas", Icone: AlertTriangle },
   { key: "resumo", label: "Resumo 24h", Icone: ClipboardList },
 ];
@@ -191,6 +195,10 @@ export default function Dashboard({
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
   const [redecFilter, setRedecFilter] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("mapa");
+  const [geoSub, setGeoSub] = useState<GeologiaSub>("sirenes");
+  const [recargaRec, setRecargaRec] = useState(0);
+  // a antiga aba "Sirenes" agora é a sub-aba Sirenes de Geologia
+  const sirenesAtivo = viewMode === "geologia" && geoSub === "sirenes";
   const [dadosSub, setDadosSub] = useState<DadosSub>("precipitacao");
   // Painel de filtros flutuante sobre o mapa — pedido do usuário: no mapa o
   // filtro precisa ficar sobre o mapa (não empurrando layout), escondível
@@ -507,7 +515,7 @@ export default function Dashboard({
   // tela específica ficar parada até o operador trocar de aba e voltar.
   useEffect(() => {
     // Também carrega (e atualiza a cada 1 min) quando o mapa está no modo "Sirenes".
-    if (viewMode !== "sirenes" && !(viewMode === "mapa" && modoMapa === "sirenes")) return;
+    if (!sirenesAtivo && !(viewMode === "mapa" && modoMapa === "sirenes")) return;
     let cancelled = false;
     const carregar = (primeiraVez: boolean) => {
       if (primeiraVez) setSirenesLoading(true);
@@ -533,7 +541,7 @@ export default function Dashboard({
       intervalo();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, modoMapa]);
+  }, [viewMode, modoMapa, sirenesAtivo]);
 
   // Modos "Chuva em 1 h/24 h" do mapa: carrega a tabela de precipitação (já com o valor oficial
   // das fontes que o informam) e atualiza a cada 5 min enquanto o modo estiver ativo.
@@ -862,7 +870,7 @@ export default function Dashboard({
           .catch(() => {});
       else if (dadosSub === "meteorologico" || dadosSub === "ventos") reloadStations();
       else if (dadosSub === "hidrologico") fetchHidrologicas().then(setHidrologicas).catch(() => {});
-    } else if (viewMode === "sirenes") fetchSirenes().then(setSirenes).catch(() => {});
+    } else if (sirenesAtivo) fetchSirenes().then(setSirenes).catch(() => {});
   };
 
   if (showProfile) {
@@ -1047,9 +1055,29 @@ export default function Dashboard({
             }
           />
         )}
+        {viewMode === "geologia" && (
+          <div className="flex shrink-0 flex-wrap gap-1 border-b border-gray-200 bg-white px-3 py-1.5">
+            {(
+              [
+                ["sirenes", "Sirenes"],
+                ["recomendacoes", "Recomendações"],
+                ["cadastro", "Cadastrar recomendação"],
+              ] as const
+            ).map(([k, l]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setGeoSub(k)}
+                className={`rounded-full px-3 py-1 text-sm font-medium ${geoSub === k ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
         {/* Filtros próprios da aba Sirenes (Município/REDEC/Status/
             Acionamento não existem nas outras abas) — mesmo padrão. */}
-        {viewMode === "sirenes" && (
+        {sirenesAtivo && (
           <FilterToggleBar
             filterControls={sirenesFilterControls}
             statusText={sirenesFilterStatusText}
@@ -1245,13 +1273,19 @@ export default function Dashboard({
               </div>
             </div>
           )}
-          {viewMode === "sirenes" && (
+          {sirenesAtivo && (
             <SirenesTable
               ref={sirenesTableRef}
               stations={filteredSirenes}
               onOpenStation={setPainelEstacaoId}
               onShare={setShareData}
             />
+          )}
+          {viewMode === "geologia" && geoSub === "recomendacoes" && <RecomendacoesPanel admin={user.role === "admin"} responsavelPadrao={user.first_name || user.username} recarregar={recargaRec} />}
+          {viewMode === "geologia" && geoSub === "cadastro" && (
+            <div className="h-full overflow-auto bg-gray-50 p-2 sm:p-3">
+              <RecomendacaoForm responsavelPadrao={user.first_name || user.username} onSalvo={() => setRecargaRec((n) => n + 1)} />
+            </div>
           )}
           {viewMode === "meteorologia" && <MeteorologiaPanel />}
           {viewMode === "alertas" && <AlertsPanel />}

@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from core.municipios import canonico_ou_original
 from core.sol import sol_para
-from core.models import AlertEvent, AvisoMauTempo, Previsao, Reading, RiskAlert, Source, Station
+from core.models import AlertEvent, AvisoMauTempo, Previsao, Reading, RecomendacaoAlarme, RiskAlert, Source, Station
 
 
 class SourceSerializer(serializers.ModelSerializer):
@@ -173,3 +173,79 @@ class PrevisaoSerializer(serializers.ModelSerializer):
         quem = self.context["request"].user
         validated_data["atualizado_por"] = quem.first_name or quem.username
         return super().update(instance, validated_data)
+
+
+class RecomendacaoAlarmeSerializer(serializers.ModelSerializer):
+    """Recomendação de alarme (risco geológico). O número (NN_AAAA) é gerado quando não informado."""
+
+    class Meta:
+        model = RecomendacaoAlarme
+        fields = [
+            "id", "numero", "municipio", "data", "hora", "probabilidade", "estacao", "indice_alcancado",
+            "chuva_1h_mm", "chuva_24h_mm", "chuva_96h_mm", "chuva_30d_mm", "gatilho", "estagio_operacional",
+            "acionaram", "sirenes_acionadas", "responsavel", "observacao", "origem",
+            "criado_por", "criado_em", "atualizado_por", "atualizado_em",
+        ]
+        read_only_fields = ["origem", "criado_por", "criado_em", "atualizado_por", "atualizado_em"]
+        extra_kwargs = {"numero": {"required": False, "allow_blank": True}}
+
+    def validate_municipio(self, v):
+        from core.municipios import canonico_ou_original, is_municipio_valido
+
+        v = canonico_ou_original((v or "").strip())
+        if not is_municipio_valido(v):
+            raise serializers.ValidationError("Município inválido (use um dos 92 municípios do RJ).")
+        return v
+
+    def validate_numero(self, v):
+        v = (v or "").strip()
+        if v and not re.fullmatch(r"\d{2,3}_\d{4}", v):
+            raise serializers.ValidationError("Número no formato NN_AAAA (ex.: 07_2026).")
+        return v
+
+    def validate(self, attrs):
+        def get(k):
+            return attrs.get(k, getattr(self.instance, k, None))
+
+        for k in ("chuva_1h_mm", "chuva_24h_mm", "chuva_96h_mm", "chuva_30d_mm"):
+            v = get(k)
+            if v is not None and (v < 0 or v > 2000):
+                raise serializers.ValidationError({k: "Valor de chuva fora do intervalo plausível (0 a 2000 mm)."})
+        if not get("acionaram") and (get("sirenes_acionadas") or "").strip() not in ("", "-", "—"):
+            raise serializers.ValidationError({"sirenes_acionadas": "Há sirenes informadas, mas 'Acionaram?' está como Não."})
+        numero = attrs.get("numero")
+        if numero:
+            qs = RecomendacaoAlarme.objects.filter(numero=numero)
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({"numero": "Já existe uma recomendação com esse número."})
+        return attrs
+
+    def create(self, validated_data):
+        quem = self.context["request"].user
+        nome = quem.first_name or quem.username
+        validated_data["criado_por"] = validated_data["atualizado_por"] = nome
+        if not (validated_data.get("responsavel") or "").strip():
+            validated_data["responsavel"] = nome
+        if not validated_data.get("numero"):
+            validated_data["numero"] = proximo_numero_recomendacao(validated_data["data"].year)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        quem = self.context["request"].user
+        validated_data["atualizado_por"] = quem.first_name or quem.username
+        if "numero" in validated_data and not validated_data["numero"]:
+            validated_data.pop("numero")
+        return super().update(instance, validated_data)
+
+
+def proximo_numero_recomendacao(ano: int) -> str:
+    """Próximo NN_AAAA do ano (maior sequencial existente + 1; começa em 01)."""
+    maior = 0
+    for n in RecomendacaoAlarme.objects.filter(numero__endswith=f"_{ano}").values_list("numero", flat=True):
+        try:
+            maior = max(maior, int(n.split("_")[0]))
+        except ValueError:
+            continue
+    return f"{maior + 1:02d}_{ano}"

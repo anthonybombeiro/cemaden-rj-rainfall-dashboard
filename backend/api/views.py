@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Max, Min, Prefetch, Q, Sum
+from django.db.models import Count, Max, Min, Prefetch, Q, Sum
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -18,6 +18,7 @@ from core.models import (
     LeituraQualidade,
     Previsao,
     Reading,
+    RecomendacaoAlarme,
     RiskAlert,
     SireneAcaoTipo,
     Source,
@@ -29,6 +30,8 @@ from .serializers import (
     AvisoMauTempoSerializer,
     PrevisaoSerializer,
     ReadingSerializer,
+    RecomendacaoAlarmeSerializer,
+    proximo_numero_recomendacao,
     RiskAlertSerializer,
     SourceSerializer,
     StationListSerializer,
@@ -1310,3 +1313,82 @@ class PrevisaoViewSet(viewsets.ModelViewSet):
         ultima = Previsao.objects.aggregate(d=Max("data"))["d"]
         qs = Previsao.objects.filter(data=ultima) if ultima else Previsao.objects.none()
         return Response(self.get_serializer(qs, many=True).data)
+
+
+class RecomendacaoAlarmeViewSet(viewsets.ModelViewSet):
+    """Recomendações de alarme do CEMADEN-RJ (risco geológico) — substitui a planilha de controle.
+
+    Leitura e escrita para qualquer usuário logado; **apagar só superusuário**.
+    Filtros: ?ano=, ?municipio=, ?data_inicio=, ?data_fim=, ?acionaram=true|false, ?probabilidade=, ?gatilho=, ?q= (busca em
+    número, município, estação, sirenes, responsável e observação)."""
+
+    serializer_class = RecomendacaoAlarmeSerializer
+
+    def get_permissions(self):
+        from rest_framework.permissions import IsAdminUser
+
+        if self.action == "destroy":
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+    def filtrar(self, qs):
+        p = self.request.query_params
+        if v := p.get("ano"):
+            qs = qs.filter(data__year=v)
+        if v := p.get("municipio"):
+            qs = qs.filter(municipio=canonico_ou_original(v))
+        if v := p.get("data_inicio"):
+            qs = qs.filter(data__gte=v)
+        if v := p.get("data_fim"):
+            qs = qs.filter(data__lte=v)
+        if (v := p.get("acionaram")) in ("true", "false"):
+            qs = qs.filter(acionaram=(v == "true"))
+        if v := p.get("probabilidade"):
+            qs = qs.filter(probabilidade=v)
+        if v := p.get("gatilho"):
+            qs = qs.filter(gatilho=v)
+        if v := (p.get("q") or "").strip():
+            qs = qs.filter(
+                Q(numero__icontains=v)
+                | Q(municipio__icontains=v)
+                | Q(estacao__icontains=v)
+                | Q(sirenes_acionadas__icontains=v)
+                | Q(responsavel__icontains=v)
+                | Q(observacao__icontains=v)
+            )
+        return qs
+
+    def get_queryset(self):
+        return self.filtrar(RecomendacaoAlarme.objects.all())
+
+    @action(detail=False, methods=["get"], url_path="proximo-numero")
+    def proximo_numero(self, request):
+        """Próximo número NN_AAAA do ano da data (`?data=AAAA-MM-DD`; padrão hoje)."""
+        data = request.query_params.get("data") or timezone.localdate().isoformat()
+        try:
+            ano = datetime.date.fromisoformat(data).year
+        except ValueError:
+            return Response({"detail": "data inválida (use AAAA-MM-DD)."}, status=400)
+        return Response({"numero": proximo_numero_recomendacao(ano)})
+
+    @action(detail=False, methods=["get"])
+    def resumo(self, request):
+        """Totais para os cartões do topo (respeita os mesmos filtros): total, acionaram/não, % de acatamento,
+        por probabilidade, por município (top 10) e por ano."""
+        qs = self.filtrar(RecomendacaoAlarme.objects.all())
+        total = qs.count()
+        sim = qs.filter(acionaram=True).count()
+        por_prob = {r["probabilidade"]: r["n"] for r in qs.values("probabilidade").annotate(n=Count("id"))}
+        por_mun = list(qs.values("municipio").annotate(n=Count("id")).order_by("-n", "municipio")[:10])
+        por_ano = list(qs.values("data__year").annotate(n=Count("id"), acionaram=Count("id", filter=Q(acionaram=True))).order_by("data__year"))
+        return Response(
+            {
+                "total": total,
+                "acionaram": sim,
+                "nao_acionaram": total - sim,
+                "pct_acatamento": round(100 * sim / total, 1) if total else None,
+                "por_probabilidade": por_prob,
+                "por_municipio": por_mun,
+                "por_ano": [{"ano": r["data__year"], "total": r["n"], "acionaram": r["acionaram"]} for r in por_ano],
+            }
+        )
