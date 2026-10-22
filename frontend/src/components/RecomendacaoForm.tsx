@@ -15,6 +15,7 @@ import {
   horaCurta,
   indiceAutomatico,
   MunicipioGatilho,
+  PreRecomendacao,
   PROBABILIDADES,
   Recomendacao,
   RecomendacaoInput,
@@ -66,8 +67,30 @@ const num = (s: string): number | null => {
   return Number.isFinite(v) ? v : NaN;
 };
 
-function inicial(r: Recomendacao | undefined, responsavel: string): Estado {
+function inicial(r: Recomendacao | undefined, responsavel: string, pre?: PreRecomendacao | null): Estado {
   const s = (v: number | null | undefined) => (v == null ? "" : String(v).replace(".", ","));
+  if (!r && pre) {
+    return {
+      numero: "",
+      municipio: pre.municipio,
+      data: hojeIso(),
+      hora: agoraHM(),
+      probabilidade: "Alta",
+      estacao: pre.estacao,
+      indice_alcancado: "",
+      c1: s(pre.chuva_1h_mm),
+      c24: s(pre.chuva_24h_mm),
+      c96: s(pre.chuva_96h_mm),
+      c30: s(pre.chuva_30d_mm),
+      gatilho: pre.gatilho,
+      estagio: "",
+      acionaram: null,
+      qtd: "",
+      sirenes: "",
+      responsavel,
+      observacao: "",
+    };
+  }
   return {
     numero: r?.numero ?? "",
     municipio: r?.municipio ?? "",
@@ -109,18 +132,21 @@ function Segmentos<T extends string | boolean | null>({ valor, opcoes, onChange,
 export default function RecomendacaoForm({
   editando,
   modo,
+  preenchimento,
   responsavelPadrao,
   onSalvo,
   onCancelar,
 }: {
   editando?: Recomendacao;
+  /** Recomendação pré-preenchida pela tabela de sirenes (gatilho atingido). */
+  preenchimento?: PreRecomendacao | null;
   modo?: "envio" | "validacao" | "editar";
   responsavelPadrao: string;
   onSalvo: (r: Recomendacao) => void;
   onCancelar?: () => void;
 }) {
   const m: "envio" | "validacao" | "editar" = modo ?? (editando ? "editar" : "envio");
-  const [f, setF] = useState<Estado>(() => inicial(editando, responsavelPadrao));
+  const [f, setF] = useState<Estado>(() => inicial(editando, responsavelPadrao, preenchimento));
   const [sug, setSug] = useState<Sugestoes | null>(null);
   const [municipios, setMunicipios] = useState<MunicipioGatilho[] | null>(null);
   const [proximo, setProximo] = useState("");
@@ -218,6 +244,11 @@ export default function RecomendacaoForm({
     <>
     <form onSubmit={(e) => enviar(e)} className="mx-auto w-full max-w-3xl space-y-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
       <h2 className="text-base font-bold text-gray-800">{titulo}</h2>
+      {m === "envio" && preenchimento && !editando && (
+        <div className="rounded border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900">
+          Pré-preenchida a partir da tabela de sirenes (<b>{preenchimento.origem}</b> · gatilho {preenchimento.gatilho}) com as chuvas atuais do pluviômetro <b>{preenchimento.estacao}</b>. Confira a data, a hora e os valores antes de cadastrar. Sirenes ligadas a este pluviômetro: {preenchimento.sirenes.join("; ") || "—"}.
+        </div>
+      )}
       {m === "envio" && <p className="text-xs text-gray-500">Cadastre no momento do envio. A validação (o município acionou? quais sirenes?) é lançada depois, pelo botão <b>Validar</b> do cartão.</p>}
 
       {m === "validacao" && editando && (

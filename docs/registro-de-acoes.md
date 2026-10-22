@@ -209,6 +209,10 @@ A aba Sirenes virou sub-aba da nova aba **Geologia**, junto de **Recomendações
 
 Estudo da planilha enviada pelo usuário e ajuste do cadastro: validação posterior (acionaram nulo = aguardando), 13 municípios, sugestão de gatilho, mensagem de envio em imagem/texto, nova sub-aba Acionamentos do município. Importador pronto (273 recomendações + 26 acionamentos), migração 0021 aplicada em produção; **gravação dos dados históricos pendente de autorização**. Ver docs/geologia-recomendacoes.md e docs/recomendacoes-planilha-relatorio.md.
 
+## 22/10/2026 (noite) — histórico gravado e recomendação pré-preenchida
+
+Com a autorização do usuário, a planilha 2020–2026 foi gravada em produção (273 recomendações + 26 acionamentos do município; correções, pelo painel). Nova coluna **Recomendação** na tabela de Sirenes (botão aparece com gatilho em andamento e abre o cadastro pré-preenchido) e quadro **Gatilhos em andamento agora** no cadastro. Ver docs/geologia-recomendacoes.md.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

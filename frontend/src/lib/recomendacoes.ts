@@ -1,6 +1,6 @@
 /** Recomendações de alarme do CEMADEN-RJ (risco geológico) — substitui a planilha "Recomendação Cemaden".
  * API: /api/recomendacoes/ (ver backend RecomendacaoAlarmeViewSet). Pedido do usuário, 22/10/2026. */
-import { API_BASE_URL, getJson } from "@/lib/api";
+import { API_BASE_URL, getJson, GatilhoStatus, SireneStation } from "@/lib/api";
 
 export const PROBABILIDADES = ["Baixa", "Moderada", "Alta", "Muito Alta"] as const;
 export type Probabilidade = (typeof PROBABILIDADES)[number];
@@ -231,3 +231,71 @@ export async function fetchAcionamentosMunicipio(f: { ano?: string; municipio?: 
 export const salvarAcionamentoMunicipio = (d: AcionamentoInput, id?: number) =>
   (id ? enviar(`/acionamentos-municipio/${id}/`, "PATCH", d) : enviar("/acionamentos-municipio/", "POST", d)) as Promise<AcionamentoMunicipio>;
 export const apagarAcionamentoMunicipio = (id: number) => enviar(`/acionamentos-municipio/${id}/`, "DELETE") as Promise<null>;
+
+// ---------------------------------------------------------------- recomendação pré-preenchida (a partir das sirenes)
+/** Dados que a tabela de sirenes entrega ao cadastro quando um gatilho é atingido. */
+export type PreRecomendacao = {
+  municipio: string;
+  /** Pluviômetro de referência da(s) sirene(s). */
+  estacao: string;
+  chuva_1h_mm: number | null;
+  chuva_24h_mm: number | null;
+  chuva_96h_mm: number | null;
+  chuva_30d_mm: number | null;
+  /** Maior gatilho atingido (IV > III > II > I). */
+  gatilho: "I" | "II" | "III" | "IV";
+  /** Status do gatilho escolhido (condicionado / obrigatório / acionado). */
+  situacao: Exclude<GatilhoStatus, null>;
+  /** Sirenes que usam esse pluviômetro (sugestão para a validação). */
+  sirenes: string[];
+  /** Sirene da linha de onde partiu o pedido. */
+  origem: string;
+};
+
+const ORDEM_GATILHOS: ["GIV", "GIII", "GII", "GI"] = ["GIV", "GIII", "GII", "GI"];
+const ROMANO = { GI: "I", GII: "II", GIII: "III", GIV: "IV" } as const;
+
+/** Maior gatilho em andamento da sirene (qualquer status não nulo: do "condicionado" — ≥ 95 % do limiar — ao acionado). */
+export function maiorGatilho(s: SireneStation): { gatilho: PreRecomendacao["gatilho"]; situacao: Exclude<GatilhoStatus, null> } | null {
+  if (!s.gatilho_definido) return null;
+  for (const k of ORDEM_GATILHOS) {
+    const st = s.gatilhos[k];
+    if (st) return { gatilho: ROMANO[k], situacao: st };
+  }
+  return null;
+}
+
+/** Monta o pré-preenchimento da recomendação para uma sirene; `todas` serve para achar as irmãs do mesmo pluviômetro. */
+export function preDeSirene(s: SireneStation, todas: SireneStation[]): PreRecomendacao | null {
+  const g = maiorGatilho(s);
+  if (!g) return null;
+  const chave = (x: SireneStation) => `${x.municipality}|${x.ref_id ?? `p${x.id}`}`;
+  const irmas = todas.filter((x) => chave(x) === chave(s)).map((x) => x.name);
+  return {
+    municipio: s.municipality,
+    estacao: s.ref_nome ?? s.name,
+    chuva_1h_mm: s.chuva_1h_mm,
+    chuva_24h_mm: s.chuva_24h_mm,
+    chuva_96h_mm: s.chuva_96h_mm,
+    chuva_30d_mm: s.chuva_30d_mm,
+    gatilho: g.gatilho,
+    situacao: g.situacao,
+    sirenes: Array.from(new Set(irmas)).sort(),
+    origem: s.name,
+  };
+}
+
+/** Pluviômetros com gatilho em andamento agora (um por município+pluviômetro), do mais grave ao menos grave. */
+export function candidatasDeSirenes(todas: SireneStation[]): PreRecomendacao[] {
+  const vistos = new Map<string, PreRecomendacao>();
+  const peso = { acionado: 3, obrigatorio: 2, condicionado: 1 } as const;
+  const romano = { I: 1, II: 2, III: 3, IV: 4 } as const;
+  for (const s of todas) {
+    const pre = preDeSirene(s, todas);
+    if (!pre) continue;
+    const k = `${pre.municipio}|${pre.estacao}`;
+    const atual = vistos.get(k);
+    if (!atual || romano[pre.gatilho] > romano[atual.gatilho] || (romano[pre.gatilho] === romano[atual.gatilho] && peso[pre.situacao] > peso[atual.situacao])) vistos.set(k, pre);
+  }
+  return [...vistos.values()].sort((a, b) => peso[b.situacao] - peso[a.situacao] || romano[b.gatilho] - romano[a.gatilho] || a.municipio.localeCompare(b.municipio));
+}

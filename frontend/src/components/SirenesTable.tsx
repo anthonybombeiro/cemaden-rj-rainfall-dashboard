@@ -6,6 +6,7 @@ import ColumnResizer from "@/components/ColumnResizer";
 import { CampoClicavel, HistoricoIconLink, W_HISTORICO } from "@/components/EstacaoCellLinks";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import { GatilhoStatus, SireneStation } from "@/lib/api";
+import { maiorGatilho } from "@/lib/recomendacoes";
 import { downloadCsv } from "@/lib/csvExport";
 import { ShareData } from "@/lib/shareExport";
 import { useColumnWidths } from "@/lib/useColumnWidths";
@@ -111,6 +112,8 @@ const RISCO_ROTULO: Record<string, string> = {
   geo_hidro: "Geológico + Hidrológico",
 };
 
+const W_RECOMENDAR = 112;
+
 function GatilhoCelula({ status, definido, gatilho }: { status: GatilhoStatus; definido: boolean; gatilho: string }) {
   if (!definido) {
     return (
@@ -139,8 +142,10 @@ const SirenesTable = forwardRef<
     /** Abre o ShareModal com o resumo curado (top 20 pela ordenação atual) —
      * ver ShareModal.tsx/shareExport.ts. */
     onShare?: (data: ShareData) => void;
+    /** Botão "Recomendar" (liga quando há gatilho em andamento): abre o cadastro de recomendação já preenchido. */
+    onRecomendar?: (s: SireneStation) => void;
   }
->(function SirenesTable({ stations, onOpenStation, onShare }, ref) {
+>(function SirenesTable({ stations, onOpenStation, onShare, onRecomendar }, ref) {
   const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-sirenes-v2", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>("prioridade");
   const [sortAsc, setSortAsc] = useState(false);
@@ -273,7 +278,7 @@ const SirenesTable = forwardRef<
 
   useImperativeHandle(ref, () => ({ exportar, compartilhar: onShare ? compartilhar : undefined }));
 
-  const larguraTotal = ORDEM_COLUNAS.reduce((soma, k) => soma + w[k], 0) + W_HISTORICO;
+  const larguraTotal = ORDEM_COLUNAS.reduce((soma, k) => soma + w[k], 0) + W_HISTORICO + W_RECOMENDAR;
   // Grade completa (pedido do usuário, referência: tela de sirenes do CBMERJ) —
   // border em toda célula, não só border-bottom como as outras tabelas.
   const th = "sticky top-0 border border-gray-300 bg-gray-100 px-1.5 py-1.5 align-middle whitespace-normal break-words leading-tight";
@@ -288,6 +293,7 @@ const SirenesTable = forwardRef<
             <col key={k} style={{ width: w[k] }} />
           ))}
           <col style={{ width: W_HISTORICO }} />
+          <col style={{ width: W_RECOMENDAR }} />
         </colgroup>
         <thead className="text-left uppercase tracking-wide text-gray-600">
           {/* Cabeçalho agrupado em 2 linhas (pedido do usuário, referência: tela
@@ -348,6 +354,9 @@ const SirenesTable = forwardRef<
             </th>
             <th className={`${th} z-20 cursor-default text-center`} rowSpan={2} style={{ width: W_HISTORICO }} title="Abrir em nova aba">
               Histórico
+            </th>
+            <th className={`${th} z-20 cursor-default text-center`} rowSpan={2} style={{ width: W_RECOMENDAR }} title="Liga quando há gatilho em andamento: abre o cadastro de recomendação já preenchido">
+              Recomendação
             </th>
           </tr>
           <tr>
@@ -489,6 +498,22 @@ const SirenesTable = forwardRef<
                 </td>
                 <td className={`${td} text-center`} style={{ backgroundColor: bgFundo }}>
                   <HistoricoIconLink id={s.id} />
+                </td>
+                <td className={`${td} text-center`} style={{ backgroundColor: bgFundo }}>
+                  {(() => {
+                    const g = maiorGatilho(s);
+                    if (!g) return <span className="text-gray-300">—</span>;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => onRecomendar?.(s)}
+                        className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
+                        title={`Gatilho ${g.gatilho} em andamento (${GATILHO_ROTULO[g.situacao]}) — cadastrar recomendação pré-preenchida`}
+                      >
+                        Recomendar {g.gatilho}
+                      </button>
+                    );
+                  })()}
                 </td>
               </tr>
             );

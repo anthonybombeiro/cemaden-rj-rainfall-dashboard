@@ -10,6 +10,7 @@ import FilterToggleBar from "@/components/FilterToggleBar";
 import ContatosMap from "@/components/ContatosMap";
 import AcionamentosMunicipioPanel from "@/components/AcionamentosMunicipioPanel";
 import PrevisaoMapa from "@/components/PrevisaoMapa";
+import GatilhosEmAndamento from "@/components/GatilhosEmAndamento";
 import RecomendacaoForm from "@/components/RecomendacaoForm";
 import RecomendacoesPanel from "@/components/RecomendacoesPanel";
 import Footer from "@/components/Footer";
@@ -23,6 +24,7 @@ import ResumoPanel from "@/components/ResumoPanel";
 import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
 import SaudeFontesBanner from "@/components/SaudeFontesBanner";
 import { lerModoSalvo, ModoMapa, salvarModo } from "@/lib/mapaModos";
+import { PreRecomendacao, preDeSirene } from "@/lib/recomendacoes";
 import PrecipitationTable from "@/components/PrecipitationTable";
 import Profile from "@/components/Profile";
 import SirenesTable from "@/components/SirenesTable";
@@ -198,6 +200,15 @@ export default function Dashboard({
   const [viewMode, setViewMode] = useState<ViewMode>("mapa");
   const [geoSub, setGeoSub] = useState<GeologiaSub>("sirenes");
   const [recargaRec, setRecargaRec] = useState(0);
+  // recomendação pré-preenchida a partir do gatilho atingido (tabela de sirenes) — `recPreVersao` recria o formulário
+  const [recPre, setRecPre] = useState<PreRecomendacao | null>(null);
+  const [recPreVersao, setRecPreVersao] = useState(0);
+  const abrirRecomendacao = (pre: PreRecomendacao | null) => {
+    setRecPre(pre);
+    setRecPreVersao((v) => v + 1);
+    setViewMode("geologia");
+    setGeoSub("cadastro");
+  };
   // a antiga aba "Sirenes" agora é a sub-aba Sirenes de Geologia
   const sirenesAtivo = viewMode === "geologia" && geoSub === "sirenes";
   const [dadosSub, setDadosSub] = useState<DadosSub>("precipitacao");
@@ -1281,13 +1292,15 @@ export default function Dashboard({
               stations={filteredSirenes}
               onOpenStation={setPainelEstacaoId}
               onShare={setShareData}
+              onRecomendar={(s) => abrirRecomendacao(preDeSirene(s, sirenes))}
             />
           )}
           {viewMode === "geologia" && geoSub === "recomendacoes" && <RecomendacoesPanel admin={user.role === "admin"} responsavelPadrao={user.first_name || user.username} recarregar={recargaRec} />}
           {viewMode === "geologia" && geoSub === "acionamentos" && <AcionamentosMunicipioPanel admin={user.role === "admin"} />}
           {viewMode === "geologia" && geoSub === "cadastro" && (
             <div className="h-full overflow-auto bg-gray-50 p-2 sm:p-3">
-              <RecomendacaoForm responsavelPadrao={user.first_name || user.username} onSalvo={() => setRecargaRec((n) => n + 1)} />
+              <GatilhosEmAndamento onUsar={abrirRecomendacao} recarregar={recargaRec} />
+              <RecomendacaoForm key={recPreVersao} preenchimento={recPre} responsavelPadrao={user.first_name || user.username} onSalvo={() => setRecargaRec((n) => n + 1)} />
             </div>
           )}
           {viewMode === "meteorologia" && <MeteorologiaPanel />}
