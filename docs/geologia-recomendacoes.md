@@ -102,3 +102,10 @@ Decisões do usuário: o botão **liga sempre que o gatilho estiver "condicionad
 * **Sirenes → pré-preenchimento:** o botão da coluna Recomendação mostra **todos** os gatilhos em andamento da sirene (ex.: **Recomendar I+IV**) e o quadro "Gatilhos em andamento agora" une os gatilhos de todas as sirenes do mesmo pluviômetro.
 * **Mesmo pluviômetro, mesmo dia:** o quadro mostra o que já foi recomendado hoje **por gatilho** (nº, gatilho e hora) e pré-preenche **só os gatilhos ainda não recomendados** ("novo(s): IV"); se todos já foram, o botão vira "Recomendar de novo" (pré-preenche tudo).
 * Teste local: gatilhos I (condicionado) e IV (obrigatório) simulados em Teresópolis/Caleme 1 com a recomendação nº 50 (gatilho I) já feita hoje → o quadro mostrou "novo(s): IV" e o botão "Pré-preencher (IV)"; marcando I e IV gerou a nº 51 com "Gatilhos: I e IV". Backend: 9 testes (incl. vários gatilhos e filtro).
+
+
+## 5ª etapa (22/10/2026, noite): municípios da aba "Acionamentos do município" editáveis no Admin
+Decisão do usuário: só 17 municípios têm sirenes — os 13 gerenciados pelo CEMADEN-RJ + **Rio de Janeiro, Niterói, Angra dos Reis e Mangaratiba** — e não é preciso listar os 92; a lista deve ser **editável no Admin do painel**.
+* Novo modelo `MunicipioComSirene` (migração 0023, que já carrega os 17): campos `município`, `ativo` (desmarcar tira da lista sem apagar histórico) e `observação`. **Edição:** Admin do Django (`/admin/` → *Municípios com sirenes*), inclusive marcar/desmarcar `ativo` direto na lista; para incluir um município novo, "Adicionar".
+* `GET /api/acionamentos-municipio/municipios/` devolve os ativos; o formulário e o filtro da sub-aba usam essa lista, e a API **recusa** município fora dela (com a lista vazia, não restringe). Registros antigos de município que saiu da lista continuam aparecendo e editáveis.
+* Teste: 10 testes de backend (lista inicial de 17, recusa de Araruama, inclusão pelo Admin libera, desativar Niterói bloqueia). Produção: migração aplicada, a lista devolve os 17 e a página do Admin responde.

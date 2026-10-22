@@ -17,6 +17,7 @@ from core.models import (
     AvisoMauTempo,
     GatilhoPluviometrico,
     LeituraQualidade,
+    MunicipioComSirene,
     Previsao,
     Reading,
     RecomendacaoAlarme,
@@ -1447,3 +1448,8 @@ class AcionamentoMunicipioViewSet(viewsets.ModelViewSet):
         if v := (p.get("q") or "").strip():
             qs = qs.filter(Q(municipio__icontains=v) | Q(sirene__icontains=v) | Q(responsavel__icontains=v) | Q(observacao__icontains=v))
         return qs
+
+    @action(detail=False, methods=["get"])
+    def municipios(self, request):
+        """Municípios que podem receber acionamento (os com sirenes — lista editável no Admin)."""
+        return Response(list(MunicipioComSirene.objects.filter(ativo=True).order_by("municipio").values_list("municipio", flat=True)))

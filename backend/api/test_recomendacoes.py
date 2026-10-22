@@ -116,6 +116,22 @@ class AcionamentoMunicipioAPITest(APITestCase):
         self.assertEqual(self.client.get("/api/acionamentos-municipio/?q=bracui").data["count"], 0)  # acento: busca literal
         self.assertEqual(self.client.get("/api/acionamentos-municipio/?q=Bracuí").data["count"], 1)
         self.assertEqual(self.client.post("/api/acionamentos-municipio/", {"municipio": "Xx", "data": "2022-01-07"}, format="json").status_code, 400)
+
+    def test_lista_de_municipios_com_sirenes_editavel(self):
+        from core.models import MunicipioComSirene
+
+        lista = self.client.get("/api/acionamentos-municipio/municipios/").data
+        self.assertEqual(len(lista), 17)
+        for m in ("Rio de Janeiro", "Niterói", "Angra dos Reis", "Mangaratiba", "Teresópolis"):
+            self.assertIn(m, lista)
+        corpo = {"data": "2026-02-01", "sirene": "x"}
+        self.assertEqual(self.client.post("/api/acionamentos-municipio/", {**corpo, "municipio": "Araruama"}, format="json").status_code, 400)
+        # incluir o município no Admin libera; desativar bloqueia
+        MunicipioComSirene.objects.create(municipio="Araruama")
+        self.assertEqual(self.client.post("/api/acionamentos-municipio/", {**corpo, "municipio": "Araruama"}, format="json").status_code, 201)
+        MunicipioComSirene.objects.filter(municipio="Niterói").update(ativo=False)
+        self.assertNotIn("Niterói", self.client.get("/api/acionamentos-municipio/municipios/").data)
+        self.assertEqual(self.client.post("/api/acionamentos-municipio/", {**corpo, "municipio": "Niterói"}, format="json").status_code, 400)
         self.assertEqual(AcionamentoMunicipio.objects.count(), 1)
 
 

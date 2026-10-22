@@ -135,3 +135,14 @@ class AcionamentoMunicipioAdmin(admin.ModelAdmin):
     list_filter = ("municipio", "tipo_alarme")
     search_fields = ("municipio", "sirene", "observacao")
     date_hierarchy = "data"
+
+
+from core.models import MunicipioComSirene  # noqa: E402
+
+
+@admin.register(MunicipioComSirene)
+class MunicipioComSireneAdmin(admin.ModelAdmin):
+    list_display = ("municipio", "ativo", "observacao")
+    list_editable = ("ativo",)
+    list_filter = ("ativo",)
+    search_fields = ("municipio",)

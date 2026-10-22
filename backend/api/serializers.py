@@ -11,6 +11,7 @@ from core.models import (
     AlertEvent,
     AvisoMauTempo,
     GatilhoPluviometrico,
+    MunicipioComSirene,
     Previsao,
     Reading,
     RecomendacaoAlarme,
@@ -315,6 +316,10 @@ class AcionamentoMunicipioSerializer(serializers.ModelSerializer):
         v = canonico_ou_original((v or "").strip())
         if not is_municipio_valido(v):
             raise serializers.ValidationError("Município inválido (use um dos 92 municípios do RJ).")
+        # só os municípios com sirenes (lista editável no Admin: "Municípios com sirenes")
+        ativos = set(MunicipioComSirene.objects.filter(ativo=True).values_list("municipio", flat=True))
+        if ativos and v not in ativos:
+            raise serializers.ValidationError("Município fora da lista de municípios com sirenes (a lista é editada no Admin do painel).")
         return v
 
     def create(self, validated_data):

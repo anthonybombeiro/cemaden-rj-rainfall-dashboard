@@ -5,13 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { downloadCsv } from "@/lib/csvExport";
 import { MUNICIPIOS_CANONICOS } from "@/lib/municipios-canonical";
-import { AcionamentoInput, AcionamentoMunicipio, apagarAcionamentoMunicipio, dataBr, fetchAcionamentosMunicipio, PROBABILIDADES, salvarAcionamentoMunicipio } from "@/lib/recomendacoes";
+import { AcionamentoInput, AcionamentoMunicipio, apagarAcionamentoMunicipio, dataBr, fetchAcionamentosMunicipio, fetchMunicipiosAcionamento, PROBABILIDADES, salvarAcionamentoMunicipio } from "@/lib/recomendacoes";
 
 const campo = "w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm";
 const rotulo = "mb-0.5 block text-xs font-semibold text-gray-600";
 const hojeIso = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
-function Formulario({ editando, onSalvo, onCancelar }: { editando?: AcionamentoMunicipio; onSalvo: () => void; onCancelar: () => void }) {
+function Formulario({ editando, municipios, onSalvo, onCancelar }: { editando?: AcionamentoMunicipio; municipios: string[]; onSalvo: () => void; onCancelar: () => void }) {
   const [f, setF] = useState({
     municipio: editando?.municipio ?? "",
     data: editando?.data ?? hojeIso(),
@@ -50,13 +50,13 @@ function Formulario({ editando, onSalvo, onCancelar }: { editando?: AcionamentoM
   return (
     <form onSubmit={enviar} className="space-y-3 rounded-lg bg-white p-4 shadow-xl">
       <h2 className="text-base font-bold text-gray-800">{editando ? "Editar acionamento pelo município" : "Novo acionamento pelo município"}</h2>
-      <p className="text-xs text-gray-500">Mobilização de sirene feita pelo próprio município, sem recomendação do CEMADEN-RJ (vale para os 92 municípios, inclusive os autônomos).</p>
+      <p className="text-xs text-gray-500">Mobilização de sirene feita pelo próprio município, sem recomendação do CEMADEN-RJ. A lista traz só os municípios com sirenes (editada no Admin do painel).</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="sm:col-span-1">
           <label className={rotulo}>Município *</label>
           <select required value={f.municipio} onChange={(e) => set("municipio", e.target.value)} className={campo}>
             <option value="">Selecione…</option>
-            {MUNICIPIOS_CANONICOS.map((m) => (
+            {(editando && !municipios.includes(editando.municipio) ? [editando.municipio, ...municipios] : municipios).map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
@@ -128,6 +128,7 @@ export default function AcionamentosMunicipioPanel({ admin }: { admin: boolean }
   const [erro, setErro] = useState<string | null>(null);
   const [form, setForm] = useState<{ editando?: AcionamentoMunicipio } | null>(null);
   const [versao, setVersao] = useState(0);
+  const [municipios, setMunicipios] = useState<string[]>([]);
   const anoAtual = new Date().getFullYear();
   const anos = Array.from({ length: anoAtual - 2019 }, (_, i) => String(anoAtual - i));
 
@@ -135,6 +136,16 @@ export default function AcionamentosMunicipioPanel({ admin }: { admin: boolean }
     const t = setTimeout(() => setFiltro((f) => (f.q === busca ? f : { ...f, q: busca })), 350);
     return () => clearTimeout(t);
   }, [busca]);
+
+  useEffect(() => {
+    let cancelado = false;
+    fetchMunicipiosAcionamento()
+      .then((l) => !cancelado && setMunicipios(l))
+      .catch(() => !cancelado && setMunicipios([...MUNICIPIOS_CANONICOS]));
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const carregar = useCallback(() => {
     let cancelado = false;
@@ -182,7 +193,7 @@ export default function AcionamentosMunicipioPanel({ admin }: { admin: boolean }
         </select>
         <select aria-label="Município" value={filtro.municipio ?? ""} onChange={(e) => setFiltro((f) => ({ ...f, municipio: e.target.value }))} className={`${campoF} max-w-[11rem]`}>
           <option value="">Todos os municípios</option>
-          {MUNICIPIOS_CANONICOS.map((m) => (
+          {municipios.map((m) => (
             <option key={m} value={m}>
               {m}
             </option>
@@ -250,6 +261,7 @@ export default function AcionamentosMunicipioPanel({ admin }: { admin: boolean }
           <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
             <Formulario
               editando={form.editando}
+              municipios={municipios}
               onCancelar={() => setForm(null)}
               onSalvo={() => {
                 setForm(null);

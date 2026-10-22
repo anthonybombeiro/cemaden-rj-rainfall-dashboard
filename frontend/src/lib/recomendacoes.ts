@@ -317,3 +317,13 @@ export function candidatasDeSirenes(todas: SireneStation[]): PreRecomendacao[] {
   const mais = (p: PreRecomendacao) => ["I", "II", "III", "IV"].indexOf(p.gatilhos[p.gatilhos.length - 1]);
   return [...vistos.values()].sort((a, b) => PESO_SITUACAO[b.situacao] - PESO_SITUACAO[a.situacao] || mais(b) - mais(a) || a.municipio.localeCompare(b.municipio));
 }
+
+let cacheMunicipiosAcionamento: Promise<string[]> | null = null;
+/** Municípios com sirenes, que podem receber acionamento (lista editável no Admin do painel). */
+export function fetchMunicipiosAcionamento(): Promise<string[]> {
+  cacheMunicipiosAcionamento ??= getJson<string[]>("/acionamentos-municipio/municipios/").catch((e) => {
+    cacheMunicipiosAcionamento = null;
+    throw e;
+  });
+  return cacheMunicipiosAcionamento;
+}

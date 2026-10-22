@@ -217,6 +217,10 @@ Com a autorização do usuário, a planilha 2020–2026 foi gravada em produçã
 
 Recomendação com mais de um gatilho (campo `gatilho` como lista, migração 0022), pré-preenchimento com todos os gatilhos ativos e controle do que já foi recomendado hoje por gatilho. Ver docs/geologia-recomendacoes.md (4ª etapa).
 
+## 22/10/2026 (noite) — municípios com sirenes editáveis
+
+Aba Acionamentos do município restrita aos 17 municípios com sirenes, em lista editável no Admin (modelo `MunicipioComSirene`, migração 0023). Ver docs/geologia-recomendacoes.md (5ª etapa).
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

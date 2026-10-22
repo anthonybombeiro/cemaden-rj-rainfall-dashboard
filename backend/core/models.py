@@ -754,3 +754,27 @@ class AcionamentoMunicipio(models.Model):
 
     def __str__(self):
         return f"{self.municipio} · {self.data}"
+
+
+class MunicipioComSirene(models.Model):
+    """Municípios que aparecem na aba "Acionamentos do município" (os que têm sirenes). Editável no Admin do Django:
+    marque/desmarque `ativo` ou inclua outro município quando passar a ter sirenes. Inicia com 17: os 13 que o CEMADEN-RJ
+    gerencia + Rio de Janeiro, Niterói, Angra dos Reis e Mangaratiba (decisão do usuário, 22/10/2026)."""
+
+    municipio = models.CharField(max_length=120, unique=True)
+    ativo = models.BooleanField(default=True, help_text="Desmarque para tirar da lista sem apagar o histórico.")
+    observacao = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["municipio"]
+        verbose_name = "município com sirenes (acionamento pelo município)"
+        verbose_name_plural = "municípios com sirenes (acionamento pelo município)"
+
+    def save(self, *args, **kwargs):
+        from core.municipios import canonico_ou_original
+
+        self.municipio = canonico_ou_original(self.municipio)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.municipio
