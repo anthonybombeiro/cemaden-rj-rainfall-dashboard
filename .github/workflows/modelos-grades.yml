@@ -1,0 +1,78 @@
+name: Grades dos modelos numéricos (GFS, IFS)
+
+# Baixa as rodadas mais recentes do GFS (NOAA) e do IFS (ECMWF Open Data), recorta o Sudeste e publica JSON compactos no branch
+# `dados-modelos` (um único commit, sobrescrito a cada execução). O painel lê direto de raw.githubusercontent.com.
+# Documentação: docs/modelos-numericos.md. Dados abertos: NOAA (domínio público) e ECMWF (CC-BY-4.0, citar a fonte).
+
+on:
+  schedule:
+    - cron: "40 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      forcar:
+        description: "Regerar mesmo que a rodada já esteja publicada"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dados-modelos
+  cancel-in-progress: false
+
+jobs:
+  grades:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/modelos/requirements.txt
+
+      - run: pip install -r scripts/modelos/requirements.txt
+
+      - name: Obter o que já está publicado
+        env:
+          REPO_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        run: |
+          if git ls-remote --exit-code --heads "$REPO_URL" dados-modelos >/dev/null 2>&1; then
+            git clone --depth 1 --branch dados-modelos "$REPO_URL" dados
+          else
+            mkdir dados
+          fi
+          rm -rf dados/.git
+
+      - name: GFS
+        env:
+          FORCAR: ${{ inputs.forcar }}
+        run: |
+          if [ "$FORCAR" = "true" ]; then python scripts/modelos/gerar_grades.py --modelo gfs --saida dados
+          else python scripts/modelos/gerar_grades.py --modelo gfs --saida dados --so-se-nova dados; fi
+
+      - name: IFS
+        env:
+          FORCAR: ${{ inputs.forcar }}
+        run: |
+          if [ "$FORCAR" = "true" ]; then python scripts/modelos/gerar_grades.py --modelo ifs --saida dados
+          else python scripts/modelos/gerar_grades.py --modelo ifs --saida dados --so-se-nova dados; fi
+
+      - name: Publicar no branch dados-modelos
+        env:
+          REPO_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        run: |
+          cd dados
+          cat > README.md <<'EOF'
+          Dados gerados automaticamente (scripts/modelos/gerar_grades.py) para o Painel CEMADEN-RJ. Não edite.
+          GFS: NOAA/NCEP (domínio público). IFS: ECMWF Open Data (CC-BY-4.0).
+          EOF
+          git init -q -b dados-modelos
+          git config user.name "CEMADEN-RJ bot"
+          git config user.email "noreply@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Grades dos modelos $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q --force "$REPO_URL" dados-modelos
