@@ -8,6 +8,7 @@ import type { HidrologicaStation } from "@/lib/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Pane, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import PainelModeloMapa from "@/components/modelos/PainelModeloMapa";
 
 import {
   AlertEvent,
@@ -1002,6 +1003,7 @@ export default function MapView({
           eventosTexto={textoEventos(floodhubEventos)}
         />
       )}
+      <PainelModeloMapa />
       <SeletorCamadaMeteorologica
         config={config}
         onConfigChange={setConfig}

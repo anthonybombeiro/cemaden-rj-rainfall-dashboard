@@ -18,11 +18,14 @@ import {
 } from "@/lib/catalogoModelos";
 import { MARINHA_FILES } from "@/lib/produtosMarinha";
 
-export type FonteId = "monan" | "wrf" | "brams" | "bam" | "wwatch" | "marinha" | "marinha-ondas" | "marinha-oceano" | "cosmo2p8" | "cosmo7";
-export type Fonte = { id: FonteId; rotulo: string; grupo: "CPTEC" | "Marinha" | "INMET" };
+export type FonteId = "ifs" | "gfs" | "monan" | "wrf" | "brams" | "bam" | "wwatch" | "marinha" | "marinha-ondas" | "marinha-oceano" | "cosmo2p8" | "cosmo7";
+export type Fonte = { id: FonteId; rotulo: string; grupo: "CPTEC" | "Marinha" | "INMET" | "ECMWF" | "NOAA" };
 
 /** Ordem = prioridade ao escolher as fontes padrão dos quadros. */
 export const FONTES: Fonte[] = [
+  // modelos globais em grade (mapa interativo; dados do GitHub Actions — scripts/modelos/gerar_grades.py)
+  { id: "ifs", rotulo: "IFS 0,25° (interativo)", grupo: "ECMWF" },
+  { id: "gfs", rotulo: "GFS 0,25° (interativo)", grupo: "NOAA" },
   { id: "monan", rotulo: "MONAN 10 km", grupo: "CPTEC" },
   { id: "marinha", rotulo: "ICON-LAM 6,5 km", grupo: "Marinha" },
   { id: "cosmo2p8", rotulo: "COSMO 2,8 km", grupo: "INMET" },

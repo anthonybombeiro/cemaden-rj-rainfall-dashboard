@@ -1,6 +1,7 @@
 "use client";
 
 import { Pause, Play, StepBack, StepForward } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchParametrosVime, fetchQuadrosVime, fetchRodadasVime, AREA_PADRAO_VIME, AREAS_VIME, ModeloVime, Opcao as OpcaoInmet, QuadroVime } from "@/lib/inmet";
@@ -20,13 +21,22 @@ import {
   rotuloValidade,
   urlQuadro,
 } from "@/lib/previsaoNumerica";
+import { ehModeloGrade, MODELOS_GRADE, rotuloRun as rotuloRunGrade } from "@/lib/modelosGrade";
 import { useMedia } from "@/lib/useMedia";
+import { useEstadoModelo } from "@/components/modelos/hooks";
+import { BarraTempoModelo, SeletoresModelo } from "@/components/modelos/UiModelo";
+
+const MapaModelo = dynamic(() => import("@/components/modelos/MapaModelo"), {
+  ssr: false,
+  loading: () => <p className="p-6 text-center text-sm text-gray-400">Carregando mapa…</p>,
+});
+const GRUPOS_FONTE = ["ECMWF", "NOAA", "CPTEC", "Marinha", "INMET"] as const;
 
 const HORA = 3600000;
 const MS_ANIMACAO = 900;
 const MAX_QUADROS = 3;
 const campo = "rounded border border-gray-300 bg-white px-2 py-1.5 text-sm";
-const FONTES_INICIAIS: FonteId[] = ["monan", "marinha", "wrf"];
+const FONTES_INICIAIS: FonteId[] = ["ifs", "monan", "gfs"];
 
 /** Cache em memória das séries do VIME (cada uma pesa ~4 MB). */
 const cacheVime = new Map<string, QuadroVime[]>();
@@ -41,7 +51,69 @@ function configInicial(fonte: FonteId): Config {
 }
 
 // ---------------------------------------------------------------- um quadro (fonte, produto, área, rodada e hora próprios)
-function Quadro({ idx, fonteInicial, sync, vtSync, onVtSync }: { idx: number; fonteInicial: FonteId; sync: boolean; vtSync: number | null; onVtSync: (vt: number) => void }) {
+/** Quadro de um modelo em grade (IFS/GFS): mapa interativo no lugar da imagem, com a mesma hora sincronizável dos demais. */
+function QuadroGrade({ idx, fonteInicial, sync, vtSync, onVtSync, onFonte }: { idx: number; fonteInicial: FonteId; sync: boolean; vtSync: number | null; onVtSync: (vt: number) => void; onFonte: (f: FonteId) => void }) {
+  const modeloIni = fonteInicial === "gfs" ? "gfs" : "ifs";
+  const estado = useEstadoModelo(modeloIni, true, sync && vtSync !== null ? vtSync : null);
+  const { meta, produto, hora, runMs } = estado;
+  const sel = `${campo} min-w-0 !py-1 text-xs`;
+  const irPara = (h: number) => {
+    estado.irParaHora(h);
+    if (sync) onVtSync(runMs + h * HORA);
+  };
+  return (
+    <figure className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+      <figcaption className="grid grid-cols-2 gap-1.5 border-b border-gray-100 p-2 text-xs">
+        <select
+          aria-label={`Fonte do quadro ${idx + 1}`}
+          value={estado.modelo}
+          onChange={(e) => {
+            const f = e.target.value as FonteId;
+            if (ehModeloGrade(f)) estado.setModelo(f);
+            else onFonte(f);
+          }}
+          className={`${sel} font-semibold`}
+        >
+          {GRUPOS_FONTE.map((g) => (
+            <optgroup key={g} label={g}>
+              {FONTES.filter((f) => f.grupo === g).map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.rotulo}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <select aria-label="Rodada" value={meta?.run ?? ""} className={sel} disabled>
+          {meta ? <option value={meta.run}>Rodada {rotuloRunGrade(meta.run)} (última)</option> : <option>Carregando…</option>}
+        </select>
+        <div className="col-span-2">
+          <SeletoresModelo modelo={estado.modelo} onModelo={estado.setModelo} produtos={estado.produtos} produtoId={estado.produtoId} onProduto={estado.setProdutoId} opacidade={estado.opacidade} onOpacidade={estado.setOpacidade} />
+        </div>
+      </figcaption>
+      <div className="relative min-h-[22rem] flex-1 sm:min-h-[16rem]">
+        {estado.erro ? (
+          <p className="p-6 text-center text-sm text-gray-500">Dados do modelo indisponíveis no momento.</p>
+        ) : (
+          <>
+            <MapaModelo estado={estado} />
+            {estado.carregando && <p className="pointer-events-none absolute left-1/2 top-2 z-[1000] -translate-x-1/2 rounded bg-white/90 px-2 py-1 text-xs text-gray-600 shadow">Carregando grade…</p>}
+          </>
+        )}
+      </div>
+      <div className="border-t border-gray-100 p-2">
+        {produto && hora !== null ? (
+          <BarraTempoModelo horas={produto.horas} runMs={runMs} hora={hora} onHora={irPara} tocando={estado.tocando} onTocar={estado.setTocando} />
+        ) : (
+          <p className="text-xs text-gray-400">—</p>
+        )}
+        <p className="mt-1 text-[10px] text-gray-400">{MODELOS_GRADE.find((m) => m.id === estado.modelo)?.detalhe} · {MODELOS_GRADE.find((m) => m.id === estado.modelo)?.atribuicao}. Clique no mapa para ver o meteograma do ponto (IFS × GFS).</p>
+      </div>
+    </figure>
+  );
+}
+
+function Quadro({ idx, fonteInicial, sync, vtSync, onVtSync, onFonte }: { idx: number; fonteInicial: FonteId; sync: boolean; vtSync: number | null; onVtSync: (vt: number) => void; onFonte: (f: FonteId) => void }) {
   const [cfg, setCfg] = useState<Config>(() => configInicial(fonteInicial));
   const { fonte, produto, area } = cfg;
   const inmet = ehInmet(fonte);
@@ -62,6 +134,10 @@ function Quadro({ idx, fonteInicial, sync, vtSync, onVtSync }: { idx: number; fo
   const areas: OpcaoInmet[] = inmet ? AREAS_VIME[modeloVime(fonte)].map((a) => ({ sigla: a.sigla, nome: a.nome })) : areasDaFonte(fonte, produtoCat).map((a) => ({ sigla: a.id, nome: a.rotulo }));
 
   const trocarFonte = (f: FonteId) => {
+    if (ehModeloGrade(f)) {
+      onFonte(f);
+      return;
+    }
     setTocando(false);
     setFalhou(null);
     setCfg(configInicial(f));
@@ -259,7 +335,7 @@ function Quadro({ idx, fonteInicial, sync, vtSync, onVtSync }: { idx: number; fo
     <figure className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
       <figcaption className="grid grid-cols-2 gap-1.5 border-b border-gray-100 p-2 text-xs">
         <select aria-label={`Fonte do quadro ${idx + 1}`} value={fonte} onChange={(e) => trocarFonte(e.target.value as FonteId)} className={`${sel} font-semibold`}>
-          {(["CPTEC", "Marinha", "INMET"] as const).map((g) => (
+          {GRUPOS_FONTE.map((g) => (
             <optgroup key={g} label={g}>
               {FONTES.filter((f) => f.grupo === g).map((f) => (
                 <option key={f.id} value={f.id}>
@@ -353,6 +429,12 @@ export default function PrevisaoNumericaPanel() {
   const [ativo, setAtivo] = useState(0); // celular: um quadro por vez
   const [sync, setSync] = useState(false);
   const [vtSync, setVtSync] = useState<number | null>(null);
+  const [fontes, setFontes] = useState<FonteId[]>(FONTES_INICIAIS);
+  const [versao, setVersao] = useState(0); // força recriar o quadro de imagens quando ele volta de um quadro em grade
+  const trocarFonteQuadro = (i: number, f: FonteId) => {
+    setFontes((l) => l.map((x, k) => (k === i ? f : x)));
+    setVersao((v) => v + 1);
+  };
   const largo = useMedia("(min-width: 768px)");
   const colunas = n === 1 ? "grid-cols-1" : n === 2 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
   const nAtivo = Math.min(ativo, n - 1);
@@ -388,13 +470,17 @@ export default function PrevisaoNumericaPanel() {
       <div className={`grid min-h-0 flex-1 auto-rows-[minmax(0,1fr)] gap-2 ${colunas}`}>
         {Array.from({ length: n }, (_, i) => (
           <div key={i} className={`min-h-[24rem] min-w-0 ${!largo && i !== nAtivo ? "hidden" : ""}`}>
-            <Quadro idx={i} fonteInicial={FONTES_INICIAIS[i]} sync={sync} vtSync={vtSync} onVtSync={setVtSync} />
+            {ehModeloGrade(fontes[i]) ? (
+              <QuadroGrade key={`g${i}-${versao}`} idx={i} fonteInicial={fontes[i]} sync={sync} vtSync={vtSync} onVtSync={setVtSync} onFonte={(f) => trocarFonteQuadro(i, f)} />
+            ) : (
+              <Quadro key={`q${i}-${versao}`} idx={i} fonteInicial={fontes[i]} sync={sync} vtSync={vtSync} onVtSync={setVtSync} onFonte={(f) => trocarFonteQuadro(i, f)} />
+            )}
           </div>
         ))}
       </div>
 
       <p className="mt-2 hidden shrink-0 text-[11px] text-gray-400 sm:block">
-        Fontes: CPTEC/INPE (MONAN, WRF, BRAMS, BAM, Wwatch), Marinha do Brasil — SMM/CHM (ICON-LAM, ondas, HYCOM) e INMET (COSMO 2,8 km e 7 km, VIME). A data das rodadas da Marinha é inferida pelo horário de
+        Fontes: ECMWF Open Data (IFS, CC-BY-4.0) e NOAA/NCEP (GFS) em mapa interativo, CPTEC/INPE (MONAN, WRF, BRAMS, BAM, Wwatch), Marinha do Brasil — SMM/CHM (ICON-LAM, ondas, HYCOM) e INMET (COSMO 2,8 km e 7 km, VIME). A data das rodadas da Marinha é inferida pelo horário de
         publicação das pastas. As séries do INMET (~4 MB cada) só carregam quando escolhidas. Para sondagem e instabilidade observada veja a aba Sondagem.
       </p>
     </div>

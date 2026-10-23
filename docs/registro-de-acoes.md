@@ -229,6 +229,10 @@ Leitura do OpenAPI, do manual oficial e da resposta da ANA; conector `ana_hidrow
 
 Credenciais enviadas ao `.env` do servidor por SFTP (sem exibir valores). Fonte `ana` ligada: 121 estações (94 com nível, 62 com vazão), primeira ingestão em produção sem erros, coluna **Vazão (m³/s)** na tabela Hidrológicos e nova sub-aba **Dados → ANA**. Sem cron próprio: a ANA roda de **carona no cron da REDEMET** (`7-59/15`, 120 s), lote de até 40 estações por rodada em rodízio, com orçamento de 80 s. Detalhes e achados confirmados em docs/ana-hidrowebservice.md (seção 6).
 
+## 23/10/2026 — Modelos numéricos em grade (GFS e IFS)
+
+Gerador `scripts/modelos/gerar_grades.py` + workflow `modelos-grades.yml` (GitHub Actions, a cada 3 h) publicam grades recortadas do Sudeste no branch `dados-modelos`; o painel lê direto do navegador. Camada interativa **Modelo numérico** na aba Mapa e fontes **IFS/GFS (interativo)** na Previsão numérica, com meteograma por clique. Detalhes, variáveis e limitações em docs/modelos-numericos.md.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
