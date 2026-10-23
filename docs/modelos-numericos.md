@@ -1,52 +1,83 @@
-# Modelos numéricos em grade (GFS e IFS) — mapa interativo (23/10/2026)
+# Modelos numéricos em grade — mapa interativo (23/10/2026)
 
-Pedido do diretor: levar os modelos globais abertos (ECMWF/IFS, NOAA/GFS e, depois, AIFS e ICON) para o painel como **mapa interativo**, na aba **Mapa** (camada sobre as estações) e na **Previsão numérica** (quadros comparáveis com MONAN, WRF, COSMO etc.), não como imagem estática.
+Pedido do diretor: levar os modelos globais abertos (ECMWF, NOAA, DWD) para o painel como **mapa interativo** — na aba **Mapa** (camada sobre as estações) e na **Previsão numérica** (quadros comparáveis com MONAN, WRF, COSMO etc.) — e não como imagem estática. Ordem executada: GFS e IFS → AIFS e IFS 0,1° → conjuntos (probabilidades) → ICON → contornos e ranking por município.
 
 ## Arquitetura
 ```
-GitHub Actions (a cada 3 h, minuto 40)  →  scripts/modelos/gerar_grades.py
-   baixa só as mensagens GRIB2 necessárias (byte-range pelo índice), recorta o Sudeste (17°S–26°S, 50°W–38°W, 0,25°)
-   →  branch `dados-modelos` (1 commit, sobrescrito):  gfs/meta.json, gfs/<var>.json, ifs/meta.json, ifs/<var>.json
-navegador  →  https://raw.githubusercontent.com/anthonybombeiro/cemaden-rj-rainfall-dashboard/dados-modelos/...  (CORS aberto, gzip)
-   →  frontend/src/lib/modelosGrade.ts  (leitura, produtos derivados, paletas, interpolação)
-   →  frontend/src/components/modelos/*  (camada em canvas, controles, meteograma, mapa do quadro)
+GitHub Actions (a cada 3 h, minuto 40; 7 jobs em paralelo)  →  scripts/modelos/gerar_grades.py
+   baixa só as mensagens necessárias (GRIB2 por byte-range; ICON por arquivo .bz2), recorta o Sudeste
+   →  job "publicar": branch órfão `dados-modelos` (1 commit, sobrescrito): <modelo>/meta.json e <modelo>/<var>.json
+navegador  →  https://raw.githubusercontent.com/anthonybombeiro/cemaden-rj-rainfall-dashboard/dados-modelos/...  (CORS aberto, gzip, cache 5 min)
+   →  frontend/src/lib/modelosGrade.ts (+ modelosExtras.ts)  →  frontend/src/components/modelos/*
 ```
-O **servidor HostGator não participa**: não lê GRIB (Python 3.9, sem shell, sem `eccodes`). Nada de credencial: o repositório é público e o workflow usa só o `GITHUB_TOKEN`.
+O **servidor HostGator não participa** (Python 3.9, sem shell, sem `eccodes`). Nenhuma credencial: repositório público e `GITHUB_TOKEN`.
 
-* Workflow: `.github/workflows/modelos-grades.yml` (`workflow_dispatch` com `forcar=true` regera mesmo se a rodada já está publicada). Duração ~5 min (GFS 3 min + IFS 2 min).
-* Escolha da rodada: a mais recente cujo arquivo-teste já existe (GFS: passo 240; IFS: passo 144, porque as rodadas 06/18 só vão a 144 h). Se a rodada já está publicada, não faz nada.
-* Formato de cada `<var>.json`: `{modelo, run, var, un, nx, ny, lat0, lon0, dlat, dlon, passos, fator, nulo, dados:[[int16…]…]}` (linhas de norte a sul; valor real = inteiro / `fator`). ~0,45 MB cru, ~0,17 MB com gzip por variável; o painel só baixa as variáveis do produto escolhido.
-* O catálogo (rótulos, unidades, passos) vem de `meta.json`; o painel não duplica a lista.
+* Workflow: `.github/workflows/modelos-grades.yml`. Cada modelo é um job (`matrix`) que só gera se a rodada ainda não está publicada (`--so-se-nova`); `workflow_dispatch` com `forcar=true` regera tudo. Duração total ~8–10 min (o mais lento é o IFS ENS, ~8 min).
+* Arquivos: `gerar_grades.py` (determinísticos), `conjuntos.py` (IFS ENS e GEFS), `icon.py` (ICON). Dependências em `requirements.txt` (`eccodes`, `numpy`, `requests`, `scipy`).
+* Formato de `<var>.json`: `{modelo, run, var, un, nx, ny, lat0, lon0, dlat, dlon, passos, fator, nulo, dados:[[int16…]…]}` (linhas de norte a sul; valor real = inteiro / `fator`). Cada variável traz a **sua** grade (as de ondas têm malha própria). `meta.json` traz o catálogo (rótulo, unidade, grupo, paleta, faixa, passos) — o painel não duplica a lista.
+* As mensagens GRIB são validadas (`GRIB`…`7777`) e baixadas de novo se vierem truncadas.
 
-## Passos
-* **GFS 0,25°:** 0–120 h de 3 em 3 h, 126–240 h de 6 em 6 h (61 passos). Fonte: AWS Open Data `noaa-gfs-bdp-pds` (idx por mensagem). A chuva (`APCP`) vem em blocos de 3/6 h e é transformada em acumulado desde o início da rodada.
-* **IFS 0,25° (ECMWF Open Data, CC-BY-4.0):** 0–144 h de 3 em 3 h, 150–240 h de 6 em 6 h (65 passos; rodadas 06/18 terminam em 144 h). Fonte: `data.ecmwf.int` (índice `.index` JSON). O IFS 0,1° (novo em 20/10/2026) ainda não apareceu no caminho `0p1` em 22/10; entra quando publicado.
+## Modelos
+| id | Modelo | Grade/recorte | Passos | Observação |
+|---|---|---|---|---|
+| `ifs` | ECMWF IFS 0,25° | Sudeste, 0,25° | 3 h até 144 h, 6 h até 240 h | rodadas 06/18 só até 144 h |
+| `ifs01` | ECMWF IFS 0,1° (~9 km) | **só o RJ** (20,2–24,2°S, 45,2–40,6°W), 0,1° | 3 h até 144 h | só superfície (arquivos 6× maiores) |
+| `aifs` | ECMWF AIFS (IA) | Sudeste, 0,25° | 6 h até 360 h | sem rajada, CAPE nem umidade relativa (UR de níveis calculada de T e q) |
+| `gfs` | NOAA GFS 0,25° | Sudeste, 0,25° | 3 h até 120 h, 6 h até 240 h | chuva em blocos de 3/6 h convertida em acumulado |
+| `icon` | DWD ICON global 13 km | Sudeste, **regridado para 0,125°** | 3 h até 120 h, 6 h até 180 h | ver abaixo |
+| `ifsens` | ECMWF ENS, 50 membros | Sudeste, 0,25° | 6 h até 240 h | estatísticas do conjunto |
+| `gefs` | NOAA GEFS, 31 membros | Sudeste, 0,25° | 6 h até 240 h | estatísticas do conjunto |
 
-## Variáveis disponíveis (40 no GFS, 36 no IFS)
+**ICON:** os dados abertos vêm na grade icosaédrica nativa (2,9 milhões de células) em um arquivo `.grib2.bz2` por variável/passo/nível, com CLAT/CLON (graus). O gerador recorta as células ao redor do domínio e interpola por inverso da distância (3 células) para uma grade regular de 0,125°, sem precisar do CDO. ICON-EU (6,5 km) e ICON-D2 (2,2 km) **não cobrem o Brasil**; não confundir com o ICON-LAM 6,5 km da Marinha (aba Previsão numérica, grupo Marinha).
+
+## Variáveis dos modelos determinísticos (≈ 40 a 58 por modelo)
 | Grupo | Produtos no painel |
 |---|---|
-| Chuva | acumulada nas últimas 3/6/12/24/48/72/96 h (diferença do acumulado) e total desde o início |
-| Vento | 10 m (velocidade + setas), rajada, 925/850/700/500/250 hPa (velocidade + setas), em km/h |
-| Superfície | temperatura e ponto de orvalho a 2 m, umidade relativa 2 m (no IFS calculada de T e Td), pressão ao nível do mar, água precipitável, umidade do solo (0–10 cm), refletividade simulada (só GFS), visibilidade (só GFS), altura da camada limite (só GFS) |
-| Instabilidade | CAPE (IFS: `mucape`, parcela mais instável; GFS: de superfície), CIN (só GFS) |
-| Nuvens | total, baixas, médias e altas |
-| Altitude | altura geopotencial 850/500/250, temperatura 850/700/500, umidade relativa 850/700/500, velocidade vertical 700/500 hPa |
+| Chuva | acumulada nas últimas 3/6/12/24/48/72/96 h, total desde o início, **convectiva** (6/24/72 h), taxa instantânea (mm/h) |
+| Vento | 10 m e 100 m (GFS: 80 m) com setas, rajada, 925/850/700/500/250 hPa com setas — em km/h |
+| Superfície | T e Td a 2 m, UR 2 m, sensação térmica (GFS), pressão (nível do mar e superfície), água precipitável, umidade do solo 0–10 cm, escoamento superficial (IFS), refletividade simulada, visibilidade e camada limite (GFS), altura da isoterma de 0 °C (ICON) |
+| Ondas | altura significativa (+ direção em setas), período médio/de pico — IFS, AIFS e GFS-wave (stream `wave`/`gfswave`) |
+| Instabilidade | CAPE, CAPE da camada de 180 hPa, CIN, Lifted Index, helicidade 0–3 km (os dois últimos e CIN: GFS) |
+| Nuvens | total, baixas, médias, altas |
+| Altitude | altura geopotencial 850/700/500/250, T 925/850/700/500, UR 925/850/700/500, umidade específica 925/850/700, vento nos 5 níveis, velocidade vertical 700/500 |
+| **Derivados (no navegador)** | divergência 850 e 250 hPa, vorticidade relativa 850 hPa, cisalhamento 925–500 hPa, fluxo de umidade 850 hPa (q·V, com setas), índice de calor, Tmax e Tmin das últimas 24 h |
 
-Há mais campos nos arquivos (IFS: radiação, fluxos, neve, tipo de precipitação, ondas…; GFS: dezenas de níveis e camadas); entram sob demanda — basta acrescentar uma linha em `VARIAVEIS` do gerador.
+## Conjuntos (IFS ENS e GEFS)
+Para cada passo de 6 h o gerador baixa chuva, T 2 m, vento 10 m e rajada de **todos os membros** (e altura de onda no IFS ENS) e grava campos estatísticos:
+* **Probabilidades:** chuva ≥ 5/15/30 mm em 6 h; ≥ 10/25/50/100 mm em 24 h; ≥ 25/50/100 mm em 48 h; ≥ 50/100/150 mm em 72 h; T ≥ 35 °C; T ≤ 12 °C; vento 10 m ≥ 40 km/h; rajada ≥ 50 e ≥ 70 km/h; ondas ≥ 2 m e ≥ 3 m (IFS ENS).
+* **Percentis e média:** chuva total (média, mediana, p90 — “cenário chuvoso”), chuva em 6/24/48/72 h (média, p50, p90 calculados sobre a janela de cada membro), T 2 m (p10/p50/p90/média), vento e rajada (p50/p90), altura de onda (p50/p90).
+* **No meteograma:** as faixas dos conjuntos aparecem junto dos modelos — temperatura com faixa p10–p90 e chuva acumulada com mediana e p90.
 
 ## Interface
-* **Aba Mapa:** botão **Modelo numérico** (abaixo do zoom). Liga a camada, escolhe modelo/produto/transparência; barra de tempo com animação; legenda com o valor sob o cursor; **clique no mapa** abre o meteograma do ponto (chuva por 3 h, temperatura, vento e rajada; IFS e GFS juntos, com a linha “agora”). Fica abaixo das linhas de REDEC/município e das estações; clique em estação continua abrindo a ficha da estação.
-* **Previsão numérica:** “IFS 0,25° (interativo)” e “GFS 0,25° (interativo)” viraram fontes nos quadros (grupos ECMWF e NOAA), com mapa próprio, a mesma hora **sincronizável** com MONAN/WRF/COSMO/Marinha e o mesmo meteograma. Padrão: quadro 1 = IFS, quadro 2 = MONAN.
-* O campo é desenhado em canvas a cada pixel (interpolação bilinear), então fica nítido em qualquer zoom; setas de vento a cada 34 px.
+* **Aba Mapa:** botão **Modelo numérico** (abaixo do zoom): modelo (determinísticos e conjuntos), produto, **contornos** (isóbaras a cada 2 hPa, altura geopotencial 850/700/500/250, T 850, isoterma de 0 °C), transparência, barra de tempo com animação, legenda com valor sob o cursor, **ranking por município** (máximo e média do produto dentro de cada município; clique voa até o município) e **clique no mapa** para o meteograma (chuva por 3 h, chuva acumulada, temperatura, vento e rajada de IFS, IFS 0,1°, AIFS, ICON e GFS, mais as faixas dos conjuntos). A camada fica abaixo das estações e das linhas de REDEC/município.
+* **Previsão numérica:** IFS, IFS 0,1°, AIFS, ICON, GFS, IFS ENS e GEFS entram como fontes dos quadros (grupos ECMWF, NOAA e DWD), com mapa próprio, a mesma hora **sincronizável** com MONAN/WRF/COSMO/Marinha, contornos, ranking e meteograma. Padrão: quadro 1 = IFS, quadro 2 = MONAN.
+* O campo é desenhado em canvas por pixel (bilinear), nítido em qualquer zoom; as setas e os contornos (marching squares) são redesenhados ao mover/ampliar.
+
+## Auditoria: o que ficou de fora e por quê (23/10/2026)
+Comparei o que cada fonte publica com o que o painel mostra.
+| Fonte | Existe e **não** foi incluído | Motivo / destino |
+|---|---|---|
+| IFS/AIFS | neve (`sf`, `sd`, `rsn`, `asn`), gelo (`sithick`), `zos`, `lsm` | irrelevantes para o RJ |
+| IFS/AIFS | `ptype` (tipo de precipitação) | categórico; no RJ quase só chuva |
+| IFS/AIFS | radiação (`ssr`, `ssrd`, `str`, `strd`), **OLR (`ttr`)**, tensão do vento (`ewss`, `nsss`), `skt`, `sot`, solo em camadas profundas | fluxos são acumulados (exigem derivar taxa); **OLR é bom indicador de convecção — candidato à próxima etapa** |
+| IFS/AIFS | `mx2t3`/`mn2t3` | substituídos por Tmax/Tmin 24 h derivados da T 2 m |
+| IFS/AIFS | `vo`, `d` (vorticidade/divergência) | calculadas no navegador a partir de u e v |
+| IFS/AIFS | `tciw`, `tclw`, `tcrw` (água de nuvem/chuva/gelo na coluna) | uso restrito |
+| IFS/AIFS | níveis 1000, 600, 400, 300, 200, 150, 100, 50, 10 hPa | os níveis usados cobrem a rotina; entram sob demanda |
+| IFS 0,1° | níveis de pressão | arquivo ~6× maior; fica só superfície no recorte do RJ |
+| GFS | ~700 campos/passo: Tmax/Tmin, vorticidade absoluta, CWAT, ICEC, categóricos (CRAIN…), fluxos de calor, médias de radiação, solo profundo, outros CAPE (90-0, 255-0), teto de nuvens | redundantes, categóricos ou pouco usados; incluir é só acrescentar uma linha em `VARIAVEIS` |
+| GEFS / ENS | CAPE, pressão, nuvens e vento em níveis; **IFS ENS tem 80+ parâmetros** | foco em chuva, temperatura, vento, rajada e ondas (o que decide alerta) |
+| ECMWF | **trajetórias de ciclones tropicais (BUFR)**, `aifs-ens` (404 em 22/10), média/desvio prontos do ENS (`em`/`es` não publicados no caminho aberto) | ciclones fora do foco do RJ; AIFS ENS: reavaliar quando o caminho aparecer |
+| NOAA | GFS-wave: ondulação (SWELL 1–3), vento-mar (WVHGT/WVPER/WVDIR) | há altura/período/direção principais; ondulação separada fica como próxima etapa |
+| DWD | ICON: níveis de modelo (qv, qc, qi, tke), fluxos radiativos, neve, solo, lagos, `rain_gsp` | `tot_prec` cobre a chuva; níveis de modelo são pesados e exigem pós-processamento |
+| DWD | ICON-EU, ICON-D2, ICON-EPS | **não cobrem o Brasil** |
 
 ## Limitações e cuidados
-* Grade de ~25 km: não resolve chuva convectiva local; é guia sinótico e de tendência, não substitui a previsão local nem as estações.
-* O painel mostra sempre a **última rodada publicada**; se o Actions falhar, a legenda mostra a data/hora da rodada (dado antigo fica evidente). `raw.githubusercontent.com` guarda cache de 5 min.
-* Atribuição obrigatória: ECMWF Open Data (CC-BY-4.0) e NOAA/NCEP — aparece nos quadros e na legenda.
+* Grade de ~25 km (ICON 13 km, IFS 0,1° 9 km): guia sinótico e de tendência; **não substitui** as estações, o radar nem a previsão local. Chuva convectiva isolada some em 25 km.
+* O painel mostra sempre a **última rodada publicada**; se o Actions falhar, a rodada (data/hora) aparece na legenda. `raw.githubusercontent.com` guarda cache de 5 min.
+* Probabilidades de conjuntos de 31/50 membros são aproximadas (resolução de 2–3 %); percentil 90 é cenário chuvoso, não previsão.
+* Atribuição obrigatória: ECMWF Open Data (CC-BY-4.0), NOAA/NCEP e DWD — aparece nos quadros e na legenda.
 * Se o repositório sair de público, trocar `BASE_DADOS` (`NEXT_PUBLIC_DADOS_MODELOS`) ou publicar o branch em outro lugar.
 
-## Próximas etapas combinadas
-1. **AIFS** (ECMWF, IA; `aifs-single/0p25`) e **IFS 0,1°** quando disponível — mesmo gerador.
-2. **Probabilidades** do ensemble (IFS ENS e GEFS): chuva acima de limiares, faixa p10–p90 no meteograma.
-3. **ICON global (DWD)** — grade icosaédrica, exige regradeação (CDO ou interpolação própria); ICON-EU/D2 **não cobrem o Brasil**. Não confundir com o ICON-LAM 6,5 km da Marinha, que já está na aba.
-4. Isóbaras/contornos de pressão e altura geopotencial, divisão de município no clique (ranking de maiores acumulados por município), alertas de limiar.
+## Próximas etapas sugeridas
+OLR/ttr como indicador de convecção; ondulação (swell) separada do GFS-wave; AIFS ENS quando disponível; IFS 0,1° em níveis de pressão só para o RJ; alertas por limiar (probabilidade de chuva ≥ X mm em município) ligados ao registro de acionamentos; comparação lado a lado “modelo × estações” (verificação).
