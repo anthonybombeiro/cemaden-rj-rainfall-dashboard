@@ -5,12 +5,16 @@
 export const BASE_DADOS =
   process.env.NEXT_PUBLIC_DADOS_MODELOS ?? "https://raw.githubusercontent.com/anthonybombeiro/cemaden-rj-rainfall-dashboard/dados-modelos";
 
-export type ModeloGrade = "gfs" | "ifs" | "ifs01" | "aifs";
-export const MODELOS_GRADE: { id: ModeloGrade; rotulo: string; detalhe: string; grupo: "NOAA" | "ECMWF"; cor: string; atribuicao: string }[] = [
+export type ModeloGrade = "gfs" | "ifs" | "ifs01" | "aifs" | "ifsens" | "gefs";
+export const MODELOS_CONJUNTO: ModeloGrade[] = ["ifsens", "gefs"];
+export const ehConjunto = (m: string) => (MODELOS_CONJUNTO as string[]).includes(m);
+export const MODELOS_GRADE: { id: ModeloGrade; rotulo: string; detalhe: string; grupo: "NOAA" | "ECMWF"; cor: string; atribuicao: string; conjunto?: boolean }[] = [
   { id: "ifs", rotulo: "IFS 0,25°", detalhe: "ECMWF, ~25 km, 4 rodadas/dia", grupo: "ECMWF", cor: "#2a78d6", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
   { id: "ifs01", rotulo: "IFS 0,1° (RJ)", detalhe: "ECMWF, ~9 km, só o RJ e superfície", grupo: "ECMWF", cor: "#0b3d91", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
   { id: "aifs", rotulo: "AIFS 0,25° (IA)", detalhe: "ECMWF, modelo de IA, passo de 6 h até 15 dias", grupo: "ECMWF", cor: "#1baf7a", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
   { id: "gfs", rotulo: "GFS 0,25°", detalhe: "NOAA/NCEP, ~25 km, 4 rodadas/dia", grupo: "NOAA", cor: "#eb6834", atribuicao: "NOAA/NCEP (domínio público)" },
+  { id: "ifsens", rotulo: "IFS ENS — probabilidades (50 membros)", detalhe: "ECMWF, conjunto de 50 membros, passo de 6 h até 10 dias", grupo: "ECMWF", cor: "#6250d6", atribuicao: "ECMWF Open Data (CC-BY-4.0)", conjunto: true },
+  { id: "gefs", rotulo: "GEFS — probabilidades (31 membros)", detalhe: "NOAA, conjunto de 31 membros, passo de 6 h até 10 dias", grupo: "NOAA", cor: "#c9302f", atribuicao: "NOAA/NCEP (domínio público)", conjunto: true },
 ];
 export const ehModeloGrade = (f: string): f is ModeloGrade => MODELOS_GRADE.some((m) => m.id === f);
 export const rotuloModelo = (m: ModeloGrade) => MODELOS_GRADE.find((x) => x.id === m)?.rotulo ?? m;
@@ -18,7 +22,7 @@ export const rotuloModelo = (m: ModeloGrade) => MODELOS_GRADE.find((x) => x.id =
 const HORA = 3600000;
 
 // ---------------------------------------------------------------- tipos
-export type VarMeta = { id: string; rotulo: string; un: string; grupo: string; paleta: string; acumulada: boolean; passos: number[] };
+export type VarMeta = { id: string; rotulo: string; un: string; grupo: string; paleta: string; acumulada: boolean; passos: number[]; faixa?: [number, number] };
 export type MetaModelo = {
   modelo: ModeloGrade;
   run: string; // AAAAMMDDHH (UTC)
@@ -276,7 +280,7 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
     const f = FAIXAS[v.id];
     out.push({
       id: v.id, rotulo: v.rotulo, grupo: v.grupo, un: v.un, vars: [v.id],
-      escala: { rampa: f?.[2] ?? v.paleta, min: f?.[0] ?? 0, max: f?.[1] ?? 100, un: v.un }, horas: v.passos,
+      escala: { rampa: f?.[2] ?? v.paleta, min: v.faixa?.[0] ?? f?.[0] ?? 0, max: v.faixa?.[1] ?? f?.[1] ?? 100, un: v.un }, horas: v.passos,
       calcula: (g, h) => {
         const i = idxHora(g[v.id], h);
         return i < 0 ? null : { valores: g[v.id].dados[i] };
@@ -284,7 +288,7 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
     });
   }
   out.push(...produtosDerivados(meta));
-  const ordem = ["Chuva", "Vento", "Superfície", "Instabilidade", "Nuvens", "Altitude", "Derivados"];
+  const ordem = ["Probabilidades", "Chuva (conjunto)", "Chuva", "Vento (conjunto)", "Vento", "Temperatura (conjunto)", "Superfície", "Instabilidade", "Nuvens", "Altitude", "Derivados"];
   return out.sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo));
 }
 
@@ -408,7 +412,7 @@ function produtosDerivados(meta: MetaModelo): Produto[] {
   return out;
 }
 
-export const produtoPadraoGrade = (ps: Produto[]) => ps.find((p) => p.id === "chuva24")?.id ?? ps[0]?.id ?? "";
+export const produtoPadraoGrade = (ps: Produto[]) => (ps.find((p) => p.id === "chuva24") ?? ps.find((p) => p.id === "pchuva24_25") ?? ps[0])?.id ?? "";
 
 /** Hora (h do início da rodada) mais próxima do instante `alvoMs` dentre as do produto. */
 export function horaMaisProxima(horas: number[], runMs: number, alvoMs: number): number {
@@ -417,7 +421,7 @@ export function horaMaisProxima(horas: number[], runMs: number, alvoMs: number):
 }
 
 // ---------------------------------------------------------------- série em um ponto (meteograma)
-export type SeriePonto = { modelo: ModeloGrade; horas: number[]; chuva3h: number[]; temp: number[]; vento: number[]; rajada: number[]; run: string };
+export type SeriePonto = { modelo: ModeloGrade; horas: number[]; chuva3h: number[]; chuvaAcum: number[]; temp: number[]; vento: number[]; rajada: number[]; run: string };
 
 /** Meteograma de um ponto: chuva a cada 3 h (mm), temperatura a 2 m (°C), vento a 10 m e rajada (km/h). */
 export async function serieNoPonto(modelo: ModeloGrade, lat: number, lon: number): Promise<SeriePonto | null> {
@@ -445,5 +449,30 @@ export async function serieNoPonto(modelo: ModeloGrade, lat: number, lon: number
     return u === u && v === v ? Math.hypot(u, v) * KMH : NaN;
   });
   const rajada = horas.map((h) => val(gust, h) * KMH);
-  return { modelo, run: meta.run, horas, chuva3h, temp, vento, rajada };
+  const chuvaAcum = horas.map((h) => val(tp, h));
+  return { modelo, run: meta.run, horas, chuva3h, chuvaAcum, temp, vento, rajada };
+}
+
+// ---------------------------------------------------------------- faixa de incerteza (conjuntos) num ponto
+export type BandaPonto = {
+  modelo: ModeloGrade;
+  run: string;
+  horas: number[];
+  chuvaP50: number[]; // acumulada desde o início (mm)
+  chuvaP90: number[];
+  chuvaMedia: number[];
+  tempP10: number[];
+  tempP50: number[];
+  tempP90: number[];
+};
+
+export async function bandaNoPonto(modelo: ModeloGrade, lat: number, lon: number): Promise<BandaPonto | null> {
+  const meta = await fetchMeta(modelo);
+  const ids = ["tp_p50", "tp_p90", "tp_media", "t2m_p10", "t2m_p50", "t2m_p90"];
+  const gr = await Promise.all(ids.map((id) => (meta.variaveis.some((v) => v.id === id) ? fetchGrade(modelo, id, meta.run).catch(() => null) : Promise.resolve(null))));
+  const ref = gr.find((g) => g);
+  if (!ref || !dentro(ref, lat, lon)) return null;
+  const horas = meta.passos;
+  const serie = (g: Grade | null) => horas.map((h) => (g && g.passos.includes(h) ? amostrar(g.dados[g.passos.indexOf(h)], g, lat, lon) : NaN));
+  return { modelo, run: meta.run, horas, chuvaP50: serie(gr[0]), chuvaP90: serie(gr[1]), chuvaMedia: serie(gr[2]), tempP10: serie(gr[3]), tempP50: serie(gr[4]), tempP90: serie(gr[5]) };
 }

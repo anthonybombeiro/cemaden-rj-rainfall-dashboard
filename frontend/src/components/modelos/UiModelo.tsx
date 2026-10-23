@@ -3,7 +3,7 @@
 import { Pause, Play, StepBack, StepForward } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { Escala, itensLegenda, MODELOS_GRADE, ModeloGrade, Produto, rotuloRun, SeriePonto, serieNoPonto } from "@/lib/modelosGrade";
+import { BandaPonto, bandaNoPonto, Escala, itensLegenda, MODELOS_CONJUNTO, MODELOS_GRADE, ModeloGrade, Produto, rotuloRun, SeriePonto, serieNoPonto } from "@/lib/modelosGrade";
 
 const campo = "min-w-0 rounded border border-gray-300 bg-white px-2 py-1 text-xs";
 const FUSO = "America/Sao_Paulo";
@@ -24,9 +24,16 @@ export function SeletoresModelo({
   return (
     <div className="grid grid-cols-2 gap-1.5">
       <select aria-label="Modelo" value={modelo} onChange={(e) => onModelo(e.target.value as ModeloGrade)} className={`${campo} font-semibold`}>
-        {MODELOS_GRADE.map((m) => (
-          <option key={m.id} value={m.id}>{m.rotulo}</option>
-        ))}
+        <optgroup label="Determinísticos">
+          {MODELOS_GRADE.filter((m) => !m.conjunto).map((m) => (
+            <option key={m.id} value={m.id}>{m.rotulo}</option>
+          ))}
+        </optgroup>
+        <optgroup label="Conjuntos (probabilidades)">
+          {MODELOS_GRADE.filter((m) => m.conjunto).map((m) => (
+            <option key={m.id} value={m.id}>{m.rotulo}</option>
+          ))}
+        </optgroup>
       </select>
       <select aria-label="Produto" value={produtoId} onChange={(e) => onProduto(e.target.value)} className={campo} disabled={!produtos.length}>
         {grupos.map((g) => (
@@ -102,11 +109,11 @@ export function BarraTempoModelo({
 }
 
 // ---------------------------------------------------------------- meteograma do ponto
-type Serie = { cor: string; rotulo: string; pts: { t: number; v: number }[]; barra?: boolean; tracejado?: boolean };
+type Serie = { cor: string; rotulo: string; pts: { t: number; v: number }[]; barra?: boolean; tracejado?: boolean; faixa?: { t: number; lo: number; hi: number }[] };
 
 function PainelSerie({ titulo, un, series, largura, agoraMs }: { titulo: string; un: string; series: Serie[]; largura: number; agoraMs: number }) {
   const H = 78, ml = 28, mr = 6, mt = 4, mb = 14;
-  const todos = series.flatMap((s) => s.pts.filter((p) => p.v === p.v));
+  const todos = series.flatMap((s) => [...s.pts.filter((p) => p.v === p.v), ...(s.faixa ?? []).flatMap((f) => [{ t: f.t, v: f.lo }, { t: f.t, v: f.hi }].filter((q) => q.v === q.v))]);
   if (!todos.length) return null;
   const tMin = Math.min(...todos.map((p) => p.t)), tMax = Math.max(...todos.map((p) => p.t));
   const barras = series.some((s) => s.barra);
@@ -134,7 +141,14 @@ function PainelSerie({ titulo, un, series, largura, agoraMs }: { titulo: string;
         </g>
       ))}
       {agoraMs >= tMin && agoraMs <= tMax && <line x1={x(agoraMs)} x2={x(agoraMs)} y1={mt} y2={H - mb} stroke="#d03b3b" strokeWidth={1} />}
-      {series.map((s, k) => {
+      {series.map((s) => {
+        if (s.faixa) {
+          const f = s.faixa.filter((p) => p.lo === p.lo && p.hi === p.hi);
+          if (f.length < 2) return null;
+          const d = `M${f.map((p) => `${x(p.t)},${y(p.hi)}`).join(" L")} L${[...f].reverse().map((p) => `${x(p.t)},${y(p.lo)}`).join(" L")} Z`;
+          return <path key={s.rotulo} d={d} fill={s.cor} opacity={0.18} />;
+        }
+        const k = series.indexOf(s);
         const v = s.pts.filter((p) => p.v === p.v);
         if (s.barra) {
           const off = (k - (series.filter((q) => q.barra).length - 1) / 2) * larguraBarra;
@@ -146,42 +160,61 @@ function PainelSerie({ titulo, un, series, largura, agoraMs }: { titulo: string;
   );
 }
 
-/** Meteograma do ponto clicado: IFS e GFS juntos (chuva por hora média no passo, temperatura, vento e rajada). */
+const runMsDe = (run: string) => Date.UTC(+run.slice(0, 4), +run.slice(4, 6) - 1, +run.slice(6, 8), +run.slice(8, 10));
+
+/** Meteograma do ponto clicado: modelos determinísticos (chuva, temperatura, vento) e a faixa de incerteza dos conjuntos
+ * (IFS ENS e GEFS: chuva acumulada mediana/percentil 90 e temperatura p10–p90). */
 export function PontoMeteograma({ lat, lon, modelos }: { lat: number; lon: number; modelos: ModeloGrade[] }) {
-  const [res, setRes] = useState<{ chave: string; series: (SeriePonto | null)[] } | null>(null);
+  const [res, setRes] = useState<{ chave: string; series: (SeriePonto | null)[]; bandas: (BandaPonto | null)[] } | null>(null);
   const chave = `${lat.toFixed(3)},${lon.toFixed(3)},${modelos.join("+")}`;
   useEffect(() => {
     let cancelado = false;
-    Promise.all(modelos.map((m) => serieNoPonto(m, lat, lon).catch(() => null))).then((series) => !cancelado && setRes({ chave, series }));
+    Promise.all([
+      Promise.all(modelos.map((m) => serieNoPonto(m, lat, lon).catch(() => null))),
+      Promise.all(MODELOS_CONJUNTO.map((m) => bandaNoPonto(m, lat, lon).catch(() => null))),
+    ]).then(([series, bandas]) => !cancelado && setRes({ chave, series, bandas }));
     return () => {
       cancelado = true;
     };
   }, [chave, lat, lon, modelos]);
   const pronto = res && res.chave === chave ? res.series.filter((s): s is SeriePonto => !!s) : null;
+  const bandas = res && res.chave === chave ? res.bandas.filter((b): b is BandaPonto => !!b) : [];
   const [agoraMs] = useState(() => Date.now());
   const cor = (m: ModeloGrade) => MODELOS_GRADE.find((x) => x.id === m)?.cor ?? "#2a78d6";
   const L = 330;
   const mk = (pega: (s: SeriePonto) => number[], extra?: Partial<Serie>): Serie[] =>
-    (pronto ?? []).map((s) => ({ cor: cor(s.modelo), rotulo: `${s.modelo}${extra?.tracejado ? "-r" : ""}`, ...extra, pts: s.horas.map((h, i) => ({ t: Date.UTC(+s.run.slice(0, 4), +s.run.slice(4, 6) - 1, +s.run.slice(6, 8), +s.run.slice(8, 10)) + h * 3600000, v: pega(s)[i] })) }));
+    (pronto ?? []).map((s) => ({ cor: cor(s.modelo), rotulo: `${s.modelo}${extra?.tracejado ? "-r" : ""}${extra?.barra ? "-b" : ""}`, ...extra, pts: s.horas.map((h, i) => ({ t: runMsDe(s.run) + h * 3600000, v: pega(s)[i] })) }));
+  const pts = (b: BandaPonto, v: number[]) => b.horas.map((h, i) => ({ t: runMsDe(b.run) + h * 3600000, v: v[i] }));
+  const faixasTemp: Serie[] = bandas.map((b) => ({ cor: cor(b.modelo), rotulo: `${b.modelo}-faixa`, pts: [], faixa: b.horas.map((h, i) => ({ t: runMsDe(b.run) + h * 3600000, lo: b.tempP10[i], hi: b.tempP90[i] })) }));
   return (
     <div style={{ width: L }} className="text-gray-800">
       <p className="mb-1 text-xs font-semibold">Ponto {lat.toFixed(2).replace(".", ",")}°, {lon.toFixed(2).replace(".", ",")}°</p>
       {!pronto ? (
         <p className="py-6 text-center text-xs text-gray-500">Carregando séries…</p>
-      ) : !pronto.length ? (
+      ) : !pronto.length && !bandas.length ? (
         <p className="py-6 text-center text-xs text-gray-500">Ponto fora da área dos modelos (Sudeste).</p>
       ) : (
         <>
           <div className="mb-1 flex flex-wrap gap-x-3 text-[10px] text-gray-600">
-            {pronto.map((s) => (
-              <span key={s.modelo} className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm" style={{ background: cor(s.modelo) }} />{s.modelo.toUpperCase()} rodada {rotuloRun(s.run)}</span>
+            {[...pronto.map((s) => ({ m: s.modelo, run: s.run })), ...bandas.map((b) => ({ m: b.modelo, run: b.run }))].map((s) => (
+              <span key={s.m} className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm" style={{ background: cor(s.m) }} />{s.m.toUpperCase()} {rotuloRun(s.run)}</span>
             ))}
             <span className="flex items-center gap-1"><span className="inline-block h-2 w-0.5 bg-red-600" />agora</span>
           </div>
-          <PainelSerie titulo="Chuva (mm/3 h)" un="mm" series={mk((s) => s.chuva3h, { barra: true })} largura={L} agoraMs={agoraMs} />
-          <PainelSerie titulo="Temperatura a 2 m" un="°C" series={mk((s) => s.temp)} largura={L} agoraMs={agoraMs} />
+          <PainelSerie titulo="Chuva (mm por 3 h)" un="mm" series={mk((s) => s.chuva3h, { barra: true })} largura={L} agoraMs={agoraMs} />
+          <PainelSerie
+            titulo="Chuva acumulada (linha cheia: modelo; tracejado: p90 do conjunto)"
+            un="mm"
+            series={[...mk((s) => s.chuvaAcum), ...bandas.flatMap((b) => [
+              { cor: cor(b.modelo), rotulo: `${b.modelo}-p50`, pts: pts(b, b.chuvaP50), tracejado: false },
+              { cor: cor(b.modelo), rotulo: `${b.modelo}-p90`, pts: pts(b, b.chuvaP90), tracejado: true },
+            ])]}
+            largura={L}
+            agoraMs={agoraMs}
+          />
+          <PainelSerie titulo="Temperatura a 2 m (faixa: p10–p90 do conjunto)" un="°C" series={[...faixasTemp, ...mk((s) => s.temp)]} largura={L} agoraMs={agoraMs} />
           <PainelSerie titulo="Vento a 10 m (traço: rajada)" un="km/h" series={[...mk((s) => s.vento), ...mk((s) => s.rajada, { tracejado: true })]} largura={L} agoraMs={agoraMs} />
-          <p className="mt-1 text-[9px] text-gray-400">Interpolado da grade de 0,25° (~25 km): não substitui a previsão local nem as estações.</p>
+          <p className="mt-1 text-[9px] text-gray-400">Interpolado da grade de 0,25° (~25 km): não substitui a previsão local nem as estações. Faixa do conjunto = incerteza.</p>
         </>
       )}
     </div>
