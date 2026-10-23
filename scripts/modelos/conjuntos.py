@@ -55,7 +55,7 @@ def rodada_conjunto(modelo: str, teste: int) -> str | None:
 
 
 # ------------------------------------------------------------------ leitura dos membros
-VARS = ("tp", "t2m", "u10", "v10", "gust")
+VARS = ("tp", "t2m", "u10", "v10", "gust", "swh")
 
 
 def _ler_ens(rodada: str, passo: int, dom: dict):
@@ -74,7 +74,7 @@ def _ler_ens(rodada: str, passo: int, dom: dict):
 
     def um(a):
         n, v, ini, fim = a
-        b = G.http(url, (ini, fim))
+        b = G.http_grib(url, (ini, fim))
         return n, v, (G.decodificar(b, dom) if b else None)
 
     out: dict[int, dict[str, np.ndarray]] = {}
@@ -86,6 +86,34 @@ def _ler_ens(rodada: str, passo: int, dom: dict):
             vals = dec[0] * 1000 if v == "tp" else (dec[0] - 273.15 if v == "t2m" else dec[0])
             out.setdefault(n, {})[v] = vals
             geo = geo or (dec[1], dec[2])
+    return out, geo
+
+
+def _ler_ens_onda(rodada: str, passo: int, dom: dict):
+    """({membro: swh}, (lats, lons)) do conjunto de ondas do IFS (stream waef)."""
+    d, h = rodada[:8], rodada[8:]
+    url = f"https://data.ecmwf.int/forecasts/{d}/{h}z/ifs/0p25/waef/{d}{h}0000-{passo}h-waef-ef.grib2"
+    idx = G.http(url.replace(".grib2", ".index"))
+    if not idx:
+        return {}, None
+    alvos = []
+    for l in idx.decode().splitlines():
+        e = json.loads(l)
+        if e["param"] == "swh" and e.get("number") is not None:
+            alvos.append((int(e["number"]), e["_offset"], e["_offset"] + e["_length"] - 1))
+
+    def um(a):
+        n, ini, fim = a
+        b = G.http_grib(url, (ini, fim))
+        return n, (G.decodificar(b, dom) if b else None)
+
+    out: dict[int, np.ndarray] = {}
+    geo = None
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for n, dec in ex.map(um, alvos):
+            if dec is not None:
+                out[n] = dec[0]
+                geo = geo or (dec[1], dec[2])
     return out, geo
 
 
@@ -114,7 +142,7 @@ def _ler_gefs_membro(rodada: str, membro: str, passo: int, dom: dict):
             v = "tp"
         if not v or v in res:
             continue
-        b = G.http(arq, (ini, fim))
+        b = G.http_grib(arq, (ini, fim))
         if not b:
             continue
         vals, lats, lons = G.decodificar(b, dom)
@@ -143,12 +171,17 @@ def processar_conjunto(modelo: str, rodada: str, passos: list[int], saida: Path)
     dados: dict[str, dict[int, list[np.ndarray]]] = {v: {p: [] for p in passos} for v in VARS}
     geo = None
     if modelo == "ifsens":
+        geo_onda = None
+
         def passo_ens(p):
-            return p, _ler_ens(rodada, p, dom)
+            return p, _ler_ens(rodada, p, dom), _ler_ens_onda(rodada, p, dom)
 
         with ThreadPoolExecutor(max_workers=5) as ex:
-            for p, (membros, g) in ex.map(passo_ens, passos):
+            for p, (membros, g), (ondas, go) in ex.map(passo_ens, passos):
                 geo = geo or g
+                geo_onda = geo_onda or go
+                for n in sorted(ondas):
+                    dados["swh"][p].append(ondas[n])
                 for n, campos in sorted(membros.items()):
                     for v in VARS:
                         if v in campos:
@@ -194,8 +227,8 @@ def processar_conjunto(modelo: str, rodada: str, passos: list[int], saida: Path)
 
     saidas: list[dict] = []  # {id, rotulo, un, fator, grupo, paleta, faixa, campos{passo: array}}
 
-    def novo(id_, rotulo, un, fator, grupo, paleta, faixa=None):
-        d = dict(id=id_, rotulo=rotulo, un=un, fator=fator, grupo=grupo, paleta=paleta, faixa=faixa, campos={}, acumulada=False)
+    def novo(id_, rotulo, un, fator, grupo, paleta, faixa=None, geo_var=None):
+        d = dict(id=id_, rotulo=rotulo, un=un, fator=fator, grupo=grupo, paleta=paleta, faixa=faixa, campos={}, acumulada=False, geo=geo_var)
         saidas.append(d)
         return d["campos"]
 
@@ -254,6 +287,16 @@ def processar_conjunto(modelo: str, rodada: str, passos: list[int], saida: Path)
             gk = g * KMH
             g50[p], g90[p], pg50[p], pg70[p] = _pct(gk, 50), _pct(gk, 90), 100 * np.mean(gk >= 50, axis=0), 100 * np.mean(gk >= 70, axis=0)
 
+    if modelo == "ifsens" and geo_onda:
+        s50 = novo("swh_p50", f"Altura das ondas, mediana ({nome})", "m", 100, "Ondas (conjunto)", "onda", [0, 6], geo_onda)
+        s90 = novo("swh_p90", f"Altura das ondas, percentil 90 ({nome})", "m", 100, "Ondas (conjunto)", "onda", [0, 6], geo_onda)
+        ps2 = novo("pswh_ge2", f"Probabilidade de ondas ≥ 2 m ({nome})", "%", 10, "Probabilidades", "prob", [0, 100], geo_onda)
+        ps3 = novo("pswh_ge3", f"Probabilidade de ondas ≥ 3 m ({nome})", "%", 10, "Probabilidades", "prob", [0, 100], geo_onda)
+        for p in passos:
+            a = pilha("swh", p)
+            if a is not None:
+                s50[p], s90[p], ps2[p], ps3[p] = _pct(a, 50), _pct(a, 90), 100 * np.mean(a >= 2, axis=0), 100 * np.mean(a >= 3, axis=0)
+
     saida.mkdir(parents=True, exist_ok=True)
     catalogo = []
     for s in saidas:
@@ -264,8 +307,9 @@ def processar_conjunto(modelo: str, rodada: str, passos: list[int], saida: Path)
         for p in ps:
             a = np.round(s["campos"][p] * s["fator"])
             dd.append(np.where(np.isnan(a), G.NULO, np.clip(a, -32767, 32767)).astype(int).ravel().tolist())
-        doc = {"v": 1, "modelo": modelo, "run": rodada, "var": s["id"], "un": s["un"], "nx": len(lons), "ny": len(lats), "lat0": float(lats[0]), "lon0": float(lons[0]),
-               "dlat": float(round(lats[0] - lats[1], 4)), "dlon": float(round(lons[1] - lons[0], 4)), "passos": ps, "fator": s["fator"], "nulo": G.NULO, "dados": dd}
+        la, lo = s["geo"] or (lats, lons)
+        doc = {"v": 1, "modelo": modelo, "run": rodada, "var": s["id"], "un": s["un"], "nx": len(lo), "ny": len(la), "lat0": float(la[0]), "lon0": float(lo[0]),
+               "dlat": float(round(la[0] - la[1], 4)), "dlon": float(round(lo[1] - lo[0], 4)), "passos": ps, "fator": s["fator"], "nulo": G.NULO, "dados": dd}
         (saida / f"{s['id']}.json").write_text(json.dumps(doc, separators=(",", ":")), encoding="utf-8")
         e = {"id": s["id"], "rotulo": s["rotulo"], "un": s["un"], "grupo": s["grupo"], "paleta": s["paleta"], "acumulada": False, "passos": ps}
         if s["faixa"]:

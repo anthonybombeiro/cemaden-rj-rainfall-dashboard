@@ -23,6 +23,7 @@ import requests
 from eccodes import codes_get, codes_get_array, codes_new_from_message, codes_release
 
 NULO = -32768
+ONDAS_IDS = {"swh", "mwp", "pp1d", "mwd"}
 SUDESTE = dict(lat_n=-17.0, lat_s=-26.0, lon_w=-50.0, lon_e=-38.0)  # 0,25°: 37 x 49
 RJ = dict(lat_n=-20.2, lat_s=-24.2, lon_w=-45.2, lon_e=-40.6)  # 0,1°: 41 x 47
 
@@ -89,6 +90,11 @@ var("vis", "Visibilidade (NOAA)", "km", 10, "Superfície", "vis", gfs=("VIS", "s
 var("hpbl", "Altura da camada limite (NOAA)", "m", 1, "Superfície", "altura", gfs=("HPBL", "surface", _ident))
 var("ro", "Escoamento superficial acumulado (IFS)", "mm", 100, "Superfície", "chuva", ifs=("ro", "sfc", None, lambda x: x * 1000), aifs=False)
 var("soilw", "Umidade do solo (0–10 cm)", "%", 10, "Superfície", "solo", ifs=("vsw", "sol", 1, lambda x: x * 100), gfs=("SOILW", "0-0.1 m below ground", lambda x: x * 100))
+# ondas (arquivos próprios: ECMWF "wave"; NOAA "gfswave")
+var("swh", "Altura significativa das ondas", "m", 100, "Ondas", "onda", ifs=("swh", "wave", None, _ident), gfs=("HTSGW", "surface", _ident, "wave"))
+var("mwp", "Período médio das ondas (IFS/AIFS) / de pico (GFS)", "s", 100, "Ondas", "periodo", ifs=("mwp", "wave", None, _ident), gfs=("PERPW", "surface", _ident, "wave"))
+var("pp1d", "Período de pico das ondas (IFS)", "s", 100, "Ondas", "periodo", ifs=("pp1d", "wave", None, _ident), aifs=False)
+var("mwd", "Direção das ondas (de onde vêm, graus)", "°", 10, "Ondas", "altura", ifs=("mwd", "wave", None, _ident), gfs=("DIRPW", "surface", _ident, "wave"))
 for n in (850, 700, 500, 250):
     var(f"gh{n}", f"Altura geopotencial {n} hPa", "m", 1, "Altitude", "altura", ifs=("gh", "pl", n, _ident), gfs=("HGT", f"{n} mb", _ident))
 for n in (925, 850, 700, 500):
@@ -139,6 +145,16 @@ def http(url: str, faixa: tuple[int, int] | None = None, tentativas: int = 4) ->
 
 
 # ------------------------------------------------------------------ GRIB
+def http_grib(url: str, faixa: tuple[int, int] | None = None, tentativas: int = 3) -> bytes | None:
+    """Baixa uma mensagem GRIB e confere o início ('GRIB') e o fim ('7777'); refaz se vier truncada ou com erro."""
+    for k in range(tentativas):
+        b = http(url, faixa)
+        if b and b[:4] == b"GRIB" and b[-4:] == b"7777":
+            return b
+        time.sleep(1.5 * (k + 1))
+    return None
+
+
 def decodificar(msg: bytes, dom: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """(valores recortados [norte→sul, oeste→leste], lats, lons)."""
     h = codes_new_from_message(msg)
@@ -160,13 +176,17 @@ def decodificar(msg: bytes, dom: dict) -> tuple[np.ndarray, np.ndarray, np.ndarr
 
 
 # ------------------------------------------------------------------ endereços e índices
-def url_gfs(rodada: str, passo: int) -> str:
+def url_gfs(rodada: str, passo: int, onda: bool = False) -> str:
     d, h = rodada[:8], rodada[8:]
+    if onda:
+        return f"https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{d}/{h}/wave/gridded/gfswave.t{h}z.global.0p25.f{passo:03d}.grib2"
     return f"https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{d}/{h}/atmos/gfs.t{h}z.pgrb2.0p25.f{passo:03d}"
 
 
 def url_ecmwf(cfg: dict, rodada: str, passo: int, levtype: str = "sfc") -> str:
     d, h = rodada[:8], rodada[8:]
+    if levtype == "wave":
+        return f"https://data.ecmwf.int/forecasts/{d}/{h}z/{cfg['base'].replace('/oper', '/wave')}/{d}{h}0000-{passo}h-wave-fc.grib2"
     suf = cfg["sufixos"][levtype] if cfg["sufixos"] else ""
     return f"https://data.ecmwf.int/forecasts/{d}/{h}z/{cfg['base']}/{d}{h}0000-{passo}h-{cfg['stream']}{suf}.grib2"
 
@@ -198,30 +218,34 @@ def mensagens(modelo: str, rodada: str, passo: int, escolhidas: list[dict]) -> d
     cfg = MODELOS[modelo]
     out: dict = {}
     if cfg["tipo"] == "gfs":
-        arq = url_gfs(rodada, passo)
-        idx = http(arq + ".idx")
-        if not idx:
-            return {}
-        linhas = [l.split(":") for l in idx.decode().splitlines() if l]
-        for k, l in enumerate(linhas):
-            ini = int(l[1])
-            fim = int(linhas[k + 1][1]) - 1 if k + 1 < len(linhas) else ini + 8_000_000
-            nome, nivel, tipo = l[3], l[4], l[5]
-            for v in escolhidas:
-                s = spec_var(v, modelo)
-                if not s or v["id"] in out or nome != s[0] or nivel != s[1]:
-                    continue
-                if v["acumulada"]:
-                    if "hour acc fcst" in tipo and "-" in tipo.split()[0] and "day" not in tipo:
-                        a, b = tipo.split()[0].split("-")
-                        out[v["id"]] = (arq, (ini, fim), (int(a), int(b)))
-                elif (tipo.endswith("hour fcst") or tipo == "anl") and "-" not in tipo.split()[0]:
-                    out[v["id"]] = (arq, (ini, fim), None)
+        for onda in (False, True):
+            arq = url_gfs(rodada, passo, onda)
+            vs = [v for v in escolhidas if spec_var(v, modelo) and (len(spec_var(v, modelo)) > 3) == onda]
+            if not vs:
+                continue
+            idx = http(arq + ".idx")
+            if not idx:
+                continue
+            linhas = [l.split(":") for l in idx.decode().splitlines() if l]
+            for k, l in enumerate(linhas):
+                ini = int(l[1])
+                fim = int(linhas[k + 1][1]) - 1 if k + 1 < len(linhas) else ini + 8_000_000
+                nome, nivel, tipo = l[3], l[4], l[5]
+                for v in vs:
+                    s = spec_var(v, modelo)
+                    if v["id"] in out or nome != s[0] or nivel != s[1]:
+                        continue
+                    if v["acumulada"]:
+                        if "hour acc fcst" in tipo and "-" in tipo.split()[0] and "day" not in tipo:
+                            a, b = tipo.split()[0].split("-")
+                            out[v["id"]] = (arq, (ini, fim), (int(a), int(b)))
+                    elif (tipo.endswith("hour fcst") or tipo == "anl") and "-" not in tipo.split()[0]:
+                        out[v["id"]] = (arq, (ini, fim), None)
         return out
     # ECMWF: índice JSON por arquivo (0,1° tem arquivos separados de superfície e de níveis de pressão)
     levtypes = sorted({(spec_var(v, modelo) or (0, "sfc"))[1] for v in escolhidas})
     entradas: dict[str, list[dict]] = {}
-    for lt in {("pl" if x == "pl" else "sfc") for x in levtypes}:
+    for lt in {("pl" if x == "pl" else ("wave" if x == "wave" else "sfc")) for x in levtypes}:
         idx = http(url_indice(modelo, rodada, passo, lt))
         if idx:
             entradas[lt] = [json.loads(l) for l in idx.decode().splitlines() if l]
@@ -230,8 +254,9 @@ def mensagens(modelo: str, rodada: str, passo: int, escolhidas: list[dict]) -> d
         if not s or not isinstance(s, tuple):
             continue
         p, lt, nivel, _ = s
-        for e in entradas.get("pl" if lt == "pl" else "sfc", []):
-            if e["param"] == p and e["levtype"] == lt and (nivel is None or str(e.get("levelist")) == str(nivel)):
+        grupo = "pl" if lt == "pl" else ("wave" if lt == "wave" else "sfc")
+        for e in entradas.get(grupo, []):
+            if e["param"] == p and (lt == "wave" or e["levtype"] == lt) and (nivel is None or str(e.get("levelist")) == str(nivel)):
                 out[v["id"]] = (url_ecmwf(cfg, rodada, passo, lt), (e["_offset"], e["_offset"] + e["_length"] - 1), None)
                 break
     return out
@@ -245,11 +270,12 @@ def processar(modelo: str, rodada: str, passos: list[int], saida: Path) -> dict:
     escolhidas = [v for v in V if spec_var(v, modelo) and (permitidas is None or v["id"] in permitidas)]
     grade: dict[str, dict[int, np.ndarray]] = {v["id"]: {} for v in escolhidas}
     geometria: dict = {}
+    geoms: dict[str, tuple] = {}  # cada variável guarda a própria grade (as de ondas têm outra malha)
 
     def trabalho(passo: int):
         res = {}
         for vid, (arq, faixa, intervalo) in mensagens(modelo, rodada, passo, escolhidas).items():
-            bruto = http(arq, faixa)
+            bruto = http_grib(arq, faixa)
             if bruto:
                 try:
                     res[vid] = (decodificar(bruto, dom), intervalo)
@@ -265,7 +291,9 @@ def processar(modelo: str, rodada: str, passos: list[int], saida: Path) -> dict:
     por_id = {v["id"]: v for v in escolhidas}
     for passo in passos:
         for vid, ((vals, lats, lons), intervalo) in resultados.get(passo, {}).items():
-            geometria = geometria or {"lats": lats, "lons": lons}
+            geoms.setdefault(vid, (lats, lons))
+            if vid not in ONDAS_IDS:
+                geometria = geometria or {"lats": lats, "lons": lons}
             v = por_id[vid]
             fn = spec_var(v, modelo)[2] if MODELOS[modelo]["tipo"] == "gfs" else spec_var(v, modelo)[3]
             arr = fn(vals)
@@ -295,13 +323,13 @@ def processar(modelo: str, rodada: str, passos: list[int], saida: Path) -> dict:
                     if p in grade[f"t{n}"] and p in grade[f"q{n}"]:
                         grade[vid][p] = rh_q(grade[f"t{n}"][p], grade[f"q{n}"][p] / 1000, n)
 
-    lats, lons = geometria["lats"], geometria["lons"]
     saida.mkdir(parents=True, exist_ok=True)
     catalogo = []
     for v in escolhidas:
         g = grade[v["id"]]
         if not g:
             continue
+        lats, lons = geoms.get(v["id"]) or (geometria["lats"], geometria["lons"])
         ps = [p for p in passos if p in g]
         dados = []
         for p in ps:

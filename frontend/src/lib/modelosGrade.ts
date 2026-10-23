@@ -115,6 +115,8 @@ export const RAMPAS: Record<string, Rampa> = {
   solo: { cores: ["#d8b365", "#f6e8c3", "#c7eae5", "#5ab4ac", "#01665e"] },
   agua: { cores: ["#ffffff", "#c7e9c0", "#74c476", "#238b45", "#41b6c4", "#225ea8", "#081d58"] },
   vis: { cores: ["#7f0000", "#d7301f", "#fc8d59", "#fdd49e", "#ffffff00"] },
+  onda: { cores: ["#e0f2fe", "#7dd3fc", "#38bdf8", "#0ea5e9", "#2563eb", "#7c3aed", "#be185d"] },
+  periodo: { cores: ["#f0fdf4", "#bbf7d0", "#4ade80", "#16a34a", "#0e7490", "#4338ca", "#701a75"] },
   li: { cores: ["#7f0000", "#d7301f", "#fdae61", "#ffffbf", "#f7f7f700"] },
   prob: { cores: ["#ffffff00", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#7c3aed", "#4c1d95"] },
   // chuva (mm): faixas discretas
@@ -197,7 +199,7 @@ const FAIXAS: Record<string, [number, number, string]> = {
   msl: [1004, 1024, "pressao"], cape: [0, 4000, "cape"], cin: [0, 250, "cin"], tcwv: [10, 70, "agua"],
   tcc: [0, 100, "nuvem"], lcc: [0, 100, "nuvem"], mcc: [0, 100, "nuvem"], hcc: [0, 100, "nuvem"],
   refc: [0, 60, "refl"], vis: [0, 20, "vis"], hpbl: [0, 3000, "agua"], soilw: [10, 60, "solo"],
-  hzerocl: [3000, 5200, "altura"], gh850: [1350, 1600, "altura"], gh500: [5650, 5950, "altura"], gh250: [10300, 10900, "altura"],
+  swh: [0, 6, "onda"], mwp: [4, 18, "periodo"], pp1d: [4, 18, "periodo"], hzerocl: [3000, 5200, "altura"], gh850: [1350, 1600, "altura"], gh500: [5650, 5950, "altura"], gh250: [10300, 10900, "altura"],
   w700: [-1.5, 1.5, "omega"], w500: [-1.5, 1.5, "omega"],
   tprate: [0, 40, "vento"], sp: [900, 1020, "pressao"], ro: [0, 20, "agua"], aptmp: [5, 45, "temp"], lftx: [-10, 6, "li"], hlcy: [0, 400, "cape"], cape_ml: [0, 3000, "cape"],
   q925: [2, 20, "agua"], q850: [2, 18, "agua"], q700: [1, 12, "agua"], t925: [8, 30, "temp"], r925: [0, 100, "umid"], gh700: [2900, 3200, "altura"],
@@ -274,10 +276,29 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
       },
     });
   }
+  const sw = tem("swh"), md = tem("mwd");
+  if (sw && md) {
+    out.push({
+      id: "ondas", rotulo: "Ondas: altura significativa e direção (setas)", grupo: "Ondas", un: "m", vars: ["swh", "mwd"], horas: sw.passos.filter((h) => md.passos.includes(h)),
+      escala: { rampa: "onda", min: 0, max: 6, un: "m" },
+      calcula: (g, h) => {
+        const i = idxHora(g.swh, h), j = idxHora(g.mwd, h);
+        if (i < 0 || j < 0) return null;
+        const hs = g.swh.dados[i], dir = g.mwd.dados[j];
+        const u = new Float32Array(hs.length), v = new Float32Array(hs.length);
+        for (let k = 0; k < hs.length; k++) {
+          const ate = ((dir[k] + 180) * Math.PI) / 180; // a direção informada é de ONDE as ondas vêm
+          u[k] = hs[k] * Math.sin(ate);
+          v[k] = hs[k] * Math.cos(ate);
+        }
+        return { valores: hs, setas: { u, v } };
+      },
+    });
+  }
   for (const { n, max } of NIVEIS_VENTO) vento(`vento${n}`, `Vento ${n} hPa (com setas)`, "Altitude", `u${n}`, `v${n}`, max);
 
   for (const v of meta.variaveis) {
-    if (v.id === "tp" || v.id === "cp" || v.id === "gust" || /^[uv](10|100|\d{3})$/.test(v.id)) continue;
+    if (v.id === "tp" || v.id === "cp" || v.id === "gust" || v.id === "mwd" || /^[uv](10|100|\d{3})$/.test(v.id)) continue;
     const f = FAIXAS[v.id];
     out.push({
       id: v.id, rotulo: v.rotulo, grupo: v.grupo, un: v.un, vars: [v.id],
@@ -289,7 +310,7 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
     });
   }
   out.push(...produtosDerivados(meta));
-  const ordem = ["Probabilidades", "Chuva (conjunto)", "Chuva", "Vento (conjunto)", "Vento", "Temperatura (conjunto)", "Superfície", "Instabilidade", "Nuvens", "Altitude", "Derivados"];
+  const ordem = ["Probabilidades", "Chuva (conjunto)", "Chuva", "Vento (conjunto)", "Vento", "Ondas (conjunto)", "Ondas", "Temperatura (conjunto)", "Superfície", "Instabilidade", "Nuvens", "Altitude", "Derivados"];
   return out.sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo));
 }
 
