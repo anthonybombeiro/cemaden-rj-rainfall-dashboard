@@ -18,8 +18,8 @@ import {
 } from "@/lib/catalogoModelos";
 import { MARINHA_FILES } from "@/lib/produtosMarinha";
 
-export type FonteId = "ifs" | "ifs01" | "aifs" | "ifsens" | "gefs" | "gfs" | "monan" | "wrf" | "brams" | "bam" | "wwatch" | "marinha" | "marinha-ondas" | "marinha-oceano" | "cosmo2p8" | "cosmo7";
-export type Fonte = { id: FonteId; rotulo: string; grupo: "CPTEC" | "Marinha" | "INMET" | "ECMWF" | "NOAA" };
+export type FonteId = "ifs" | "ifs01" | "aifs" | "icon" | "ifsens" | "gefs" | "gfs" | "monan" | "wrf" | "brams" | "bam" | "wwatch" | "marinha" | "marinha-ondas" | "marinha-oceano" | "cosmo2p8" | "cosmo7";
+export type Fonte = { id: FonteId; rotulo: string; grupo: "CPTEC" | "Marinha" | "INMET" | "ECMWF" | "NOAA" | "DWD" };
 
 /** Ordem = prioridade ao escolher as fontes padrão dos quadros. */
 export const FONTES: Fonte[] = [
@@ -28,6 +28,7 @@ export const FONTES: Fonte[] = [
   { id: "ifs01", rotulo: "IFS 0,1° RJ (interativo)", grupo: "ECMWF" },
   { id: "aifs", rotulo: "AIFS 0,25° IA (interativo)", grupo: "ECMWF" },
   { id: "ifsens", rotulo: "IFS ENS probabilidades (interativo)", grupo: "ECMWF" },
+  { id: "icon", rotulo: "ICON global 13 km (interativo)", grupo: "DWD" },
   { id: "gfs", rotulo: "GFS 0,25° (interativo)", grupo: "NOAA" },
   { id: "gefs", rotulo: "GEFS probabilidades (interativo)", grupo: "NOAA" },
   { id: "monan", rotulo: "MONAN 10 km", grupo: "CPTEC" },

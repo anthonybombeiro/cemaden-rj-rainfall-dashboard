@@ -5,14 +5,15 @@
 export const BASE_DADOS =
   process.env.NEXT_PUBLIC_DADOS_MODELOS ?? "https://raw.githubusercontent.com/anthonybombeiro/cemaden-rj-rainfall-dashboard/dados-modelos";
 
-export type ModeloGrade = "gfs" | "ifs" | "ifs01" | "aifs" | "ifsens" | "gefs";
+export type ModeloGrade = "gfs" | "ifs" | "ifs01" | "aifs" | "icon" | "ifsens" | "gefs";
 export const MODELOS_CONJUNTO: ModeloGrade[] = ["ifsens", "gefs"];
 export const ehConjunto = (m: string) => (MODELOS_CONJUNTO as string[]).includes(m);
-export const MODELOS_GRADE: { id: ModeloGrade; rotulo: string; detalhe: string; grupo: "NOAA" | "ECMWF"; cor: string; atribuicao: string; conjunto?: boolean }[] = [
+export const MODELOS_GRADE: { id: ModeloGrade; rotulo: string; detalhe: string; grupo: "NOAA" | "ECMWF" | "DWD"; cor: string; atribuicao: string; conjunto?: boolean }[] = [
   { id: "ifs", rotulo: "IFS 0,25°", detalhe: "ECMWF, ~25 km, 4 rodadas/dia", grupo: "ECMWF", cor: "#2a78d6", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
   { id: "ifs01", rotulo: "IFS 0,1° (RJ)", detalhe: "ECMWF, ~9 km, só o RJ e superfície", grupo: "ECMWF", cor: "#0b3d91", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
   { id: "aifs", rotulo: "AIFS 0,25° (IA)", detalhe: "ECMWF, modelo de IA, passo de 6 h até 15 dias", grupo: "ECMWF", cor: "#1baf7a", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
   { id: "gfs", rotulo: "GFS 0,25°", detalhe: "NOAA/NCEP, ~25 km, 4 rodadas/dia", grupo: "NOAA", cor: "#eb6834", atribuicao: "NOAA/NCEP (domínio público)" },
+  { id: "icon", rotulo: "ICON global 13 km (DWD)", detalhe: "DWD (Alemanha), 13 km, grade regridada para 0,125°, até 7 dias", grupo: "DWD", cor: "#d4537e", atribuicao: "Deutscher Wetterdienst (DWD), dados abertos" },
   { id: "ifsens", rotulo: "IFS ENS — probabilidades (50 membros)", detalhe: "ECMWF, conjunto de 50 membros, passo de 6 h até 10 dias", grupo: "ECMWF", cor: "#6250d6", atribuicao: "ECMWF Open Data (CC-BY-4.0)", conjunto: true },
   { id: "gefs", rotulo: "GEFS — probabilidades (31 membros)", detalhe: "NOAA, conjunto de 31 membros, passo de 6 h até 10 dias", grupo: "NOAA", cor: "#c9302f", atribuicao: "NOAA/NCEP (domínio público)", conjunto: true },
 ];
@@ -196,7 +197,7 @@ const FAIXAS: Record<string, [number, number, string]> = {
   msl: [1004, 1024, "pressao"], cape: [0, 4000, "cape"], cin: [0, 250, "cin"], tcwv: [10, 70, "agua"],
   tcc: [0, 100, "nuvem"], lcc: [0, 100, "nuvem"], mcc: [0, 100, "nuvem"], hcc: [0, 100, "nuvem"],
   refc: [0, 60, "refl"], vis: [0, 20, "vis"], hpbl: [0, 3000, "agua"], soilw: [10, 60, "solo"],
-  gh850: [1350, 1600, "altura"], gh500: [5650, 5950, "altura"], gh250: [10300, 10900, "altura"],
+  hzerocl: [3000, 5200, "altura"], gh850: [1350, 1600, "altura"], gh500: [5650, 5950, "altura"], gh250: [10300, 10900, "altura"],
   w700: [-1.5, 1.5, "omega"], w500: [-1.5, 1.5, "omega"],
   tprate: [0, 40, "vento"], sp: [900, 1020, "pressao"], ro: [0, 20, "agua"], aptmp: [5, 45, "temp"], lftx: [-10, 6, "li"], hlcy: [0, 400, "cape"], cape_ml: [0, 3000, "cape"],
   q925: [2, 20, "agua"], q850: [2, 18, "agua"], q700: [1, 12, "agua"], t925: [8, 30, "temp"], r925: [0, 100, "umid"], gh700: [2900, 3200, "altura"],

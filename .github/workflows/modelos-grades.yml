@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        modelo: [gfs, ifs, aifs, ifs01, ifsens, gefs]
+        modelo: [gfs, ifs, aifs, ifs01, ifsens, gefs, icon]
     steps:
       - uses: actions/checkout@v4
 

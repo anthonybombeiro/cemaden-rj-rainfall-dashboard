@@ -3,7 +3,8 @@
 import { Pause, Play, StepBack, StepForward } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { BandaPonto, bandaNoPonto, Escala, itensLegenda, MODELOS_CONJUNTO, MODELOS_GRADE, ModeloGrade, Produto, rotuloRun, SeriePonto, serieNoPonto } from "@/lib/modelosGrade";
+import { carregarMunicipios, LinhaRanking, Municipio, rankingMunicipios } from "@/lib/modelosExtras";
+import { BandaPonto, bandaNoPonto, Escala, Geo, itensLegenda, MODELOS_CONJUNTO, MODELOS_GRADE, ModeloGrade, Produto, rotuloRun, SeriePonto, serieNoPonto } from "@/lib/modelosGrade";
 
 const campo = "min-w-0 rounded border border-gray-300 bg-white px-2 py-1 text-xs";
 const FUSO = "America/Sao_Paulo";
@@ -15,10 +16,11 @@ const fmtNum = (v: number, un: string) => (un === "mm" || un === "km" || un === 
 
 // ---------------------------------------------------------------- seletores
 export function SeletoresModelo({
-  modelo, onModelo, produtos, produtoId, onProduto, opacidade, onOpacidade,
+  modelo, onModelo, produtos, produtoId, onProduto, opacidade, onOpacidade, contornos, contornoId, onContorno,
 }: {
   modelo: ModeloGrade; onModelo: (m: ModeloGrade) => void; produtos: Produto[]; produtoId: string; onProduto: (p: string) => void;
   opacidade?: number; onOpacidade?: (o: number) => void;
+  contornos?: { id: string; rotulo: string }[]; contornoId?: string; onContorno?: (id: string) => void;
 }) {
   const grupos = useMemo(() => Array.from(new Set(produtos.map((p) => p.grupo))), [produtos]);
   return (
@@ -44,6 +46,14 @@ export function SeletoresModelo({
           </optgroup>
         ))}
       </select>
+      {onContorno && (
+        <select aria-label="Contornos" value={contornoId ?? ""} onChange={(e) => onContorno(e.target.value)} className={`${campo} col-span-2`}>
+          <option value="">Contornos: nenhum</option>
+          {(contornos ?? []).map((c) => (
+            <option key={c.id} value={c.id}>Contornos: {c.rotulo}</option>
+          ))}
+        </select>
+      )}
       {onOpacidade && (
         <label className="col-span-2 flex items-center gap-2 text-[11px] text-gray-600">
           Transparência
@@ -216,6 +226,63 @@ export function PontoMeteograma({ lat, lon, modelos }: { lat: number; lon: numbe
           <PainelSerie titulo="Vento a 10 m (traço: rajada)" un="km/h" series={[...mk((s) => s.vento), ...mk((s) => s.rajada, { tracejado: true })]} largura={L} agoraMs={agoraMs} />
           <p className="mt-1 text-[9px] text-gray-400">Interpolado da grade de 0,25° (~25 km): não substitui a previsão local nem as estações. Faixa do conjunto = incerteza.</p>
         </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- ranking por município
+const fmtRank = (v: number, un: string) => (un === "%" || un === "mm" || un === "km/h" || un === "m/s" ? v.toFixed(v < 10 ? 1 : 0) : Math.round(v).toString()).replace(".", ",");
+
+/** Ranking dos municípios do RJ pelo maior valor do produto mostrado (e média), calculado a partir da grade. */
+export function RankingMunicipios({ valores, geo, un, rotulo, onFoco }: { valores: Float32Array | null; geo: Geo | null; un: string; rotulo: string; onFoco?: (b: [[number, number], [number, number]]) => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [todos, setTodos] = useState(false);
+  const [munis, setMunis] = useState<Municipio[] | null>(null);
+  useEffect(() => {
+    if (!aberto || munis) return;
+    let cancelado = false;
+    carregarMunicipios().then((m) => !cancelado && setMunis(m)).catch(() => {});
+    return () => {
+      cancelado = true;
+    };
+  }, [aberto, munis]);
+  const linhas: LinhaRanking[] | null = useMemo(() => (aberto && munis && valores && geo ? rankingMunicipios(munis, valores, geo) : null), [aberto, munis, valores, geo]);
+  return (
+    <div className="text-[11px]">
+      <button type="button" onClick={() => setAberto((a) => !a)} className="w-full rounded bg-gray-100 px-2 py-1 text-left font-medium text-gray-700 hover:bg-gray-200" aria-expanded={aberto}>
+        {aberto ? "▾" : "▸"} Ranking por município
+      </button>
+      {aberto && (
+        <div className="mt-1">
+          <p className="mb-1 text-[10px] text-gray-500">{rotulo}: máximo e média dentro de cada município ({un}). Clique para ir ao município.</p>
+          {!linhas ? (
+            <p className="py-2 text-center text-gray-500">Calculando…</p>
+          ) : (
+            <>
+              <div className="max-h-52 overflow-y-auto overscroll-contain rounded border border-gray-200">
+                <table className="w-full">
+                  <thead className="sticky top-0 bg-gray-50 text-left text-[10px] text-gray-500">
+                    <tr><th className="px-1.5 py-0.5">#</th><th className="px-1.5 py-0.5">Município</th><th className="px-1.5 py-0.5 text-right">Máx.</th><th className="px-1.5 py-0.5 text-right">Média</th></tr>
+                  </thead>
+                  <tbody>
+                    {(todos ? linhas : linhas.slice(0, 15)).map((l, i) => (
+                      <tr key={l.nome} onClick={() => onFoco?.(l.bounds)} className="cursor-pointer border-t border-gray-100 hover:bg-blue-50">
+                        <td className="px-1.5 py-0.5 text-gray-400">{i + 1}</td>
+                        <td className="px-1.5 py-0.5">{l.nome}</td>
+                        <td className="px-1.5 py-0.5 text-right font-semibold">{fmtRank(l.max, un)}</td>
+                        <td className="px-1.5 py-0.5 text-right text-gray-600">{fmtRank(l.media, un)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {linhas.length > 15 && (
+                <button type="button" onClick={() => setTodos((t) => !t)} className="mt-1 text-blue-600 hover:underline">{todos ? "Mostrar só os 15 primeiros" : `Mostrar todos (${linhas.length})`}</button>
+              )}
+            </>
+          )}
+        </div>
       )}
     </div>
   );

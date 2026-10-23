@@ -5,6 +5,9 @@ import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 
 import { amostrar, criarCor, Escala, Geo, ResultadoProduto } from "@/lib/modelosGrade";
+import { NivelContorno } from "@/lib/modelosExtras";
+
+export type ContornoDesenho = { niveis: NivelContorno[]; intervalo: number } | null;
 
 const PANE = "modeloGradePane";
 const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
@@ -17,9 +20,11 @@ export default function CamadaGradeCanvas({
   resultado,
   escala,
   opacidade,
+  contorno = null,
   onHover,
   onClick,
 }: {
+  contorno?: ContornoDesenho;
   geo: Geo | null;
   resultado: ResultadoProduto | null;
   escala: Escala;
@@ -29,7 +34,7 @@ export default function CamadaGradeCanvas({
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const dados = useRef({ geo, resultado, escala });
+  const dados = useRef<{ geo: Geo | null; resultado: ResultadoProduto | null; escala: Escala; contorno: ContornoDesenho }>({ geo, resultado, escala, contorno });
   const cb = useRef({ onHover, onClick });
 
   useEffect(() => {
@@ -53,7 +58,7 @@ export default function CamadaGradeCanvas({
     const off = document.createElement("canvas");
 
     const redesenhar = () => {
-      const { geo: g, resultado: r, escala: e } = dados.current;
+      const { geo: g, resultado: r, escala: e, contorno: ct } = dados.current;
       const size = map.getSize();
       const tl = map.containerPointToLayerPoint([0, 0]);
       L.DomUtil.setPosition(canvas, tl);
@@ -65,7 +70,10 @@ export default function CamadaGradeCanvas({
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!g || !r) return;
+      if (!g || !r) {
+        if (ct) desenharContornos(ctx, ct);
+        return;
+      }
       const S = 3; // 1 amostra a cada 3 px, ampliada com suavização
       const w = Math.ceil(size.x / S), h = Math.ceil(size.y / S);
       off.width = w;
@@ -105,6 +113,7 @@ export default function CamadaGradeCanvas({
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(off, 0, 0, w * S, h * S);
 
+      if (ct) desenharContornos(ctx, ct);
       if (r.setas) {
         const esp = 34;
         ctx.lineWidth = 1.5;
@@ -136,6 +145,39 @@ export default function CamadaGradeCanvas({
             ctx.restore();
           }
         }
+      }
+    };
+    const desenharContornos = (ctx: CanvasRenderingContext2D, ct: NonNullable<ContornoDesenho>) => {
+      const usados = new Set<string>();
+      ctx.lineJoin = "round";
+      ctx.font = "600 10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const rotulos: [number, number, string][] = [];
+      for (const n of ct.niveis) {
+        const principal = Math.round(n.nivel / ct.intervalo) % 5 === 0;
+        ctx.beginPath();
+        ctx.strokeStyle = principal ? "rgba(20,20,20,0.85)" : "rgba(40,40,40,0.55)";
+        ctx.lineWidth = principal ? 1.6 : 0.9;
+        for (const [lo1, la1, lo2, la2] of n.segs) {
+          const a = map.latLngToContainerPoint([la1, lo1]);
+          const b = map.latLngToContainerPoint([la2, lo2]);
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          const chave = `${n.nivel}|${Math.floor(a.x / 260)}|${Math.floor(a.y / 260)}`;
+          if (!usados.has(chave) && a.x > 20 && a.y > 12 && a.x < canvas.width - 20 && a.y < canvas.height - 12) {
+            usados.add(chave);
+            rotulos.push([a.x, a.y, String(Math.round(n.nivel * 10) / 10)]);
+          }
+        }
+        ctx.stroke();
+      }
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.fillStyle = "#111";
+      for (const [x, y, t] of rotulos) {
+        ctx.strokeText(t, x, y);
+        ctx.fillText(t, x, y);
       }
     };
     desenhar.current = redesenhar;
@@ -184,10 +226,10 @@ export default function CamadaGradeCanvas({
   }, [map]);
 
   useEffect(() => {
-    dados.current = { geo, resultado, escala };
+    dados.current = { geo, resultado, escala, contorno };
     if (canvasRef.current) canvasRef.current.style.opacity = String(opacidade);
     desenhar.current();
-  }, [geo, resultado, escala, opacidade]);
+  }, [geo, resultado, escala, opacidade, contorno]);
 
   return null;
 }

@@ -3,14 +3,14 @@
 import L from "leaflet";
 import { Layers } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Popup } from "react-leaflet";
+import { Popup, useMap } from "react-leaflet";
 
 import { MODELOS_GRADE, ModeloGrade, rotuloRun } from "@/lib/modelosGrade";
 import CamadaGradeCanvas from "./CamadaGradeCanvas";
 import { useEstadoModelo } from "./hooks";
-import { BarraTempoModelo, LegendaModelo, PontoMeteograma, SeletoresModelo } from "./UiModelo";
+import { BarraTempoModelo, LegendaModelo, PontoMeteograma, RankingMunicipios, SeletoresModelo } from "./UiModelo";
 
-const MODELOS_METEOGRAMA: ModeloGrade[] = ["ifs", "ifs01", "aifs", "gfs"];
+const MODELOS_METEOGRAMA: ModeloGrade[] = ["ifs", "ifs01", "aifs", "icon", "gfs"];
 
 /** Camada "Modelo numérico" da aba Mapa (renderiza DENTRO do MapContainer): campo de IFS/GFS sobre o mapa de estações, com
  * produto, hora, animação, transparência, valor sob o cursor e meteograma do ponto clicado. Desligada por padrão. */
@@ -18,6 +18,7 @@ export default function PainelModeloMapa() {
   const [ativo, setAtivo] = useState(false);
   const [aberto, setAberto] = useState(false);
   const estado = useEstadoModelo("ifs", ativo);
+  const map = useMap();
   const [hover, setHover] = useState<number | null>(null);
   const [ponto, setPonto] = useState<{ lat: number; lon: number } | null>(null);
   const botoesRef = useRef<HTMLDivElement | null>(null);
@@ -41,6 +42,7 @@ export default function PainelModeloMapa() {
           resultado={resultado}
           escala={produto?.escala ?? { rampa: "temp", min: 0, max: 1, un: "" }}
           opacidade={estado.opacidade}
+          contorno={estado.contorno}
           onHover={(p) => setHover(p ? p.valor : null)}
           onClick={setPonto}
         />
@@ -69,7 +71,7 @@ export default function PainelModeloMapa() {
         </button>
         {ativo && aberto && (
           <div className="mt-1.5 w-72 max-w-[80vw] rounded-md border border-gray-200 bg-white p-2.5 text-xs shadow-lg">
-            <SeletoresModelo modelo={estado.modelo} onModelo={estado.setModelo} produtos={estado.produtos} produtoId={estado.produtoId} onProduto={estado.setProdutoId} opacidade={estado.opacidade} onOpacidade={estado.setOpacidade} />
+            <SeletoresModelo modelo={estado.modelo} onModelo={estado.setModelo} produtos={estado.produtos} produtoId={estado.produtoId} onProduto={estado.setProdutoId} opacidade={estado.opacidade} onOpacidade={estado.setOpacidade} contornos={estado.opcoesContorno} contornoId={estado.contornoId} onContorno={estado.setContornoId} />
             {estado.erro && <p className="mt-2 text-red-600">Dados do modelo indisponíveis no momento.</p>}
             {estado.carregando && !estado.erro && <p className="mt-2 text-gray-500">Carregando grade…</p>}
             <button type="button" onClick={() => { setAtivo(false); setPonto(null); setHover(null); }} className="mt-2 w-full rounded bg-gray-100 px-2 py-1 font-medium text-gray-700 hover:bg-gray-200">
@@ -83,6 +85,7 @@ export default function PainelModeloMapa() {
         <div ref={barraRef} className="absolute bottom-14 left-1/2 z-[1000] w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 rounded-md border border-gray-200 bg-white/95 p-2 shadow-lg sm:bottom-3 sm:w-[min(26rem,calc(100vw-24rem))] lg:w-[34rem]">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5 sm:grid-cols-1">
             <LegendaModelo escala={produto.escala} rotulo={produto.rotulo} nota={resultado?.nota} valor={hover} />
+            <RankingMunicipios valores={resultado?.valores ?? null} geo={geo} un={produto.un} rotulo={produto.rotulo} onFoco={(b) => map.flyToBounds(b, { maxZoom: 10, duration: 0.6 })} />
             <BarraTempoModelo horas={produto.horas} runMs={runMs} hora={hora} onHora={estado.irParaHora} tocando={estado.tocando} onTocar={estado.setTocando} />
             {meta && <p className="text-[9px] leading-tight text-gray-400">{estado.modelo.toUpperCase()} rodada {rotuloRun(meta.run)} · {atrib} · clique no mapa para o meteograma</p>}
           </div>

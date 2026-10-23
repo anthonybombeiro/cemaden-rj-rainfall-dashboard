@@ -30,7 +30,7 @@ const MapaModelo = dynamic(() => import("@/components/modelos/MapaModelo"), {
   ssr: false,
   loading: () => <p className="p-6 text-center text-sm text-gray-400">Carregando mapa…</p>,
 });
-const GRUPOS_FONTE = ["ECMWF", "NOAA", "CPTEC", "Marinha", "INMET"] as const;
+const GRUPOS_FONTE = ["ECMWF", "NOAA", "DWD", "CPTEC", "Marinha", "INMET"] as const;
 
 const HORA = 3600000;
 const MS_ANIMACAO = 900;
@@ -88,7 +88,7 @@ function QuadroGrade({ idx, fonteInicial, sync, vtSync, onVtSync, onFonte }: { i
           {meta ? <option value={meta.run}>Rodada {rotuloRunGrade(meta.run)} (última)</option> : <option>Carregando…</option>}
         </select>
         <div className="col-span-2">
-          <SeletoresModelo modelo={estado.modelo} onModelo={estado.setModelo} produtos={estado.produtos} produtoId={estado.produtoId} onProduto={estado.setProdutoId} opacidade={estado.opacidade} onOpacidade={estado.setOpacidade} />
+          <SeletoresModelo modelo={estado.modelo} onModelo={estado.setModelo} produtos={estado.produtos} produtoId={estado.produtoId} onProduto={estado.setProdutoId} opacidade={estado.opacidade} onOpacidade={estado.setOpacidade} contornos={estado.opcoesContorno} contornoId={estado.contornoId} onContorno={estado.setContornoId} />
         </div>
       </figcaption>
       <div className="relative min-h-[22rem] flex-1 sm:min-h-[16rem]">
@@ -480,7 +480,7 @@ export default function PrevisaoNumericaPanel() {
       </div>
 
       <p className="mt-2 hidden shrink-0 text-[11px] text-gray-400 sm:block">
-        Fontes: ECMWF Open Data (IFS, CC-BY-4.0) e NOAA/NCEP (GFS) em mapa interativo, CPTEC/INPE (MONAN, WRF, BRAMS, BAM, Wwatch), Marinha do Brasil — SMM/CHM (ICON-LAM, ondas, HYCOM) e INMET (COSMO 2,8 km e 7 km, VIME). A data das rodadas da Marinha é inferida pelo horário de
+        Fontes: ECMWF Open Data (IFS, AIFS e ENS, CC-BY-4.0), NOAA/NCEP (GFS e GEFS) e DWD (ICON) em mapa interativo, CPTEC/INPE (MONAN, WRF, BRAMS, BAM, Wwatch), Marinha do Brasil — SMM/CHM (ICON-LAM, ondas, HYCOM) e INMET (COSMO 2,8 km e 7 km, VIME). A data das rodadas da Marinha é inferida pelo horário de
         publicação das pastas. As séries do INMET (~4 MB cada) só carregam quando escolhidas. Para sondagem e instabilidade observada veja a aba Sondagem.
       </p>
     </div>

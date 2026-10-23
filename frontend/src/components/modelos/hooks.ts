@@ -16,6 +16,7 @@ import {
   ResultadoProduto,
   runParaMs,
 } from "@/lib/modelosGrade";
+import { CONTORNOS_DEF, contornos as calcularContornos, NivelContorno } from "@/lib/modelosExtras";
 
 /** Carrega o catálogo (`meta.json`) do modelo escolhido. */
 export function useMetaModelo(modelo: ModeloGrade | null) {
@@ -75,7 +76,32 @@ export function useEstadoModelo(modeloInicial: ModeloGrade, ativo = true, alvoEx
   const [tocando, setTocando] = useState(false);
   const { resultado, geo, carregando: carregandoGrade, erro: erroGrade } = useResultadoProduto(ativo ? modelo : null, meta, produto, hora);
   const irParaHora = (h: number) => setAlvoLocal(runMs + h * 3600000);
+
+  // contornos (isóbaras, altura geopotencial...) de uma variável do mesmo modelo
+  const [contornoId, setContornoId] = useState("");
+  const opcoesContorno = useMemo(() => CONTORNOS_DEF.filter((c) => meta?.variaveis.some((v) => v.id === c.id)), [meta]);
+  const defContorno = opcoesContorno.find((c) => c.id === contornoId) ?? null;
+  const chaveCont = ativo && meta && defContorno ? `${modelo}|${meta.run}|${defContorno.id}` : null;
+  const [gradeCont, setGradeCont] = useState<{ chave: string; grade: Grade | null } | null>(null);
+  useEffect(() => {
+    if (!chaveCont || !meta || !defContorno) return;
+    let cancelado = false;
+    fetchGrade(modelo, defContorno.id, meta.run)
+      .then((grade) => !cancelado && setGradeCont({ chave: chaveCont, grade }))
+      .catch(() => !cancelado && setGradeCont({ chave: chaveCont, grade: null }));
+    return () => {
+      cancelado = true;
+    };
+  }, [chaveCont, modelo, meta, defContorno]);
+  const contorno: { niveis: NivelContorno[]; rotulo: string; un: string; intervalo: number } | null = useMemo(() => {
+    const g = gradeCont && gradeCont.chave === chaveCont ? gradeCont.grade : null;
+    if (!g || !defContorno || hora === null) return null;
+    const h = g.passos.reduce((m, p) => (Math.abs(p - hora) < Math.abs(m - hora) ? p : m), g.passos[0]);
+    return { niveis: calcularContornos(g.dados[g.passos.indexOf(h)], g, defContorno.intervalo), rotulo: defContorno.rotulo, un: defContorno.un, intervalo: defContorno.intervalo };
+  }, [gradeCont, chaveCont, defContorno, hora]);
+
   return {
+    contornoId, setContornoId, opcoesContorno, contorno,
     modelo, setModelo, meta, produtos, produto, produtoId: produto?.id ?? "", setProdutoId, runMs, hora, irParaHora, opacidade, setOpacidade,
     tocando, setTocando, resultado, geo, carregando: carregandoMeta || carregandoGrade, erro: erroMeta || erroGrade,
   };

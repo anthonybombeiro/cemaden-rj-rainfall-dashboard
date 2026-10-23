@@ -322,19 +322,20 @@ def processar(modelo: str, rodada: str, passos: list[int], saida: Path) -> dict:
 
 def main() -> int:
     from conjuntos import CONJUNTOS, processar_conjunto  # noqa: PLC0415
+    from icon import CFG as CFG_ICON  # noqa: PLC0415
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--modelo", choices=sorted(list(MODELOS) + list(CONJUNTOS)), required=True)
+    ap.add_argument("--modelo", choices=sorted(list(MODELOS) + list(CONJUNTOS) + ["icon"]), required=True)
     ap.add_argument("--saida", required=True)
     ap.add_argument("--rodada")
     ap.add_argument("--max-passos", type=int)
     ap.add_argument("--so-se-nova", help="pasta publicada: não faz nada se já tem esta rodada")
     a = ap.parse_args()
     ens = a.modelo in CONJUNTOS
-    cfg = CONJUNTOS[a.modelo] if ens else MODELOS[a.modelo]
+    cfg = CONJUNTOS[a.modelo] if ens else (CFG_ICON if a.modelo == "icon" else MODELOS[a.modelo])
     passos = cfg["passos"][: a.max_passos] if a.max_passos else cfg["passos"]
     teste = min(cfg["teste"], passos[-1])
-    rodada = a.rodada or (CONJUNTOS_RODADA(a.modelo, teste) if ens else rodada_mais_recente(a.modelo, teste))
+    rodada = a.rodada or (CONJUNTOS_RODADA(a.modelo, teste) if ens else (RODADA_ICON(teste) if a.modelo == "icon" else rodada_mais_recente(a.modelo, teste)))
     if not rodada:
         print("nenhuma rodada completa encontrada", file=sys.stderr)
         return 1
@@ -345,9 +346,19 @@ def main() -> int:
             return 0
     if ens:
         processar_conjunto(a.modelo, rodada, passos, Path(a.saida) / a.modelo)
+    elif a.modelo == "icon":
+        from icon import processar_icon  # noqa: PLC0415
+
+        processar_icon(rodada, passos, Path(a.saida) / "icon")
     else:
         processar(a.modelo, rodada, passos, Path(a.saida) / a.modelo)
     return 0
+
+
+def RODADA_ICON(teste: int) -> str | None:  # noqa: N802
+    from icon import rodada_icon  # noqa: PLC0415
+
+    return rodada_icon(teste)
 
 
 def CONJUNTOS_RODADA(modelo: str, teste: int) -> str | None:  # noqa: N802
