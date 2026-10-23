@@ -53,7 +53,7 @@ function configInicial(fonte: FonteId): Config {
 // ---------------------------------------------------------------- um quadro (fonte, produto, área, rodada e hora próprios)
 /** Quadro de um modelo em grade (IFS/GFS): mapa interativo no lugar da imagem, com a mesma hora sincronizável dos demais. */
 function QuadroGrade({ idx, fonteInicial, sync, vtSync, onVtSync, onFonte }: { idx: number; fonteInicial: FonteId; sync: boolean; vtSync: number | null; onVtSync: (vt: number) => void; onFonte: (f: FonteId) => void }) {
-  const modeloIni = fonteInicial === "gfs" ? "gfs" : "ifs";
+  const modeloIni = ehModeloGrade(fonteInicial) ? fonteInicial : "ifs";
   const estado = useEstadoModelo(modeloIni, true, sync && vtSync !== null ? vtSync : null);
   const { meta, produto, hora, runMs } = estado;
   const sel = `${campo} min-w-0 !py-1 text-xs`;

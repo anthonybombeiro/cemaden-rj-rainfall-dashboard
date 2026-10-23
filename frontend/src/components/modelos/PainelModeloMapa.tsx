@@ -10,6 +10,8 @@ import CamadaGradeCanvas from "./CamadaGradeCanvas";
 import { useEstadoModelo } from "./hooks";
 import { BarraTempoModelo, LegendaModelo, PontoMeteograma, SeletoresModelo } from "./UiModelo";
 
+const MODELOS_METEOGRAMA: ModeloGrade[] = ["ifs", "ifs01", "aifs", "gfs"];
+
 /** Camada "Modelo numérico" da aba Mapa (renderiza DENTRO do MapContainer): campo de IFS/GFS sobre o mapa de estações, com
  * produto, hora, animação, transparência, valor sob o cursor e meteograma do ponto clicado. Desligada por padrão. */
 export default function PainelModeloMapa() {
@@ -45,7 +47,7 @@ export default function PainelModeloMapa() {
       )}
       {ativo && ponto && (
         <Popup position={[ponto.lat, ponto.lon]} maxWidth={380} minWidth={340} eventHandlers={{ remove: () => setPonto(null) }}>
-          <PontoMeteograma lat={ponto.lat} lon={ponto.lon} modelos={["ifs", "gfs"] as ModeloGrade[]} />
+          <PontoMeteograma lat={ponto.lat} lon={ponto.lon} modelos={MODELOS_METEOGRAMA} />
         </Popup>
       )}
 

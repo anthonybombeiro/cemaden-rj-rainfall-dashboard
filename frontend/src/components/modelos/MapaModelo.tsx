@@ -15,6 +15,7 @@ type Estado = ReturnType<typeof useEstadoModelo>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Geo = any;
 
+const MODELOS_METEOGRAMA: ModeloGrade[] = ["ifs", "ifs01", "aifs", "gfs"];
 const RJ_CENTER: [number, number] = [-22.25, -42.6];
 const REDEC_LINE = { color: "#1d4ed8", weight: 2, opacity: 0.8, fillOpacity: 0, interactive: false };
 const MUNICIPIO_LINE = { color: "#475569", weight: 0.8, opacity: 0.55, fillOpacity: 0, interactive: false };
@@ -54,7 +55,7 @@ export default function MapaModelo({ estado }: { estado: Estado }) {
       {redecs && <GeoJSON key="r" data={redecs} style={() => REDEC_LINE} />}
       {ponto && (
         <Popup position={[ponto.lat, ponto.lon]} maxWidth={380} minWidth={340} eventHandlers={{ remove: () => setPonto(null) }}>
-          <PontoMeteograma lat={ponto.lat} lon={ponto.lon} modelos={["ifs", "gfs"] as ModeloGrade[]} />
+          <PontoMeteograma lat={ponto.lat} lon={ponto.lon} modelos={MODELOS_METEOGRAMA} />
         </Popup>
       )}
       {produto && (

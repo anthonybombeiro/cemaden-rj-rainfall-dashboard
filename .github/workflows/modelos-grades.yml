@@ -1,8 +1,8 @@
-name: Grades dos modelos numéricos (GFS, IFS)
+name: Grades dos modelos numéricos
 
-# Baixa as rodadas mais recentes do GFS (NOAA) e do IFS (ECMWF Open Data), recorta o Sudeste e publica JSON compactos no branch
-# `dados-modelos` (um único commit, sobrescrito a cada execução). O painel lê direto de raw.githubusercontent.com.
-# Documentação: docs/modelos-numericos.md. Dados abertos: NOAA (domínio público) e ECMWF (CC-BY-4.0, citar a fonte).
+# Gera, em paralelo, as grades recortadas de cada modelo aberto (GFS, IFS 0,25°, IFS 0,1°, AIFS e, depois, conjuntos e ICON) e publica
+# tudo no branch `dados-modelos` (um único commit, sobrescrito). O painel lê direto de raw.githubusercontent.com.
+# Documentação: docs/modelos-numericos.md. Dados abertos: NOAA (domínio público), ECMWF (CC-BY-4.0, citar a fonte), DWD (atribuição).
 
 on:
   schedule:
@@ -22,9 +22,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  grades:
+  gerar:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        modelo: [gfs, ifs, aifs, ifs01]
     steps:
       - uses: actions/checkout@v4
 
@@ -36,40 +40,58 @@ jobs:
 
       - run: pip install -r scripts/modelos/requirements.txt
 
-      - name: Obter o que já está publicado
+      - name: Ver a rodada já publicada
         env:
-          REPO_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          MODELO: ${{ matrix.modelo }}
+          FORCAR: ${{ inputs.forcar }}
         run: |
-          if git ls-remote --exit-code --heads "$REPO_URL" dados-modelos >/dev/null 2>&1; then
-            git clone --depth 1 --branch dados-modelos "$REPO_URL" dados
-          else
-            mkdir dados
+          mkdir -p pub/$MODELO
+          if [ "$FORCAR" != "true" ]; then
+            curl -sf "https://raw.githubusercontent.com/${{ github.repository }}/dados-modelos/$MODELO/meta.json" -o pub/$MODELO/meta.json || rm -f pub/$MODELO/meta.json
           fi
-          rm -rf dados/.git
 
-      - name: GFS
+      - name: Gerar grades
         env:
-          FORCAR: ${{ inputs.forcar }}
-        run: |
-          if [ "$FORCAR" = "true" ]; then python scripts/modelos/gerar_grades.py --modelo gfs --saida dados
-          else python scripts/modelos/gerar_grades.py --modelo gfs --saida dados --so-se-nova dados; fi
+          MODELO: ${{ matrix.modelo }}
+        run: python scripts/modelos/gerar_grades.py --modelo "$MODELO" --saida saida --so-se-nova pub
 
-      - name: IFS
-        env:
-          FORCAR: ${{ inputs.forcar }}
-        run: |
-          if [ "$FORCAR" = "true" ]; then python scripts/modelos/gerar_grades.py --modelo ifs --saida dados
-          else python scripts/modelos/gerar_grades.py --modelo ifs --saida dados --so-se-nova dados; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dados-${{ matrix.modelo }}
+          path: saida/${{ matrix.modelo }}
+          if-no-files-found: ignore
+          retention-days: 1
+
+  publicar:
+    needs: gerar
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dados-*
+          path: novos
 
       - name: Publicar no branch dados-modelos
         env:
           REPO_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
         run: |
+          if [ -z "$(ls -A novos 2>/dev/null)" ]; then echo "Nenhuma rodada nova; nada a publicar."; exit 0; fi
+          if git ls-remote --exit-code --heads "$REPO_URL" dados-modelos >/dev/null 2>&1; then
+            git clone -q --depth 1 --branch dados-modelos "$REPO_URL" dados
+          else
+            mkdir dados
+          fi
+          rm -rf dados/.git
+          shopt -s nullglob
+          for d in novos/dados-*; do
+            m="${d#novos/dados-}"
+            rm -rf "dados/$m"
+            mkdir -p "dados/$m"
+            cp -r "$d"/. "dados/$m"/
+          done
           cd dados
-          cat > README.md <<'EOF'
-          Dados gerados automaticamente (scripts/modelos/gerar_grades.py) para o Painel CEMADEN-RJ. Não edite.
-          GFS: NOAA/NCEP (domínio público). IFS: ECMWF Open Data (CC-BY-4.0).
-          EOF
+          printf 'Dados gerados automaticamente (scripts/modelos/gerar_grades.py) para o Painel CEMADEN-RJ. Nao edite.\nGFS e GEFS: NOAA/NCEP (dominio publico). IFS, AIFS e ENS: ECMWF Open Data (CC-BY-4.0). ICON: DWD.\n' > README.md
           git init -q -b dados-modelos
           git config user.name "CEMADEN-RJ bot"
           git config user.email "noreply@users.noreply.github.com"

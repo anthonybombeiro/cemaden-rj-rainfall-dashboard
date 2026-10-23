@@ -5,12 +5,14 @@
 export const BASE_DADOS =
   process.env.NEXT_PUBLIC_DADOS_MODELOS ?? "https://raw.githubusercontent.com/anthonybombeiro/cemaden-rj-rainfall-dashboard/dados-modelos";
 
-export type ModeloGrade = "gfs" | "ifs";
+export type ModeloGrade = "gfs" | "ifs" | "ifs01" | "aifs";
 export const MODELOS_GRADE: { id: ModeloGrade; rotulo: string; detalhe: string; grupo: "NOAA" | "ECMWF"; cor: string; atribuicao: string }[] = [
   { id: "ifs", rotulo: "IFS 0,25°", detalhe: "ECMWF, ~25 km, 4 rodadas/dia", grupo: "ECMWF", cor: "#2a78d6", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
+  { id: "ifs01", rotulo: "IFS 0,1° (RJ)", detalhe: "ECMWF, ~9 km, só o RJ e superfície", grupo: "ECMWF", cor: "#0b3d91", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
+  { id: "aifs", rotulo: "AIFS 0,25° (IA)", detalhe: "ECMWF, modelo de IA, passo de 6 h até 15 dias", grupo: "ECMWF", cor: "#1baf7a", atribuicao: "ECMWF Open Data (CC-BY-4.0)" },
   { id: "gfs", rotulo: "GFS 0,25°", detalhe: "NOAA/NCEP, ~25 km, 4 rodadas/dia", grupo: "NOAA", cor: "#eb6834", atribuicao: "NOAA/NCEP (domínio público)" },
 ];
-export const ehModeloGrade = (f: string): f is ModeloGrade => f === "gfs" || f === "ifs";
+export const ehModeloGrade = (f: string): f is ModeloGrade => MODELOS_GRADE.some((m) => m.id === f);
 export const rotuloModelo = (m: ModeloGrade) => MODELOS_GRADE.find((x) => x.id === m)?.rotulo ?? m;
 
 const HORA = 3600000;
@@ -108,6 +110,8 @@ export const RAMPAS: Record<string, Rampa> = {
   solo: { cores: ["#d8b365", "#f6e8c3", "#c7eae5", "#5ab4ac", "#01665e"] },
   agua: { cores: ["#ffffff", "#c7e9c0", "#74c476", "#238b45", "#41b6c4", "#225ea8", "#081d58"] },
   vis: { cores: ["#7f0000", "#d7301f", "#fc8d59", "#fdd49e", "#ffffff00"] },
+  li: { cores: ["#7f0000", "#d7301f", "#fdae61", "#ffffbf", "#f7f7f700"] },
+  prob: { cores: ["#ffffff00", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#7c3aed", "#4c1d95"] },
   // chuva (mm): faixas discretas
   chuva: {
     degraus: [0.2, 1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 150, 200],
@@ -174,6 +178,7 @@ export type Produto = {
 const idxHora = (g: Grade, h: number) => g.passos.indexOf(h);
 const KMH = 3.6;
 const JANELAS_CHUVA = [3, 6, 12, 24, 48, 72, 96];
+const RT = 6371000;
 
 const velocidade = (u: Float32Array, v: Float32Array, f: number) => {
   const o = new Float32Array(u.length);
@@ -189,6 +194,8 @@ const FAIXAS: Record<string, [number, number, string]> = {
   refc: [0, 60, "refl"], vis: [0, 20, "vis"], hpbl: [0, 3000, "agua"], soilw: [10, 60, "solo"],
   gh850: [1350, 1600, "altura"], gh500: [5650, 5950, "altura"], gh250: [10300, 10900, "altura"],
   w700: [-1.5, 1.5, "omega"], w500: [-1.5, 1.5, "omega"],
+  tprate: [0, 40, "vento"], sp: [900, 1020, "pressao"], ro: [0, 20, "agua"], aptmp: [5, 45, "temp"], lftx: [-10, 6, "li"], hlcy: [0, 400, "cape"], cape_ml: [0, 3000, "cape"],
+  q925: [2, 20, "agua"], q850: [2, 18, "agua"], q700: [1, 12, "agua"], t925: [8, 30, "temp"], r925: [0, 100, "umid"], gh700: [2900, 3200, "altura"],
 };
 const NIVEIS_VENTO: { n: number; max: number }[] = [
   { n: 925, max: 90 }, { n: 850, max: 90 }, { n: 700, max: 110 }, { n: 500, max: 150 }, { n: 250, max: 250 },
@@ -200,13 +207,15 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
   const out: Produto[] = [];
 
   const tp = tem("tp");
-  if (tp) {
-    for (const w of JANELAS_CHUVA) {
+  const janelasAcum = (vid: "tp" | "cp", prefixo: string, nome: string, janelas: number[]) => {
+    const vm = tem(vid);
+    if (!vm) return;
+    for (const w of janelas) {
       out.push({
-        id: `chuva${w}`, rotulo: `Chuva nas últimas ${w} h`, grupo: "Chuva", un: "mm", vars: ["tp"],
-        escala: { rampa: "chuva", min: 0, max: 200, un: "mm" }, horas: tp.passos.filter((h) => h > 0),
+        id: `${prefixo}${w}`, rotulo: `${nome} nas últimas ${w} h`, grupo: "Chuva", un: "mm", vars: [vid],
+        escala: { rampa: "chuva", min: 0, max: 200, un: "mm" }, horas: vm.passos.filter((h) => h > 0),
         calcula: (g, h) => {
-          const t = g.tp;
+          const t = g[vid];
           const i = idxHora(t, h);
           if (i < 0) return null;
           const j = h - w > 0 ? idxHora(t, h - w) : -1;
@@ -218,6 +227,10 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
         },
       });
     }
+  };
+  janelasAcum("tp", "chuva", "Chuva", JANELAS_CHUVA);
+  janelasAcum("cp", "chuvaconv", "Chuva convectiva", [6, 24, 72]);
+  if (tp) {
     out.push({
       id: "chuvaTotal", rotulo: "Chuva total desde o início da rodada", grupo: "Chuva", un: "mm", vars: ["tp"],
       escala: { rampa: "chuva", min: 0, max: 200, un: "mm" }, horas: tp.passos.filter((h) => h > 0),
@@ -242,6 +255,7 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
     });
   };
   vento("vento10", "Vento a 10 m (com setas)", "Vento", "u10", "v10", 72);
+  vento("vento100", "Vento a 100 m (GFS: 80 m) (com setas)", "Vento", "u100", "v100", 90);
   const gust = tem("gust");
   if (gust) {
     out.push({
@@ -258,7 +272,7 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
   for (const { n, max } of NIVEIS_VENTO) vento(`vento${n}`, `Vento ${n} hPa (com setas)`, "Altitude", `u${n}`, `v${n}`, max);
 
   for (const v of meta.variaveis) {
-    if (v.id === "tp" || v.id === "gust" || /^[uv](10|\d{3})$/.test(v.id)) continue;
+    if (v.id === "tp" || v.id === "cp" || v.id === "gust" || /^[uv](10|100|\d{3})$/.test(v.id)) continue;
     const f = FAIXAS[v.id];
     out.push({
       id: v.id, rotulo: v.rotulo, grupo: v.grupo, un: v.un, vars: [v.id],
@@ -269,8 +283,129 @@ export function produtosDoModelo(meta: MetaModelo): Produto[] {
       },
     });
   }
-  const ordem = ["Chuva", "Vento", "Superfície", "Instabilidade", "Nuvens", "Altitude"];
+  out.push(...produtosDerivados(meta));
+  const ordem = ["Chuva", "Vento", "Superfície", "Instabilidade", "Nuvens", "Altitude", "Derivados"];
   return out.sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo));
+}
+
+/** Derivadas espaciais do vento (s⁻¹ × 1e5) por diferenças centrais; bordas ficam NaN. */
+function derivadasVento(g: Geo, u: Float32Array, v: Float32Array): { div: Float32Array; vort: Float32Array } {
+  const div = new Float32Array(u.length).fill(NaN), vort = new Float32Array(u.length).fill(NaN);
+  const dy = (g.dlat * Math.PI * RT) / 180;
+  for (let j = 1; j < g.ny - 1; j++) {
+    const lat = g.lat0 - j * g.dlat;
+    const dx = (g.dlon * Math.PI * RT * Math.cos((lat * Math.PI) / 180)) / 180;
+    for (let i = 1; i < g.nx - 1; i++) {
+      const k = j * g.nx + i;
+      const dudx = (u[k + 1] - u[k - 1]) / (2 * dx), dvdx = (v[k + 1] - v[k - 1]) / (2 * dx);
+      const dudy = (u[k - g.nx] - u[k + g.nx]) / (2 * dy), dvdy = (v[k - g.nx] - v[k + g.nx]) / (2 * dy); // linhas vão de norte a sul
+      div[k] = (dudx + dvdy) * 1e5;
+      vort[k] = (dvdx - dudy) * 1e5;
+    }
+  }
+  return { div, vort };
+}
+
+/** Índice de calor (NWS/Rothfusz) em °C a partir de T (°C) e UR (%); abaixo de ~27 °C devolve a própria T. */
+function indiceCalor(tC: number, rh: number): number {
+  const t = tC * 1.8 + 32;
+  if (!(t === t) || !(rh === rh) || t < 80) return tC;
+  const hi = -42.379 + 2.04901523 * t + 10.14333127 * rh - 0.22475541 * t * rh - 0.00683783 * t * t - 0.05481717 * rh * rh + 0.00122874 * t * t * rh + 0.00085282 * t * rh * rh - 0.00000199 * t * t * rh * rh;
+  return (hi - 32) / 1.8;
+}
+
+function produtosDerivados(meta: MetaModelo): Produto[] {
+  const tem = (id: string) => meta.variaveis.find((v) => v.id === id);
+  const out: Produto[] = [];
+  const interseccao = (...ids: string[]) => {
+    const vs = ids.map(tem);
+    if (vs.some((x) => !x)) return null;
+    return (vs as VarMeta[])[0].passos.filter((h) => (vs as VarMeta[]).every((x) => x.passos.includes(h)));
+  };
+  const parUV = (nivel: number, rotulo: string, tipo: "div" | "vort", faixa: number) => {
+    const horas = interseccao(`u${nivel}`, `v${nivel}`);
+    if (!horas?.length) return;
+    out.push({
+      id: `${tipo}${nivel}`, rotulo, grupo: "Derivados", un: "×10⁻⁵ s⁻¹", vars: [`u${nivel}`, `v${nivel}`], horas,
+      escala: { rampa: "omega", min: -faixa, max: faixa, un: "×10⁻⁵ s⁻¹" },
+      calcula: (g, h) => {
+        const gu = g[`u${nivel}`], gv = g[`v${nivel}`];
+        const i = gu.passos.indexOf(h), j = gv.passos.indexOf(h);
+        if (i < 0 || j < 0) return null;
+        const d = derivadasVento(gu, gu.dados[i], gv.dados[j]);
+        return { valores: tipo === "div" ? d.div : d.vort, setas: { u: gu.dados[i], v: gv.dados[j] } };
+      },
+    });
+  };
+  parUV(850, "Divergência do vento a 850 hPa (azul = convergência)", "div", 8);
+  parUV(250, "Divergência do vento a 250 hPa (vermelho = divergência em altitude)", "div", 8);
+  parUV(850, "Vorticidade relativa a 850 hPa (azul = ciclônica no HS)", "vort", 10);
+
+  const hCis = interseccao("u925", "v925", "u500", "v500");
+  if (hCis?.length) {
+    out.push({
+      id: "cisalhamento", rotulo: "Cisalhamento do vento 925–500 hPa", grupo: "Derivados", un: "km/h", vars: ["u925", "v925", "u500", "v500"], horas: hCis,
+      escala: { rampa: "vento", min: 0, max: 100, un: "km/h" },
+      calcula: (g, h) => {
+        const i = g.u925.passos.indexOf(h), j = g.u500.passos.indexOf(h);
+        if (i < 0 || j < 0) return null;
+        const o = new Float32Array(g.u925.dados[i].length);
+        for (let k = 0; k < o.length; k++) o[k] = Math.hypot(g.u500.dados[j][k] - g.u925.dados[i][k], g.v500.dados[j][k] - g.v925.dados[i][k]) * KMH;
+        return { valores: o };
+      },
+    });
+  }
+  const hFl = interseccao("q850", "u850", "v850");
+  if (hFl?.length) {
+    out.push({
+      id: "fluxoUmidade850", rotulo: "Fluxo de umidade a 850 hPa (q·vento, com setas)", grupo: "Derivados", un: "g/kg·m/s", vars: ["q850", "u850", "v850"], horas: hFl,
+      escala: { rampa: "agua", min: 0, max: 250, un: "g/kg·m/s" },
+      calcula: (g, h) => {
+        const i = g.q850.passos.indexOf(h), j = g.u850.passos.indexOf(h), k2 = g.v850.passos.indexOf(h);
+        if (i < 0 || j < 0 || k2 < 0) return null;
+        const q = g.q850.dados[i], u = g.u850.dados[j], v = g.v850.dados[k2];
+        const o = new Float32Array(q.length), fu = new Float32Array(q.length), fv = new Float32Array(q.length);
+        for (let k = 0; k < o.length; k++) {
+          fu[k] = q[k] * u[k];
+          fv[k] = q[k] * v[k];
+          o[k] = Math.hypot(fu[k], fv[k]);
+        }
+        return { valores: o, setas: { u: fu, v: fv } };
+      },
+    });
+  }
+  const hCalor = interseccao("t2m", "rh2m");
+  if (hCalor?.length) {
+    out.push({
+      id: "calor", rotulo: "Índice de calor (T e UR a 2 m)", grupo: "Derivados", un: "°C", vars: ["t2m", "rh2m"], horas: hCalor,
+      escala: { rampa: "temp", min: 24, max: 50, un: "°C" },
+      calcula: (g, h) => {
+        const i = g.t2m.passos.indexOf(h), j = g.rh2m.passos.indexOf(h);
+        if (i < 0 || j < 0) return null;
+        const o = new Float32Array(g.t2m.dados[i].length);
+        for (let k = 0; k < o.length; k++) o[k] = indiceCalor(g.t2m.dados[i][k], g.rh2m.dados[j][k]);
+        return { valores: o };
+      },
+    });
+  }
+  const t2 = tem("t2m");
+  if (t2) {
+    for (const modo of ["max", "min"] as const) {
+      out.push({
+        id: `t${modo}24`, rotulo: `Temperatura ${modo === "max" ? "máxima" : "mínima"} nas últimas 24 h (passos do modelo)`, grupo: "Derivados", un: "°C", vars: ["t2m"], horas: t2.passos.filter((h) => h > 0),
+        escala: { rampa: "temp", min: 5, max: 38, un: "°C" },
+        calcula: (g, h) => {
+          const gt = g.t2m;
+          const idx = gt.passos.map((p, i) => [p, i] as const).filter(([p]) => p <= h && p > h - 24);
+          if (!idx.length) return null;
+          const o = new Float32Array(gt.dados[0].length).fill(modo === "max" ? -Infinity : Infinity);
+          for (const [, i] of idx) for (let k = 0; k < o.length; k++) o[k] = modo === "max" ? Math.max(o[k], gt.dados[i][k]) : Math.min(o[k], gt.dados[i][k]);
+          return { valores: o, nota: h < 24 ? `desde o início da rodada (${h} h)` : undefined };
+        },
+      });
+    }
+  }
+  return out;
 }
 
 export const produtoPadraoGrade = (ps: Produto[]) => ps.find((p) => p.id === "chuva24")?.id ?? ps[0]?.id ?? "";
