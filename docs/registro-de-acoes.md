@@ -235,6 +235,10 @@ Gerador `scripts/modelos/` + workflow `modelos-grades.yml` (GitHub Actions, a ca
 
 Gerador `scripts/modelos/gerar_grades.py` + workflow `modelos-grades.yml` (GitHub Actions, a cada 3 h) publicam grades recortadas do Sudeste no branch `dados-modelos`; o painel lê direto do navegador. Camada interativa **Modelo numérico** na aba Mapa e fontes **IFS/GFS (interativo)** na Previsão numérica, com meteograma por clique. Detalhes, variáveis e limitações em docs/modelos-numericos.md.
 
+## 25/10/2026 — Radar da REDEMET: consulta a cada 5 min
+
+O radar do mapa passou a reconsultar a cada 5 min (antes 10, igual ao satélite) e o cache do servidor para o radar caiu de 5 para 2 min, porque o site oficial publica a cada 10 min e a defasagem máxima chegava perto de um quadro inteiro. Satélite segue em 10 min. Arquivos: `MapView.tsx` (`INTERVALO_ATUALIZACAO_RADAR_MS`) e `backend/api/redemet_imagery_views.py` (`CACHE_TTL_RADAR_SEGUNDOS`).
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

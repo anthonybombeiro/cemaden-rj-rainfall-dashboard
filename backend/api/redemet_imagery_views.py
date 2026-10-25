@@ -45,6 +45,7 @@ logger = logging.getLogger("ingestion")
 BASE_URL = "https://api-redemet.decea.mil.br"
 CACHE_TTL_SEGUNDOS = 300
 CACHE_TTL_ANIMACAO_SEGUNDOS = 120
+CACHE_TTL_RADAR_SEGUNDOS = 120
 
 TIPOS_SATELITE = {"ir", "realcada", "vis"}
 AREAS_RADAR = {"pc", "st"}  # pc = Pico do Couto/RJ; st = Santa Teresa (REDEMET, 09/10/2026)
@@ -220,7 +221,7 @@ class RedemetRadarImageryView(APIView):
                 "image_url": mais_recente.get("path"),
                 "bounds": _bounds_leaflet(mais_recente),
             }
-            cache.set(cache_key, payload, CACHE_TTL_SEGUNDOS)
+            cache.set(cache_key, payload, CACHE_TTL_RADAR_SEGUNDOS)  # 2 min: o painel consulta o radar a cada 5 min (25/10/2026)
 
         return Response(payload)
 

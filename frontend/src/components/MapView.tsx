@@ -222,6 +222,9 @@ interface AnimacaoState {
 // mesmo quadro). 10min cobre a cadência real; quem quiser algo mais fresco
 // na hora usa o botão "atualizar agora" ao lado do play/pause.
 const INTERVALO_ATUALIZACAO_CAMADA_MS = 10 * 60 * 1000;
+// Radar (pedido do usuário, 25/10/2026): o site oficial da REDEMET publica a cada 10 min; consultando a cada 10 o quadro
+// podia ficar quase uma imagem inteira atrás. A cada 5 min a defasagem máxima cai para ~5 min (satélite segue em 10).
+const INTERVALO_ATUALIZACAO_RADAR_MS = 5 * 60 * 1000;
 // 500ms piscava a cada troca de quadro (ImageOverlay remontando no DOM a
 // cada frame) — 1.2s dá tempo do PNG (até ~1,3MB) carregar antes de trocar
 // de novo, e fica num ritmo visualmente mais lento/legível.
@@ -412,7 +415,7 @@ function useCamadaMeteorologica(
     };
 
     buscar();
-    const id = intervaloVisivel(buscar, INTERVALO_ATUALIZACAO_CAMADA_MS);
+    const id = intervaloVisivel(buscar, config.tipo === "radar" ? INTERVALO_ATUALIZACAO_RADAR_MS : INTERVALO_ATUALIZACAO_CAMADA_MS);
     return () => {
       cancelado = true;
       id();
