@@ -239,6 +239,10 @@ Gerador `scripts/modelos/gerar_grades.py` + workflow `modelos-grades.yml` (GitHu
 
 O radar do mapa passou a reconsultar a cada 5 min (antes 10, igual ao satélite) e o cache do servidor para o radar caiu de 5 para 2 min, porque o site oficial publica a cada 10 min e a defasagem máxima chegava perto de um quadro inteiro. Satélite segue em 10 min. Arquivos: `MapView.tsx` (`INTERVALO_ATUALIZACAO_RADAR_MS`) e `backend/api/redemet_imagery_views.py` (`CACHE_TTL_RADAR_SEGUNDOS`).
 
+## 25/10/2026 (tarde) — Camada de radar/satélite: histórico sempre carregado e escolha da imagem
+
+Removida a opção "Animar histórico": ao escolher radar ou satélite o painel abre na **última imagem** e o histórico fica no controle (anterior, play/pausa, próxima e régua para escolher a imagem, com o horário inicial e final). A reconsulta automática não tira o usuário do quadro que ele escolheu (só acompanha o último se ele já estava nele). O radar REDEMET passou a pedir 15 quadros (antes 8). **Achado:** a API-REDEMET devolve o radar do Pico do Couto a cada ~20 min (com `anima` ou com `frames`, que é o que o próprio site da REDEMET usa; o parâmetro `data=AAAAMMDDHH` devolve só a última imagem da hora). Os quadros de 10 min que o usuário viu em outro site não vêm dessa API — origem a identificar.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

@@ -291,7 +291,7 @@ async function buscarRadarNiteroi(numFrames: number) {
 function useCamadaMeteorologica(
   config: ConfigCamada,
   isPlaying: boolean = true,
-): { imagem: ImageryLayer | null; animacao: AnimacaoState | null; atualizando: boolean; erro: boolean; atualizarAgora: () => void } {
+): { imagem: ImageryLayer | null; animacao: AnimacaoState | null; atualizando: boolean; erro: boolean; atualizarAgora: () => void; irParaFrame: (i: number) => void } {
   const [imagem, setImagem] = useState<ImageryLayer | null>(null);
   const [animacao, setAnimacao] = useState<AnimacaoState | null>(null);
   const [frameAtual, setFrameAtual] = useState(0);
@@ -302,6 +302,8 @@ function useCamadaMeteorologica(
   // entra nas deps do efeito de busca, qualquer mudança reexecuta `buscar`
   // imediatamente sem esperar o próximo tick do setInterval.
   const [forcarAtualizacaoEm, setForcarAtualizacaoEm] = useState(0);
+  // Quadro escolhido pelo usuário: nas reconsultas automáticas ele não volta sozinho para o último, a menos que já estivesse nele.
+  const selecaoRef = useRef<{ path: string | null; noFim: boolean }>({ path: null, noFim: true });
 
   // Limpa o quadro/animação anterior IMEDIATAMENTE ao trocar satélite↔radar
   // (ou de tipo de satélite/radar) — pedido do usuário (02/10/2026): trocar
@@ -316,6 +318,7 @@ function useCamadaMeteorologica(
     setAnimacao(null);
     setFrameAtual(0);
     setErro(false);
+    selecaoRef.current = { path: null, noFim: true };
   }, [config.tipo, config.tipoSatelite, config.tipoRadar]);
 
   useEffect(() => {
@@ -348,14 +351,11 @@ function useCamadaMeteorologica(
                 fetch(
                   `/api/imagery/radar-inea/?tipo=${config.tipoRadar.replace("inea-", "")}${config.animacao ? "&anima=15" : ""}`,
                 ).then((r) => r.json())
-              : // Radar REDEMET só tem histórico real pra 8 quadros no site
-                // oficial (slider 0-7, confirmado em redemet.decea.mil.br em
-                // 02/10/2026 — o satélite vai até 14, ou seja, 15 quadros).
-                // Pedir 15 pro radar só fazia a REDEMET repetir o último
-                // quadro disponível pra completar a conta.
+              : // Radar REDEMET: pede o máximo (15). A API devolve quadros a cada ~20 min e repete o último para
+                // completar a conta (o código abaixo remove as repetições); com 8 só vinha ~2 h de histórico.
                 fetch(
                   // "st-<corte>" = radar de Santa Teresa (area=st); sem prefixo = Pico do Couto (area=pc)
-                  `/api/imagery/radar/?tipo=${config.tipoRadar.replace("st-", "")}&area=${config.tipoRadar.startsWith("st-") ? "st" : "pc"}${config.animacao ? "&anima=8" : ""}`,
+                  `/api/imagery/radar/?tipo=${config.tipoRadar.replace("st-", "")}&area=${config.tipoRadar.startsWith("st-") ? "st" : "pc"}&anima=15`,
                 ).then((r) => r.json());
 
       promessa
@@ -395,7 +395,9 @@ function useCamadaMeteorologica(
                 bounds: data.bounds,
               });
             }
-            setFrameAtual(framesArray.length - 1);
+            const sel = selecaoRef.current;
+            const idxSel = sel.noFim ? -1 : framesArray.findIndex((f) => f.path === sel.path);
+            setFrameAtual(idxSel >= 0 ? idxSel : framesArray.length - 1);
           } else {
             // Sem animação: exibição simples
             setImagem(data);
@@ -438,6 +440,7 @@ function useCamadaMeteorologica(
     if (!animacao || animacao.frames.length === 0) return;
     const frame = animacao.frames[frameAtual];
     if (!frame) return;
+    selecaoRef.current = { path: frame.path, noFim: frameAtual === animacao.frames.length - 1 };
     setImagem((prev) =>
       prev
         ? {
@@ -455,6 +458,7 @@ function useCamadaMeteorologica(
     atualizando,
     erro,
     atualizarAgora: () => setForcarAtualizacaoEm((v) => v + 1),
+    irParaFrame: (i: number) => setFrameAtual(i),
   };
 }
 
@@ -515,6 +519,7 @@ function SeletorCamadaMeteorologica({
   timestamp,
   animacao,
   onPlayPause,
+  onFrame,
   atualizando,
   erro,
   onAtualizarAgora,
@@ -524,6 +529,7 @@ function SeletorCamadaMeteorologica({
   timestamp: string | null;
   animacao: AnimacaoState | null;
   onPlayPause?: (play: boolean) => void;
+  onFrame?: (i: number) => void;
   atualizando: boolean;
   erro: boolean;
   onAtualizarAgora: () => void;
@@ -709,15 +715,7 @@ function SeletorCamadaMeteorologica({
           {config.tipo !== "nenhuma" && (
             <div className="mb-3 pb-3 border-b border-gray-100">
               <div className="flex items-center justify-between mb-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={config.animacao}
-                    onChange={(e) => onConfigChange({ ...config, animacao: e.target.checked })}
-                    className="w-3 h-3"
-                  />
-                  <span className="font-medium text-gray-600">Animar histórico</span>
-                </label>
+                <span className="font-medium text-gray-600">Histórico de imagens</span>
                 <button
                   type="button"
                   onClick={onAtualizarAgora}
@@ -728,25 +726,65 @@ function SeletorCamadaMeteorologica({
                   <span className={atualizando ? "animate-spin inline-block" : "inline-block"}>⟳</span>
                 </button>
               </div>
-              {config.animacao && animacao && animacao.frames.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onPlayPause?.(!animacao.isPlaying)}
-                    className="px-2.5 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium text-xs flex-shrink-0"
-                    title={animacao.isPlaying ? "Pausar" : "Reproduzir"}
-                  >
-                    {animacao.isPlaying ? "⏸" : "▶"}
-                  </button>
-                  <div className="flex-1 bg-gray-200 rounded h-2 relative">
-                    <div
-                      className="bg-blue-600 h-full rounded transition-all"
-                      style={{ width: `${((animacao.frameAtual + 1) / animacao.frames.length) * 100}%` }}
-                    />
+              {animacao && animacao.frames.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPlayPause?.(false);
+                        onFrame?.(Math.max(0, animacao.frameAtual - 1));
+                      }}
+                      disabled={animacao.frameAtual <= 0}
+                      className="px-2 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 text-xs flex-shrink-0"
+                      title="Imagem anterior"
+                      aria-label="Imagem anterior"
+                    >
+                      ◀
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onPlayPause?.(!animacao.isPlaying)}
+                      className="px-2.5 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium text-xs flex-shrink-0"
+                      title={animacao.isPlaying ? "Pausar" : "Reproduzir"}
+                    >
+                      {animacao.isPlaying ? "⏸" : "▶"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPlayPause?.(false);
+                        onFrame?.(Math.min(animacao.frames.length - 1, animacao.frameAtual + 1));
+                      }}
+                      disabled={animacao.frameAtual >= animacao.frames.length - 1}
+                      className="px-2 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 text-xs flex-shrink-0"
+                      title="Próxima imagem"
+                      aria-label="Próxima imagem"
+                    >
+                      ▶
+                    </button>
+                    <span className="ml-auto text-gray-600 text-xs whitespace-nowrap">
+                      {animacao.frameAtual + 1}/{animacao.frames.length}
+                    </span>
                   </div>
-                  <span className="text-gray-600 text-xs whitespace-nowrap">
-                    {animacao.frameAtual + 1}/{animacao.frames.length}
-                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={animacao.frames.length - 1}
+                    step={1}
+                    value={animacao.frameAtual}
+                    onChange={(e) => {
+                      onPlayPause?.(false);
+                      onFrame?.(Number(e.target.value));
+                    }}
+                    className="mt-2 w-full accent-blue-600"
+                    aria-label="Escolher a imagem do histórico"
+                    disabled={animacao.frames.length < 2}
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>{formatTimestamp(isoUtcFromRedemetTimestamp(animacao.frames[0].data))}</span>
+                    <span>{formatTimestamp(isoUtcFromRedemetTimestamp(animacao.frames[animacao.frames.length - 1].data))}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -850,7 +888,7 @@ export default function MapView({
     tipo: "nenhuma",
     tipoSatelite: "truecolor",
     tipoRadar: "maxcappi",
-    animacao: false,
+    animacao: true, // 25/10/2026: o histórico sempre é carregado; abre na última imagem e só anima ao apertar o play
     mostrarEstacoes: true,
     opacidade: 0.7,
   });
@@ -870,7 +908,7 @@ export default function MapView({
       /* ignora */
     }
   }, [config.opacidade]);
-  const [animacaoPlaying, setAnimacaoPlaying] = useState(true);
+  const [animacaoPlaying, setAnimacaoPlaying] = useState(false);
 
   const {
     imagem: imagemAtual,
@@ -878,6 +916,7 @@ export default function MapView({
     atualizando,
     erro: erroCamada,
     atualizarAgora,
+    irParaFrame,
   } = useCamadaMeteorologica(config, animacaoPlaying);
 
   const [redecGeo, setRedecGeo] = useState<GeoJsonFeatureCollection | null>(null);
@@ -1013,6 +1052,7 @@ export default function MapView({
         timestamp={imagemAtual?.timestamp ?? null}
         animacao={config.animacao ? animacao : null}
         onPlayPause={setAnimacaoPlaying}
+        onFrame={irParaFrame}
         atualizando={atualizando}
         erro={erroCamada}
         onAtualizarAgora={atualizarAgora}
