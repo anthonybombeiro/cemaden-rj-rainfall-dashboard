@@ -14,6 +14,7 @@ import {
   AlertEvent,
   fetchRadarImagery,
   fetchSateliteImagery,
+  CamadaRadar,
   ImageryLayer,
   PrecipitacaoStation,
   READING_TYPE_LABELS,
@@ -189,6 +190,7 @@ type TipoRadar =
   | "st-05km"
   | "st-03km"
   | "niteroi"
+  | "mosaico-sudeste"
   | "inea-mosaic"
   | "inea-gua"
   | "inea-mac"
@@ -208,6 +210,45 @@ interface ConfigCamada {
 interface AnimacaoFrame {
   data: string;
   path: string;
+  /** Mosaico: as imagens de cada radar deste instante (horários já alinhados pelo servidor). */
+  camadas?: CamadaRadar[];
+  nota?: string;
+}
+
+/** Resposta de /api/imagery/radar-mosaico/ -> quadros no formato da animação (um quadro = várias imagens). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mosaicoParaFrames(j: any): { frames: AnimacaoFrame[]; bounds: [[number, number], [number, number]]; tipo: string; total_frames: number } {
+  if (!j || !Array.isArray(j.quadros) || !j.quadros.length) return j;
+  const radares: { codigo: string; nome: string; bounds: [[number, number], [number, number]] | null }[] = j.radares ?? [];
+  const por: Record<string, (typeof radares)[number]> = Object.fromEntries(radares.map((r) => [r.codigo, r]));
+  // radares mais afastados do RJ primeiro: o do Pico do Couto (RJ) fica por cima onde há sobreposição
+  const dist = (r: (typeof radares)[number]) => {
+    const b = r.bounds;
+    return b ? Math.hypot((b[0][0] + b[1][0]) / 2 + 22.3, (b[0][1] + b[1][1]) / 2 + 42.6) : 0;
+  };
+  const ordem = [...radares].sort((a, b) => dist(b) - dist(a)).map((r) => r.codigo);
+  let minLat = 90, minLon = 180, maxLat = -90, maxLon = -180;
+  for (const r of radares) {
+    if (!r.bounds) continue;
+    minLat = Math.min(minLat, r.bounds[0][0]);
+    minLon = Math.min(minLon, r.bounds[0][1]);
+    maxLat = Math.max(maxLat, r.bounds[1][0]);
+    maxLon = Math.max(maxLon, r.bounds[1][1]);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const frames: AnimacaoFrame[] = j.quadros.map((q: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imgs: any[] = [...q.imagens].sort((a, b) => ordem.indexOf(a.radar) - ordem.indexOf(b.radar));
+    const ref = new Date(`${q.data.replace(" ", "T")}Z`).getTime();
+    const desvioMin = Math.max(...imgs.map((i) => Math.abs(new Date(`${i.data.replace(" ", "T")}Z`).getTime() - ref) / 60000));
+    return {
+      data: q.data,
+      path: q.data,
+      camadas: imgs.filter((i) => por[i.radar]?.bounds).map((i) => ({ radar: i.radar, url: i.path, bounds: por[i.radar].bounds as [[number, number], [number, number]] })),
+      nota: `${imgs.length} radares: ${imgs.map((i) => por[i.radar]?.nome ?? i.radar).join(", ")} · horários alinhados (diferença máx. ${Math.round(desvioMin)} min)${j.excluidos?.length ? ` · fora do ar: ${j.excluidos.map((e: { nome: string }) => e.nome).join(", ")}` : ""}`,
+    };
+  });
+  return { tipo: "radar-mosaico", bounds: [[minLat, minLon], [maxLat, maxLon]], frames, total_frames: frames.length };
 }
 
 interface AnimacaoState {
@@ -339,7 +380,9 @@ function useCamadaMeteorologica(
             ? // DSAT/CPTEC (GOES-19): quadros de ~4 MB, animação limitada a 6 (1 h)
               fetch(`/api/imagery/dsat/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=6" : ""}`).then((r) => r.json())
             : fetch(`/api/imagery/satelite/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=15" : ""}`).then((r) => r.json())
-          : config.tipoRadar === "niteroi"
+          : config.tipoRadar === "mosaico-sudeste"
+            ? fetch("/api/imagery/radar-mosaico/?tipo=maxcappi&anima=15").then((r) => r.json()).then(mosaicoParaFrames)
+            : config.tipoRadar === "niteroi"
             ? // Radar próprio de Niterói: histórico real de 15 quadros (5min
               // cada), diferente do limite de 8 da REDEMET.
               buscarRadarNiteroi(config.animacao ? 15 : 1)
@@ -393,7 +436,11 @@ function useCamadaMeteorologica(
                 image_url: ultimoFrame.path,
                 timestamp: ultimoFrame.data,
                 bounds: data.bounds,
+                camadas: ultimoFrame.camadas,
+                nota: ultimoFrame.nota,
               });
+              // mosaico: carrega antes as imagens de todos os quadros, para a animação não piscar
+              for (const f of framesArray) for (const c of f.camadas ?? []) new Image().src = c.url;
             }
             const sel = selecaoRef.current;
             const idxSel = sel.noFim ? -1 : framesArray.findIndex((f) => f.path === sel.path);
@@ -447,6 +494,8 @@ function useCamadaMeteorologica(
             ...prev,
             image_url: frame.path,
             timestamp: frame.data,
+            camadas: frame.camadas,
+            nota: frame.nota,
           }
         : null,
     );
@@ -479,6 +528,15 @@ function isoUtcFromRedemetTimestamp(timestamp: string): string {
  * sem precisar calcular nada aqui. */
 function CamadaMeteorologica({ imagem, opacidade }: { imagem: ImageryLayer | null; opacidade: number }) {
   if (!imagem || !imagem.bounds) return null;
+  if (imagem.camadas?.length) {
+    return (
+      <Pane name="imagensMeteo" style={{ zIndex: 650, pointerEvents: "none" }}>
+        {imagem.camadas.map((c) => (
+          <ImageOverlay key={c.radar} url={c.url} bounds={c.bounds} opacity={opacidade} zIndex={400} />
+        ))}
+      </Pane>
+    );
+  }
   // `key` fixo (por tipo) em vez de `imagem.image_url` — chavear pela URL
   // forçava o React a desmontar e remontar o `<ImageOverlay>` do zero a
   // CADA quadro da animação (o Leaflet larga a imagem antiga e cria outra
@@ -517,6 +575,7 @@ function SeletorCamadaMeteorologica({
   config,
   onConfigChange,
   timestamp,
+  notaMosaico,
   animacao,
   onPlayPause,
   onFrame,
@@ -527,6 +586,7 @@ function SeletorCamadaMeteorologica({
   config: ConfigCamada;
   onConfigChange: (c: ConfigCamada) => void;
   timestamp: string | null;
+  notaMosaico?: string | null;
   animacao: AnimacaoState | null;
   onPlayPause?: (play: boolean) => void;
   onFrame?: (i: number) => void;
@@ -569,6 +629,8 @@ function SeletorCamadaMeteorologica({
     { valor: "07km", label: "CAPPI 7km (Pico do Couto)" },
     { valor: "05km", label: "CAPPI 5km (Pico do Couto)" },
     { valor: "03km", label: "CAPPI 3km (Pico do Couto)" },
+    // Mosaico dos radares da REDEMET no Sudeste (25/10/2026), com os horários alinhados entre os radares
+    { valor: "mosaico-sudeste", label: "REDEMET — Mosaico Sudeste (RJ, SP, MG, ES)" },
     // Radar de Santa Teresa (REDEMET, area=st; raio 400 km, cobre norte/noroeste do RJ) — pedido 09/10/2026.
     { valor: "st-maxcappi", label: "MAXCAPPI (Santa Teresa)" },
     { valor: "st-10km", label: "CAPPI 10km (Santa Teresa)" },
@@ -810,6 +872,7 @@ function SeletorCamadaMeteorologica({
                   : "Carregando…"}
             </p>
           )}
+          {config.tipo === "radar" && config.tipoRadar === "mosaico-sudeste" && notaMosaico && <p className="mt-1 text-[10px] leading-snug text-gray-500">{notaMosaico}</p>}
 
           {/* Camada das estações — separada da camada de imagem; item 5 do
               pedido do usuário (02/10/2026): estava sem referência dentro
@@ -1050,6 +1113,7 @@ export default function MapView({
         config={config}
         onConfigChange={setConfig}
         timestamp={imagemAtual?.timestamp ?? null}
+        notaMosaico={imagemAtual?.nota ?? null}
         animacao={config.animacao ? animacao : null}
         onPlayPause={setAnimacaoPlaying}
         onFrame={irParaFrame}

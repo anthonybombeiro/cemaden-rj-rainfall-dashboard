@@ -505,12 +505,19 @@ export async function fetchHidrologicas(): Promise<HidrologicaStation[]> {
 /** Camada de satélite/radar da REDEMET (ver backend/api/redemet_imagery_views.py
  * e docs/fontes-de-dados.md) — `bounds` já vem pronto no formato que o
  * Leaflet `ImageOverlay` espera: [[lat_min, lon_min], [lat_max, lon_max]]. */
+/** Uma imagem de radar dentro de um mosaico (cada radar tem os seus limites). */
+export type CamadaRadar = { radar: string; url: string; bounds: [[number, number], [number, number]] };
+
 export type ImageryLayer = {
   tipo: string;
   area?: string;
   timestamp: string;
   image_url: string;
   bounds: [[number, number], [number, number]] | null;
+  /** Mosaico: várias imagens (uma por radar) desenhadas juntas; `image_url` fica só como referência. */
+  camadas?: CamadaRadar[];
+  /** Texto curto sobre o quadro (radares e alinhamento de horários do mosaico). */
+  nota?: string;
 };
 
 export async function fetchSateliteImagery(tipo: "ir" | "realcada" | "vis" = "realcada"): Promise<ImageryLayer> {

@@ -237,3 +237,96 @@ def _bounds_leaflet(limites: dict) -> list[list[float]] | None:
         ]
     except (KeyError, TypeError, ValueError):
         return None
+
+
+# ---------------------------------------------------------------- mosaico dos radares da REDEMET (25/10/2026)
+UF_SUDESTE = ("RJ", "SP", "MG", "ES")
+TOLERANCIA_MOSAICO_MIN = 10  # um radar entra no quadro se tiver imagem a até 10 min do horário de referência
+RADAR_PARADO_MIN = 60  # radar cuja última imagem tem mais de 1 h de atraso em relação ao mais recente sai do mosaico
+
+
+def _parse_utc(texto: str):
+    import datetime as dt
+
+    return dt.datetime.strptime(texto, "%Y-%m-%d %H:%M:%S").replace(tzinfo=dt.timezone.utc)
+
+
+def montar_mosaico(grupos: list, ufs=UF_SUDESTE) -> dict:
+    """Alinha no tempo os quadros dos radares das UFs pedidas.
+
+    `grupos` é o `data.radar` da API (lista de quadros no tempo, cada um com uma entrada por radar). Cada radar publica no seu ritmo
+    e com um deslocamento de minutos; para o mosaico não misturar horas diferentes, os quadros de referência são os do radar com mais
+    imagens e, para cada um, cada radar contribui com a imagem mais próxima (até `TOLERANCIA_MOSAICO_MIN`). Só ficam os quadros em que
+    TODOS os radares ativos têm imagem dentro da tolerância (animação pode encurtar). Radares parados saem e são informados."""
+    por_radar: dict[str, dict] = {}
+    for grupo in grupos:
+        for e in grupo or []:
+            nome = str(e.get("nome") or "")
+            uf = nome.rsplit("/", 1)[-1].strip().upper() if "/" in nome else ""
+            if uf not in ufs or not e.get("path") or not e.get("data"):
+                continue
+            r = por_radar.setdefault(str(e.get("localidade") or e.get("id")), {"codigo": str(e.get("localidade") or e.get("id")), "nome": nome.replace("Radar - ", ""), "uf": uf, "bounds": _bounds_leaflet(e), "quadros": {}})
+            r["quadros"][e["path"]] = _parse_utc(e["data"])
+    if not por_radar:
+        return {"radares": [], "excluidos": [], "quadros": [], "tolerancia_min": TOLERANCIA_MOSAICO_MIN}
+    import datetime as dt
+
+    for r in por_radar.values():
+        r["serie"] = sorted(((t, p) for p, t in r["quadros"].items()))
+    mais_recente = max(r["serie"][-1][0] for r in por_radar.values())
+    ativos = {k: r for k, r in por_radar.items() if mais_recente - r["serie"][-1][0] <= dt.timedelta(minutes=RADAR_PARADO_MIN)}
+    excluidos = [{"codigo": r["codigo"], "nome": r["nome"], "ultima": r["serie"][-1][0].strftime("%Y-%m-%d %H:%M:%S")} for k, r in por_radar.items() if k not in ativos]
+    ref = max(ativos.values(), key=lambda r: len(r["serie"]))
+    tol = dt.timedelta(minutes=TOLERANCIA_MOSAICO_MIN)
+    quadros = []
+    for t_ref, _ in ref["serie"]:
+        imagens = []
+        for r in ativos.values():
+            t, p = min(r["serie"], key=lambda tp: abs(tp[0] - t_ref))
+            if abs(t - t_ref) > tol:
+                imagens = []
+                break
+            imagens.append({"radar": r["codigo"], "path": p, "data": t.strftime("%Y-%m-%d %H:%M:%S")})
+        if imagens:
+            quadros.append({"data": t_ref.strftime("%Y-%m-%d %H:%M:%S"), "imagens": imagens})
+    return {
+        "radares": [{"codigo": r["codigo"], "nome": r["nome"], "uf": r["uf"], "bounds": r["bounds"]} for r in ativos.values()],
+        "excluidos": excluidos,
+        "quadros": quadros,
+        "tolerancia_min": TOLERANCIA_MOSAICO_MIN,
+    }
+
+
+class RedemetRadarMosaicoView(APIView):
+    """GET /api/imagery/radar-mosaico/?tipo=maxcappi (default)&anima=1..15 (default 15)
+
+    Mosaico dos radares da REDEMET nos estados do Sudeste (RJ, SP, MG, ES), com os horários alinhados (ver `montar_mosaico`)."""
+
+    def get(self, request):
+        tipo = request.query_params.get("tipo", "maxcappi")
+        if tipo not in TIPOS_RADAR:
+            return Response({"detail": f"tipo inválido, use um de: {sorted(TIPOS_RADAR)}"}, status=400)
+        num_frames, erro = _parse_anima(request.query_params.get("anima") or "15")
+        if erro is not None:
+            return erro
+        if not settings.REDEMET_API_KEY:
+            return Response({"detail": "REDEMET_API_KEY não configurado no servidor."}, status=503)
+        cache_key = f"redemet:radar-mosaico:{tipo}:{num_frames}"
+        cached = cache.get(cache_key)
+        if cached is not None and not request.query_params.get("debug"):
+            return Response(cached)
+        try:
+            resp = _get_com_retentativa("/produtos/radar/" + tipo, params={"anima": num_frames})
+        except requests.RequestException as exc:
+            logger.warning("Falha ao buscar o mosaico de radares da REDEMET: %s", exc)
+            return Response({"detail": "Falha ao consultar a API-REDEMET."}, status=502)
+        grupos = (resp.json().get("data") or {}).get("radar") or []
+        if request.query_params.get("debug") and getattr(request.user, "is_superuser", False):
+            resumo = [[(e.get("localidade"), e.get("nome"), (e.get("data") or "")[11:19]) for e in (g or [])] for g in grupos]
+            return Response({"n_grupos": len(grupos), "grupos": resumo})
+        mosaico = montar_mosaico(grupos)
+        if not mosaico["quadros"]:
+            return Response({"detail": "Nenhum quadro de mosaico disponível no momento."}, status=502)
+        mosaico["tipo"] = tipo
+        cache.set(cache_key, mosaico, CACHE_TTL_RADAR_SEGUNDOS)
+        return Response(mosaico)

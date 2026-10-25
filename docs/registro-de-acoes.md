@@ -243,6 +243,10 @@ O radar do mapa passou a reconsultar a cada 5 min (antes 10, igual ao satélite)
 
 Removida a opção "Animar histórico": ao escolher radar ou satélite o painel abre na **última imagem** e o histórico fica no controle (anterior, play/pausa, próxima e régua para escolher a imagem, com o horário inicial e final). A reconsulta automática não tira o usuário do quadro que ele escolheu (só acompanha o último se ele já estava nele). O radar REDEMET passou a pedir 15 quadros (antes 8). **Achado:** a API-REDEMET devolve o radar do Pico do Couto a cada ~20 min (com `anima` ou com `frames`, que é o que o próprio site da REDEMET usa; o parâmetro `data=AAAAMMDDHH` devolve só a última imagem da hora). Os quadros de 10 min que o usuário viu em outro site não vêm dessa API — origem a identificar.
 
+## 25/10/2026 (noite) — Mosaico dos radares da REDEMET no Sudeste
+
+Nova opção **REDEMET — Mosaico Sudeste (RJ, SP, MG, ES)** na camada de radar. `GET /api/imagery/radar-mosaico/` (backend/api/redemet_imagery_views.py, `montar_mosaico`) pede à API-REDEMET os 15 quadros de **todos** os radares, fica só com os de RJ/SP/MG/ES (hoje 4 com dado: Pico do Couto/RJ, São Roque/SP, Almenara/MG e Santa Teresa/MG; São Francisco/MG e Três Marias/MG vêm sem imagem) e **alinha os horários**: os quadros de referência são os do radar com mais imagens e cada radar entra com a imagem mais próxima (tolerância de 10 min; na prática ≤ 3 min); só vira quadro o instante em que **todos** os radares ativos têm imagem (radar parado há mais de 1 h sai e é informado), então a animação pode encurtar. No navegador cada quadro desenha as imagens dos radares juntas (o do RJ por cima nas sobreposições), abre no último quadro e tem o mesmo controle de histórico (anterior, play, régua). Não há imagem única fundida: a REDEMET não envia cabeçalho CORS nas imagens (o navegador não deixa ler os pixels) e o servidor não tem Pillow/numpy.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

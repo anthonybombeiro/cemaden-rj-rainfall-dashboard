@@ -16,7 +16,7 @@ from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeV
 from .inea_radar_views import INEARadarImageryView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .dsat_imagery_views import DsatSateliteImageryView
-from .redemet_imagery_views import RedemetRadarImageryView, RedemetSateliteImageryView
+from .redemet_imagery_views import RedemetRadarImageryView, RedemetRadarMosaicoView, RedemetSateliteImageryView
 from .floodhub_views import FloodHubEventosView, FloodHubValidacaoView, FloodHubView
 from .resumo_views import Resumo24hView
 from .sondagem_views import SondagemNumericaView
@@ -82,5 +82,6 @@ urlpatterns = [
     path("imagery/satelite/", RedemetSateliteImageryView.as_view(), name="imagery-satelite"),
     path("imagery/dsat/", DsatSateliteImageryView.as_view(), name="imagery-dsat"),
     path("imagery/radar/", RedemetRadarImageryView.as_view(), name="imagery-radar"),
+    path("imagery/radar-mosaico/", RedemetRadarMosaicoView.as_view(), name="imagery-radar-mosaico"),
     path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),
 ] + router.urls
