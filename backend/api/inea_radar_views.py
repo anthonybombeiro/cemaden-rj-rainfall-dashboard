@@ -54,6 +54,20 @@ RADARS_INDIVIDUAIS = {
     "mac": {"nome": "Macaé", "bounds": [[-24.658085, -44.289624], [-20.153580, -39.431300]]},
     "mdn": {"nome": "Mendanha", "bounds": [[-23.902436, -44.690795], [-21.745924, -42.355785]]},
     "sumare": {"nome": "Sumaré", "bounds": [[-24.431567, -45.336972], [-21.478793, -41.159092]]},
+    # Niterói re-hospedado pelo INEA (25/10/2026): tem refletividade, precipitação e velocidade radial (a API da Prefeitura só dá MAXDISPLAY)
+    "nit": {"nome": "Niterói", "bounds": [[-24.008163, -44.255359], [-21.850317, -41.919121]]},
+}
+
+# Produtos do Radar Tool do INEA (verificado em 25/10/2026 com frames.php e no radar-tool.js): zh = refletividade (dBZ),
+# rr = precipitação (mm/h), vel = velocidade radial (m/s). O mosaico só tem zh e rr (vel volta 0 quadros); Sumaré e Pico do Couto
+# publicam só refletividade (o `product` é ignorado e devolve sempre a imagem DBZH).
+PRODUTOS_INEA = {
+    "mosaic": ("zh", "rr"),
+    "gua": ("zh", "rr", "vel"),
+    "mac": ("zh", "rr", "vel"),
+    "mdn": ("zh", "rr", "vel"),
+    "nit": ("zh", "rr", "vel"),
+    "sumare": ("zh",),
 }
 MOSAICO_BOUNDS = [[-25.4953147027027, -45.81454047058824], [-20.089909297297297, -39.93218752941176]]
 
@@ -94,13 +108,17 @@ def _get_com_retentativa(url: str, params: dict, tries: int = 3, timeout: int = 
 
 
 class INEARadarImageryView(APIView):
-    """GET /api/imagery/radar-inea/?tipo=mosaic|gua|mac|mdn|sumare&anima=1..15"""
+    """GET /api/imagery/radar-inea/?tipo=mosaic|gua|mac|mdn|nit|sumare&produto=zh|rr|vel&anima=1..15"""
 
     def get(self, request):
         tipo = request.query_params.get("tipo", "mosaic")
         if tipo != "mosaic" and tipo not in RADARS_INDIVIDUAIS:
             opcoes = ["mosaic", *RADARS_INDIVIDUAIS]
             return Response({"detail": f"tipo inválido, use um de: {opcoes}"}, status=400)
+
+        produto = request.query_params.get("produto", "zh")
+        if produto not in PRODUTOS_INEA[tipo]:
+            return Response({"detail": f"produto '{produto}' indisponível para '{tipo}'; use um de: {list(PRODUTOS_INEA[tipo])}"}, status=400)
 
         anima_str = request.query_params.get("anima")
         animado = bool(anima_str)
@@ -114,16 +132,16 @@ class INEARadarImageryView(APIView):
         else:
             num_frames = 1
 
-        cache_key = f"inea:radar:{tipo}:anima{num_frames}"
+        cache_key = f"inea:radar:{tipo}:{produto}:anima{num_frames}"
         cached = cache.get(cache_key)
         if cached is not None:
             return Response(cached)
 
         if tipo == "mosaic":
-            params = {"type": "mosaic", "product": "zh"}
+            params = {"type": "mosaic", "product": produto}
             bounds = MOSAICO_BOUNDS
         else:
-            params = {"type": "radar", "radar": tipo, "product": "zh"}
+            params = {"type": "radar", "radar": tipo, "product": produto}
             bounds = RADARS_INDIVIDUAIS[tipo]["bounds"]
 
         # `step_min` real varia (5 ou 10min conforme o radar) — pedimos uma

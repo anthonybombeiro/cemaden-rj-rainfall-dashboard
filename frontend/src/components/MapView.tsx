@@ -178,29 +178,48 @@ function LegendaFlutuante({ sourcesPresentes, modo }: { sourcesPresentes: string
 type CamadaImagem = "nenhuma" | "satelite" | "radar";
 type TipoSatelite = "truecolor" | "dsat_realcada" | "dsat_ch13" | "dsat_ch02" | "realcada" | "ir" | "vis";
 const eDsat = (t: TipoSatelite) => t === "truecolor" || t.startsWith("dsat_");
-type TipoRadar =
-  | "maxcappi"
-  | "10km"
-  | "07km"
-  | "05km"
-  | "03km"
-  | "st-maxcappi"
-  | "st-10km"
-  | "st-07km"
-  | "st-05km"
-  | "st-03km"
-  | "niteroi"
-  | "mosaico-sudeste"
-  | "inea-mosaic"
-  | "inea-gua"
-  | "inea-mac"
-  | "inea-mdn"
-  | "inea-sumare";
+type RadarId = "pc" | "st" | "mosaico-sudeste" | "inea-mosaic" | "inea-gua" | "inea-mac" | "inea-mdn" | "inea-sumare" | "niteroi";
+type ProdutoRadar = { id: string; rotulo: string };
+
+// Produtos de cada fonte (verificados em 25/10/2026): REDEMET = MAXCAPPI e CAPPI de 3/5/7/10 km (também no mosaico); INEA (Radar Tool) =
+// refletividade, precipitação e velocidade radial, mas o mosaico não tem velocidade e Sumaré só publica refletividade; Niterói = MAXDISPLAY da
+// Prefeitura (única opção pública da API deles) e os 3 produtos do INEA.
+const PRODUTOS_REDEMET: ProdutoRadar[] = [
+  { id: "maxcappi", rotulo: "MAXCAPPI (máximo da coluna)" },
+  { id: "03km", rotulo: "CAPPI 3 km" },
+  { id: "05km", rotulo: "CAPPI 5 km" },
+  { id: "07km", rotulo: "CAPPI 7 km" },
+  { id: "10km", rotulo: "CAPPI 10 km" },
+];
+const P_ZH: ProdutoRadar = { id: "zh", rotulo: "Refletividade (dBZ)" };
+const P_RR: ProdutoRadar = { id: "rr", rotulo: "Precipitação (mm/h)" };
+const P_VEL: ProdutoRadar = { id: "vel", rotulo: "Velocidade radial (m/s)" };
+const RADARES_CAT: { id: RadarId; rotulo: string; produtos: ProdutoRadar[] }[] = [
+  { id: "pc", rotulo: "REDEMET — Pico do Couto/RJ (raio 400 km, ~20 min)", produtos: PRODUTOS_REDEMET },
+  { id: "st", rotulo: "REDEMET — Santa Teresa (raio 400 km, ~20 min)", produtos: PRODUTOS_REDEMET },
+  { id: "mosaico-sudeste", rotulo: "REDEMET — Mosaico Sudeste (RJ, SP, MG, ES)", produtos: PRODUTOS_REDEMET },
+  { id: "inea-mosaic", rotulo: "INEA — Mosaico dos radares do RJ", produtos: [P_ZH, P_RR] },
+  { id: "inea-gua", rotulo: "INEA — Guaratiba (5 min)", produtos: [P_ZH, P_RR, P_VEL] },
+  { id: "inea-mac", rotulo: "INEA — Macaé (5 min)", produtos: [P_ZH, P_RR, P_VEL] },
+  { id: "inea-mdn", rotulo: "INEA — Mendanha (5 min)", produtos: [P_ZH, P_RR, P_VEL] },
+  { id: "inea-sumare", rotulo: "INEA — Sumaré (2 min)", produtos: [P_ZH] },
+  { id: "niteroi", rotulo: "Niterói (5 min)", produtos: [{ id: "maxdisplay", rotulo: "MAXDISPLAY (Prefeitura de Niterói)" }, { id: "zh", rotulo: "Refletividade (dBZ) — via INEA" }, { id: "rr", rotulo: "Precipitação (mm/h) — via INEA" }, { id: "vel", rotulo: "Velocidade radial (m/s) — via INEA" }] },
+];
+
+// Legendas dos produtos do INEA (cores e valores da legenda do próprio Radar Tool do INEA).
+const LEGENDAS_INEA: Record<string, { rotulo: string; valores: string[]; cores: string[] }> = {
+  zh: { rotulo: "Refletividade (dBZ)", valores: ["-31", "-10", "10", "13", "18", "23", "28", "33", "38", "43", "48", "53", "58", "63", "68", "73", "78"], cores: ["#0000ff", "#00ffff", "#00ff80", "#00ff00", "#00af00", "#009632", "#ffff00", "#ffc800", "#ffaa00", "#ff5500", "#ff0000", "#ff0064", "#ff00ff", "#ff80ff", "#ffc8ff", "#ffe1ff", "#ffffff"] },
+  rr: { rotulo: "Precipitação (mm/h)", valores: ["0,1", "0,5", "1", "2", "3", "4", "5", "6", "7", "8,5", "10", "12", "15", "20", "25", "30", "40", "50", "70", "90"], cores: ["#00ffff", "#00e5ff", "#00ccff", "#0099ff", "#0000ff", "#0000cc", "#330099", "#00ff00", "#33cc00", "#66cc00", "#99cc00", "#ffff00", "#ffcc00", "#ff9900", "#ff6600", "#ff0000", "#cc0000", "#ff00ff", "#cc00cc", "#ffffff"] },
+  vel: { rotulo: "Velocidade radial (m/s; negativa = aproximando)", valores: ["-28", "-24", "-20", "-16", "-12", "-8", "-4", "-1", "+1", "+4", "+8", "+12", "+16", "+20", "+24", "+28"], cores: ["#2b83ba", "#3f9fd0", "#63b8d8", "#86d1e6", "#a9e3f2", "#cfeffc", "#e8f6ff", "#f7fbff", "#fff5f0", "#fee0d2", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#99000d"] },
+};
+const usaProdutoIneaNaLegenda = (radar: RadarId, produto: string) => (radar.startsWith("inea-") || radar === "niteroi") && produto in LEGENDAS_INEA;
 
 interface ConfigCamada {
   tipo: CamadaImagem;
   tipoSatelite: TipoSatelite;
-  tipoRadar: TipoRadar;
+  radar: RadarId;
+  /** Produto do radar escolhido (ver RADARES_CAT): maxcappi/03km/05km/07km/10km, zh/rr/vel ou maxdisplay. */
+  produtoRadar: string;
   animacao: boolean;
   mostrarEstacoes: boolean;
   /** Opacidade da imagem de satélite/radar (0,1–1), escolhida pelo usuário e lembrada no navegador. */
@@ -360,7 +379,7 @@ function useCamadaMeteorologica(
     setFrameAtual(0);
     setErro(false);
     selecaoRef.current = { path: null, noFim: true };
-  }, [config.tipo, config.tipoSatelite, config.tipoRadar]);
+  }, [config.tipo, config.tipoSatelite, config.radar, config.produtoRadar]);
 
   useEffect(() => {
     if (config.tipo === "nenhuma") {
@@ -380,26 +399,20 @@ function useCamadaMeteorologica(
             ? // DSAT/CPTEC (GOES-19): quadros de ~4 MB, animação limitada a 6 (1 h)
               fetch(`/api/imagery/dsat/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=6" : ""}`).then((r) => r.json())
             : fetch(`/api/imagery/satelite/?tipo=${config.tipoSatelite}${config.animacao ? "&anima=15" : ""}`).then((r) => r.json())
-          : config.tipoRadar === "mosaico-sudeste"
-            ? fetch("/api/imagery/radar-mosaico/?tipo=maxcappi&anima=15").then((r) => r.json()).then(mosaicoParaFrames)
-            : config.tipoRadar === "niteroi"
-            ? // Radar próprio de Niterói: histórico real de 15 quadros (5min
-              // cada), diferente do limite de 8 da REDEMET.
-              buscarRadarNiteroi(config.animacao ? 15 : 1)
-            : config.tipoRadar.startsWith("inea-")
-              ? // Radar Tool do INEA (mosaico + Guaratiba/Macaé/Mendanha/
-                // Sumaré) — passa pelo NOSSO backend (CORS bloqueia
-                // `frames.php` direto do navegador, testado); o código
-                // depois do "inea-" é o `tipo` que o backend espera.
-                fetch(
-                  `/api/imagery/radar-inea/?tipo=${config.tipoRadar.replace("inea-", "")}${config.animacao ? "&anima=15" : ""}`,
-                ).then((r) => r.json())
-              : // Radar REDEMET: pede o máximo (15). A API devolve quadros a cada ~20 min e repete o último para
-                // completar a conta (o código abaixo remove as repetições); com 8 só vinha ~2 h de histórico.
-                fetch(
-                  // "st-<corte>" = radar de Santa Teresa (area=st); sem prefixo = Pico do Couto (area=pc)
-                  `/api/imagery/radar/?tipo=${config.tipoRadar.replace("st-", "")}&area=${config.tipoRadar.startsWith("st-") ? "st" : "pc"}&anima=15`,
-                ).then((r) => r.json());
+          : config.radar === "mosaico-sudeste"
+            ? fetch(`/api/imagery/radar-mosaico/?tipo=${config.produtoRadar}&anima=15`).then((r) => r.json()).then(mosaicoParaFrames)
+            : config.radar === "niteroi" && config.produtoRadar === "maxdisplay"
+              ? // Radar da Prefeitura de Niterói (MAXDISPLAY, 5 min): direto do navegador, 15 quadros
+                buscarRadarNiteroi(15)
+              : config.radar === "niteroi" || config.radar.startsWith("inea-")
+                ? // Radar Tool do INEA (passa pelo nosso backend: o CORS do frames.php bloqueia o navegador). Niterói também
+                  // existe lá (código "nit") com refletividade, precipitação e velocidade.
+                  fetch(
+                    `/api/imagery/radar-inea/?tipo=${config.radar === "niteroi" ? "nit" : config.radar.replace("inea-", "")}&produto=${config.produtoRadar}&anima=15`,
+                  ).then((r) => r.json())
+                : // Radar REDEMET (Pico do Couto = pc, Santa Teresa = st): pede o máximo (15). A API devolve quadros a cada ~20 min e
+                  // repete o último para completar a conta (o código abaixo remove as repetições).
+                  fetch(`/api/imagery/radar/?tipo=${config.produtoRadar}&area=${config.radar}&anima=15`).then((r) => r.json());
 
       promessa
         .then((data: any) => {
@@ -469,7 +482,7 @@ function useCamadaMeteorologica(
       cancelado = true;
       id();
     };
-  }, [config.tipo, config.tipoSatelite, config.tipoRadar, config.animacao, forcarAtualizacaoEm]);
+  }, [config.tipo, config.tipoSatelite, config.radar, config.produtoRadar, config.animacao, forcarAtualizacaoEm]);
 
   // Player de animação
   useEffect(() => {
@@ -596,7 +609,6 @@ function SeletorCamadaMeteorologica({
 }) {
   const [aberto, setAberto] = useState(false);
   const [tipoAbertoSatelite, setTipoAbertoSatelite] = useState(false);
-  const [tipoAbertoRadar, setTipoAbertoRadar] = useState(false);
   // O painel fica DENTRO do mapa: sem isto, rolar a lista (roda do mouse/toque) ou arrastar nela
   // movia/zoomava o mapa ao fundo. Os eventos de scroll/clique/toque param no painel.
   const painelRef = useRef<HTMLDivElement | null>(null);
@@ -623,37 +635,6 @@ function SeletorCamadaMeteorologica({
     { valor: "vis", label: "Visível (REDEMET)" },
   ];
 
-  const tiposRadar: { valor: TipoRadar; label: string }[] = [
-    { valor: "maxcappi", label: "MAXCAPPI (Pico do Couto)" },
-    { valor: "10km", label: "CAPPI 10km (Pico do Couto)" },
-    { valor: "07km", label: "CAPPI 7km (Pico do Couto)" },
-    { valor: "05km", label: "CAPPI 5km (Pico do Couto)" },
-    { valor: "03km", label: "CAPPI 3km (Pico do Couto)" },
-    // Mosaico dos radares da REDEMET no Sudeste (25/10/2026), com os horários alinhados entre os radares
-    { valor: "mosaico-sudeste", label: "REDEMET — Mosaico Sudeste (RJ, SP, MG, ES)" },
-    // Radar de Santa Teresa (REDEMET, area=st; raio 400 km, cobre norte/noroeste do RJ) — pedido 09/10/2026.
-    { valor: "st-maxcappi", label: "MAXCAPPI (Santa Teresa)" },
-    { valor: "st-10km", label: "CAPPI 10km (Santa Teresa)" },
-    { valor: "st-07km", label: "CAPPI 7km (Santa Teresa)" },
-    { valor: "st-05km", label: "CAPPI 5km (Santa Teresa)" },
-    { valor: "st-03km", label: "CAPPI 3km (Santa Teresa)" },
-    // Radar próprio da Prefeitura de Niterói (radar.niteroi.rj.gov.br) —
-    // pedido do usuário (02/10/2026). Atualiza a cada 5min (contra ~20min
-    // do MAXCAPPI) e cobre raio de 100km a partir de Niterói — menor área
-    // que o MAXCAPPI (400km), mas cobre o RJ todo na prática.
-    { valor: "niteroi", label: "Niterói (local, 5min)" },
-    // Radar Tool do INEA (radartool.inea.rj.gov.br) — pedido do usuário
-    // (02/10/2026): re-hospeda os radares de Guaratiba/Macaé/Mendanha/
-    // Sumaré (os 2 últimos também cobrem o pedido de Alerta Rio, cujo site
-    // próprio tem proteção anti-robô que bloqueia acesso automatizado) e
-    // ainda tem um mosaico combinando os 6 radares do estado.
-    { valor: "inea-mosaic", label: "INEA — Mosaico (todos os radares)" },
-    { valor: "inea-gua", label: "INEA — Guaratiba" },
-    { valor: "inea-mac", label: "INEA — Macaé" },
-    { valor: "inea-mdn", label: "INEA — Mendanha" },
-    { valor: "inea-sumare", label: "INEA — Sumaré" },
-  ];
-
   return (
     <div ref={painelRef} className="absolute bottom-3 left-3 z-[1000] max-w-[calc(100vw-1.5rem)]">
       {aberto && (
@@ -669,7 +650,6 @@ function SeletorCamadaMeteorologica({
                 onClick={() => {
                   onConfigChange({ ...config, tipo: o.valor });
                   setTipoAbertoSatelite(false);
-                  setTipoAbertoRadar(false);
                 }}
                 className={`rounded px-2 py-1 font-medium text-xs ${
                   config.tipo === o.valor ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -715,38 +695,44 @@ function SeletorCamadaMeteorologica({
             </div>
           )}
 
-          {/* Dropdown de tipo para Radar */}
+          {/* Radar: escolhe o radar e, separado, o produto (as opções de produto dependem do radar) */}
           {config.tipo === "radar" && (
-            <div className="mb-3 pb-3 border-b border-gray-100">
-              <button
-                type="button"
-                onClick={() => setTipoAbertoRadar(!tipoAbertoRadar)}
-                className="w-full text-left px-2 py-1.5 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 font-medium text-xs text-gray-700 flex items-center justify-between"
-              >
-                {tiposRadar.find((t) => t.valor === config.tipoRadar)?.label || "Selecionar"}
-                <span className={`transform transition-transform ${tipoAbertoRadar ? "rotate-180" : ""}`}>▾</span>
-              </button>
-              {tipoAbertoRadar && (
-                <div className="mt-1 max-h-[9.5rem] overflow-y-auto overscroll-contain rounded border border-gray-200 bg-white shadow">
-                  {tiposRadar.map((t) => (
-                    <button
-                      key={t.valor}
-                      type="button"
-                      onClick={() => {
-                        onConfigChange({ ...config, tipoRadar: t.valor });
-                        setTipoAbertoRadar(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-xs ${
-                        config.tipoRadar === t.valor
-                          ? "bg-blue-100 text-blue-700 font-medium"
-                          : "text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {t.label}
-                    </button>
+            <div className="mb-3 pb-3 border-b border-gray-100 space-y-2">
+              <label className="block">
+                <span className="mb-1 block font-medium text-gray-600">Radar</span>
+                <select
+                  value={config.radar}
+                  onChange={(e) => {
+                    const radar = e.target.value as RadarId;
+                    const produtos = RADARES_CAT.find((r) => r.id === radar)?.produtos ?? [];
+                    const produtoRadar = produtos.some((p) => p.id === config.produtoRadar) ? config.produtoRadar : (produtos[0]?.id ?? "");
+                    onConfigChange({ ...config, radar, produtoRadar });
+                  }}
+                  className="w-full rounded border border-gray-300 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-700"
+                  aria-label="Radar"
+                >
+                  {RADARES_CAT.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.rotulo}
+                    </option>
                   ))}
-                </div>
-              )}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block font-medium text-gray-600">Produto</span>
+                <select
+                  value={config.produtoRadar}
+                  onChange={(e) => onConfigChange({ ...config, produtoRadar: e.target.value })}
+                  className="w-full rounded border border-gray-300 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-700"
+                  aria-label="Produto do radar"
+                >
+                  {(RADARES_CAT.find((r) => r.id === config.radar)?.produtos ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.rotulo}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           )}
 
@@ -859,9 +845,9 @@ function SeletorCamadaMeteorologica({
             <p className="text-[11px] text-gray-400">
               {timestamp
                 ? `${formatTimestamp(isoUtcFromRedemetTimestamp(timestamp))} · ${
-                    config.tipo === "radar" && config.tipoRadar === "niteroi"
-                      ? "Niterói"
-                      : config.tipo === "radar" && config.tipoRadar.startsWith("inea-")
+                    config.tipo === "radar" && config.radar === "niteroi" && config.produtoRadar === "maxdisplay"
+                      ? "Niterói (Prefeitura)"
+                      : config.tipo === "radar" && (config.radar.startsWith("inea-") || config.radar === "niteroi")
                         ? "INEA"
                         : config.tipo === "satelite" && eDsat(config.tipoSatelite)
                           ? "DSAT/CPTEC-INPE (GOES-19)"
@@ -872,7 +858,20 @@ function SeletorCamadaMeteorologica({
                   : "Carregando…"}
             </p>
           )}
-          {config.tipo === "radar" && config.tipoRadar === "mosaico-sudeste" && notaMosaico && <p className="mt-1 text-[10px] leading-snug text-gray-500">{notaMosaico}</p>}
+          {config.tipo === "radar" && config.radar === "mosaico-sudeste" && notaMosaico && <p className="mt-1 text-[10px] leading-snug text-gray-500">{notaMosaico}</p>}
+          {config.tipo === "radar" && usaProdutoIneaNaLegenda(config.radar, config.produtoRadar) && (
+            <div className="mt-2">
+              <p className="mb-1 text-[10px] font-medium text-gray-600">{LEGENDAS_INEA[config.produtoRadar].rotulo}</p>
+              <div className="flex">
+                {LEGENDAS_INEA[config.produtoRadar].cores.map((cor, i) => (
+                  <div key={i} className="flex-1 text-center">
+                    <div className="h-2.5" style={{ background: cor }} />
+                    <span className="block text-[8px] leading-tight text-gray-500">{LEGENDAS_INEA[config.produtoRadar].valores[i]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Camada das estações — separada da camada de imagem; item 5 do
               pedido do usuário (02/10/2026): estava sem referência dentro
@@ -950,7 +949,8 @@ export default function MapView({
   const [config, setConfig] = useState<ConfigCamada>({
     tipo: "nenhuma",
     tipoSatelite: "truecolor",
-    tipoRadar: "maxcappi",
+    radar: "pc",
+    produtoRadar: "maxcappi",
     animacao: true, // 25/10/2026: o histórico sempre é carregado; abre na última imagem e só anima ao apertar o play
     mostrarEstacoes: true,
     opacidade: 0.7,
