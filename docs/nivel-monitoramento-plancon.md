@@ -53,6 +53,8 @@ tsc limpo; backend 9/9; no navegador: busca de município, lançamento de NM 3 (
 - Verificado em produção: `/publico` abre sem login (API pública 200, 92 municípios em NM 0, quatro mapas de risco); aba Alertas → Nível de Monitoramento carrega; `sugestoes`, `registros` e `guia` respondem 200. **Nenhum NM foi lançado em produção durante o teste** (dado real).
 - Navegadores com o painel aberto podem mostrar a versão antiga até recarregar (service worker); em testes, desregistrar o SW.
 
+## Decisão: escalas distintas
+Níveis de risco (Muito baixo a Muito alto, emitidos pela Defesa Civil-RJ nos mapas de Meteorologia/Hidrologia/Geologia) e Níveis de Monitoramento (NM 0 a NM 5) são grandezas diferentes. As legendas dos mapas de risco **não** usam os nomes nem as cores do NM; a legenda do NM existe só no mapa do NM (Alertas, Produção e `/publico`). Decisão do usuário em 28/10/2026.
+
 ## Pendente
-- Atualizar a legenda do Painel de Monitoramento (aba Mapa) com os nomes novos de NM.
 - Decidir se o lançamento fica restrito a um perfil (hoje qualquer usuário logado).
