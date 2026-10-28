@@ -259,7 +259,7 @@ function MunicipioTable({ alerts, emptyMessage }: { alerts: RiskAlert[]; emptyMe
 // manualmente.
 const INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
 
-export default function AlertsPanel() {
+export default function AlertsPanel({ onLancar }: { onLancar?: (municipios: string[]) => void } = {}) {
   const [tipo, setTipo] = useState<AbaAlertas>("nivel");
   const [redecAlerts, setRedecAlerts] = useState<RiskAlert[]>([]);
   const [municipioAlerts, setMunicipioAlerts] = useState<RiskAlert[]>([]);
@@ -393,7 +393,7 @@ export default function AlertsPanel() {
       </div>
 
       {tipo === "nivel" ? (
-        <MonitoramentoPanel />
+        <MonitoramentoPanel onLancar={onLancar} />
       ) : tipo === "geral" ? (
         <RiscosOverviewPanel />
       ) : (

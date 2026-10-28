@@ -16,7 +16,6 @@ from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeV
 from .inea_radar_views import INEARadarImageryView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .monitoramento_views import (
-    GuiaPlantaoView,
     NiveisMonitoramentoView,
     PublicoMonitoramentoView,
     RegistrarNivelView,
@@ -94,7 +93,6 @@ urlpatterns = [
     path("monitoramento/registrar/", RegistrarNivelView.as_view(), name="monitoramento-registrar"),
     path("monitoramento/registros/", RegistrosNivelView.as_view(), name="monitoramento-registros"),
     path("monitoramento/sugestoes/", SugestoesNivelView.as_view(), name="monitoramento-sugestoes"),
-    path("monitoramento/guia/", GuiaPlantaoView.as_view(), name="monitoramento-guia"),
     path("publico/monitoramento/", PublicoMonitoramentoView.as_view(), name="publico-monitoramento"),
     path("imagery/radar-mosaico/", RedemetRadarMosaicoView.as_view(), name="imagery-radar-mosaico"),
     path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),

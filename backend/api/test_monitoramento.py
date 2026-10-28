@@ -121,10 +121,3 @@ class NivelMonitoramentoAPITest(APITestCase):
         for proibido in ("aprovado_por", "registrado_por", "motivo", "plantao"):
             self.assertNotIn(proibido, texto)
         self.assertIn("max-age", r["Cache-Control"])
-
-    def test_guia_exige_login(self):
-        self.assertEqual(self.client.get("/api/monitoramento/guia/").status_code, 403)
-        self.client.force_authenticate(self.op)
-        r = self.client.get("/api/monitoramento/guia/")
-        self.assertEqual(r.status_code, 200)
-        self.assertIn("Guia do Plantão", r.content.decode())

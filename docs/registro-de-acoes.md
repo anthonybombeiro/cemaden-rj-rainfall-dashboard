@@ -259,6 +259,10 @@ Implementados no repositório: modelos + migração 0025, regras do PLANCON, API
 
 Correção a pedido do usuário: no celular o cabeçalho de `/publico` ficava espremido (logo, título e horário em linha) e o mapa ficava numa caixa alta demais, com vazio em cima, e travava a rolagem da página. Agora o cabeçalho empilha em telas estreitas, o mapa usa proporção 900:640 (altura máxima só como teto) e `touch-action: pan-y` quando sem zoom (`PublicoMonitoramento.tsx`, `monitoramento/MapaNiveis.tsx`; vale também para a aba privada). Publicado (94 arquivos) e conferido em produção com tela de 390 px. Observação de teste: no `localhost` o service worker serve chunks antigos (sem hash no dev) — desregistrar o SW antes de testar; em produção os chunks têm hash e o HTML vem sempre da rede.
 
+## 28/10/2026 (noite) — Reorganização: Produção e Suporte
+
+A pedido do usuário: (1) o guia do plantão em HTML (iframe) foi **refeito como componente nativo** no padrão do painel e colocado numa sub-aba **Suporte**; (2) o lançamento do NM saiu de Alertas e foi para uma **nova aba principal "Produção"** (sub-abas Lançar nível, Pendências, Histórico e Suporte), no mesmo padrão da Geologia/recomendações de sirenes; (3) **Alertas → Nível de Monitoramento** ficou só com a visualização (contagens, mapa, regionais, municípios em NM ≥ 2), com atalho "Lançar nível para estes" para a Produção. Backend: removidos a view/rota `/api/monitoramento/guia/` e o `guia_plantao.html` (também no servidor, por SFTP); 8 testes passando. Front: build e deploy SFTP (95 arquivos, 0 falhas). Verificado em produção: aba Produção e Suporte abrem; `niveis`, `sugestoes`, `registros` e `publico` respondem 200, `guia` 404 (esperado). Nenhum NM foi lançado em produção.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

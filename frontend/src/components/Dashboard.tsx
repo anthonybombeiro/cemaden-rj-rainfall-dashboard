@@ -1,10 +1,11 @@
 "use client";
 
-import { AlertTriangle, Bell, BellOff, BookOpen, ClipboardList, CloudSun, Database, Filter, LogOut, Map, Mountain, User, X } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, BookOpen, ClipboardCheck, ClipboardList, CloudSun, Database, Filter, LogOut, Map, Mountain, User, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import AlertsPanel from "@/components/AlertsPanel";
+import ProducaoPanel from "@/components/ProducaoPanel";
 import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable";
 import FilterToggleBar from "@/components/FilterToggleBar";
 import ContatosMap from "@/components/ContatosMap";
@@ -77,7 +78,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // "Dados" (mesmo padrão de sub-aba que "Mapa" já tinha com
 // Estações/Contatos) — 5 itens principais cabem bem tanto no menu
 // horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
-type ViewMode = "mapa" | "meteorologia" | "dados" | "geologia" | "alertas" | "resumo";
+type ViewMode = "mapa" | "meteorologia" | "dados" | "geologia" | "alertas" | "producao" | "resumo";
 // Aba Geologia (22/10/2026): Sirenes (a antiga aba) + recomendações de alarme (consulta e cadastro).
 type GeologiaSub = "sirenes" | "recomendacoes" | "cadastro" | "acionamentos";
 type DadosSub =
@@ -103,6 +104,7 @@ const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "dados", label: "Dados", Icone: Database },
   { key: "geologia", label: "Geologia", Icone: Mountain },
   { key: "alertas", label: "Alertas", Icone: AlertTriangle },
+  { key: "producao", label: "Produção", Icone: ClipboardCheck },
   { key: "resumo", label: "Resumo 24h", Icone: ClipboardList },
 ];
 
@@ -212,6 +214,14 @@ export default function Dashboard({
     setRecPreVersao((v) => v + 1);
     setViewMode("geologia");
     setGeoSub("cadastro");
+  };
+  // Nível de Monitoramento: municípios escolhidos em Alertas seguem para o lançamento na aba Produção (`selecaoNmVersao` recria o painel)
+  const [selecaoNm, setSelecaoNm] = useState<string[]>([]);
+  const [selecaoNmVersao, setSelecaoNmVersao] = useState(0);
+  const abrirProducao = (municipios: string[]) => {
+    setSelecaoNm(municipios);
+    setSelecaoNmVersao((v) => v + 1);
+    setViewMode("producao");
   };
   // a antiga aba "Sirenes" agora é a sub-aba Sirenes de Geologia
   const sirenesAtivo = viewMode === "geologia" && geoSub === "sirenes";
@@ -1308,7 +1318,8 @@ export default function Dashboard({
             </div>
           )}
           {viewMode === "meteorologia" && <MeteorologiaPanel />}
-          {viewMode === "alertas" && <AlertsPanel />}
+          {viewMode === "alertas" && <AlertsPanel onLancar={abrirProducao} />}
+          {viewMode === "producao" && <ProducaoPanel key={selecaoNmVersao} selecaoInicial={selecaoNm} />}
           {viewMode === "resumo" && <ResumoPanel onOpenStation={(id) => setPainelEstacaoId(id)} />}
 
           {/* Painel de histórico de estação IN-APP — por cima do conteúdo da

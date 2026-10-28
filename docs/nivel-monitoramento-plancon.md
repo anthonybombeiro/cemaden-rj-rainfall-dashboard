@@ -1,6 +1,6 @@
 # Nível de Monitoramento (PLANCON 2026/2027)
 
-Implementado em 28/10/2026. Texto-base: `docs/plancon-2026-2027-adequacao-portaria-2458.md` (Portaria MIDR nº 2.458/2026); guia do plantão: `backend/core/data/guia_plantao.html`.
+Implementado em 28/10/2026. Texto-base: `docs/plancon-2026-2027-adequacao-portaria-2458.md` (Portaria MIDR nº 2.458/2026); guia do plantão: componente `frontend/src/components/monitoramento/GuiaPlantao.tsx` (refeito no padrão do painel; a figura da matriz está em `frontend/public/guia/matriz-plancon.jpg`).
 
 ## Escala
 | NM | Nome | Cor | Piso por risco técnico |
@@ -32,15 +32,16 @@ O NM é **por município** (vale o mais alto entre meteorologia, hidrologia e ge
 | POST `/api/monitoramento/registrar/` | login (CSRF) | lança NM para 1+ municípios (atômico, `lote` uuid) |
 | GET `/api/monitoramento/registros/` | login | histórico |
 | GET `/api/monitoramento/sugestoes/` | login | pendências: risco técnico acima do NM, sirene recente (≤6 h → avaliar NM 4), vigência vencida |
-| GET `/api/monitoramento/guia/` | login | guia do plantão (HTML) |
 | GET `/api/publico/monitoramento/` | **sem login** | NM, resumo, escala e riscos (sem o campo `responsavel`); cache de 60 s |
 
-Testes: `backend/api/test_monitoramento.py` (9, passando).
+Testes: `backend/api/test_monitoramento.py` (8, passando).
 
-## Interface
-- **Alertas → Nível de Monitoramento** (primeira aba, `MonitoramentoPanel.tsx`): link e botão de copiar da página pública, cartões por NM (clique seleciona os municípios), busca e filtro por regional, mapa SVG interativo (`monitoramento/MapaNiveis.tsx`: zoom, arrastar, dica, seleção, contorno das REDECs), tabela por regional e abas **Lançar** (`LancarNivel.tsx`, com assistente de decisão portado do guia), **Pendências** (agrupadas por regional/tipo/nível/fontes; "Abrir no formulário" seleciona os municípios), **Histórico** e **Guia** (iframe).
-- **Página pública `/publico`** (`PublicoMonitoramento.tsx`, `app/publico/page.tsx`): sem login, atualiza a cada 60 s; maior nível vigente, mapa NM, os seis níveis, tabela dos municípios em NM ≥ 2 com vigência, quatro mapas de risco (hidrológico, geológico, meteorológico, incêndio) e aviso de que não substitui os alertas oficiais (199/193).
-- Servidor: precisa da regra `RewriteRule ^publico/?$ /publico.html [L]` no `.htaccess` (já em `deploy/hostgator/htaccess`).
+## Interface (reorganizada em 28/10/2026)
+- **Alertas → Nível de Monitoramento** (`MonitoramentoPanel.tsx`): só a visualização — link e botão de copiar da página pública, cartões por NM (clique destaca os municípios), mapa SVG interativo (`monitoramento/MapaNiveis.tsx`: zoom, arrastar, dica, destaque, contorno das REDECs), tabela por regional e lista dos municípios em NM ≥ 2 com vigência. Ao destacar municípios aparece **"Lançar nível para estes →"**, que abre a aba Produção já com a seleção.
+- **Produção** (nova aba principal, `ProducaoPanel.tsx`, mesmo padrão de sub-abas da Geologia): **Lançar nível** (mapa de seleção + `LancarNivel.tsx` com assistente de decisão e as regras do plano), **Pendências** (agrupadas por regional/tipo/nível/fontes; "Abrir no formulário" preenche o lançamento), **Histórico** e **Suporte**.
+- **Suporte → Guia do Plantão** (`monitoramento/GuiaPlantao.tsx`): nove seções com os componentes do painel (O que mudou, Os 6 níveis com a figura do PLANCON, Regra das 2 h, Fluxo do envio DCA em nove passos, Por equipe, Campos da Idap, Mensagens modelo com contador de caracteres e copiar, Proibido, Checklist com marcações só no navegador). O assistente de decisão fica no formulário Lançar nível. O guia em HTML embutido (iframe) foi removido, junto com a rota `/api/monitoramento/guia/` e o arquivo `guia_plantao.html`.
+- **Página pública `/publico`** (`PublicoMonitoramento.tsx`, `app/publico/page.tsx`): sem login, atualiza a cada 60 s; maior nível vigente, mapa NM, os seis níveis, tabela dos municípios em NM ≥ 2 com vigência, quatro mapas de risco e aviso de que não substitui os alertas oficiais (199/193). Responsiva (cabeçalho empilhado, mapa em proporção fixa, rolagem livre sobre o mapa).
+- Servidor: precisa da regra `RewriteRule ^publico/?$ /publico.html [L]` no `.htaccess` (já aplicada; cópia em `deploy/hostgator/htaccess`).
 
 ## Testes feitos (local, 28/10/2026)
 tsc limpo; backend 9/9; no navegador: busca de município, lançamento de NM 3 (contadores e mapa atualizam), NM 4 completo (com todas as exigências) registrado, NM 4 incompleto lista o que falta, histórico, guia, pendências agrupadas, página pública com a API real. Banco SQLite temporário, sem dado de produção.

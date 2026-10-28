@@ -1,17 +1,14 @@
 """Níveis de Monitoramento (NM 0 a NM 5) do PLANCON 2026/2027: painel interno e versão pública.
 
-Interno (login): níveis vigentes, lançamento com as regras do PLANCON, histórico, sugestões (o que pede inserção humana) e o guia do
-plantão. Público (sem login, só leitura): `PublicoMonitoramentoView`, para municípios e órgãos de defesa civil verem o nível vigente e
+Interno (login): níveis vigentes, lançamento com as regras do PLANCON, histórico e sugestões (o que pede inserção humana). Público (sem login, só leitura): `PublicoMonitoramentoView`, para municípios e órgãos de defesa civil verem o nível vigente e
 os mapas de risco. Regras e dados de apoio: core/niveis_monitoramento.py; documentação: docs/nivel-monitoramento-plancon.md."""
 
 from __future__ import annotations
 
 import datetime as dt
 import uuid
-from pathlib import Path
 
 from django.db import transaction
-from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework.permissions import AllowAny
@@ -33,7 +30,6 @@ from core.niveis_monitoramento import (
 
 COM_GRANULARIDADE_MUNICIPAL = {RiskAlert.Tipo.GEOLOGICO, RiskAlert.Tipo.HIDROLOGICO}
 TIPOS_CHUVA = [RiskAlert.Tipo.HIDROLOGICO, RiskAlert.Tipo.GEOLOGICO, RiskAlert.Tipo.METEOROLOGICO]
-GUIA = Path(__file__).resolve().parent.parent / "core" / "data" / "guia_plantao.html"
 
 
 def _niveis_vigentes() -> list[dict]:
@@ -279,17 +275,6 @@ class SugestoesNivelView(APIView):
                             "orientacao": "Vigência vencida: atualize o alerta (CAP) ou registre o retorno à normalidade."})
         out.sort(key=lambda s: (-(s["sugerido"] if s["sugerido"] is not None else 9), s["municipio"]))
         return Response({"gerado_em": agora, "sugestoes": out})
-
-
-class GuiaPlantaoView(APIView):
-    """GET /api/monitoramento/guia/ — guia do plantão (HTML), só para usuários logados."""
-
-    def get(self, request):
-        try:
-            html = GUIA.read_text(encoding="utf-8")
-        except OSError:
-            return Response({"detail": "Guia indisponível."}, status=404)
-        return HttpResponse(html, content_type="text/html; charset=utf-8")
 
 
 class PublicoMonitoramentoView(APIView):
