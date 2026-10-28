@@ -9,6 +9,8 @@ RewriteRule ^admin(/.*)?$ /django.cgi/admin$1 [L,QSA]
 # Pagina de historico por estacao (Next export gera estacao.html, sem
 # extensao/pasta navegavel — link em Dados Meteorologicos abre /estacao?id=N).
 RewriteRule ^estacao/?$ /estacao.html [L]
+# Pagina publica do Nivel de Monitoramento (sem login), gerada como publico.html.
+RewriteRule ^publico/?$ /publico.html [L]
 
 # Compressao pros GeoJSON de REDECs/municipios (2026-09-27, ~325KB+216KB
 # sem gzip) e demais estaticos — no-op se mod_deflate nao existir no host.

@@ -251,6 +251,10 @@ Nova opção **REDEMET — Mosaico Sudeste (RJ, SP, MG, ES)** na camada de radar
 
 No painel de camadas o radar passou a ter dois seletores: **Radar** (REDEMET Pico do Couto, Santa Teresa e Mosaico Sudeste; INEA Mosaico, Guaratiba, Macaé, Mendanha e Sumaré; Niterói) e **Produto**, que depende do radar. Produtos verificados em 25/10/2026: REDEMET = MAXCAPPI e CAPPI 3/5/7/10 km (inclusive no mosaico, 4 radares × 14 quadros); INEA (Radar Tool, `frames.php?product=zh|rr|vel`) = refletividade, **precipitação (mm/h)** e **velocidade radial (m/s)** — o mosaico não tem velocidade (0 quadros) e Sumaré/Pico do Couto só publicam refletividade; Niterói = MAXDISPLAY da Prefeitura (única opção pública da API deles, os outros tipos pedem login) mais os 3 produtos via INEA (código `nit`, passo de 5 min). Mendanha estava sem imagem no momento do teste. Legenda de cores e valores do INEA exibida no painel para zh/rr/vel. Backend: `inea_radar_views.py` (parâmetro `produto`, radar `nit`, validação por radar) e mosaico REDEMET já aceitava o tipo.
 
+## 28/10/2026 — Nível de Monitoramento do PLANCON 2026/2027
+
+Implementados no repositório: modelos + migração 0025, regras do PLANCON, API (inclusive pública sem login), aba Alertas > Nível de Monitoramento (mapa, lançamento com assistente, pendências, histórico, guia) e página pública `/publico`. Testado localmente (tsc, 9 testes, navegador). Arquivos do backend enviados ao servidor por SFTP; **migração 0025 NÃO aplicada** (POST /api/admin/migrate/ bloqueado pelo classificador) e front/.htaccess não publicados. Detalhes e pendências em `nivel-monitoramento-plancon.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
