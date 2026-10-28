@@ -253,7 +253,7 @@ No painel de camadas o radar passou a ter dois seletores: **Radar** (REDEMET Pic
 
 ## 28/10/2026 — Nível de Monitoramento do PLANCON 2026/2027
 
-Implementados no repositório: modelos + migração 0025, regras do PLANCON, API (inclusive pública sem login), aba Alertas > Nível de Monitoramento (mapa, lançamento com assistente, pendências, histórico, guia) e página pública `/publico`. Testado localmente (tsc, 9 testes, navegador). Arquivos do backend enviados ao servidor por SFTP; **migração 0025 NÃO aplicada** (POST /api/admin/migrate/ bloqueado pelo classificador) e front/.htaccess não publicados. Detalhes e pendências em `nivel-monitoramento-plancon.md`.
+Implementados no repositório: modelos + migração 0025, regras do PLANCON, API (inclusive pública sem login), aba Alertas > Nível de Monitoramento (mapa, lançamento com assistente, pendências, histórico, guia) e página pública `/publico`. Testado localmente (tsc, 9 testes, navegador). Arquivos do backend enviados ao servidor por SFTP; **publicado em produção no mesmo dia**: migração 0025 aplicada (POST /api/admin/migrate/ com sessão, autorizado pelo usuário), `.htaccess` com a regra `/publico` (backup `.htaccess.bak-publico`) e front implantado por SFTP (94 arquivos); `/publico` verificado sem login. Detalhes e pendências em `nivel-monitoramento-plancon.md`.
 
 ## Pendências abertas (03/10/2026)
 

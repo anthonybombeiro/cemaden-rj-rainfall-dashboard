@@ -45,7 +45,13 @@ Testes: `backend/api/test_monitoramento.py` (9, passando).
 ## Testes feitos (local, 28/10/2026)
 tsc limpo; backend 9/9; no navegador: busca de município, lançamento de NM 3 (contadores e mapa atualizam), NM 4 completo (com todas as exigências) registrado, NM 4 incompleto lista o que falta, histórico, guia, pendências agrupadas, página pública com a API real. Banco SQLite temporário, sem dado de produção.
 
-## Pendente em produção
-- Aplicar a migração 0025 (o `POST /api/admin/migrate/` por sessão foi bloqueado pelo classificador; aguarda autorização do usuário). Os arquivos do backend já estão no servidor, mas **sem a migração os endpoints novos darão erro** — não fazer o deploy do front antes.
-- Incluir a regra de `/publico` no `.htaccess` do servidor (com backup), build e deploy do front, teste em produção (inclusive `/publico` sem login).
-- Atualizar a legenda do Painel de Monitoramento com os novos nomes de NM.
+## Publicação em produção (28/10/2026)
+- Migração `core.0025_nivel_monitoramento` aplicada por `POST /api/admin/migrate/` (sessão do superusuário, após autorização expressa do usuário no chat — o classificador bloqueia sem ela).
+- `.htaccess` do servidor ganhou `RewriteRule ^publico/?$ /publico.html [L]` (backup: `.htaccess.bak-publico`).
+- Build de produção (`NEXT_PUBLIC_API_BASE_URL=https://cemadenrj.preserve.rio.br/api`) e deploy SFTP: 94 arquivos, 0 falhas.
+- Verificado em produção: `/publico` abre sem login (API pública 200, 92 municípios em NM 0, quatro mapas de risco); aba Alertas → Nível de Monitoramento carrega; `sugestoes`, `registros` e `guia` respondem 200. **Nenhum NM foi lançado em produção durante o teste** (dado real).
+- Navegadores com o painel aberto podem mostrar a versão antiga até recarregar (service worker); em testes, desregistrar o SW.
+
+## Pendente
+- Atualizar a legenda do Painel de Monitoramento (aba Mapa) com os nomes novos de NM.
+- Decidir se o lançamento fica restrito a um perfil (hoje qualquer usuário logado).
