@@ -12,11 +12,10 @@ import PrevisaoNumericaPanel from "@/components/PrevisaoNumericaPanel";
 import PrevisaoForm from "@/components/PrevisaoForm";
 import PrevisaoInmetPanel from "@/components/PrevisaoInmetPanel";
 import SondagemPanel from "@/components/SondagemPanel";
-import { CartaoTextoGeral } from "@/components/PrevisaoMapaCorpo";
 import { AvisoMauTempo, fetchAvisosMauTempo, fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao, REDECS } from "@/lib/api";
 import { formatarDataHoraLocalIso, humanizarDescricao } from "@/lib/avisosMauTempo";
 import { AvisoInmet, fetchAvisosInmetRJ } from "@/lib/inmet";
-import { EMOJI_POR_ICONE, iconeSrc } from "@/lib/meteorologia";
+import { EMOJI_POR_ICONE, iconeDominante, iconeSrc } from "@/lib/meteorologia";
 
 function hojeISO(): string {
   const d = new Date();
@@ -124,6 +123,31 @@ function PrevisaoCard({ regiao, previsao }: { regiao: string; previsao?: Previsa
   );
 }
 
+/** Cartão do texto geral: mesmo tamanho dos cartões das REDECs, é o 1º dos 12 (1 geral + 11 REDECs) e divide a grade em 2, 3 ou 4 colunas sem sobra. */
+function PrevisaoGeralCard({ texto, previsoes }: { texto: string; previsoes: Previsao[] }) {
+  const t = texto.trim();
+  if (!t) {
+    return (
+      <div className="flex flex-col rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-amber-900">Previsão geral</h3>
+        <p className="mt-3 text-sm text-amber-800">O texto geral deste dia ainda não foi escrito. Ele é preenchido no fim do cadastro (Meteorologia → Cadastro), depois das 11 REDECs.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col rounded-lg border border-gray-200 border-t-4 border-t-sedec-600 bg-blue-50 p-4 shadow-sm" aria-label="Previsão geral do estado">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">Previsão geral</h3>
+          <div className="text-xs text-gray-600">Estado do Rio de Janeiro</div>
+        </div>
+        <IconeTempo icone={iconeDominante(previsoes.map((p) => p.icone))} />
+      </div>
+      <p className="mt-3 text-sm leading-relaxed text-gray-800">{t}</p>
+    </div>
+  );
+}
+
 function PrevisaoDiaria() {
   const [data, setData] = useState<string | null>(null);
   const [previsoes, setPrevisoes] = useState<Previsao[]>([]);
@@ -215,15 +239,13 @@ function PrevisaoDiaria() {
       {loading ? (
         <div className="p-6 text-center text-sm text-gray-400">Carregando…</div>
       ) : (
-        <>
-          {/* Cartão principal do dia: o texto geral do estado vem antes das REDECs */}
-          <CartaoTextoGeral texto={textoGeral} variante="tela" lembrete={previsoes.length > 0} className="mb-3" />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {REDECS.map((r) => (
-              <PrevisaoCard key={r} regiao={r} previsao={porRegiao.get(r)} />
-            ))}
-          </div>
-        </>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {/* 12 cartões: o texto geral do estado vem primeiro, antes das 11 REDECs */}
+          {(previsoes.length > 0 || textoGeral.trim()) && <PrevisaoGeralCard texto={textoGeral} previsoes={previsoes} />}
+          {REDECS.map((r) => (
+            <PrevisaoCard key={r} regiao={r} previsao={porRegiao.get(r)} />
+          ))}
+        </div>
       )}
     </div>
   );

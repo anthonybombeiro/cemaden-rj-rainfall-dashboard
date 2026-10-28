@@ -279,6 +279,10 @@ A pedido do usuário. **Texto geral do estado** (modelo `PrevisaoDia`, migraçã
 
 Backend enviado por SFTP (models, admin, serializers, views, migração 0026), **migração 0026 aplicada** por `POST /api/admin/migrate/` (autorizado pelo usuário no chat; o classificador bloqueia sem a frase expressa) e front compilado e implantado (95 arquivos, 0 falhas). Verificado em produção com a sessão do usuário, **só leitura, sem gravar nada**: `texto-geral` e `cobertura` respondem 200; a faixa "A previsão de amanhã (qui 29/10) está incompleta: falta o texto geral do estado" aparece com o ponto na aba Meteorologia; Mapa → Previsão mostra o lembrete do texto geral antes dos 11 cartões. Dia 28/10 e 29/10 já têm as 11 REDECs e ainda **sem texto geral**: a faixa some quando o texto de 29/10 for salvo.
 
+## 28/10/2026 (noite) — Previsão: card geral do tamanho das REDECs, 12 cartões, rodapé, pop-up e ícones
+
+A pedido do usuário: o texto geral deixou de ser um card largo e virou o **1º dos 12 cartões** (mesmo tamanho dos das REDECs) na aba Previsão CEMADEN-RJ, no Mapa → Previsão, no Story e no Post; o rodapé das artes virou uma faixa azul de ponta a ponta com uma linha curta; o pop-up de exportação cabe sem barra de rolagem (e passou a abrir no `<body>`, acima da barra inferior do celular, que cobria "Compartilhar" e "Copiar texto"); os cartões do mapa, o Story e o Post usam os mesmos ícones da aba Previsão (Lucide) no lugar dos emojis, e a Tabela mostra a imagem do clima; os textos copiados mantêm os emojis. Só frontend (sem migração). Testes e arquivos em `previsao-comparacao-telegram.md` (revisão de 29/10).
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

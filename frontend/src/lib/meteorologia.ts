@@ -21,3 +21,11 @@ export const VENTOS = ["Fraco", "Fraco/Moderado", "Moderado", "Moderado/Forte", 
 export function iconeSrc(key: string): string {
   return `/icones-tempo/prevTemp_${key}.webp`;
 }
+
+/** Imagem do clima mais frequente entre as REDECs (empate: a mais severa) — ícone do cartão do texto geral do estado. */
+export function iconeDominante(icones: string[]): string {
+  const severidade = (i: string) => (/Raio/.test(i) ? 40 : /Chuva/.test(i) ? 30 : 0) + (i === "ceuClaro" ? 0 : i === "ceuPoucasNuvens" ? 1 : /^ceuParcialmente/.test(i) ? 2 : /^ceuNublado/.test(i) ? 3 : 4);
+  const cont = new Map<string, number>();
+  for (const i of icones) if (i) cont.set(i, (cont.get(i) ?? 0) + 1);
+  return [...cont.entries()].sort((a, b) => b[1] - a[1] || severidade(b[0]) - severidade(a[0]))[0]?.[0] ?? "";
+}

@@ -217,7 +217,14 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                             textAlign: c.alinhamento ?? "left",
                           }}
                         >
-                          {l.valores[c.chave] ?? ""}
+                          {l.icones?.[c.chave] ? (
+                            <span className="inline-flex items-center gap-1 align-middle">
+                              <img src={l.icones[c.chave]} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                              {(l.valores[c.chave] ?? "").replace(/^[\p{Extended_Pictographic}\uFE0F\s]+/u, "")}
+                            </span>
+                          ) : (
+                            (l.valores[c.chave] ?? "")
+                          )}
                         </td>
                       ))}
                     </tr>

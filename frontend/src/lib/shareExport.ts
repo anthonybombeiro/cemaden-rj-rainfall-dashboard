@@ -20,6 +20,8 @@ export type ShareLinha = {
   /** Cor de fundo da linha (mesma lógica das tabelas, ex: faixa de chuva/vento/gatilho). */
   bg?: string;
   text?: string;
+  /** Imagem (URL) a mostrar no começo de uma célula: `{ chave da coluna: src }`. O texto copiado continua usando `valores` (com emoji). */
+  icones?: Record<string, string>;
 };
 /** Um grupo pro texto WhatsApp/Telegram agrupado (ex: faixas de rajada —
  * Muito forte/Forte/Moderada/Fraca/Atrasada). `chave` tem que bater com o

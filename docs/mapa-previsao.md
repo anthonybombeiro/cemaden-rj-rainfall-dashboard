@@ -27,3 +27,7 @@ Retorno do usuário: o mapa ficou "quase perfeito"; faltavam nascer/pôr do Sol 
 
 ## Texto geral do estado (28/10/2026)
 Card **"Previsão geral do estado"** logo abaixo do mapa e da legenda, **antes dos cartões das REDECs** (no celular, mapa → card → cartões). O texto é escrito no fim do cadastro (Meteorologia → Cadastro; clicar na caixa vazia traz uma proposta) e aparece também no Story, no Post, na Tabela e no texto copiado. Quando o comentário é igual nas 11 REDECs, as artes não o repetem nos cartões. Detalhes, regras, arquivos e testes em `previsao-comparacao-telegram.md` (§5).
+
+### Revisão de 28/10/2026 (noite)
+O texto geral virou o **1º dos 12 cartões** (mesmo tamanho dos das REDECs) em vez de um card largo; o Story e o Post têm rodapé em faixa azul de ponta a ponta; o pop-up de exportação cabe sem rolagem e fica acima da barra do celular; os ícones de umidade, vento e Sol são os da aba Previsão CEMADEN-RJ (Lucide). Detalhes em `previsao-comparacao-telegram.md`.
+

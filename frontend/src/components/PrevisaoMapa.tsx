@@ -3,12 +3,13 @@
 import { toPng } from "html-to-image";
 import { ChevronLeft, ChevronRight, Share2, Smartphone, Table2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
-import { CartaoRedec, CartaoTextoGeral, CorpoFeed, CorpoStory, FEED_H, FEED_W, LegendaTempo, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
+import { CartaoGeral, CartaoRedec, CorpoFeed, CorpoStory, FEED_H, FEED_W, LegendaTempo, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
 import ShareModal from "@/components/ShareModal";
 import { fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
-import { EMOJI_POR_ICONE } from "@/lib/meteorologia";
+import { EMOJI_POR_ICONE, iconeSrc } from "@/lib/meteorologia";
 import { copiarImagemParaAreaDeTransferencia, copiarParaAreaDeTransferencia, ehDispositivoMovel, ShareData } from "@/lib/shareExport";
 
 const TZ = "America/Sao_Paulo";
@@ -28,19 +29,30 @@ const r0 = (n: number) => Math.round(Number(n));
 function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { titulo: string; w: number; h: number; nomeArquivo: string; texto: string; onClose: () => void; children: React.ReactNode }) {
   const alvo = useRef<HTMLDivElement>(null);
   const caixa = useRef<HTMLDivElement>(null);
+  const topo = useRef<HTMLDivElement>(null);
+  const base = useRef<HTMLDivElement>(null);
   const [escala, setEscala] = useState(0.3);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const movel = ehDispositivoMovel();
 
+  // A prévia cabe inteira no pop-up (sem barra de rolagem): a escala vem da largura da caixa e da altura que sobra depois do título e dos botões.
   useEffect(() => {
     const el = caixa.current;
     if (!el) return;
-    const calc = () => setEscala(Math.min(el.clientWidth / w, (window.innerHeight * 0.66) / h));
+    const calc = () => {
+      const livre = window.innerHeight * 0.96 - (topo.current?.offsetHeight ?? 0) - (base.current?.offsetHeight ?? 0) - 16;
+      setEscala(Math.max(0.1, Math.min((el.clientWidth - 16) / w, livre / h)));
+    };
     calc();
     const ro = new ResizeObserver(calc);
     ro.observe(el);
-    return () => ro.disconnect();
+    if (base.current) ro.observe(base.current);
+    window.addEventListener("resize", calc);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", calc);
+    };
   }, [w, h]);
 
   const gerar = async (): Promise<Blob> => {
@@ -91,16 +103,16 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { 
     });
   const copiarTexto = async () => setMsg((await copiarParaAreaDeTransferencia(texto)) ? "Texto copiado." : "Não foi possível copiar o texto.");
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-2" onClick={onClose}>
       <div className="flex max-h-[96vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-2.5">
+        <div ref={topo} className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-2.5">
           <h2 className="text-sm font-bold text-gray-800">{titulo}</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700" aria-label="Fechar">
             ✕
           </button>
         </div>
-        <div ref={caixa} className="min-h-0 flex-1 overflow-auto bg-gray-100 p-2">
+        <div ref={caixa} className="shrink-0 overflow-hidden bg-gray-100 p-2">
           <div className="mx-auto overflow-hidden shadow" style={{ width: w * escala, height: h * escala }}>
             <div style={{ transform: `scale(${escala})`, transformOrigin: "top left", width: w, height: h }}>
               <div ref={alvo} style={{ width: w, height: h }}>
@@ -109,7 +121,7 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { 
             </div>
           </div>
         </div>
-        <div className="shrink-0 space-y-2 border-t border-gray-200 p-3">
+        <div ref={base} className="shrink-0 space-y-2 border-t border-gray-200 p-3">
           {msg && <div className="rounded bg-amber-50 p-2 text-xs text-amber-800">{msg}</div>}
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={baixar} disabled={busy} className="rounded bg-sedec-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sedec-700 disabled:opacity-50">
@@ -129,7 +141,8 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { 
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -223,6 +236,7 @@ export default function PrevisaoMapa() {
       linhas: ordenadas
         .filter((x) => x.p)
         .map(({ regiao, p }) => ({
+          icones: { tempo: iconeSrc(p!.icone) },
           valores: {
             regiao: nomeBonito(regiao),
             tempo: `${EMOJI_POR_ICONE[p!.icone] ?? ""} ${rotuloTempo(p!.icone)}`,
@@ -277,9 +291,9 @@ export default function PrevisaoMapa() {
           <div className="lg:sticky lg:top-0 lg:self-start">
             <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={460} selecionada={selecionada} onSelecionar={(r) => setSelecionada((a) => (a === r ? null : r))} className="w-full rounded-lg bg-sky-50" />
             <LegendaTempo className="mt-2 text-[11px]" />
-            <CartaoTextoGeral texto={textoGeral} variante="tela" className="mt-3" />
           </div>
           <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
+            <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="tela" />
             {ordenadas.map(({ regiao, p }) => (
               <CartaoRedec key={regiao} regiao={regiao} p={p} variante="tela" ativo={selecionada === regiao} onClick={() => setSelecionada((a) => (a === regiao ? null : regiao))} />
             ))}
