@@ -14,8 +14,15 @@ Implementado em 28/10/2026. Texto-base: `docs/plancon-2026-2027-adequacao-portar
 
 O NM é **por município** (vale o mais alto entre meteorologia, hidrologia e geologia). Vigência máxima de 24 h; vencida, o município aparece hachurado ("em revisão") até novo lançamento.
 
+## O NM **não** sobe sozinho (verificado em 28/10/2026)
+* O nível vigente de cada município vem **só** das linhas gravadas por um usuário (`NivelMonitoramento`); sem linha o município está em **NM 0**. Nenhuma rotina agendada ou regra do servidor lança NM 1, 2 ou 3 (`_niveis_vigentes()` em `api/monitoramento_views.py`).
+* O que existe é **sugestão** (`GET /api/monitoramento/sugestoes/`, aba Produção → **Pendências (n)**): (1) risco técnico (hidrológico, geológico, meteorológico) acima do NM vigente — risco **moderado → NM 2**, **alto ou muito alto → NM 3**; (2) recomendação de mobilização de sirene do dia → NM 4 a avaliar; (3) vigência vencida. Cada sugestão traz "Abrir no formulário", e o plantonista decide.
+* **Sinalização:** o contador "Pendências (n)" aparece **só dentro** da aba Produção. Não há selo na aba principal, no mapa de Alertas, som ou notificação. **Não entram** nas sugestões: gatilhos pluviométricos "condicionado/obrigatório" (GI–GIV), chuva observada, previsão de informativo/aviso, rajadas e raios.
+* Em produção (conferido por leitura em 28/10/2026): 92 municípios em NM 0, 0 registros, 0 sugestões (o risco técnico atual é baixo).
+* Propostas (aguardando decisão): ver `registro-de-acoes.md` (28/10, "NM: sinalização") — selo na aba Produção e no mapa, painel de **predisposição ao NM 3/4** com os sinais acima, e (opcional) registro automático de NM 1–2 marcado como "origem: sistema", sempre com confirmação por causa da página pública.
+
 ## Regras aplicadas no lançamento (`core/niveis_monitoramento.py`, `validar_registro`)
-- Não pode lançar abaixo do piso do risco técnico vigente.
+- O **assistente de decisão** do formulário (`lib/nivelMonitoramento.ts`) calcula o nível a partir do risco (piso) e da antecedência/gatilho (teto), mas **o servidor não bloqueia** um lançamento abaixo do piso: a regra é só orientação (correção de 28/10/2026 — antes este item dizia que bloqueava).
 - **NM 4**: exige gatilho atingido/fenômeno detectado (campo motivo), impacto em até 2 h, área delimitada, população exposta, aprovação (Diretor/Oficial de Ligação) e aviso à COMDEC e à REDEC. **NM 5** pode ter aviso simultâneo, desde que informado o motivo.
 - TV/DCA não são permitidos nos NM 2–3; NM 0–1 não geram Idap.
 - Erros voltam como `400 {"erros": [...]}`; o formulário mostra as mesmas dicas antes de enviar e pede confirmação para NM ≥ 4.

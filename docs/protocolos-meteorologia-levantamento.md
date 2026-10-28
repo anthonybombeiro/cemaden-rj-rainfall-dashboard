@@ -229,7 +229,9 @@ IDAP (login por CPF, aval do diretor), Telegram "00" e Instagram: **sem automaç
 | 9 | Planilhas | Datas mistas, "Sim/sim/Não", `#REF!`, zeros | A gravação automática elimina |
 | 10 | Pessoal | E-mails pessoais no texto do protocolo | Configuração, nunca no código |
 
-Perguntas em aberto: **SRAAS** (tabela das 9 h 30; provavelmente status das sirenes — não confirmado); janela exata da chuva no Nesterov; hora de referência na arte de acumulados ("05H30"); se o lançamento será restrito a perfil (hoje qualquer usuário logado).
+**Respondido pelo usuário em 28/10/2026:** a tendência sai **segunda e quinta** (valor adotado); **SRAAS = Sistema Remoto de Alerta e Alarme Sonoro**, o sistema de sirenes que já usamos — a "tabela sobre o funcionamento do SRAAS" (9 h 30) é o status das sirenes e pode sair de `SirenesStatusView` / `FontesSaudeView` (módulo novo: gravar o status das sirenes às 9 h 30 e gerar a tabela do dia). Detalhes em `previsao-comparacao-telegram.md` e `informativo-meteorologico-proposta.md`.
+
+Perguntas em aberto: ~~SRAAS~~; janela exata da chuva no Nesterov; hora de referência na arte de acumulados ("05H30"); se o lançamento será restrito a perfil (hoje qualquer usuário logado).
 
 ## 7. Ordem sugerida, dependências e esforço
 
