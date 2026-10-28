@@ -73,11 +73,11 @@ const MapaNiveis = forwardRef<
   };
 
   return (
-    <div className="relative w-full select-none overflow-hidden rounded-lg border border-gray-200 bg-sky-50" style={{ height: altura }}>
+    <div className="relative w-full select-none overflow-hidden rounded-lg border border-gray-200 bg-sky-50" style={{ aspectRatio: `${W} / ${H}`, maxHeight: altura }}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
-        className="h-full w-full touch-none"
+        className={`h-full w-full ${vista.k > 1 ? "touch-none" : "touch-pan-y"}`}
         role="img"
         aria-label="Mapa do Nível de Monitoramento por município do Estado do Rio de Janeiro"
         preserveAspectRatio="xMidYMid meet"

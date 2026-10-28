@@ -32,14 +32,14 @@ export default function PublicoMonitoramento() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <header className="bg-[#1f3864] text-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-cemadenrj.png" alt="CEMADEN-RJ" className="h-10 w-auto" />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-extrabold leading-tight sm:text-xl">Nível de Monitoramento — Estado do Rio de Janeiro</h1>
+          <img src="/logo-cemadenrj.png" alt="CEMADEN-RJ" className="h-9 w-auto self-start sm:h-10" />
+          <div className="min-w-0 sm:flex-1">
+            <h1 className="text-base font-extrabold leading-tight sm:text-xl">Nível de Monitoramento — Estado do Rio de Janeiro</h1>
             <p className="text-xs text-blue-100">CEMADEN-RJ · Defesa Civil RJ · PLANCON 2026/2027</p>
           </div>
-          <p className="text-xs text-blue-100">{d ? `Atualizado em ${fmtDataHora(d.gerado_em)}` : erro ? "Sem conexão" : "Carregando…"}</p>
+          <p className="text-xs text-blue-100 sm:text-right">{d ? `Atualizado em ${fmtDataHora(d.gerado_em)}` : erro ? "Sem conexão" : "Carregando…"}</p>
         </div>
       </header>
 
@@ -89,7 +89,7 @@ export default function PublicoMonitoramento() {
                         <tr key={n.municipio} className="border-t border-gray-100">
                           <td className="px-3 py-1.5 font-medium">{n.municipio}</td>
                           <td className="px-3 py-1.5 text-gray-600">{n.regiao}</td>
-                          <td className="px-3 py-1.5"><span className="rounded px-2 py-0.5 text-xs font-bold" style={{ background: ESCALA_NM[n.nivel].cor, color: corTextoSobre(ESCALA_NM[n.nivel].cor) }}>{ESCALA_NM[n.nivel].sigla} {ESCALA_NM[n.nivel].nome}</span></td>
+                          <td className="px-3 py-1.5"><span className="whitespace-nowrap rounded px-2 py-0.5 text-xs font-bold" style={{ background: ESCALA_NM[n.nivel].cor, color: corTextoSobre(ESCALA_NM[n.nivel].cor) }}>{ESCALA_NM[n.nivel].sigla} {ESCALA_NM[n.nivel].nome}</span></td>
                           <td className={`px-3 py-1.5 text-xs ${n.vencida ? "font-semibold text-red-600" : "text-gray-600"}`}>{n.vencida ? "Vencida — em revisão" : n.vigencia_ate ? `até ${fmtDataHora(n.vigencia_ate)}` : "—"}</td>
                         </tr>
                       ))}
