@@ -779,3 +779,56 @@ class MunicipioComSirene(models.Model):
 
     def __str__(self):
         return self.municipio
+
+
+class NivelMonitoramento(models.Model):
+    """Nível de Monitoramento (NM 0 a NM 5, PLANCON 2026/2027) VIGENTE de cada município — uma linha por município.
+
+    Município sem linha = NM 0 (Vigilância). O NM é lançado por um plantonista (inserção humana); o histórico completo fica em
+    `NivelMonitoramentoRegistro`. Regras de validação em core/niveis_monitoramento.py."""
+
+    municipio = models.CharField(max_length=120, unique=True)
+    nivel = models.PositiveSmallIntegerField(default=0)
+    vigencia_ate = models.DateTimeField(null=True, blank=True, help_text="Fim da vigência (máx. 24 h para NM 2+); vencida = revisar.")
+    registro = models.ForeignKey("NivelMonitoramentoRegistro", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["municipio"]
+        verbose_name = "nível de monitoramento vigente"
+        verbose_name_plural = "níveis de monitoramento vigentes"
+
+    def __str__(self):
+        return f"{self.municipio} · NM {self.nivel}"
+
+
+class NivelMonitoramentoRegistro(models.Model):
+    """Histórico (só acrescenta) dos lançamentos de Nível de Monitoramento: quem, quando, por quê, aprovação e avisos prévios."""
+
+    municipio = models.CharField(max_length=120, db_index=True)
+    nivel = models.PositiveSmallIntegerField()
+    nivel_anterior = models.PositiveSmallIntegerField(default=0)
+    equipe = models.CharField(max_length=3, blank=True, help_text="met, hid ou geo.")
+    antecedencia = models.CharField(max_length=10, blank=True, help_text="mais_2h, ate_2h ou em_curso.")
+    area_delimitada = models.BooleanField(default=False)
+    populacao_exposta = models.BooleanField(default=False)
+    motivo = models.TextField(blank=True)
+    ferramentas = models.CharField(max_length=200, blank=True, help_text="Ferramentas da Idap usadas, separadas por vírgula.")
+    vigencia_ate = models.DateTimeField(null=True, blank=True)
+    aprovado_por = models.CharField(max_length=150, blank=True)
+    comdec_avisada_em = models.DateTimeField(null=True, blank=True)
+    redec_avisada_em = models.DateTimeField(null=True, blank=True)
+    aviso_simultaneo = models.BooleanField(default=False)
+    aviso_motivo = models.CharField(max_length=300, blank=True)
+    encerramento = models.BooleanField(default=False, help_text="Retorno à normalidade (cancelamento/encerramento do alerta, não alerta novo).")
+    lote = models.CharField(max_length=36, blank=True, db_index=True, help_text="Identificador do lançamento em lote (vários municípios de uma vez).")
+    registrado_por = models.CharField(max_length=150, blank=True)
+    registrado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-registrado_em", "-id"]
+        verbose_name = "registro de nível de monitoramento"
+        verbose_name_plural = "registros de nível de monitoramento"
+
+    def __str__(self):
+        return f"{self.municipio} · NM {self.nivel_anterior}→{self.nivel} · {self.registrado_em:%d/%m %H:%M}"

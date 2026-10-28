@@ -15,6 +15,14 @@ from .admin_views import (
 from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeView, ProfileUpdateView
 from .inea_radar_views import INEARadarImageryView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
+from .monitoramento_views import (
+    GuiaPlantaoView,
+    NiveisMonitoramentoView,
+    PublicoMonitoramentoView,
+    RegistrarNivelView,
+    RegistrosNivelView,
+    SugestoesNivelView,
+)
 from .dsat_imagery_views import DsatSateliteImageryView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetRadarMosaicoView, RedemetSateliteImageryView
 from .floodhub_views import FloodHubEventosView, FloodHubValidacaoView, FloodHubView
@@ -82,6 +90,12 @@ urlpatterns = [
     path("imagery/satelite/", RedemetSateliteImageryView.as_view(), name="imagery-satelite"),
     path("imagery/dsat/", DsatSateliteImageryView.as_view(), name="imagery-dsat"),
     path("imagery/radar/", RedemetRadarImageryView.as_view(), name="imagery-radar"),
+    path("monitoramento/niveis/", NiveisMonitoramentoView.as_view(), name="monitoramento-niveis"),
+    path("monitoramento/registrar/", RegistrarNivelView.as_view(), name="monitoramento-registrar"),
+    path("monitoramento/registros/", RegistrosNivelView.as_view(), name="monitoramento-registros"),
+    path("monitoramento/sugestoes/", SugestoesNivelView.as_view(), name="monitoramento-sugestoes"),
+    path("monitoramento/guia/", GuiaPlantaoView.as_view(), name="monitoramento-guia"),
+    path("publico/monitoramento/", PublicoMonitoramentoView.as_view(), name="publico-monitoramento"),
     path("imagery/radar-mosaico/", RedemetRadarMosaicoView.as_view(), name="imagery-radar-mosaico"),
     path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),
 ] + router.urls

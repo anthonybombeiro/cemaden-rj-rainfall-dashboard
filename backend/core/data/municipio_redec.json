@@ -1,0 +1,646 @@
+{
+"Rio de Janeiro": {
+"redec": 1,
+"regiao": "CAPITAL",
+"lat": -22.91,
+"lon": -43.17,
+"autonomo_dca": true
+},
+"Niterói": {
+"redec": 3,
+"regiao": "METROPOLITANA",
+"lat": -22.88,
+"lon": -43.11,
+"autonomo_dca": false
+},
+"Duque de Caxias": {
+"redec": 2,
+"regiao": "BAIXADA FLUMINENSE",
+"lat": -22.79,
+"lon": -43.31,
+"autonomo_dca": false
+},
+"Belford Roxo": {
+"redec": 2,
+"regiao": "BAIXADA FLUMINENSE",
+"lat": -22.76,
+"lon": -43.36,
+"autonomo_dca": false
+},
+"Nova Iguaçu": {
+"redec": 2,
+"regiao": "BAIXADA FLUMINENSE",
+"lat": -22.76,
+"lon": -43.45,
+"autonomo_dca": false
+},
+"Mesquita": {
+"redec": 2,
+"regiao": "BAIXADA FLUMINENSE",
+"lat": -22.77,
+"lon": -43.28,
+"autonomo_dca": false
+},
+"São João de Meriti": {
+"redec": 2,
+"regiao": "BAIXADA FLUMINENSE",
+"lat": -22.8,
+"lon": -43.36,
+"autonomo_dca": false
+},
+"Magé": {
+"redec": 2,
+"regiao": "BAIXADA FLUMINENSE",
+"lat": -22.66,
+"lon": -43.04,
+"autonomo_dca": false
+},
+"Guapimirim": {
+"redec": 2,
+"regiao": "BAIXADA FLUMINENSE",
+"lat": -22.61,
+"lon": -43.03,
+"autonomo_dca": false
+},
+"Nilópolis": {
+"redec": 2,
+"regiao": "BAIXADA FLUMINENSE",
+"lat": -22.79,
+"lon": -43.24,
+"autonomo_dca": false
+},
+"São Gonçalo": {
+"redec": 3,
+"regiao": "METROPOLITANA",
+"lat": -22.82,
+"lon": -43.06,
+"autonomo_dca": false
+},
+"Maricá": {
+"redec": 3,
+"regiao": "METROPOLITANA",
+"lat": -22.97,
+"lon": -42.81,
+"autonomo_dca": false
+},
+"Itaboraí": {
+"redec": 3,
+"regiao": "METROPOLITANA",
+"lat": -22.74,
+"lon": -42.86,
+"autonomo_dca": false
+},
+"Tanguá": {
+"redec": 3,
+"regiao": "METROPOLITANA",
+"lat": -22.59,
+"lon": -42.76,
+"autonomo_dca": false
+},
+"Cachoeira de Macacu": {
+"redec": 3,
+"regiao": "METROPOLITANA",
+"lat": -22.46,
+"lon": -42.66,
+"autonomo_dca": false
+},
+"Angra dos Reis": {
+"redec": 4,
+"regiao": "COSTA VERDE",
+"lat": -23.01,
+"lon": -44.32,
+"autonomo_dca": true
+},
+"Mangaratiba": {
+"redec": 4,
+"regiao": "COSTA VERDE",
+"lat": -23.17,
+"lon": -44.04,
+"autonomo_dca": false
+},
+"Paraty": {
+"redec": 4,
+"regiao": "COSTA VERDE",
+"lat": -23.22,
+"lon": -44.72,
+"autonomo_dca": false
+},
+"Barra Mansa": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.55,
+"lon": -44.18,
+"autonomo_dca": false
+},
+"Volta Redonda": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.52,
+"lon": -44.06,
+"autonomo_dca": false
+},
+"Resende": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.47,
+"lon": -44.45,
+"autonomo_dca": false
+},
+"Porto Real": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.52,
+"lon": -44.27,
+"autonomo_dca": false
+},
+"Itatiaia": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.5,
+"lon": -44.58,
+"autonomo_dca": false
+},
+"Pinheiral": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.5,
+"lon": -43.98,
+"autonomo_dca": false
+},
+"Paty do Alferes": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.41,
+"lon": -43.72,
+"autonomo_dca": false
+},
+"Três Rios": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.22,
+"lon": -43.71,
+"autonomo_dca": false
+},
+"Valença": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.24,
+"lon": -43.73,
+"autonomo_dca": false
+},
+"Barra do Piraí": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.47,
+"lon": -43.83,
+"autonomo_dca": false
+},
+"Comendador Levy Gasparian": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.35,
+"lon": -43.82,
+"autonomo_dca": false
+},
+"Rio das Flores": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.19,
+"lon": -43.86,
+"autonomo_dca": false
+},
+"Paraíba do Sul": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.22,
+"lon": -43.7,
+"autonomo_dca": false
+},
+"Vassouras": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.38,
+"lon": -43.67,
+"autonomo_dca": false
+},
+"Quatis": {
+"redec": 5,
+"regiao": "SUL I",
+"lat": -22.33,
+"lon": -43.87,
+"autonomo_dca": false
+},
+"Itaguaí": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.85,
+"lon": -43.77,
+"autonomo_dca": false
+},
+"Miguel Pereira": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.47,
+"lon": -43.86,
+"autonomo_dca": false
+},
+"Piraí": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.62,
+"lon": -43.9,
+"autonomo_dca": false
+},
+"Paracambi": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.6,
+"lon": -43.72,
+"autonomo_dca": false
+},
+"Rio Claro": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.55,
+"lon": -43.89,
+"autonomo_dca": false
+},
+"Queimados": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.73,
+"lon": -43.62,
+"autonomo_dca": false
+},
+"Seropédica": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.76,
+"lon": -43.78,
+"autonomo_dca": false
+},
+"Japeri": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.66,
+"lon": -43.6,
+"autonomo_dca": false
+},
+"Engenheiro Paulo de Frontin": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.49,
+"lon": -43.9,
+"autonomo_dca": false
+},
+"Mendes": {
+"redec": 6,
+"regiao": "SUL II",
+"lat": -22.58,
+"lon": -43.76,
+"autonomo_dca": false
+},
+"Petrópolis": {
+"redec": 7,
+"regiao": "SERRANA I",
+"lat": -22.51,
+"lon": -43.18,
+"autonomo_dca": true
+},
+"Teresópolis": {
+"redec": 7,
+"regiao": "SERRANA I",
+"lat": -22.41,
+"lon": -43.05,
+"autonomo_dca": false
+},
+"Areal": {
+"redec": 7,
+"regiao": "SERRANA I",
+"lat": -22.45,
+"lon": -43.09,
+"autonomo_dca": false
+},
+"Carmo": {
+"redec": 7,
+"regiao": "SERRANA I",
+"lat": -22.38,
+"lon": -42.83,
+"autonomo_dca": false
+},
+"Sapucaia": {
+"redec": 7,
+"regiao": "SERRANA I",
+"lat": -22.46,
+"lon": -42.98,
+"autonomo_dca": false
+},
+"São José do Vale do Rio Preto": {
+"redec": 7,
+"regiao": "SERRANA I",
+"lat": -22.28,
+"lon": -42.93,
+"autonomo_dca": false
+},
+"Sumidouro": {
+"redec": 7,
+"regiao": "SERRANA I",
+"lat": -22.24,
+"lon": -42.82,
+"autonomo_dca": false
+},
+"Bom Jardim": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -22.3,
+"lon": -42.48,
+"autonomo_dca": false
+},
+"Duas Barras": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -22.18,
+"lon": -42.3,
+"autonomo_dca": false
+},
+"Macuco": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -22.21,
+"lon": -42.36,
+"autonomo_dca": false
+},
+"Nova Friburgo": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -22.28,
+"lon": -42.53,
+"autonomo_dca": false
+},
+"Cantagalo": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -22.01,
+"lon": -42.52,
+"autonomo_dca": false
+},
+"Cordeiro": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -22.06,
+"lon": -42.41,
+"autonomo_dca": false
+},
+"Santa Maria Madalena": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -21.97,
+"lon": -42.29,
+"autonomo_dca": false
+},
+"São Sebastião do Alto": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -22.02,
+"lon": -42.38,
+"autonomo_dca": false
+},
+"Trajano de Moraes": {
+"redec": 8,
+"regiao": "SERRANA II",
+"lat": -21.99,
+"lon": -42.39,
+"autonomo_dca": false
+},
+"Arraial do Cabo": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.97,
+"lon": -42.03,
+"autonomo_dca": false
+},
+"Cabo Frio": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.87,
+"lon": -42.03,
+"autonomo_dca": false
+},
+"Casimiro de Abreu": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.46,
+"lon": -42.18,
+"autonomo_dca": false
+},
+"Rio Bonito": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.72,
+"lon": -42.57,
+"autonomo_dca": false
+},
+"Silva Jardim": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.64,
+"lon": -42.4,
+"autonomo_dca": false
+},
+"Araruama": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.86,
+"lon": -42.35,
+"autonomo_dca": false
+},
+"Armação dos Búzios": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.74,
+"lon": -41.88,
+"autonomo_dca": false
+},
+"Iguaba Grande": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.83,
+"lon": -42.5,
+"autonomo_dca": false
+},
+"Saquarema": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.93,
+"lon": -42.5,
+"autonomo_dca": false
+},
+"São Pedro da Aldeia": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.84,
+"lon": -42.18,
+"autonomo_dca": false
+},
+"Macaé": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.38,
+"lon": -41.59,
+"autonomo_dca": false
+},
+"Rio das Ostras": {
+"redec": 9,
+"regiao": "BAIXADA LITORÂNEA",
+"lat": -22.53,
+"lon": -41.97,
+"autonomo_dca": false
+},
+"Campos dos Goytacazes": {
+"redec": 10,
+"regiao": "NORTE",
+"lat": -21.75,
+"lon": -41.33,
+"autonomo_dca": false
+},
+"Conceição de Macabu": {
+"redec": 10,
+"regiao": "NORTE",
+"lat": -21.46,
+"lon": -41.56,
+"autonomo_dca": false
+},
+"Carapebus": {
+"redec": 10,
+"regiao": "NORTE",
+"lat": -21.77,
+"lon": -41.33,
+"autonomo_dca": false
+},
+"Quissamã": {
+"redec": 10,
+"regiao": "NORTE",
+"lat": -21.86,
+"lon": -41.46,
+"autonomo_dca": false
+},
+"São Francisco de Itabapoana": {
+"redec": 10,
+"regiao": "NORTE",
+"lat": -21.35,
+"lon": -41.08,
+"autonomo_dca": false
+},
+"São João da Barra": {
+"redec": 10,
+"regiao": "NORTE",
+"lat": -21.64,
+"lon": -41.05,
+"autonomo_dca": false
+},
+"Bom Jesus do Itabapoana": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.13,
+"lon": -41.86,
+"autonomo_dca": false
+},
+"Itaperuna": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.2,
+"lon": -41.53,
+"autonomo_dca": false
+},
+"Italva": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.23,
+"lon": -41.75,
+"autonomo_dca": false
+},
+"Porciúncula": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.31,
+"lon": -41.65,
+"autonomo_dca": false
+},
+"São José de Ubá": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.44,
+"lon": -41.74,
+"autonomo_dca": false
+},
+"Cardoso Moreira": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.5,
+"lon": -41.59,
+"autonomo_dca": false
+},
+"Varre-Saí": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.66,
+"lon": -42.04,
+"autonomo_dca": false
+},
+"Aperibé": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.16,
+"lon": -41.44,
+"autonomo_dca": false
+},
+"Cambuci": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.34,
+"lon": -41.66,
+"autonomo_dca": false
+},
+"Itaocara": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.63,
+"lon": -41.69,
+"autonomo_dca": false
+},
+"Laje de Muriaé": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.54,
+"lon": -42.04,
+"autonomo_dca": false
+},
+"Miracema": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.48,
+"lon": -41.87,
+"autonomo_dca": false
+},
+"Natividade": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.52,
+"lon": -42.04,
+"autonomo_dca": false
+},
+"Santo Antônio de Pádua": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.53,
+"lon": -41.95,
+"autonomo_dca": false
+},
+"São Fidélis": {
+"redec": 11,
+"regiao": "NOROESTE",
+"lat": -21.65,
+"lon": -41.75,
+"autonomo_dca": false
+}
+}

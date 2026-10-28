@@ -14,6 +14,7 @@ import {
   RiskLevel,
 } from "@/lib/api";
 import ExportMapButton from "@/components/ExportMapButton";
+import MonitoramentoPanel from "@/components/MonitoramentoPanel";
 import RiscosOverviewPanel from "@/components/RiscosOverviewPanel";
 import RiskChoroplethMap, { RiskMapHandle, Selecao } from "@/components/RiskChoroplethMap";
 import { intervaloVisivel } from "@/lib/intervaloVisivel";
@@ -23,8 +24,10 @@ const NIVEIS: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_
 
 /** Aba "Visão Geral" (ex-aba "Riscos" do topo, movida pra dentro de Alertas
  * Ativos — pedido do usuário, 2026-09-24: "1º a aparecer" dentre as 5). */
-type AbaAlertas = "geral" | RiskAlertTipo;
+type AbaAlertas = "nivel" | "geral" | RiskAlertTipo;
 const ABAS: { key: AbaAlertas; label: string }[] = [
+  // Nível de Monitoramento (PLANCON 2026/2027, 28/10/2026): mapa interativo + lançamento pelo plantonista; vem antes dos riscos técnicos.
+  { key: "nivel", label: "Nível de Monitoramento" },
   { key: "geral", label: "Visão Geral" },
   ...TIPOS.map((t) => ({ key: t as AbaAlertas, label: RISK_ALERT_TIPO_LABELS[t] })),
 ];
@@ -257,7 +260,7 @@ function MunicipioTable({ alerts, emptyMessage }: { alerts: RiskAlert[]; emptyMe
 const INTERVALO_ATUALIZACAO_MS = 5 * 60 * 1000;
 
 export default function AlertsPanel() {
-  const [tipo, setTipo] = useState<AbaAlertas>("geral");
+  const [tipo, setTipo] = useState<AbaAlertas>("nivel");
   const [redecAlerts, setRedecAlerts] = useState<RiskAlert[]>([]);
   const [municipioAlerts, setMunicipioAlerts] = useState<RiskAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -320,7 +323,7 @@ export default function AlertsPanel() {
   // caso é o <RiscosOverviewPanel/> por baixo, sozinho.
   const carregar = useCallback(
     (mostrarLoading: boolean) => {
-      if (tipo === "geral") return Promise.resolve();
+      if (tipo === "geral" || tipo === "nivel") return Promise.resolve();
       if (mostrarLoading) setLoading(true);
       setError(null);
       return Promise.all([
@@ -344,7 +347,7 @@ export default function AlertsPanel() {
   );
 
   useEffect(() => {
-    if (tipo === "geral") {
+    if (tipo === "geral" || tipo === "nivel") {
       setLoading(false);
       return;
     }
@@ -389,7 +392,9 @@ export default function AlertsPanel() {
         ))}
       </div>
 
-      {tipo === "geral" ? (
+      {tipo === "nivel" ? (
+        <MonitoramentoPanel />
+      ) : tipo === "geral" ? (
         <RiscosOverviewPanel />
       ) : (
         <>

@@ -146,3 +146,21 @@ class MunicipioComSireneAdmin(admin.ModelAdmin):
     list_editable = ("ativo",)
     list_filter = ("ativo",)
     search_fields = ("municipio",)
+
+
+from core.models import NivelMonitoramento, NivelMonitoramentoRegistro  # noqa: E402
+
+
+@admin.register(NivelMonitoramento)
+class NivelMonitoramentoAdmin(admin.ModelAdmin):
+    list_display = ("municipio", "nivel", "vigencia_ate", "atualizado_em")
+    list_filter = ("nivel",)
+    search_fields = ("municipio",)
+
+
+@admin.register(NivelMonitoramentoRegistro)
+class NivelMonitoramentoRegistroAdmin(admin.ModelAdmin):
+    list_display = ("registrado_em", "municipio", "nivel_anterior", "nivel", "equipe", "aprovado_por", "registrado_por", "encerramento")
+    list_filter = ("nivel", "equipe", "encerramento")
+    search_fields = ("municipio", "motivo", "registrado_por", "aprovado_por")
+    date_hierarchy = "registrado_em"
