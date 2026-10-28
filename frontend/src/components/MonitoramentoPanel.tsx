@@ -114,6 +114,17 @@ export default function MonitoramentoPanel() {
     }
   };
 
+  // mesma fonte e mesmo nível numa regional (ex.: severidade meteorológica por REDEC) viram um cartão só, com todos os municípios
+  const grupos = useMemo(() => {
+    const m = new Map<string, { base: Sugestao; municipios: string[] }>();
+    for (const s of sugestoes) {
+      const chave = [s.tipo, s.regiao, s.atual, s.sugerido, s.fontes.map((f) => `${f.tipo}${f.risco ?? ""}${f.numero ?? ""}`).join(",")].join("|");
+      const g = m.get(chave) ?? { base: s, municipios: [] };
+      g.municipios.push(s.municipio);
+      m.set(chave, g);
+    }
+    return [...m.values()];
+  }, [sugestoes]);
   if (!dados) return <div className="p-6 text-center text-sm text-gray-500">{erro ? `Não foi possível carregar o Nível de Monitoramento (${erro}).` : "Carregando Nível de Monitoramento…"}</div>;
 
   const pendentes = sugestoes.length;
@@ -229,10 +240,10 @@ export default function MonitoramentoPanel() {
               <div className="space-y-2">
                 <p className="text-xs text-gray-500">Onde o nível vigente parece defasado em relação ao risco técnico, à recomendação de sirene de hoje ou à vigência. O painel só sugere: <b>o lançamento é sempre do plantonista</b> (NM 4 e NM 5 nunca são automáticos).</p>
                 {sugestoes.length === 0 && <p className="rounded bg-green-50 p-3 text-sm text-green-800">Nenhuma pendência: os níveis vigentes acompanham o risco técnico atual.</p>}
-                {sugestoes.map((s) => (
-                  <div key={`${s.municipio}-${s.tipo}`} className="rounded-md border border-gray-200 p-2.5 text-xs">
+                {grupos.map(({ base: s, municipios }) => (
+                  <div key={`${s.regiao}-${s.tipo}-${s.sugerido}-${municipios[0]}`} className="rounded-md border border-gray-200 p-2.5 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-1">
-                      <span className="font-semibold text-gray-800">{s.municipio} <span className="font-normal text-gray-400">· {s.regiao}</span></span>
+                      <span className="font-semibold text-gray-800">{municipios.length > 1 ? `${s.regiao} · ${municipios.length} municípios` : s.municipio} {municipios.length === 1 && <span className="font-normal text-gray-400">· {s.regiao}</span>}</span>
                       <span className="flex items-center gap-1">{ROTULO_TIPO[s.tipo]}: <Etiqueta n={s.atual} /> {s.sugerido !== null && <>→ <Etiqueta n={s.sugerido} /></>}</span>
                     </div>
                     <p className="mt-1 text-gray-600">
@@ -245,8 +256,9 @@ export default function MonitoramentoPanel() {
                         </span>
                       ))}
                     </p>
+                    {municipios.length > 1 && <p className="mt-1 text-gray-500">{municipios.join(", ")}</p>}
                     <p className="mt-1 text-gray-500">{s.orientacao}</p>
-                    <button type="button" className="mt-1.5 rounded bg-blue-600 px-2.5 py-1 font-medium text-white hover:bg-blue-700" onClick={() => { setSelecionados([s.municipio]); setPre({ nivel: s.sugerido ?? s.atual, motivo: s.tipo === "risco_tecnico" ? `Risco técnico: ${s.fontes.map((f) => `${ROTULO_RISCO[f.tipo] ?? f.tipo} ${NOME_RISCO[f.risco] ?? ""}`).join("; ")}.` : s.tipo === "recomendacao_sirene" ? `Recomendação de mobilização de sirene ${s.fontes[0]?.numero ?? ""} (${s.fontes[0]?.estacao ?? ""}).` : "" }); setAba("lancar"); }}>
+                    <button type="button" className="mt-1.5 rounded bg-blue-600 px-2.5 py-1 font-medium text-white hover:bg-blue-700" onClick={() => { setSelecionados(municipios); setPre({ nivel: s.sugerido ?? s.atual, motivo: s.tipo === "risco_tecnico" ? `Risco técnico: ${s.fontes.map((f) => `${ROTULO_RISCO[f.tipo] ?? f.tipo} ${NOME_RISCO[f.risco] ?? ""}`).join("; ")}.` : s.tipo === "recomendacao_sirene" ? `Recomendação de mobilização de sirene ${s.fontes[0]?.numero ?? ""} (${s.fontes[0]?.estacao ?? ""}).` : "" }); setAba("lancar"); }}>
                       Abrir no formulário
                     </button>
                   </div>
