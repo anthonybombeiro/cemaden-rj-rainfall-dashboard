@@ -283,6 +283,10 @@ Backend enviado por SFTP (models, admin, serializers, views, migração 0026), *
 
 A pedido do usuário: o texto geral deixou de ser um card largo e virou o **1º dos 12 cartões** (mesmo tamanho dos das REDECs) na aba Previsão CEMADEN-RJ, no Mapa → Previsão, no Story e no Post; o rodapé das artes virou uma faixa azul de ponta a ponta com uma linha curta; o pop-up de exportação cabe sem barra de rolagem (e passou a abrir no `<body>`, acima da barra inferior do celular, que cobria "Compartilhar" e "Copiar texto"); os cartões do mapa, o Story e o Post usam os mesmos ícones da aba Previsão (Lucide) no lugar dos emojis, e a Tabela mostra a imagem do clima; os textos copiados mantêm os emojis. Só frontend (sem migração). Testes e arquivos em `previsao-comparacao-telegram.md` (revisão de 29/10).
 
+## 28/10/2026 (noite) — Cartões da previsão publicados
+
+Front compilado e implantado (95 arquivos, 0 falhas; sem backend nem migração). Verificado em produção por leitura: aba Previsão CEMADEN-RJ com 12 cartões de mesma altura (o 1º é "Previsão geral"), Mapa → Previsão com 12 cartões, 11 ícones de gota (Lucide) e nenhum emoji, Story (12 cartões de 216 px) e Post (12 cartões de 148 px) sem barra de rolagem no pop-up e desenhados no `<body>`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
