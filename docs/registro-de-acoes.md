@@ -275,6 +275,10 @@ Respostas do usuário: tendência **segunda e quinta**; SRAAS = sistema de siren
 
 A pedido do usuário. **Texto geral do estado** (modelo `PrevisaoDia`, migração 0026; rotas `texto-geral` e `cobertura`): card no fim do cadastro (clicar na caixa traz um texto proposto a partir das REDECs lançadas), exibido como cartão principal antes das REDECs e junto ao mapa em Previsão CEMADEN-RJ, Mapa → Previsão, Story, Post, Tabela e texto copiado. **Aviso diário**: a partir das 15 h 30 (Brasília) uma faixa avisa se a previsão de amanhã está sem REDECs ou sem texto geral, com "Cadastrar agora" e ponto na aba Meteorologia. **Validações ao salvar** (confirmáveis): mínima/máxima/umidade fora do padrão das outras REDECs e do histórico da região, amplitude, salto em relação a ontem, imagem × comentário, data estranha. **Umidade máxima de 100 %** aceita. Testes: 27 no backend, script das funções, navegador (PC e 375 px). Detalhes em `previsao-comparacao-telegram.md` §5. Lição: **não usar `git stash`** neste repositório do Drive (falhou no meio e deixou arquivos deletados; recuperado com checkout + pop, nada se perdeu).
 
+## 28/10/2026 (noite) — Previsão publicada em produção
+
+Backend enviado por SFTP (models, admin, serializers, views, migração 0026), **migração 0026 aplicada** por `POST /api/admin/migrate/` (autorizado pelo usuário no chat; o classificador bloqueia sem a frase expressa) e front compilado e implantado (95 arquivos, 0 falhas). Verificado em produção com a sessão do usuário, **só leitura, sem gravar nada**: `texto-geral` e `cobertura` respondem 200; a faixa "A previsão de amanhã (qui 29/10) está incompleta: falta o texto geral do estado" aparece com o ponto na aba Meteorologia; Mapa → Previsão mostra o lembrete do texto geral antes dos 11 cartões. Dia 28/10 e 29/10 já têm as 11 REDECs e ainda **sem texto geral**: a faixa some quando o texto de 29/10 for salvo.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
