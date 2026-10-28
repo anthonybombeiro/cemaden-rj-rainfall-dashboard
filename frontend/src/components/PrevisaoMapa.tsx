@@ -4,9 +4,9 @@ import { toPng } from "html-to-image";
 import { ChevronLeft, ChevronRight, Share2, Smartphone, Table2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { CartaoRedec, CorpoFeed, CorpoStory, FEED_H, FEED_W, LegendaTempo, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
+import { CartaoRedec, CartaoTextoGeral, CorpoFeed, CorpoStory, FEED_H, FEED_W, LegendaTempo, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
 import ShareModal from "@/components/ShareModal";
-import { fetchDataUltimaPrevisao, fetchPrevisoes, Previsao } from "@/lib/api";
+import { fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
 import { EMOJI_POR_ICONE } from "@/lib/meteorologia";
 import { copiarImagemParaAreaDeTransferencia, copiarParaAreaDeTransferencia, ehDispositivoMovel, ShareData } from "@/lib/shareExport";
@@ -139,6 +139,7 @@ export default function PrevisaoMapa() {
   const [geo, setGeo] = useState<GeoJsonFeatureCollection | null>(null);
   const [data, setData] = useState<string | null>(null);
   const [previsoes, setPrevisoes] = useState<Previsao[]>([]);
+  const [textoGeral, setTextoGeral] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
@@ -166,6 +167,10 @@ export default function PrevisaoMapa() {
       setCarregando(true);
       setSelecionada(null);
     });
+    // Texto geral do estado: se falhar, a previsão aparece mesmo assim (só sem o cartão de texto).
+    fetchTextoGeralPrevisao(data)
+      .then((t) => !cancelado && setTextoGeral(t.texto_geral ?? ""))
+      .catch(() => !cancelado && setTextoGeral(""));
     fetchPrevisoes(data)
       .then((p) => {
         if (cancelado) return;
@@ -187,6 +192,7 @@ export default function PrevisaoMapa() {
       "*Previsão do tempo — CEMADEN-RJ*",
       `📅 ${dataExtenso(data)}`,
       "",
+      ...(textoGeral ? [textoGeral, ""] : []),
       ...ordenadas
         .filter((x) => x.p)
         .flatMap(({ regiao, p }) => [
@@ -198,7 +204,7 @@ export default function PrevisaoMapa() {
         ]),
       "📡 CEMADEN-RJ / SEDEC-RJ",
     ].join("\n");
-  }, [data, ordenadas]);
+  }, [data, ordenadas, textoGeral]);
 
   const dadosTabela: ShareData | null = useMemo(() => {
     if (!data) return null;
@@ -229,8 +235,9 @@ export default function PrevisaoMapa() {
         })),
       fonteTexto: "Previsão: CEMADEN-RJ · Defesa Civil do Estado do Rio de Janeiro",
       nomeArquivo: `cemaden-rj-previsao-tabela-${data}`,
+      destaque: textoGeral || undefined,
     };
-  }, [data, ordenadas]);
+  }, [data, ordenadas, textoGeral]);
 
   const btn = "flex items-center gap-1 rounded px-2.5 py-1.5 text-sm font-medium disabled:opacity-40";
   return (
@@ -270,6 +277,7 @@ export default function PrevisaoMapa() {
           <div className="lg:sticky lg:top-0 lg:self-start">
             <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={460} selecionada={selecionada} onSelecionar={(r) => setSelecionada((a) => (a === r ? null : r))} className="w-full rounded-lg bg-sky-50" />
             <LegendaTempo className="mt-2 text-[11px]" />
+            <CartaoTextoGeral texto={textoGeral} variante="tela" className="mt-3" />
           </div>
           <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
             {ordenadas.map(({ regiao, p }) => (
@@ -282,12 +290,12 @@ export default function PrevisaoMapa() {
       {compartilhar === "tabela" && dadosTabela && <ShareModal data={dadosTabela} onClose={() => setCompartilhar(null)} />}
       {compartilhar === "story" && geo && data && (
         <ExportModal titulo="Story 1080×1920" w={STORY_W} h={STORY_H} nomeArquivo={`cemaden-rj-previsao-story-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>
-          <CorpoStory geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} />
+          <CorpoStory geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} textoGeral={textoGeral} />
         </ExportModal>
       )}
       {compartilhar === "feed" && geo && data && (
         <ExportModal titulo="Post 1080×1350" w={FEED_W} h={FEED_H} nomeArquivo={`cemaden-rj-previsao-post-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>
-          <CorpoFeed geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} />
+          <CorpoFeed geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} textoGeral={textoGeral} />
         </ExportModal>
       )}
     </div>

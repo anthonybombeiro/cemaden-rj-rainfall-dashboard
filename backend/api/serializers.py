@@ -13,6 +13,7 @@ from core.models import (
     GatilhoPluviometrico,
     MunicipioComSirene,
     Previsao,
+    PrevisaoDia,
     Reading,
     RecomendacaoAlarme,
     RiskAlert,
@@ -159,6 +160,10 @@ class PrevisaoSerializer(serializers.ModelSerializer):
             v = get(k)
             if v and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
                 raise serializers.ValidationError("Horário do sol deve estar no formato HH:MM.")
+        # Teto da umidade é 100 % (decisão do usuário, 28/10/2026); faixa plausível das temperaturas em °C.
+        for k in ("temperatura_maxima", "temperatura_minima"):
+            if not -10 <= get(k) <= 50:
+                raise serializers.ValidationError("Confira as temperaturas (esperado entre -10 e 50 °C).")
         return attrs
 
     def create(self, validated_data):
@@ -187,6 +192,24 @@ class PrevisaoSerializer(serializers.ModelSerializer):
         quem = self.context["request"].user
         validated_data["atualizado_por"] = quem.first_name or quem.username
         return super().update(instance, validated_data)
+
+
+class PrevisaoDiaSerializer(serializers.ModelSerializer):
+    """Texto geral do estado para a previsão de um dia (`/api/previsoes/texto-geral/`)."""
+
+    data = serializers.DateField()  # explícito: sem o UniqueValidator automático (gravar de novo no mesmo dia atualiza)
+
+    class Meta:
+        model = PrevisaoDia
+        fields = ["data", "texto_geral", "criado_por", "criado_em", "atualizado_por", "atualizado_em"]
+        read_only_fields = ["criado_por", "criado_em", "atualizado_por", "atualizado_em"]
+        validators = []
+
+    def validate_texto_geral(self, valor):
+        valor = " ".join((valor or "").split())  # uma linha: tira quebras e espaços repetidos (o texto vira frase corrida)
+        if len(valor) > 600:
+            raise serializers.ValidationError("O texto geral aceita até 600 caracteres.")
+        return valor
 
 
 class RecomendacaoAlarmeSerializer(serializers.ModelSerializer):

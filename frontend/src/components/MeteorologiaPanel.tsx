@@ -12,7 +12,8 @@ import PrevisaoNumericaPanel from "@/components/PrevisaoNumericaPanel";
 import PrevisaoForm from "@/components/PrevisaoForm";
 import PrevisaoInmetPanel from "@/components/PrevisaoInmetPanel";
 import SondagemPanel from "@/components/SondagemPanel";
-import { AvisoMauTempo, fetchAvisosMauTempo, fetchDataUltimaPrevisao, fetchPrevisoes, Previsao, REDECS } from "@/lib/api";
+import { CartaoTextoGeral } from "@/components/PrevisaoMapaCorpo";
+import { AvisoMauTempo, fetchAvisosMauTempo, fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao, REDECS } from "@/lib/api";
 import { formatarDataHoraLocalIso, humanizarDescricao } from "@/lib/avisosMauTempo";
 import { AvisoInmet, fetchAvisosInmetRJ } from "@/lib/inmet";
 import { EMOJI_POR_ICONE, iconeSrc } from "@/lib/meteorologia";
@@ -126,6 +127,7 @@ function PrevisaoCard({ regiao, previsao }: { regiao: string; previsao?: Previsa
 function PrevisaoDiaria() {
   const [data, setData] = useState<string | null>(null);
   const [previsoes, setPrevisoes] = useState<Previsao[]>([]);
+  const [textoGeral, setTextoGeral] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -147,7 +149,9 @@ function PrevisaoDiaria() {
     setLoading(true);
     setError(null);
     try {
-      setPrevisoes(await fetchPrevisoes(d));
+      const [p, t] = await Promise.all([fetchPrevisoes(d), fetchTextoGeralPrevisao(d).catch(() => null)]);
+      setPrevisoes(p);
+      setTextoGeral(t?.texto_geral ?? "");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar previsões.");
     } finally {
@@ -211,11 +215,15 @@ function PrevisaoDiaria() {
       {loading ? (
         <div className="p-6 text-center text-sm text-gray-400">Carregando…</div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {REDECS.map((r) => (
-            <PrevisaoCard key={r} regiao={r} previsao={porRegiao.get(r)} />
-          ))}
-        </div>
+        <>
+          {/* Cartão principal do dia: o texto geral do estado vem antes das REDECs */}
+          <CartaoTextoGeral texto={textoGeral} variante="tela" lembrete={previsoes.length > 0} className="mb-3" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {REDECS.map((r) => (
+              <PrevisaoCard key={r} regiao={r} previsao={porRegiao.get(r)} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -419,8 +427,9 @@ const SUBABAS = [
   { key: "cadastro", label: "Cadastro", Icone: ClipboardList },
 ] as const;
 
-export default function MeteorologiaPanel() {
-  const [sub, setSub] = useState<(typeof SUBABAS)[number]["key"]>("previsao");
+/** `abrirCadastro`: data (AAAA-MM-DD) para abrir direto o Cadastro da previsão naquele dia (aviso das 15 h 30 de "amanhã sem previsão"). */
+export default function MeteorologiaPanel({ abrirCadastro = null }: { abrirCadastro?: string | null }) {
+  const [sub, setSub] = useState<(typeof SUBABAS)[number]["key"]>(abrirCadastro ? "cadastro" : "previsao");
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 bg-white px-2 py-1.5 sm:px-3 [scrollbar-width:none]">
@@ -452,7 +461,7 @@ export default function MeteorologiaPanel() {
         ) : sub === "mares" ? (
           <MaresPanel />
         ) : (
-          <PrevisaoForm />
+          <PrevisaoForm dataInicial={abrirCadastro ?? undefined} />
         )}
       </div>
     </div>

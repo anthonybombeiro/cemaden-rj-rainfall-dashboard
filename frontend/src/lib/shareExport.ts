@@ -61,6 +61,8 @@ export type ShareData = {
   textoPronto?: string;
   /** Rótulo antes de `dataHora` no cabeçalho do card (padrão "Dados de"). */
   rotuloData?: string;
+  /** Texto de destaque acima da tabela (ex.: texto geral do estado na previsão): aparece num cartão no card e abre o texto copiado. */
+  destaque?: string;
 };
 
 /** Texto WhatsApp-nativo: negrito (*texto*), emojis de círculo por grupo
@@ -131,7 +133,8 @@ function gerarTextoTabela(data: ShareData): string {
 
 export function gerarTextoCompartilhavel(data: ShareData): string {
   if (data.textoPronto) return data.textoPronto;
-  return data.agruparPor ? gerarTextoAgrupado(data) : gerarTextoTabela(data);
+  const base = data.agruparPor ? gerarTextoAgrupado(data) : gerarTextoTabela(data);
+  return data.destaque ? `${data.destaque}\n\n${base}` : base;
 }
 
 export async function copiarParaAreaDeTransferencia(texto: string): Promise<boolean> {

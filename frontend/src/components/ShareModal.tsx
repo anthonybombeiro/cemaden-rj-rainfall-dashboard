@@ -177,6 +177,9 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                 pro corpo e pintam por cima do rodapé (que vem logo depois
                 no layout), em vez de simplesmente cortar o que não coube. */}
             <div className="flex min-h-0 flex-1 flex-col justify-start overflow-hidden px-4 py-3">
+              {!data.corpo && data.destaque && (
+                <p className="mb-2.5 shrink-0 rounded border-l-4 border-sedec-600 bg-blue-50 px-3 py-2 text-[12px] leading-snug text-gray-800">{data.destaque}</p>
+              )}
               {data.corpo ? (
                 data.corpo
               ) : (

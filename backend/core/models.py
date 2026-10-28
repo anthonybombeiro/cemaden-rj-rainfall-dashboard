@@ -322,6 +322,28 @@ class Previsao(models.Model):
         return f"{self.data} · {self.regiao}"
 
 
+class PrevisaoDia(models.Model):
+    """Texto geral do estado para a previsão de um dia (um por data).
+
+    Fecha o dia depois das 11 REDECs: resume céu, chuva e vento do estado e é o texto que abre a mensagem do Telegram, o
+    mapa da previsão e as artes (story/post). O painel propõe um texto a partir das previsões lançadas; o operador edita."""
+
+    data = models.DateField(unique=True)
+    texto_geral = models.TextField(blank=True, max_length=600)
+    criado_por = models.CharField(max_length=150, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_por = models.CharField(max_length=150, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data"]
+        verbose_name = "texto geral da previsão do dia"
+        verbose_name_plural = "textos gerais da previsão"
+
+    def __str__(self):
+        return f"{self.data} · {self.texto_geral[:40]}"
+
+
 class CotaHidrologica(models.Model):
     """Cotas de referência (cm) de uma estação hidrológica. Editável pelo Django
     Admin. Classificação do nível atual:

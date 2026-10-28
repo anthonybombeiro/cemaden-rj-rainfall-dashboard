@@ -24,3 +24,6 @@ Servidor local com dados simulados (11 REDECs, comentários curtos e longos), em
 
 ## Revisão de 20/10/2026 (tarde)
 Retorno do usuário: o mapa ficou "quase perfeito"; faltavam nascer/pôr do Sol por região e, no post, a descrição e o vento. Feito: Sol por região em todos os formatos; post quadrado trocado pelo de feed 1080×1350 com todos os dados; texto para copiar com Sol. Teste: comentário curto (58 caracteres, real) e longo (216) — sem nenhum corte (medido por `scrollHeight`); com o longo a letra cai para 16 px (story) e 10 px (feed). Atenção ao testar: com o painel de navegação oculto a captura de imagem trava; trazer a aba à frente.
+
+## Texto geral do estado (28/10/2026)
+Card **"Previsão geral do estado"** logo abaixo do mapa e da legenda, **antes dos cartões das REDECs** (no celular, mapa → card → cartões). O texto é escrito no fim do cadastro (Meteorologia → Cadastro; clicar na caixa vazia traz uma proposta) e aparece também no Story, no Post, na Tabela e no texto copiado. Quando o comentário é igual nas 11 REDECs, as artes não o repetem nos cartões. Detalhes, regras, arquivos e testes em `previsao-comparacao-telegram.md` (§5).

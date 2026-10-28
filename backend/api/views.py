@@ -19,6 +19,7 @@ from core.models import (
     LeituraQualidade,
     MunicipioComSirene,
     Previsao,
+    PrevisaoDia,
     Reading,
     RecomendacaoAlarme,
     RiskAlert,
@@ -31,6 +32,7 @@ from .serializers import (
     AcionamentoMunicipioSerializer,
     AlertEventSerializer,
     AvisoMauTempoSerializer,
+    PrevisaoDiaSerializer,
     PrevisaoSerializer,
     ReadingSerializer,
     RecomendacaoAlarmeSerializer,
@@ -1323,6 +1325,64 @@ class PrevisaoViewSet(viewsets.ModelViewSet):
         if regiao := request.query_params.get("regiao"):
             dados = {k: v for k, v in dados.items() if k == regiao.strip().upper()}
         return Response({"data": data, "regioes": dados})
+
+    @action(detail=False, methods=["get", "put", "post"], url_path="texto-geral")
+    def texto_geral(self, request):
+        """Texto geral do estado para a previsão de um dia. GET `?data=AAAA-MM-DD` devolve `{data, texto_geral, ...}` (texto vazio se ainda
+        não foi escrito); PUT/POST `{data, texto_geral}` grava (cria ou atualiza). Texto vazio apaga o texto do dia."""
+        if request.method == "GET":
+            data = request.query_params.get("data") or timezone.localdate().isoformat()
+            try:
+                dia = datetime.date.fromisoformat(data)
+            except ValueError:
+                return Response({"detail": "data inválida (use AAAA-MM-DD)."}, status=400)
+            obj = PrevisaoDia.objects.filter(data=dia).first()
+            if obj is None:
+                return Response({"data": data, "texto_geral": "", "atualizado_por": "", "atualizado_em": None})
+            return Response(PrevisaoDiaSerializer(obj).data)
+        ser = PrevisaoDiaSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        quem = request.user
+        nome = quem.first_name or quem.username
+        dados = ser.validated_data
+        obj, criado = PrevisaoDia.objects.get_or_create(
+            data=dados["data"], defaults={"texto_geral": dados["texto_geral"], "criado_por": nome, "atualizado_por": nome}
+        )
+        if not criado:
+            obj.texto_geral = dados["texto_geral"]
+            obj.atualizado_por = nome
+            obj.save()
+        return Response(PrevisaoDiaSerializer(obj).data, status=201 if criado else 200)
+
+    @action(detail=False, methods=["get"])
+    def cobertura(self, request):
+        """Situação do cadastro por dia: quantas das 11 REDECs já têm previsão e se há texto geral. `?datas=AAAA-MM-DD,AAAA-MM-DD`
+        (padrão: hoje e amanhã). Usado pelo aviso das 15 h 30 de "amanhã sem previsão"."""
+        bruto = request.query_params.get("datas")
+        hoje = timezone.localdate()
+        try:
+            datas = [datetime.date.fromisoformat(x.strip()) for x in bruto.split(",") if x.strip()] if bruto else [hoje, hoje + datetime.timedelta(days=1)]
+        except ValueError:
+            return Response({"detail": "datas inválidas (use AAAA-MM-DD,AAAA-MM-DD)."}, status=400)
+        datas = datas[:10]
+        regioes = Previsao.REGIOES
+        por_dia: dict = {d: set() for d in datas}
+        for d, r in Previsao.objects.filter(data__in=datas).values_list("data", "regiao"):
+            por_dia[d].add(r)
+        com_texto = {d for d, t in PrevisaoDia.objects.filter(data__in=datas).values_list("data", "texto_geral") if (t or "").strip()}
+        return Response(
+            [
+                {
+                    "data": d.isoformat(),
+                    "total": len(regioes),
+                    "lancadas": len(por_dia[d]),
+                    "faltam": [r for r in regioes if r not in por_dia[d]],
+                    "texto_geral": d in com_texto,
+                    "completo": len(por_dia[d]) == len(regioes) and d in com_texto,
+                }
+                for d in datas
+            ]
+        )
 
     @action(detail=False, methods=["get"])
     def ultima(self, request):

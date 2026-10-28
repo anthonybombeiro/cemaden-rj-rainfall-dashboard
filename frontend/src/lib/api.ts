@@ -921,6 +921,29 @@ export async function salvarPrevisao(p: PrevisaoInput, substituir = false): Prom
 /** Erro devolvido pelo servidor (409) quando já existe previsão da região/data. */
 export const PREVISAO_JA_EXISTE = "previsao_ja_existe";
 
+/** Previsões de um período (todas as REDECs, vários dias) — histórico para as validações ao salvar. */
+export async function fetchPrevisoesPeriodo(inicio: string, fim: string): Promise<Previsao[]> {
+  return fetchAllPages<Previsao>(`/previsoes/?data_inicio=${encodeURIComponent(inicio)}&data_fim=${encodeURIComponent(fim)}&limit=300`);
+}
+
+/** Texto geral do estado para a previsão de um dia (fecha o dia depois das 11 REDECs). Vazio se ainda não foi escrito. */
+export type TextoGeralPrevisao = { data: string; texto_geral: string; atualizado_por: string; atualizado_em: string | null };
+
+export async function fetchTextoGeralPrevisao(data: string): Promise<TextoGeralPrevisao> {
+  return getJson<TextoGeralPrevisao>(`/previsoes/texto-geral/?data=${encodeURIComponent(data)}`);
+}
+
+export async function salvarTextoGeralPrevisao(data: string, texto: string): Promise<TextoGeralPrevisao> {
+  return postComCsrf<TextoGeralPrevisao>("/previsoes/texto-geral/", { data, texto_geral: texto });
+}
+
+/** Situação do cadastro de um dia: quantas das 11 REDECs já têm previsão e se há texto geral. */
+export type CoberturaPrevisao = { data: string; total: number; lancadas: number; faltam: string[]; texto_geral: boolean; completo: boolean };
+
+export async function fetchCoberturaPrevisao(datas: string[]): Promise<CoberturaPrevisao[]> {
+  return getJson<CoberturaPrevisao[]>(`/previsoes/cobertura/?datas=${encodeURIComponent(datas.join(","))}`);
+}
+
 /** Avisos de mau tempo da Marinha (SMM/CHM, METAREA V — só os que tocam o
  * litoral do RJ, filtrados no backend). Ver backend/ingestion/connectors/marinha_avisos.py. */
 export type AvisoMauTempo = {

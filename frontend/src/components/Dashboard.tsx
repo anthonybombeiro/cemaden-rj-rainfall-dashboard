@@ -23,6 +23,7 @@ import RedeTable from "@/components/RedeTable";
 import FloodHubPanel from "@/components/FloodHubPanel";
 import ResumoPanel from "@/components/ResumoPanel";
 import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
+import PrevisaoAmanhaBanner from "@/components/PrevisaoAmanhaBanner";
 import SaudeFontesBanner from "@/components/SaudeFontesBanner";
 import { lerModoSalvo, ModoMapa, salvarModo } from "@/lib/mapaModos";
 import { PreRecomendacao, preDeSirene } from "@/lib/recomendacoes";
@@ -222,6 +223,13 @@ export default function Dashboard({
     setSelecaoNm(municipios);
     setSelecaoNmVersao((v) => v + 1);
     setViewMode("producao");
+  };
+  // Previsão de amanhã incompleta (aviso a partir das 15 h 30): o botão abre Meteorologia > Cadastro já no dia seguinte
+  const [cadastroPrevisao, setCadastroPrevisao] = useState<{ data: string; versao: number } | null>(null);
+  const [previsaoAmanhaPendente, setPrevisaoAmanhaPendente] = useState(false);
+  const abrirCadastroPrevisao = (data: string) => {
+    setCadastroPrevisao((a) => ({ data, versao: (a?.versao ?? 0) + 1 }));
+    setViewMode("meteorologia");
   };
   // a antiga aba "Sirenes" agora é a sub-aba Sirenes de Geologia
   const sirenesAtivo = viewMode === "geologia" && geoSub === "sirenes";
@@ -980,6 +988,7 @@ export default function Dashboard({
           </div>
         )}
         <SaudeFontesBanner />
+        <PrevisaoAmanhaBanner onCadastrar={abrirCadastroPrevisao} onPendente={setPrevisaoAmanhaPendente} />
         {activeAlertEvents.length > 0 && (
           <div className="animate-pulse bg-red-600 px-4 py-1.5 text-sm font-bold text-white">
             🔊 {activeAlertEvents.length === 1 ? "1 sirene tocando agora" : `${activeAlertEvents.length} sirenes tocando agora`}
@@ -995,11 +1004,13 @@ export default function Dashboard({
               key={key}
               type="button"
               onClick={() => setViewMode(key)}
+              title={key === "meteorologia" && previsaoAmanhaPendente ? "Previsão de amanhã incompleta" : undefined}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 viewMode === key ? "bg-sedec-600 text-white" : "text-gray-300 hover:bg-white/10 hover:text-white"
               }`}
             >
               {label}
+              {key === "meteorologia" && previsaoAmanhaPendente && <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-amber-400" aria-label="Previsão de amanhã incompleta" />}
             </button>
           ))}
         </nav>
@@ -1019,7 +1030,10 @@ export default function Dashboard({
               viewMode === key ? "text-white" : "text-gray-400"
             }`}
           >
-            <Icone size={20} strokeWidth={viewMode === key ? 2.5 : 2} />
+            <span className="relative">
+              <Icone size={20} strokeWidth={viewMode === key ? 2.5 : 2} />
+              {key === "meteorologia" && previsaoAmanhaPendente && <span className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-amber-400" aria-label="Previsão de amanhã incompleta" />}
+            </span>
             {label}
           </button>
         ))}
@@ -1317,7 +1331,7 @@ export default function Dashboard({
               <RecomendacaoForm key={recPreVersao} preenchimento={recPre} responsavelPadrao={user.first_name || user.username} onSalvo={() => setRecargaRec((n) => n + 1)} />
             </div>
           )}
-          {viewMode === "meteorologia" && <MeteorologiaPanel />}
+          {viewMode === "meteorologia" && <MeteorologiaPanel key={cadastroPrevisao?.versao ?? 0} abrirCadastro={cadastroPrevisao?.data ?? null} />}
           {viewMode === "alertas" && <AlertsPanel onLancar={abrirProducao} />}
           {viewMode === "producao" && <ProducaoPanel key={selecaoNmVersao} selecaoInicial={selecaoNm} />}
           {viewMode === "resumo" && <ResumoPanel onOpenStation={(id) => setPainelEstacaoId(id)} />}

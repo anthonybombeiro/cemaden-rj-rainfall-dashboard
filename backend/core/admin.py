@@ -63,6 +63,15 @@ class PrevisaoAdmin(admin.ModelAdmin):
     date_hierarchy = "data"
 
 
+from core.models import PrevisaoDia  # noqa: E402
+
+
+@admin.register(PrevisaoDia)
+class PrevisaoDiaAdmin(admin.ModelAdmin):
+    list_display = ("data", "texto_geral", "atualizado_por", "atualizado_em")
+    date_hierarchy = "data"
+
+
 from core.models import CotaHidrologica  # noqa: E402
 
 

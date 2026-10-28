@@ -130,7 +130,7 @@ export function ajustarComentarioPx(maiorTexto: number, largura: number, altura:
 }
 
 /** Cartão de uma REDEC com todos os dados: situação, mín/máx, nascer/pôr do Sol da região, umidade, vento e comentário. */
-export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx }: { regiao: string; p?: Previsao; variante: VarianteCartao; ativo?: boolean; onClick?: () => void; comentarioPx?: number }) {
+export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx, ocultarComentario }: { regiao: string; p?: Previsao; variante: VarianteCartao; ativo?: boolean; onClick?: () => void; comentarioPx?: number; ocultarComentario?: boolean }) {
   const n = ORDEM_REDEC.indexOf(regiao) + 1;
   const fixo = variante !== "tela"; // story/feed: tamanhos em px, comentário ajustado ao espaço
   const tam =
@@ -172,7 +172,7 @@ export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx 
             <span>💧 {variante === "feed" ? "UR" : "Umidade"} {textoUmidade(p)}</span>
             <span>💨 {variante === "feed" ? "" : "Vento "}{textoVento(p)}</span>
           </div>
-          {p.comentario && (
+          {p.comentario && !ocultarComentario && (
             <p
               className={`mt-1 min-h-0 text-slate-600 ${fixo ? "overflow-hidden" : "text-xs leading-relaxed"}`}
               style={fixo && comentarioPx ? { fontSize: comentarioPx, lineHeight: `${Math.round(comentarioPx * 1.2)}px` } : undefined}
@@ -185,6 +185,43 @@ export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx 
     </div>
   );
 }
+
+/** Cartão principal do dia: o texto geral do estado (céu, chuva e vento), sempre ANTES dos cartões das REDECs e junto ao mapa.
+ * Na tela, sem texto, mostra um lembrete (o texto é escrito no fim do cadastro); nas artes, some quando não há texto. */
+export function CartaoTextoGeral({ texto, variante, lembrete = true, className }: { texto?: string; variante: VarianteCartao; lembrete?: boolean; className?: string }) {
+  const t = (texto ?? "").trim();
+  if (variante === "tela") {
+    if (!t) {
+      return lembrete ? (
+        <section className={`rounded-lg border border-dashed border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 ${className ?? ""}`}>
+          <strong>Previsão geral do estado:</strong> o texto geral deste dia ainda não foi escrito. Ele é preenchido no fim do cadastro (Meteorologia → Cadastro), depois das 11 REDECs.
+        </section>
+      ) : null;
+    }
+    return (
+      <section className={`rounded-lg border border-blue-300 bg-blue-50 p-3 ${className ?? ""}`} aria-label="Previsão geral do estado">
+        <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-blue-800">Previsão geral do estado</div>
+        <p className="text-sm leading-relaxed text-slate-800 sm:text-[15px]">{t}</p>
+      </section>
+    );
+  }
+  if (!t) return null;
+  const story = variante === "story";
+  const px = ajustarComentarioPx(t.length, 960, story ? 130 : 78, story ? 30 : 22, story ? 20 : 15);
+  return (
+    <section className={`shrink-0 overflow-hidden rounded-lg border-2 border-[#0f4c81] bg-sky-50 ${story ? "px-5 py-3" : "px-4 py-2"} ${className ?? ""}`}>
+      <div className="font-extrabold uppercase tracking-wide text-[#0f4c81]" style={{ fontSize: story ? 17 : 13 }}>Previsão geral do estado</div>
+      <p className="text-slate-800" style={{ fontSize: px, lineHeight: `${Math.round(px * 1.25)}px` }}>{t}</p>
+    </section>
+  );
+}
+
+/** Comentário igual em todas as REDECs + texto geral escrito: nas artes o comentário não se repete nos 11 cartões (já está no texto geral). */
+export const comentarioRepetido = (previsoes: Previsao[], textoGeral?: string): boolean => {
+  if (!(textoGeral ?? "").trim() || previsoes.length < 2) return false;
+  const c = (previsoes[0].comentario ?? "").trim();
+  return !!c && previsoes.every((p) => (p.comentario ?? "").trim() === c);
+};
 
 export function LegendaTempo({ className }: { className?: string }) {
   return (
@@ -227,19 +264,22 @@ function Cabecalho({ titulo, data, altura, fonteTitulo, logo }: { titulo: string
 export const STORY_W = 1080;
 export const STORY_H = 1920;
 /** Story vertical 1080×1920: logos, mapa e os 11 cartões (2 colunas) com sol, umidade, vento e o comentário inteiro. */
-export function CorpoStory({ geo, previsoes, titulo, data }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string }) {
+export function CorpoStory({ geo, previsoes, titulo, data, textoGeral }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; textoGeral?: string }) {
   const itens = ordenar(previsoes);
-  const comentarioPx = ajustarComentarioPx(maiorComentario(previsoes), 484, 100, 20);
+  const temGeral = !!(textoGeral ?? "").trim();
+  const ocultar = comentarioRepetido(previsoes, textoGeral);
+  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, temGeral ? 66 : 100, 20);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo={titulo} data={data} altura={170} fonteTitulo={46} logo={84} />
-      <div className="shrink-0 bg-sky-50" style={{ height: 290 }}>
-        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={290} raioNumero={17} className="h-full w-full" />
+      <div className="shrink-0 bg-sky-50" style={{ height: temGeral ? 250 : 290 }}>
+        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={temGeral ? 250 : 290} raioNumero={17} className="h-full w-full" />
       </div>
       <LegendaTempo className="shrink-0 py-2 text-[18px]" />
+      {temGeral && <CartaoTextoGeral texto={textoGeral} variante="story" className="mx-4 mb-2.5" />}
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 px-4 pb-2" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
         {itens.map(({ regiao, p }) => (
-          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} />
+          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} ocultarComentario={ocultar} />
         ))}
         <div className="flex flex-col justify-center rounded-lg bg-[#0f4c81] px-5 py-3 text-white">
           <div className="text-[22px] font-bold">Defesa Civil RJ</div>
@@ -253,19 +293,22 @@ export function CorpoStory({ geo, previsoes, titulo, data }: { geo: GeoJsonFeatu
 export const FEED_W = 1080;
 export const FEED_H = 1350;
 /** Post de feed 1080×1350 (4:5): mesmo conteúdo do story em formato menor. */
-export function CorpoFeed({ geo, previsoes, titulo, data }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string }) {
+export function CorpoFeed({ geo, previsoes, titulo, data, textoGeral }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; textoGeral?: string }) {
   const itens = ordenar(previsoes);
-  const comentarioPx = ajustarComentarioPx(maiorComentario(previsoes), 484, 36, 15);
+  const temGeral = !!(textoGeral ?? "").trim();
+  const ocultar = comentarioRepetido(previsoes, textoGeral);
+  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, temGeral ? 21 : 36, 15);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: FEED_W, height: FEED_H }}>
       <Cabecalho titulo={titulo} data={data} altura={120} fonteTitulo={40} logo={68} />
-      <div className="shrink-0 bg-sky-50" style={{ height: 215 }}>
-        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={215} raioNumero={13} className="h-full w-full" />
+      <div className="shrink-0 bg-sky-50" style={{ height: temGeral ? 180 : 215 }}>
+        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={temGeral ? 180 : 215} raioNumero={13} className="h-full w-full" />
       </div>
       <LegendaTempo className="shrink-0 py-1.5 text-[15px]" />
+      {temGeral && <CartaoTextoGeral texto={textoGeral} variante="feed" className="mx-3 mb-2" />}
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 px-3 pb-2" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
         {itens.map(({ regiao, p }) => (
-          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="feed" comentarioPx={comentarioPx} />
+          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="feed" comentarioPx={comentarioPx} ocultarComentario={ocultar} />
         ))}
         <div className="flex flex-col justify-center rounded-lg bg-[#0f4c81] px-4 py-2 text-white">
           <div className="text-[18px] font-bold">Defesa Civil RJ</div>
