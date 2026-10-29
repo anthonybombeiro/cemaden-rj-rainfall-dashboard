@@ -295,6 +295,10 @@ A pedido do usuário (mapa pequeno e ilegível, números cobrindo as regiões): 
 
 A pedido do usuário (cor do mapa passava previsão errada em dia de sol com pancadas à tarde): item 1 (mapa neutro com ícone e número, sem legenda de cores, temperaturas no canto do cartão, coluna do mapa mais larga) e carrossel de 2 imagens (mapa com balões + detalhes). Montado e testado só localmente; imagens enviadas ao usuário para aprovar antes de publicar. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: marcadores em volta do mapa, estilo INEA (modelo local, não publicado)
+
+A pedido do usuário: nos dois modelos (imagem única e carrossel) os ícones, e no carrossel também as temperaturas, ficam no entorno do mapa com uma linha curta até a região. Posicionamento automático e determinístico pelo espaço livre em volta do Estado. Só local; imagens enviadas para aprovação antes de publicar. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

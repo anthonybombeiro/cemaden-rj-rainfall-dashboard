@@ -78,8 +78,80 @@ function afastar(origem: Ponto[], larg: number, alt: number, W: number, H: numbe
   return p;
 }
 
-/** "numeros": só o número da região. "icone": ícone do tempo do dia com o número num selo. "balao": ícone e mínima/máxima num balão com o número. */
-export type ModoMapa = "numeros" | "icone" | "balao";
+/** Posiciona cada marcador (caixa `larg`×`alt`) no espaço livre ao redor do Estado, o mais perto possível do ponto da região (estilo mapa do INEA: balões
+ * em volta, ligados à região por uma linha curta). Rasteriza o contorno num canvas pequeno (passo de 6 px, com folga) e escolhe, região a região, a posição livre
+ * mais próxima que não toque o Estado nem os marcadores já postos; as regiões da borda escolhem primeiro. Determinístico. */
+function posicionarEntorno(ds: string[], ancoras: Ponto[], W: number, H: number, larg: number, alt: number): Ponto[] {
+  if (typeof document === "undefined") return ancoras;
+  const passo = 6;
+  const folga = 7;
+  const cols = Math.ceil(W / passo);
+  const linhas = Math.ceil(H / passo);
+  const cv = document.createElement("canvas");
+  cv.width = cols;
+  cv.height = linhas;
+  const ctx = cv.getContext("2d");
+  if (!ctx) return ancoras;
+  ctx.scale(1 / passo, 1 / passo);
+  ctx.fillStyle = "#000";
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = folga * 2;
+  ctx.lineJoin = "round";
+  for (const d of ds) {
+    const path = new Path2D(d);
+    ctx.fill(path);
+    ctx.stroke(path);
+  }
+  const alfa = ctx.getImageData(0, 0, cols, linhas).data;
+  // imagem integral da ocupação: soma de células ocupadas num retângulo em O(1)
+  const larguraI = cols + 1;
+  const soma = new Uint32Array(larguraI * (linhas + 1));
+  for (let j = 0; j < linhas; j++) {
+    let linha = 0;
+    for (let i = 0; i < cols; i++) {
+      linha += alfa[(j * cols + i) * 4 + 3] > 20 ? 1 : 0;
+      soma[(j + 1) * larguraI + i + 1] = soma[j * larguraI + i + 1] + linha;
+    }
+  }
+  const ocupadas = (i0: number, j0: number, i1: number, j1: number) => soma[(j1 + 1) * larguraI + i1 + 1] - soma[j0 * larguraI + i1 + 1] - soma[(j1 + 1) * larguraI + i0] + soma[j0 * larguraI + i0];
+  const mc = Math.ceil(larg / 2 / passo);
+  const ml = Math.ceil(alt / 2 / passo);
+  const gap = 8;
+  const melhor = (ancora: Ponto, postos: Ponto[]): { p: Ponto; d: number } | null => {
+    let achado: { p: Ponto; d: number } | null = null;
+    for (let j = ml; j < linhas - ml; j++) {
+      for (let i = mc; i < cols - mc; i++) {
+        const x = i * passo + passo / 2;
+        const y = j * passo + passo / 2;
+        const d = (x - ancora[0]) ** 2 + (y - ancora[1]) ** 2;
+        if (achado && d >= achado.d) continue;
+        if (ocupadas(i - mc, j - ml, i + mc, j + ml) > 0) continue;
+        if (postos.some((q) => Math.abs(q[0] - x) < larg + gap && Math.abs(q[1] - y) < alt + gap)) continue;
+        achado = { p: [x, y], d };
+      }
+    }
+    return achado;
+  };
+  // as regiões cuja melhor posição livre está mais perto (as da borda) escolhem primeiro
+  const ordem = ancoras
+    .map((a, i) => ({ i, d: melhor(a, [])?.d ?? Infinity }))
+    .sort((a, b) => a.d - b.d)
+    .map((x) => x.i);
+  const out: Ponto[] = ancoras.map((a) => [a[0], a[1]] as Ponto);
+  const postos: Ponto[] = [];
+  for (const i of ordem) {
+    const m = melhor(ancoras[i], postos);
+    if (m) {
+      out[i] = m.p;
+      postos.push(m.p);
+    }
+  }
+  return out;
+}
+
+/** "numeros": só o número da região. "icone": ícone do tempo sobre a região, com o número num selo (afasta o que se sobrepõe). "entorno": marcadores em volta do
+ * Estado, ligados às regiões por uma linha (ícone, ou balão com ícone e mínima/máxima se `comTemp`). */
+export type ModoMapa = "numeros" | "icone" | "entorno";
 const NEUTRO = "#dde5ee";
 
 function Selo({ x, y, r, n }: { x: number; y: number; r: number; n: number }) {
@@ -93,8 +165,8 @@ function Selo({ x, y, r, n }: { x: number; y: number; r: number; n: number }) {
   );
 }
 
-/** Mapa das REDECs sem cor por condição (a cor sugeria chuva o dia todo): regiões neutras, cada uma com o ícone do tempo do dia e o número.
- * Marcadores que se sobrepõem (sudoeste do Estado) são afastados e ligados à região por uma linha. Escala pelo `viewBox` (use `className` para o tamanho). */
+/** Mapa das REDECs sem cor por condição (a cor sugeria chuva o dia todo): regiões neutras com o ícone do tempo do dia e o número de cada uma.
+ * Escala pelo `viewBox` (use `className` para o tamanho). */
 export function MapaRedec({
   geo,
   previsoes,
@@ -105,7 +177,9 @@ export function MapaRedec({
   raioNumero = 13,
   modo = "numeros",
   tamIcone = 44,
+  comTemp = false,
   balao = { icone: 56, fonte: 28 },
+  margemMapa,
   className,
 }: {
   geo: GeoJsonFeatureCollection;
@@ -117,22 +191,42 @@ export function MapaRedec({
   raioNumero?: number;
   modo?: ModoMapa;
   tamIcone?: number;
+  /** modo "entorno": balão com ícone, máxima e mínima (em vez de só o ícone). */
+  comTemp?: boolean;
   balao?: { icone: number; fonte: number };
+  /** Espaço (px do viewBox) deixado em volta do Estado; no modo "entorno" é onde os marcadores cabem. */
+  margemMapa?: number;
   className?: string;
 }) {
   const bw = 12 + balao.icone + 8 + Math.round(balao.fonte * 1.9) + 12;
   const bh = balao.icone + 14;
+  const caixaW = comTemp ? bw : tamIcone + 6;
+  const caixaH = comTemp ? bh : tamIcone + 6;
   const itens = useMemo(() => {
-    const pad = modo === "balao" ? Math.round(bw * 0.25) : modo === "icone" ? Math.round(tamIcone * 0.5) : 6;
+    const pad = margemMapa ?? (modo === "entorno" ? 40 : modo === "icone" ? Math.round(tamIcone * 0.5) : 6);
     const proj = makeProjector(computeBBox(geo), largura, altura, pad);
     const base = geo.features.map((f) => ({ redec: f.properties.redec, d: geometryToPath(f.geometry, proj), centro: centroideMaiorAnel(f, proj) }));
     let marcador = base.map((b) => b.centro);
     if (modo === "icone") marcador = afastar(marcador, tamIcone + 8, tamIcone + 8, largura, altura);
-    if (modo === "balao") marcador = afastar(marcador, bw + 8, bh + 8, largura, altura);
-    return base.map((b, i) => ({ ...b, marcador: marcador[i] }));
-  }, [geo, largura, altura, modo, tamIcone, bw, bh]);
+    if (modo === "entorno") marcador = posicionarEntorno(base.map((b) => b.d), marcador, largura, altura, caixaW + raioNumero, caixaH + raioNumero);
+    return base.map((b, i) => {
+      const [mx, my] = marcador[i];
+      // fim da linha: borda do marcador mais próxima da região (retângulo do balão ou círculo do ícone)
+      let fim: Ponto = [mx, my];
+      if (modo === "entorno") {
+        if (comTemp) fim = [Math.min(Math.max(b.centro[0], mx - bw / 2), mx + bw / 2), Math.min(Math.max(b.centro[1], my - bh / 2), my + bh / 2)];
+        else {
+          const dx = b.centro[0] - mx;
+          const dy = b.centro[1] - my;
+          const n = Math.hypot(dx, dy) || 1;
+          fim = [mx + (dx / n) * (tamIcone / 2 + 3), my + (dy / n) * (tamIcone / 2 + 3)];
+        }
+      }
+      return { ...b, marcador: marcador[i], fim };
+    });
+  }, [geo, largura, altura, modo, tamIcone, comTemp, bw, bh, caixaW, caixaH, raioNumero, margemMapa]);
   const por = useMemo(() => new Map(previsoes.map((p) => [p.regiao, p])), [previsoes]);
-  const distMin = modo === "balao" ? bh / 2 + 6 : tamIcone / 2 + 4;
+  const distMin = tamIcone / 2 + 4;
   return (
     <svg viewBox={`0 0 ${largura} ${altura}`} className={className} role="img" aria-label="Previsão do tempo por REDEC">
       {itens.map((it) => (
@@ -149,11 +243,11 @@ export function MapaRedec({
       ))}
       {modo !== "numeros" &&
         itens.map((it) => {
-          if (Math.hypot(it.marcador[0] - it.centro[0], it.marcador[1] - it.centro[1]) <= distMin) return null;
+          if (modo === "icone" && Math.hypot(it.marcador[0] - it.centro[0], it.marcador[1] - it.centro[1]) <= distMin) return null;
           return (
             <g key={`l-${it.redec}`} pointerEvents="none">
-              <line x1={it.centro[0]} y1={it.centro[1]} x2={it.marcador[0]} y2={it.marcador[1]} stroke="#475569" strokeWidth={2} />
-              <circle cx={it.centro[0]} cy={it.centro[1]} r={4.5} fill="#0f2a4a" stroke="#fff" strokeWidth={1.5} />
+              <line x1={it.centro[0]} y1={it.centro[1]} x2={modo === "entorno" ? it.fim[0] : it.marcador[0]} y2={modo === "entorno" ? it.fim[1] : it.marcador[1]} stroke="#475569" strokeWidth={2.5} strokeLinecap="round" />
+              <circle cx={it.centro[0]} cy={it.centro[1]} r={5} fill="#0f2a4a" stroke="#fff" strokeWidth={1.5} />
             </g>
           );
         })}
@@ -162,29 +256,29 @@ export function MapaRedec({
         const p = por.get(it.redec);
         const [cx, cy] = it.marcador;
         if (modo === "numeros" || !p?.icone) return <Selo key={`n-${it.redec}`} x={cx} y={cy} r={raioNumero} n={n} />;
-        if (modo === "icone") {
+        if (modo === "entorno" && comTemp) {
+          const esq = cx - bw / 2;
+          const topo = cy - bh / 2;
+          const xt = esq + 12 + balao.icone + 8;
           return (
             <g key={`n-${it.redec}`} pointerEvents="none">
-              <circle cx={cx} cy={cy} r={tamIcone / 2 + 3} fill="#fff" stroke="#94a3b8" strokeWidth={1.5} />
-              <image href={iconeSrc(p.icone)} x={cx - tamIcone / 2} y={cy - tamIcone / 2} width={tamIcone} height={tamIcone} preserveAspectRatio="xMidYMid meet" />
-              <Selo x={cx - tamIcone / 2 - 2} y={cy - tamIcone / 2 - 2} r={raioNumero} n={n} />
+              <rect x={esq} y={topo} width={bw} height={bh} rx={14} fill="#fff" stroke="#94a3b8" strokeWidth={2} />
+              <image href={iconeSrc(p.icone)} x={esq + 12} y={cy - balao.icone / 2} width={balao.icone} height={balao.icone} preserveAspectRatio="xMidYMid meet" />
+              <text x={xt} y={cy - balao.fonte * 0.1} fontSize={balao.fonte} fontWeight="800" fill="#dc2626">
+                {r0(p.temperatura_maxima)}°
+              </text>
+              <text x={xt} y={cy + balao.fonte * 0.95} fontSize={balao.fonte} fontWeight="800" fill="#1d4ed8">
+                {r0(p.temperatura_minima)}°
+              </text>
+              <Selo x={esq + 2} y={topo + 2} r={raioNumero} n={n} />
             </g>
           );
         }
-        const esq = cx - bw / 2;
-        const topo = cy - bh / 2;
-        const xt = esq + 12 + balao.icone + 8;
         return (
           <g key={`n-${it.redec}`} pointerEvents="none">
-            <rect x={esq} y={topo} width={bw} height={bh} rx={14} fill="#fff" stroke="#94a3b8" strokeWidth={2} />
-            <image href={iconeSrc(p.icone)} x={esq + 12} y={cy - balao.icone / 2} width={balao.icone} height={balao.icone} preserveAspectRatio="xMidYMid meet" />
-            <text x={xt} y={cy - balao.fonte * 0.1} fontSize={balao.fonte} fontWeight="800" fill="#dc2626">
-              {r0(p.temperatura_maxima)}°
-            </text>
-            <text x={xt} y={cy + balao.fonte * 0.95} fontSize={balao.fonte} fontWeight="800" fill="#1d4ed8">
-              {r0(p.temperatura_minima)}°
-            </text>
-            <Selo x={esq + 2} y={topo + 2} r={raioNumero} n={n} />
+            <circle cx={cx} cy={cy} r={tamIcone / 2 + 3} fill="#fff" stroke="#94a3b8" strokeWidth={1.5} />
+            <image href={iconeSrc(p.icone)} x={cx - tamIcone / 2} y={cy - tamIcone / 2} width={tamIcone} height={tamIcone} preserveAspectRatio="xMidYMid meet" />
+            <Selo x={cx - tamIcone / 2 - 2} y={cy - tamIcone / 2 - 2} r={raioNumero} n={n} />
           </g>
         );
       })}
@@ -378,6 +472,7 @@ type ConfigArte = {
   gap: string;
   raio: number;
   tamIcone: number;
+  margemMapa: number;
   mapa: { largura: number; altura: number };
   area: { largura: number; altura: number; max: number };
   comentario: { altura: number; max: number };
@@ -402,7 +497,7 @@ function CorpoArte({ cfg, geo, previsoes, titulo, data, textoGeral }: PropsArte 
       <div className={`flex min-h-0 flex-1 pt-2.5 ${cfg.pad} ${cfg.gap}`}>
         <div className={`flex min-w-0 flex-col ${cfg.gap}`} style={{ flex: `${cfg.esq} 1 0` }}>
           <div className="min-h-0 rounded-lg bg-sky-50" style={{ flex: `${cfg.geral + 1} 1 0` }}>
-            <MapaRedec geo={geo} previsoes={previsoes} largura={cfg.mapa.largura} altura={cfg.mapa.altura} raioNumero={cfg.raio} modo="icone" tamIcone={cfg.tamIcone} className="h-full w-full" />
+            <MapaRedec geo={geo} previsoes={previsoes} largura={cfg.mapa.largura} altura={cfg.mapa.altura} raioNumero={cfg.raio} modo="entorno" tamIcone={cfg.tamIcone} margemMapa={cfg.margemMapa} className="h-full w-full" />
           </div>
           {itens.slice(0, 5).map((it) => (
             <Linha key={it.regiao}>{cartao(it)}</Linha>
@@ -435,7 +530,8 @@ const CFG_STORY: ConfigArte = {
   pad: "px-4 pb-2.5",
   gap: "gap-2.5",
   raio: 12,
-  tamIcone: 58,
+  tamIcone: 52,
+  margemMapa: 40,
   mapa: { largura: 587, altura: 477 },
   area: { largura: 415, altura: 170, max: 30 },
   comentario: { altura: 100, max: 24 },
@@ -458,7 +554,8 @@ const CFG_FEED: ConfigArte = {
   pad: "px-3 pb-2",
   gap: "gap-2",
   raio: 10,
-  tamIcone: 44,
+  tamIcone: 42,
+  margemMapa: 36,
   mapa: { largura: 560, altura: 363 },
   area: { largura: 455, altura: 145, max: 26 },
   comentario: { altura: 38, max: 15 },
@@ -479,6 +576,7 @@ type ConfigSlide = {
   textoAltura: number;
   textoArea: { largura: number; altura: number; max: number };
   mapa: { largura: number; altura: number };
+  margemMapa: number;
   balao: { icone: number; fonte: number };
   raio: number;
   pad: string;
@@ -494,7 +592,7 @@ function SlideMapa({ cfg, geo, previsoes, titulo, data, textoGeral }: PropsArte 
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: cfg.largura, height: cfg.altura }}>
       <Cabecalho titulo={titulo} data={data} altura={cfg.cab.altura} fonteTitulo={cfg.cab.fonteTitulo} logo={cfg.cab.logo} />
       <div className="min-h-0 flex-1 bg-sky-50">
-        <MapaRedec geo={geo} previsoes={previsoes} largura={cfg.mapa.largura} altura={cfg.mapa.altura} raioNumero={cfg.raio} modo="balao" balao={cfg.balao} className="h-full w-full" />
+        <MapaRedec geo={geo} previsoes={previsoes} largura={cfg.mapa.largura} altura={cfg.mapa.altura} raioNumero={cfg.raio} modo="entorno" comTemp balao={cfg.balao} margemMapa={cfg.margemMapa} className="h-full w-full" />
       </div>
       {temGeral && (
         <div className="shrink-0 bg-sky-50 px-4 pb-3" style={{ height: cfg.textoAltura }}>
@@ -536,7 +634,8 @@ const SLIDE_STORY: ConfigSlide = {
   textoAltura: 420,
   textoArea: { largura: 1000, altura: 280, max: 44 },
   mapa: { largura: 1080, altura: 1272 },
-  balao: { icone: 74, fonte: 38 },
+  margemMapa: 36,
+  balao: { icone: 70, fonte: 36 },
   raio: 17,
   pad: "px-4 pb-2.5",
   gap: "gap-2.5",
@@ -552,7 +651,8 @@ const SLIDE_FEED: ConfigSlide = {
   textoAltura: 220,
   textoArea: { largura: 1010, altura: 120, max: 32 },
   mapa: { largura: 1080, altura: 964 },
-  balao: { icone: 58, fonte: 30 },
+  margemMapa: 36,
+  balao: { icone: 62, fonte: 33 },
   raio: 13,
   pad: "px-3 pb-2",
   gap: "gap-2",

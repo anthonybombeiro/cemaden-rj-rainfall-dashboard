@@ -149,3 +149,16 @@ Motivo: a cor do mapa vinha do ícone do dia, então "sol com pancadas à tarde"
 
 Verificado: o PNG exportado (clique em "Baixar este slide") sai com os ícones do mapa embutidos (html-to-image trata `<image>` do SVG). Nada cortado nas verificações locais. A tela Mapa → Previsão também usa o mapa com ícones (sem legenda de cores). Sem migração.
 
+### Marcadores em volta do mapa, estilo INEA — modelo em teste local (29/10/2026, NÃO publicado)
+Pedido: no estilo do mapa do INEA, os ícones ficam **no entorno do mapa**, com uma linha curta indicando a região, nos dois modelos (imagem única e carrossel).
+
+| Item | Como ficou |
+|---|---|
+| Posicionamento | `posicionarEntorno` (em `PrevisaoMapaCorpo.tsx`): rasteriza o contorno do Estado num canvas pequeno (passo de 6 px, com folga de 7 px), monta uma imagem integral da ocupação e, região a região, escolhe a posição livre mais próxima que não toque o Estado nem os marcadores já postos. As regiões da borda escolhem primeiro. Determinístico (mesma previsão, mesma imagem) |
+| Linha | do ponto da região (centro da maior parte) até a borda do marcador; ponto escuro na região. As regiões do interior (Baixada Fluminense, Serrana) têm a linha mais longa |
+| Imagem única (Story e Post) | marcadores só com **ícone do tempo e número**, em círculo branco; as temperaturas ficam no cartão. O mapa ficou um pouco menor que na versão com ícones sobre as regiões, porque precisa de margem em volta (40 px no Story e 36 px no Post) |
+| Carrossel, slide 1 | **balões** com ícone, máxima (vermelho), mínima (azul) e número em volta do mapa, que ocupa quase a largura toda (margem de 36 px) |
+| Tela Mapa → Previsão | continua com ícones sobre as regiões (modo `icone`) |
+
+Modos de `MapaRedec`: `numeros`, `icone` (sobre a região, afastando sobreposições) e `entorno` (`comTemp` para balão). O modo `balao` anterior foi substituído por `entorno`. Sem migração.
+
