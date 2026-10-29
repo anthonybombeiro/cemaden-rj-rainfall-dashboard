@@ -1,11 +1,11 @@
 "use client";
 
 import { toPng } from "html-to-image";
-import { ChevronLeft, ChevronRight, Share2, Smartphone, Table2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Images, Share2, Smartphone, Table2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { CartaoGeral, CartaoRedec, CorpoFeed, CorpoStory, FEED_H, FEED_W, LegendaTempo, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
+import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, CorpoStory, FEED_H, FEED_W, FormatoCarrossel, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
 import ShareModal from "@/components/ShareModal";
 import { fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
@@ -26,7 +26,7 @@ const dataExtenso = (iso: string) => {
 const r0 = (n: number) => Math.round(Number(n));
 
 /** Modal de exportação em tamanho real (story 1080×1920 ou post 1080×1350): prévia reduzida, PNG exato, copiar imagem/texto. */
-function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { titulo: string; w: number; h: number; nomeArquivo: string; texto: string; onClose: () => void; children: React.ReactNode }) {
+function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children, slides, rotulosSlides, extra }: { titulo: string; w: number; h: number; nomeArquivo: string; texto: string; onClose: () => void; children?: React.ReactNode; slides?: React.ReactNode[]; rotulosSlides?: string[]; extra?: React.ReactNode }) {
   const alvo = useRef<HTMLDivElement>(null);
   const caixa = useRef<HTMLDivElement>(null);
   const topo = useRef<HTMLDivElement>(null);
@@ -34,7 +34,9 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { 
   const [escala, setEscala] = useState(0.3);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [idx, setIdx] = useState(0);
   const movel = ehDispositivoMovel();
+  const nomeAtual = slides ? `${nomeArquivo}-${idx + 1}` : nomeArquivo;
 
   // A prévia cabe inteira no pop-up (sem barra de rolagem): a escala vem da largura da caixa e da altura que sobra depois do título e dos botões.
   useEffect(() => {
@@ -81,15 +83,33 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { 
       setBusy(false);
     }
   };
-  const baixar = () =>
-    executar(async (blob) => {
-      const u = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = u;
-      a.download = `${nomeArquivo}.png`;
-      a.click();
-      URL.revokeObjectURL(u);
-    });
+  const baixarBlob = (blob: Blob, nome: string) => {
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = u;
+    a.download = `${nome}.png`;
+    a.click();
+    URL.revokeObjectURL(u);
+  };
+  const baixar = () => executar(async (blob) => baixarBlob(blob, nomeAtual));
+  // carrossel: troca de slide, espera desenhar e baixa um PNG por slide
+  const baixarTodos = async () => {
+    if (!slides) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      for (let i = 0; i < slides.length; i++) {
+        setIdx(i);
+        await new Promise((r) => setTimeout(r, 700));
+        baixarBlob(await gerar(), `${nomeArquivo}-${i + 1}`);
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Erro ao gerar as imagens");
+    } finally {
+      setBusy(false);
+    }
+  };
   const copiar = () =>
     executar(async (blob) => {
       const ok = await copiarImagemParaAreaDeTransferencia(blob);
@@ -97,7 +117,7 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { 
     });
   const compartilhar = () =>
     executar(async (blob) => {
-      const arq = new File([blob], `${nomeArquivo}.png`, { type: "image/png" });
+      const arq = new File([blob], `${nomeAtual}.png`, { type: "image/png" });
       if (navigator.canShare?.({ files: [arq] })) await navigator.share({ files: [arq], title: titulo });
       else setMsg("Compartilhamento direto não suportado — use Baixar.");
     });
@@ -112,11 +132,30 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { 
             ✕
           </button>
         </div>
+        {(extra || slides) && (
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-gray-200 px-4 py-2">
+            {extra}
+            {slides && (
+              <div className="flex gap-1.5">
+                {slides.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setIdx(i)}
+                    className={`rounded px-2.5 py-1 text-xs font-medium ${idx === i ? "bg-sedec-600 text-white" : "border border-gray-300 text-gray-700 hover:bg-gray-50"}`}
+                  >
+                    {rotulosSlides?.[i] ?? `Slide ${i + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div ref={caixa} className="shrink-0 overflow-hidden bg-gray-100 p-2">
           <div className="mx-auto overflow-hidden shadow" style={{ width: w * escala, height: h * escala }}>
             <div style={{ transform: `scale(${escala})`, transformOrigin: "top left", width: w, height: h }}>
               <div ref={alvo} style={{ width: w, height: h }}>
-                {children}
+                {slides ? slides[idx] : children}
               </div>
             </div>
           </div>
@@ -125,8 +164,13 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children }: { 
           {msg && <div className="rounded bg-amber-50 p-2 text-xs text-amber-800">{msg}</div>}
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={baixar} disabled={busy} className="rounded bg-sedec-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sedec-700 disabled:opacity-50">
-              🖼️ Baixar imagem ({w}×{h})
+              🖼️ Baixar {slides ? "este slide" : "imagem"} ({w}×{h})
             </button>
+            {slides && (
+              <button type="button" onClick={baixarTodos} disabled={busy} className="rounded border border-sedec-300 px-3 py-1.5 text-xs font-medium text-sedec-700 hover:bg-sedec-50 disabled:opacity-50">
+                🖼️ Baixar os {slides.length} slides
+              </button>
+            )}
             <button type="button" onClick={copiar} disabled={busy} className="rounded border border-sedec-300 px-3 py-1.5 text-xs font-medium text-sedec-700 hover:bg-sedec-50 disabled:opacity-50">
               📋 Copiar imagem
             </button>
@@ -156,7 +200,8 @@ export default function PrevisaoMapa() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
-  const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "story" | null>(null);
+  const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "story" | "carrossel" | null>(null);
+  const [formatoCarrossel, setFormatoCarrossel] = useState<FormatoCarrossel>("feed");
 
   useEffect(() => {
     let cancelado = false;
@@ -274,6 +319,10 @@ export default function PrevisaoMapa() {
             <Share2 size={15} />
             Post
           </button>
+          <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("carrossel")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Carrossel de 2 imagens: mapa grande + detalhes por região">
+            <Images size={15} />
+            Carrossel
+          </button>
           <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("tabela")} className={`${btn} bg-gray-100 text-gray-700 hover:bg-gray-200`} title="Post em tabela">
             <Table2 size={15} />
             Tabela
@@ -289,8 +338,7 @@ export default function PrevisaoMapa() {
       ) : (
         <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
           <div className="lg:sticky lg:top-0 lg:self-start">
-            <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={460} selecionada={selecionada} onSelecionar={(r) => setSelecionada((a) => (a === r ? null : r))} className="w-full rounded-lg bg-sky-50" />
-            <LegendaTempo className="mt-2 text-[11px]" />
+            <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={460} modo="icone" tamIcone={46} selecionada={selecionada} onSelecionar={(r) => setSelecionada((a) => (a === r ? null : r))} className="w-full rounded-lg bg-sky-50" />
           </div>
           <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
             <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="tela" />
@@ -306,6 +354,36 @@ export default function PrevisaoMapa() {
         <ExportModal titulo="Story 1080×1920" w={STORY_W} h={STORY_H} nomeArquivo={`cemaden-rj-previsao-story-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>
           <CorpoStory geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} textoGeral={textoGeral} />
         </ExportModal>
+      )}
+      {compartilhar === "carrossel" && geo && data && (
+        <ExportModal
+          key={formatoCarrossel}
+          titulo={`Carrossel ${formatoCarrossel === "story" ? "Story 1080×1920" : "Post 1080×1350"}`}
+          w={formatoCarrossel === "story" ? STORY_W : FEED_W}
+          h={formatoCarrossel === "story" ? STORY_H : FEED_H}
+          nomeArquivo={`cemaden-rj-previsao-carrossel-${formatoCarrossel}-${data}`}
+          texto={texto}
+          onClose={() => setCompartilhar(null)}
+          rotulosSlides={["1 · Mapa", "2 · Detalhes"]}
+          extra={
+            <div className="flex gap-1.5">
+              {(["feed", "story"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFormatoCarrossel(f)}
+                  className={`rounded px-2.5 py-1 text-xs font-medium ${formatoCarrossel === f ? "bg-gray-800 text-white" : "border border-gray-300 text-gray-700 hover:bg-gray-50"}`}
+                >
+                  {f === "feed" ? "Post 4:5" : "Story 9:16"}
+                </button>
+              ))}
+            </div>
+          }
+          slides={[
+            carrosselMapa(formatoCarrossel, { geo, previsoes, titulo: "Previsão do tempo", data: dataExtenso(data), textoGeral }),
+            carrosselDetalhes(formatoCarrossel, { geo, previsoes, titulo: "Previsão do tempo", data: dataExtenso(data), textoGeral }),
+          ]}
+        />
       )}
       {compartilhar === "feed" && geo && data && (
         <ExportModal titulo="Post 1080×1350" w={FEED_W} h={FEED_H} nomeArquivo={`cemaden-rj-previsao-post-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>

@@ -291,6 +291,10 @@ Front compilado e implantado (95 arquivos, 0 falhas; sem backend nem migração)
 
 A pedido do usuário (mapa pequeno e ilegível, números cobrindo as regiões): legenda em uma linha longa sob o cabeçalho; abaixo, à esquerda o mapa (~2,3× a área anterior) sobre 5 cartões de REDEC e à direita o cartão da previsão geral sobre os outros 6. Uma 1ª versão (mapa + texto no topo, 11 cartões abaixo) foi publicada por engano e reprovada; as seguintes foram mostradas por imagem antes de publicar (regra salva na memória). Só frontend, sem migração; verificado em produção por leitura. Medidas e arquivos em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: mapa neutro com ícones e carrossel (modelo local, não publicado)
+
+A pedido do usuário (cor do mapa passava previsão errada em dia de sol com pancadas à tarde): item 1 (mapa neutro com ícone e número, sem legenda de cores, temperaturas no canto do cartão, coluna do mapa mais larga) e carrossel de 2 imagens (mapa com balões + detalhes). Montado e testado só localmente; imagens enviadas ao usuário para aprovar antes de publicar. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

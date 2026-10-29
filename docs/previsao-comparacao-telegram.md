@@ -136,3 +136,16 @@ Pedido: o mapa do Story e do Post estava pequeno (uma faixa de 280 px / 200 px c
 
 As duas colunas fecham na mesma altura (pesos flex: o bloco do mapa pesa o do texto geral + 1 cartão). Sem texto geral escrito, a legenda de cores em cartão ocupa o lugar dele, para a coluna da direita não ficar com buraco. Nada cortado na verificação local (banco de teste). Só os dois formatos exportáveis mudaram; a tela (aba Previsão e Mapa → Previsão) segue como estava. Arquivo: `PrevisaoMapaCorpo.tsx` (`CorpoArte` com `CFG_STORY`/`CFG_FEED`, `CartaoGeral` com `area`, `CartaoLegenda`).
 
+### Mapa neutro com ícones e carrossel de 2 imagens — modelo em teste local (29/10/2026, NÃO publicado)
+Motivo: a cor do mapa vinha do ícone do dia, então "sol com pancadas à tarde" (ícone com raios) pintava a região de roxo, igual a "tempestade o dia todo", e passava uma previsão errada. Decisão do usuário: tirar a cor e a legenda de cores, manter os números, pôr o ícone do tempo no mapa e as temperaturas no lugar do ícone do cartão. A previsão do INEA (só chuva) foi só referência; o diferencial do CEMADEN-RJ é emitir avisos de pelo menos 5 parâmetros.
+
+| Item | Como ficou | Arquivo |
+|---|---|---|
+| Mapa | Regiões em cinza-claro, sem legenda de cores. Cada região tem o **ícone do tempo do dia** num círculo branco e o **número num selo** no canto. Marcadores que se sobrepõem (sudoeste do Estado) são afastados por um algoritmo determinístico e ligados à região por uma linha com ponto | `PrevisaoMapaCorpo.tsx` (`MapaRedec`, modos `numeros`, `icone`, `balao`; `afastar`) |
+| Cartão da REDEC | **Mínima / máxima** grandes no canto onde ficava o ícone; situação por extenso (até 2 linhas, nunca cortada); umidade e Sol na 2ª linha; vento na 3ª; comentário | `CartaoRedec` |
+| Story e Post (1 imagem) | A estrutura aprovada continua (mapa e 5 REDECs à esquerda; texto geral e 6 REDECs à direita); sem a linha de legenda, a coluna do mapa ficou mais larga (esq. 1,3 no Story e 1,15 no Post). Limite: o Estado é largo, então o mapa cresce com a largura, não com a altura | `CorpoArte`, `CFG_STORY`, `CFG_FEED` |
+| Carrossel (novo botão na tela Mapa → Previsão) | **Slide 1**: mapa grande com um **balão por região** (ícone, máxima em vermelho, mínima em azul, número) e o texto geral embaixo. **Slide 2**: os 11 cartões com tipografia maior e, na 12ª célula, um mapa de referência só com os números. Pop-up com troca Post 4:5 / Story 9:16, abas dos slides, "Baixar este slide" e "Baixar os 2 slides" (um PNG por slide) | `SlideMapa`, `SlideDetalhes`, `PrevisaoMapa.tsx` (`ExportModal` com `slides`) |
+| "Sol com pancadas à tarde" | Sem mudança de dados: usar o ícone já existente **Parcialmente nublado com chuva e raios** (Sol aparecendo + nuvem com raio) e o comentário "a partir da tarde". Opções futuras: campo "quando" (madrugada/manhã/tarde/noite) ou dois ícones | — |
+
+Verificado: o PNG exportado (clique em "Baixar este slide") sai com os ícones do mapa embutidos (html-to-image trata `<image>` do SVG). Nada cortado nas verificações locais. A tela Mapa → Previsão também usa o mapa com ícones (sem legenda de cores). Sem migração.
+
