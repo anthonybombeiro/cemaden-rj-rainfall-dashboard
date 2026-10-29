@@ -1,6 +1,6 @@
 # Informativo meteorológico — o que está implementado (29/10/2026)
 
-Proposta original e decisões: `informativo-meteorologico-proposta.md`. Aqui está o **estado real** do código. Status: implementado e testado **localmente**; ainda não publicado em produção (migração 0028 pendente).
+Proposta original e decisões: `informativo-meteorologico-proposta.md`. Aqui está o **estado real** do código. Status: **publicado em produção em 29/10/2026** (migração 0028 aplicada; nenhum informativo criado nem importado em produção).
 
 ## O que o painel faz e o que NÃO faz
 * Compõe o texto no modelo do grupo de operadores, guarda a matriz por REDEC, numera (nº/AAAA, reinicia em 1 a cada ano), acompanha a vigência de 6 h e o relógio do radar, registra revisão/envio/SMS e guarda o histórico.
