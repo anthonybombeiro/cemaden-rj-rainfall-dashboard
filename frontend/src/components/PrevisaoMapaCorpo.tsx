@@ -260,6 +260,7 @@ export function MapaRedec({
   comTemp = false,
   balao = { icone: 56, fonte: 28 },
   margemMapa,
+  posicoes,
   className,
 }: {
   geo: GeoJsonFeatureCollection;
@@ -277,6 +278,8 @@ export function MapaRedec({
   balao?: { icone: number; fonte: number; info?: number };
   /** Espaço (px do viewBox) deixado em volta do Estado; no modo "entorno" é onde os marcadores cabem. */
   margemMapa?: number;
+  /** modo "entorno": posição de cada balão (na ordem das REDECs) em fração do retângulo do mapa; sem isso, o posicionamento é automático. */
+  posicoes?: [number, number][];
   className?: string;
 }) {
   const detalhes = comTemp && balao.info !== undefined;
@@ -292,7 +295,15 @@ export function MapaRedec({
     const base = geo.features.map((f) => ({ redec: f.properties.redec, d: geometryToPath(f.geometry, proj), centro: centroideMaiorAnel(f, proj) }));
     let marcador = base.map((b) => b.centro);
     if (modo === "icone") marcador = afastar(marcador, tamIcone + 8, tamIcone + 8, largura, altura);
-    if (modo === "entorno") marcador = posicionarEntorno(base.map((b) => b.d), marcador, largura, altura, caixaW + raioNumero, caixaH + raioNumero);
+    if (modo === "entorno" && posicoes && posicoes.length >= ORDEM_REDEC.length) {
+      const bb = computeBBox(geo);
+      const [x0, y0] = proj(bb.minLon, bb.maxLat);
+      const [x1, y1] = proj(bb.maxLon, bb.minLat);
+      marcador = base.map((b) => {
+        const [u, v] = posicoes[Math.max(ORDEM_REDEC.indexOf(b.redec), 0)];
+        return [x0 + u * (x1 - x0), y0 + v * (y1 - y0)] as Ponto;
+      });
+    } else if (modo === "entorno") marcador = posicionarEntorno(base.map((b) => b.d), marcador, largura, altura, caixaW + raioNumero, caixaH + raioNumero);
     return base.map((b, i) => {
       const [mx, my] = marcador[i];
       // fim da linha: borda do marcador mais próxima da região (retângulo do balão ou círculo do ícone)
@@ -308,7 +319,7 @@ export function MapaRedec({
       }
       return { ...b, marcador: marcador[i], fim };
     });
-  }, [geo, largura, altura, modo, tamIcone, comTemp, bw, bh, caixaW, caixaH, raioNumero, margemMapa]);
+  }, [geo, largura, altura, modo, tamIcone, comTemp, bw, bh, caixaW, caixaH, raioNumero, margemMapa, posicoes]);
   const por = useMemo(() => new Map(previsoes.map((p) => [p.regiao, p])), [previsoes]);
   const distMin = tamIcone / 2 + 4;
   return (
@@ -415,10 +426,60 @@ const TAMANHOS: Record<VarianteCartao, { badge: string; nome: string; sit: strin
 
 /** Cartão de uma REDEC com todos os dados: situação, mínima e máxima (no canto onde ficava o ícone, que agora está no mapa), umidade, nascer/pôr do Sol,
  * vento e comentário. Os ícones de umidade, vento e Sol são os mesmos dos cartões da aba Previsão CEMADEN-RJ (Lucide). */
-export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx, ocultarComentario }: { regiao: string; p?: Previsao; variante: VarianteCartao; ativo?: boolean; onClick?: () => void; comentarioPx?: number; ocultarComentario?: boolean }) {
+export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx, ocultarComentario, classico }: { regiao: string; p?: Previsao; variante: VarianteCartao; ativo?: boolean; onClick?: () => void; comentarioPx?: number; ocultarComentario?: boolean; classico?: boolean }) {
   const n = ORDEM_REDEC.indexOf(regiao) + 1;
   const fixo = variante !== "tela"; // story/feed: tamanhos em px, comentário ajustado ao espaço
   const tam = TAMANHOS[variante];
+  if (classico) {
+    // layout clássico: ícone do tempo no canto, mín/máx em destaque, Sol à direita, umidade e vento embaixo
+    return (
+      <div className={`flex min-w-0 flex-col overflow-hidden rounded-lg border border-slate-300 bg-white ${tam.pad}`}>
+        <div className="flex items-center gap-2">
+          <span className={`flex shrink-0 items-center justify-center rounded-full bg-[#0f2a4a] font-bold text-white ${tam.badge}`}>{n}</span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className={`truncate font-bold uppercase tracking-tight text-slate-800 ${tam.nome}`}>{nomeBonito(regiao)}</div>
+            <div className={`truncate text-slate-600 ${tam.sit}`}>{p ? rotuloTempo(p.icone) : "Sem previsão"}</div>
+          </div>
+          {p?.icone && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={iconeSrc(p.icone)} alt="" width={tam.icone} height={tam.icone} className="shrink-0 object-contain" style={{ width: tam.icone, height: tam.icone }} />
+          )}
+        </div>
+        {p && (
+          <>
+            <div className="flex shrink-0 items-center justify-between gap-2 whitespace-nowrap">
+              <div className={`flex items-baseline gap-1.5 font-extrabold ${tam.temp}`}>
+                <span className="text-blue-700">{r0(p.temperatura_minima)}°</span>
+                <span className="text-[0.5em] font-normal text-slate-400">mín / máx</span>
+                <span className="text-red-600">{r0(p.temperatura_maxima)}°</span>
+              </div>
+              <div className={`flex gap-2 text-slate-600 ${tam.sol}`}>
+                <span className="flex items-center gap-1">
+                  <Sunrise size={tam.iconeInfo} className="shrink-0 text-amber-500" /> {hm(p.nascer_sol)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Sunset size={tam.iconeInfo} className="shrink-0 text-amber-700" /> {hm(p.por_sol)}
+                </span>
+              </div>
+            </div>
+            <div className={`flex shrink-0 flex-wrap gap-x-3 text-slate-700 ${tam.info}`}>
+              <span className="flex items-center gap-1">
+                <Droplets size={tam.iconeInfo} className="shrink-0 text-sky-600" /> Umidade {textoUmidade(p)}
+              </span>
+              <span className="flex items-center gap-1">
+                <Wind size={tam.iconeInfo} className="shrink-0 text-orange-500" /> Vento {textoVento(p)}
+              </span>
+            </div>
+            {p.comentario && (
+              <p className="mt-1 min-h-0 overflow-hidden text-slate-600" style={comentarioPx ? { fontSize: comentarioPx, lineHeight: `${Math.round(comentarioPx * 1.2)}px` } : undefined}>
+                {p.comentario}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
   return (
     <div
       onClick={onClick}
@@ -651,32 +712,41 @@ export function CorpoStory(props: PropsArte) {
 export const FEED_W = 1080;
 export const FEED_H = 1350;
 
-// ---------------------------------------------------------------- peças compartilhadas do Post (modelo A) e do carrossel Story (modelo D)
+// ---------------------------------------------------------------- peças do Post (modelo A) e do carrossel Story (modelo D)
+/** Posição de cada balão, na ordem das REDECs (1 a 11), em fração do retângulo do mapa: [0,0] é o canto superior esquerdo do Estado e [1,1] o inferior direito; fora de 0–1 = fora do mapa.
+ * Desenhadas pelo usuário sobre o modelo (cada balão perto da sua região, em volta do mapa). */
+const SLOTS_POST: [number, number][] = [
+  [0.2604, 0.9835], // 1 Capital
+  [0.7692, 0.9835], // 2 Metropolitana
+  [0.4985, 0.9835], // 3 Baixada Fluminense
+  [-0.1346, 0.9649], // 4 Costa Verde
+  [0.2559, 0.1963], // 5 Sul I
+  [0.034, 0.4566], // 6 Sul II
+  [0.4956, 0.2831], // 7 Serrana I
+  [0.5488, 0.0971], // 8 Serrana II
+  [0.9571, 0.6798], // 9 Baixada Litorânea
+  [1.1346, 0.3079], // 10 Norte
+  [0.9482, 0.0351], // 11 Noroeste
+];
+const SLOTS_STORY: [number, number][] = [
+  [0.3618, 1.0151], // 1 Capital
+  [0.749, 1.0137], // 2 Metropolitana
+  [0.4824, 1.2425], // 3 Baixada Fluminense
+  [0.1029, 1.1219], // 4 Costa Verde
+  [0.2441, 0.1521], // 5 Sul I
+  [0.1265, 0.3986], // 6 Sul II
+  [0.4912, 0.2753], // 7 Serrana I
+  [0.4912, 0.0616], // 8 Serrana II
+  [0.895, 0.7685], // 9 Baixada Litorânea
+  [0.9029, -0.111], // 10 Norte
+  [0.6441, -0.1603], // 11 Noroeste
+];
+
 /** Faixa de horários do Estado ("05:04–05:14", ou um só se forem iguais). */
 function faixaHora(previsoes: Previsao[], campo: "nascer_sol" | "por_sol"): string {
   const v = previsoes.map((p) => (p[campo] ?? "").slice(0, 5)).filter(Boolean).sort();
   if (!v.length) return "—";
   return v[0] === v[v.length - 1] ? v[0] : `${v[0]}–${v[v.length - 1]}`;
-}
-
-type Observacao = { geral?: string; itens: { n: number; nome: string; texto: string }[] };
-/** Comentários que não cabem no texto geral: os das regiões que diferem do comentário mais repetido (se ele vale para metade das REDECs ou mais). Sem texto geral escrito,
- * o comentário comum aparece como observação geral. */
-function observacoes(previsoes: Previsao[], temGeral: boolean): Observacao {
-  const cont = new Map<string, number>();
-  for (const p of previsoes) {
-    const c = (p.comentario ?? "").trim();
-    if (c) cont.set(c, (cont.get(c) ?? 0) + 1);
-  }
-  let comum = "";
-  let n = 0;
-  for (const [c, k] of cont) if (k > n) [comum, n] = [c, k];
-  const usaComum = n >= 2 && n >= previsoes.length / 2;
-  const itens = ORDEM_REDEC.flatMap((r, i) => {
-    const c = (previsoes.find((x) => x.regiao === r)?.comentario ?? "").trim();
-    return c && (!usaComum || c !== comum) ? [{ n: i + 1, nome: nomeBonito(r), texto: c }] : [];
-  });
-  return { geral: usaComum && !temGeral ? comum : undefined, itens };
 }
 
 function LinhaSol({ previsoes, altura, fonte, icone }: { previsoes: Previsao[]; altura: number; fonte: number; icone: number }) {
@@ -692,68 +762,49 @@ function LinhaSol({ previsoes, altura, fonte, icone }: { previsoes: Previsao[]; 
   );
 }
 
-function Observacoes({ obs, largura, altura, max }: { obs: Observacao; largura: number; altura: number; max: number }) {
-  const total = 14 + (obs.geral?.length ?? 0) + obs.itens.reduce((a, i) => a + i.texto.length + i.nome.length + 6, 0);
-  const px = ajustarComentarioPx(total, largura, altura, max, 13);
-  return (
-    <div className="shrink-0 overflow-hidden rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-slate-800" style={{ height: altura + 16, fontSize: px, lineHeight: `${Math.round(px * 1.22)}px` }}>
-      <strong className="text-amber-800">Observações · </strong>
-      {obs.geral && <span>{obs.geral} </span>}
-      {obs.itens.map((i) => (
-        <span key={i.n} className="mr-3">
-          <strong>
-            {i.n} {i.nome}:
-          </strong>{" "}
-          {i.texto}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/** Tabela do Post com o que o mapa não mostra, uma linha por região na ordem dos números: umidade (mín~máx), nascer e pôr do Sol e vento. */
-function TabelaRegioes({ previsoes, linha, fonte }: { previsoes: Previsao[]; linha: number; fonte: number }) {
+/** Tabela do Post, uma região por bloco de duas linhas, na ordem dos números: 1ª linha com número, região, umidade (mín~máx) e vento; 2ª linha com o texto da região. */
+function TabelaRegioes({ previsoes, fonte, fonteTexto, larguraTexto }: { previsoes: Previsao[]; fonte: number; fonteTexto: number; larguraTexto: number }) {
   const por = new Map(previsoes.map((p) => [p.regiao, p]));
-  const cols = "290px 190px 270px minmax(0,1fr)";
+  const cols = "300px 180px minmax(0,1fr)";
   const isz = Math.round(fonte * 0.95);
+  const maior = maiorComentario(previsoes);
+  const px = ajustarComentarioPx(maior, larguraTexto, Math.round(fonteTexto * 1.2) * 2, fonteTexto, 13);
   return (
     <div className="shrink-0 overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-800" style={{ fontSize: fonte }}>
-      <div className="grid items-center bg-[#0f2a4a] px-3 font-semibold text-white" style={{ gridTemplateColumns: cols, height: Math.round(linha * 0.85) }}>
+      <div className="grid items-center bg-[#0f2a4a] px-3 font-semibold text-white" style={{ gridTemplateColumns: cols, height: Math.round(fonte * 1.5) }}>
         <span>Região</span>
         <span>Umidade</span>
-        <span>Nascer · Pôr do Sol</span>
         <span>Vento</span>
       </div>
       {ORDEM_REDEC.map((r, i) => {
         const p = por.get(r);
         return (
-          <div key={r} className={`grid items-center border-t border-slate-100 px-3 ${i % 2 ? "bg-slate-50" : ""}`} style={{ gridTemplateColumns: cols, height: linha }}>
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="flex shrink-0 items-center justify-center rounded-full bg-[#0f2a4a] font-bold text-white" style={{ width: linha * 0.7, height: linha * 0.7, fontSize: fonte * 0.78 }}>
-                {i + 1}
+          <div key={r} className={`border-t border-slate-100 px-3 py-0.5 ${i % 2 ? "bg-slate-50" : ""}`}>
+            <div className="grid items-center" style={{ gridTemplateColumns: cols, height: Math.round(fonte * 1.3) }}>
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="flex shrink-0 items-center justify-center rounded-full bg-[#0f2a4a] font-bold text-white" style={{ width: fonte * 1.1, height: fonte * 1.1, fontSize: fonte * 0.78 }}>
+                  {i + 1}
+                </span>
+                <span className="truncate font-semibold">{nomeBonito(r)}</span>
               </span>
-              <span className="truncate font-semibold">{nomeBonito(r)}</span>
-            </span>
-            {p ? (
-              <>
-                <span className="whitespace-nowrap">
-                  {r0(p.umidade_minima)}~{r0(p.umidade_maxima)}%
-                </span>
-                <span className="flex items-center gap-3 whitespace-nowrap">
-                  <span className="flex items-center gap-1">
-                    <Sunrise size={isz} className="shrink-0 text-amber-500" /> {hm(p.nascer_sol)}
+              {p ? (
+                <>
+                  <span className="whitespace-nowrap">
+                    {r0(p.umidade_minima)}~{r0(p.umidade_maxima)}%
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Sunset size={isz} className="shrink-0 text-amber-700" /> {hm(p.por_sol)}
+                  <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+                    <Wind size={isz} className="shrink-0 text-orange-500" />
+                    <span className="truncate">{textoVento(p)}</span>
                   </span>
-                </span>
-                <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-                  <Wind size={isz} className="shrink-0 text-orange-500" />
-                  <span className="truncate">{textoVento(p)}</span>
-                </span>
-              </>
-            ) : (
-              <span className="col-span-3">Sem previsão</span>
+                </>
+              ) : (
+                <span className="col-span-2">Sem previsão</span>
+              )}
+            </div>
+            {p?.comentario && (
+              <p className="text-slate-600" style={{ fontSize: px, lineHeight: `${Math.round(px * 1.2)}px` }}>
+                {p.comentario}
+              </p>
             )}
           </div>
         );
@@ -762,37 +813,35 @@ function TabelaRegioes({ previsoes, linha, fonte }: { previsoes: Previsao[]; lin
   );
 }
 
-/** Post 1080×1350 (modelo A): mapa com balões de ícone e temperaturas em volta; texto geral; tabela por região (umidade, Sol e vento); observações só das regiões que diferem. */
+/** Post 1080×1350 (modelo A): mapa com balões de ícone e temperaturas em volta, cada um perto da sua região; texto geral; Sol do Estado; e, por região, umidade, vento e o texto. */
 export function CorpoFeed({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
   const t = (textoGeral ?? "").trim();
-  const obs = observacoes(previsoes, !!t);
-  const temObs = !!obs.geral || obs.itens.length > 0;
-  const px = ajustarComentarioPx(t.length + 17, 920, 66, 28, 14);
+  const px = ajustarComentarioPx(t.length + 17, 920, 62, 26, 14);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: FEED_W, height: FEED_H }}>
       <Cabecalho titulo={titulo} data={data} altura={120} fonteTitulo={40} logo={68} />
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-2 pt-2.5">
         <div className="min-h-0 flex-1 rounded-lg bg-sky-50">
-          <MapaRedec geo={geo} previsoes={previsoes} largura={1056} altura={temObs ? 540 : 616} raioNumero={11} modo="entorno" comTemp balao={{ icone: 54, fonte: 29 }} margemMapa={28} className="h-full w-full" />
+          <MapaRedec geo={geo} previsoes={previsoes} largura={1056} altura={540} raioNumero={11} modo="entorno" comTemp balao={{ icone: 54, fonte: 29 }} margemMapa={28} posicoes={SLOTS_POST} className="h-full w-full" />
         </div>
         {t && (
-          <div className="flex shrink-0 items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 px-3" style={{ height: 92 }}>
-            <FileText size={28} className="shrink-0 text-[#0f4c81]" />
-            <p className="min-w-0 overflow-hidden text-slate-800" style={{ fontSize: px, lineHeight: `${Math.round(px * 1.22)}px`, maxHeight: 82 }}>
+          <div className="flex shrink-0 items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 px-3" style={{ height: 82 }}>
+            <FileText size={26} className="shrink-0 text-[#0f4c81]" />
+            <p className="min-w-0 overflow-hidden text-slate-800" style={{ fontSize: px, lineHeight: `${Math.round(px * 1.2)}px`, maxHeight: 74 }}>
               <strong className="text-[#0f4c81]">Previsão geral · </strong>
               {t}
             </p>
           </div>
         )}
-        <TabelaRegioes previsoes={previsoes} linha={37} fonte={21} />
-        {temObs && <Observacoes obs={obs} largura={1000} altura={52} max={20} />}
+        <LinhaSol previsoes={previsoes} altura={32} fonte={19} icone={19} />
+        <TabelaRegioes previsoes={previsoes} fonte={20} fonteTexto={16} larguraTexto={990} />
       </div>
       <Rodape altura={46} fonte={19} />
     </div>
   );
 }
 
-// ---------------------------------------------------------------- carrossel Story (modelo D): slide 1 mapa com balão completo; slide 2 os textos de cada região
+// ---------------------------------------------------------------- carrossel Story (modelo D): slide 1 mapa com balão completo; slide 2 os cartões de cada região
 type ConfigSlide = {
   cab: { altura: number; fonteTitulo: number; logo: number };
   rodape: { altura: number; fonte: number };
@@ -804,16 +853,14 @@ const SLIDE: ConfigSlide = {
   indice: { largura: 519, altura: 258, raio: 14 },
 };
 
-/** Slide 1: balões completos em volta do mapa (ícone, máxima, mínima, umidade e vento, com o número da região); embaixo só o texto geral, o Sol do Estado e as observações. */
+/** Slide 1: balões completos em volta do mapa (ícone, máxima, mínima, umidade e vento, com o número da região), cada um perto da sua região; embaixo o texto geral e o Sol do Estado. */
 function SlideMapa({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
   const t = (textoGeral ?? "").trim();
-  const obs = observacoes(previsoes, !!t);
-  const temObs = !!obs.geral || obs.itens.length > 0;
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo={titulo} data={data} altura={SLIDE.cab.altura} fonteTitulo={SLIDE.cab.fonteTitulo} logo={SLIDE.cab.logo} />
       <div className="min-h-0 flex-1 bg-sky-50">
-        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={temObs ? 1150 : 1290} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} className="h-full w-full" />
+        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1290} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_STORY} className="h-full w-full" />
       </div>
       {t && (
         <div className="shrink-0 bg-sky-50 px-4 pb-3" style={{ height: 330 }}>
@@ -823,20 +870,15 @@ function SlideMapa({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
       <div className="shrink-0 bg-sky-50 px-4 pb-3">
         <LinhaSol previsoes={previsoes} altura={60} fonte={25} icone={26} />
       </div>
-      {temObs && (
-        <div className="shrink-0 bg-sky-50 px-4 pb-3">
-          <Observacoes obs={obs} largura={1000} altura={96} max={26} />
-        </div>
-      )}
       <Rodape altura={SLIDE.rodape.altura} fonte={SLIDE.rodape.fonte} />
     </div>
   );
 }
 
-/** Slide 2: o mapa de referência só com os números no canto superior esquerdo e, depois dele, os textos normais de cada região (situação, mínima e máxima, umidade, vento, Sol e comentário), com os mesmos números do slide 1. */
+/** Slide 2: o mapa de referência só com os números no canto superior esquerdo e, depois dele, o cartão de cada região (o cartão clássico: ícone, mínima/máxima, Sol, umidade, vento e comentário), com os mesmos números do slide 1. */
 function SlideDetalhes({ geo, previsoes, data }: PropsArte) {
   const itens = ordenar(previsoes);
-  const comentarioPx = ajustarComentarioPx(maiorComentario(previsoes), 484, 118, 26);
+  const comentarioPx = ajustarComentarioPx(maiorComentario(previsoes), 484, 90, 26);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo="Previsão por região" data={data} altura={SLIDE.cab.altura} fonteTitulo={SLIDE.cab.fonteTitulo} logo={SLIDE.cab.logo} />
@@ -845,7 +887,7 @@ function SlideDetalhes({ geo, previsoes, data }: PropsArte) {
           <MapaRedec geo={geo} previsoes={previsoes} largura={SLIDE.indice.largura} altura={SLIDE.indice.altura} raioNumero={SLIDE.indice.raio} modo="numeros" className="h-full w-full" />
         </div>
         {itens.map(({ regiao, p }) => (
-          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} />
+          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" classico comentarioPx={comentarioPx} />
         ))}
       </div>
       <Rodape altura={SLIDE.rodape.altura} fonte={SLIDE.rodape.fonte} />

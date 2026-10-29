@@ -307,6 +307,10 @@ A pedido do usuário, depois de quatro propostas: o Post passou a ter mapa com b
 
 A pedido do usuário: balões perto das regiões em volta do mapa (busca local que minimiza o comprimento das linhas e os cruzamentos), tabela do Post por numeração, sem barra de umidade, com Sol por região; mapa de referência primeiro no slide 2 do carrossel. Só local; imagens enviadas. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: posições dos balões marcadas pelo usuário, Post com texto por região e slide 2 clássico (modelo local, não publicado)
+
+A pedido do usuário: balões nas posições que ele desenhou (fixas, em fração do mapa); Post com linha única do Sol e, por região, umidade, vento e o texto; observações excluídas no Post e no carrossel; slide 2 do carrossel com o cartão clássico. Só local; imagens enviadas. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

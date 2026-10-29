@@ -181,3 +181,14 @@ Regras das observações: o comentário mais repetido (se vale para metade das R
 - **Carrossel Story, slide 2**: o **mapa de referência com os números vem primeiro** (canto superior esquerdo) e os cartões das regiões 1 a 11 depois.
 Arquivo: `PrevisaoMapaCorpo.tsx` (`posicionarEntorno`, `TabelaRegioes`, `SlideDetalhes`). Sem migração.
 
+### Posições dos balões desenhadas pelo usuário e ajustes dos modelos A e D (29/10/2026, NÃO publicado)
+O usuário marcou sobre as imagens onde cada balão deve ficar (perto da região, em volta do mapa). Como o mapa tem sempre o mesmo contorno, as posições passaram a ser **fixas**, guardadas como fração do retângulo do Estado (`SLOTS_POST` e `SLOTS_STORY` em `PrevisaoMapaCorpo.tsx`; `MapaRedec` recebe `posicoes`). O posicionamento automático (`posicionarEntorno`) continua no código como alternativa quando `posicoes` não vem.
+
+| Peça | Mudança |
+|---|---|
+| Post (A) | balões nas posições marcadas: o da Sul I sobe para o lugar que era do da Baixada Fluminense; **Capital, Baixada Fluminense e Metropolitana** ficam embaixo do mapa, nessa ordem, da esquerda para a direita; os demais ficam onde estavam. Voltou a **linha única do Sol do Estado** (faixa de horários). A tabela virou **uma região por bloco de duas linhas**: número, região, umidade (mín~máx) e vento; e, na 2ª linha, o **texto da região**. A observação criada pelo assistente foi **excluída** |
+| Carrossel Story, slide 1 (D) | balões nas posições marcadas (5 no alto à esquerda, 6 à esquerda, 8 no alto no centro, 3 embaixo no centro, 2 à direita do 1, 9 à direita); **linha de observações excluída**; ficam o texto geral e o Sol do Estado |
+| Carrossel Story, slide 2 | o cartão voltou ao **layout clássico** (ícone no canto, mín/máx em destaque, Sol à direita, umidade e vento embaixo, comentário); o mapa de referência com números continua primeiro, no canto superior esquerdo |
+
+Como as posições são fixas, o mapa do Post encolhe conforme a tabela cresce (a imagem do mapa é escalada para a altura que sobra). Sem migração.
+
