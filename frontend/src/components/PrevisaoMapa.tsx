@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Images, Share2, Smartphone, Table2 } from "l
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, CorpoStory, FEED_H, FEED_W, FormatoCarrossel, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
+import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, CorpoStory, FEED_H, FEED_W, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
 import ShareModal from "@/components/ShareModal";
 import { fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
@@ -201,7 +201,6 @@ export default function PrevisaoMapa() {
   const [erro, setErro] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "story" | "carrossel" | null>(null);
-  const [formatoCarrossel, setFormatoCarrossel] = useState<FormatoCarrossel>("feed");
 
   useEffect(() => {
     let cancelado = false;
@@ -319,7 +318,7 @@ export default function PrevisaoMapa() {
             <Share2 size={15} />
             Post
           </button>
-          <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("carrossel")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Carrossel de 2 imagens: mapa grande + detalhes por região">
+          <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("carrossel")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Carrossel Story de 2 imagens: mapa com balões completos + textos de cada região">
             <Images size={15} />
             Carrossel
           </button>
@@ -357,31 +356,16 @@ export default function PrevisaoMapa() {
       )}
       {compartilhar === "carrossel" && geo && data && (
         <ExportModal
-          key={formatoCarrossel}
-          titulo={`Carrossel ${formatoCarrossel === "story" ? "Story 1080×1920" : "Post 1080×1350"}`}
-          w={formatoCarrossel === "story" ? STORY_W : FEED_W}
-          h={formatoCarrossel === "story" ? STORY_H : FEED_H}
-          nomeArquivo={`cemaden-rj-previsao-carrossel-${formatoCarrossel}-${data}`}
+          titulo="Carrossel Story 1080×1920"
+          w={STORY_W}
+          h={STORY_H}
+          nomeArquivo={`cemaden-rj-previsao-carrossel-story-${data}`}
           texto={texto}
           onClose={() => setCompartilhar(null)}
-          rotulosSlides={["1 · Mapa", "2 · Detalhes"]}
-          extra={
-            <div className="flex gap-1.5">
-              {(["feed", "story"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFormatoCarrossel(f)}
-                  className={`rounded px-2.5 py-1 text-xs font-medium ${formatoCarrossel === f ? "bg-gray-800 text-white" : "border border-gray-300 text-gray-700 hover:bg-gray-50"}`}
-                >
-                  {f === "feed" ? "Post 4:5" : "Story 9:16"}
-                </button>
-              ))}
-            </div>
-          }
+          rotulosSlides={["1 · Mapa", "2 · Textos"]}
           slides={[
-            carrosselMapa(formatoCarrossel, { geo, previsoes, titulo: "Previsão do tempo", data: dataExtenso(data), textoGeral }),
-            carrosselDetalhes(formatoCarrossel, { geo, previsoes, titulo: "Previsão do tempo", data: dataExtenso(data), textoGeral }),
+            carrosselMapa({ geo, previsoes, titulo: "Previsão do tempo", data: dataExtenso(data), textoGeral }),
+            carrosselDetalhes({ geo, previsoes, titulo: "Previsão do tempo", data: dataExtenso(data), textoGeral }),
           ]}
         />
       )}

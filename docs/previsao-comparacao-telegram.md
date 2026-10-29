@@ -162,3 +162,15 @@ Pedido: no estilo do mapa do INEA, os ícones ficam **no entorno do mapa**, com 
 
 Modos de `MapaRedec`: `numeros`, `icone` (sobre a região, afastando sobreposições) e `entorno` (`comTemp` para balão). O modo `balao` anterior foi substituído por `entorno`. Sem migração.
 
+### Post no modelo A e carrossel Story no modelo D — em teste local (29/10/2026, NÃO publicado)
+Motivo: o cartão por região repetia no rodapé dados que o mapa já mostra (mínima, máxima, ícone). Foram propostos quatro modelos (A: mapa com balões e tabela por grupos; B: listas por parâmetro; C: mapas pequenos por parâmetro; D: balão completo e rodapé enxuto). Referências consultadas: seta de vento do Windfinder, mapa limpo do Met Office (MapTiler), símbolos da meteoblue, "modelo de estação" meteorológico. O usuário escolheu **A para o Post** e **D para o carrossel Story** (slide 1 = D; slide 2 = textos normais com os mesmos números).
+
+| Peça | Como ficou | Arquivo |
+|---|---|---|
+| Post 1080×1350 (modelo A) | mapa com **balões** (ícone, máxima e mínima, número) em volta; faixa do **texto geral**; linha do **Sol do Estado** (faixa de horários, ex. 05:09–05:15); **tabela por 4 grupos** (Grande Rio, Sul do Estado, Região Serrana, Leste e Norte) com número, região, **umidade (texto e barra mínima–máxima)** e **vento**; **observações** só das regiões cujo comentário difere do mais repetido | `CorpoFeed`, `TabelaGrupos`, `LinhaSol`, `Observacoes` em `PrevisaoMapaCorpo.tsx` |
+| Carrossel Story, slide 1 (modelo D) | balões **completos** em volta do mapa: ícone, máxima, mínima, umidade e vento (ex. "Fraco/Mod. NW-SW") e o número; embaixo só texto geral, Sol do Estado e observações | `SlideMapa`, `MapaRedec` (`balao.info`), `ventoCurto` |
+| Carrossel Story, slide 2 | os **textos normais** de cada região (situação, mínima/máxima, umidade, vento, Sol e comentário **sempre mostrado**), com os **mesmos números** do slide 1, e um mapa de referência só com números na 12ª célula | `SlideDetalhes` |
+| Posicionamento dos balões | mesma busca de espaço livre em volta do Estado, agora com **troca de posições entre pares** enquanto o comprimento total das linhas diminuir (desfaz cruzamentos) | `posicionarEntorno` |
+
+Regras das observações: o comentário mais repetido (se vale para metade das REDECs ou mais) é tratado como o do texto geral e não se repete; só os diferentes aparecem, com número e nome. Sem texto geral escrito, o comentário comum aparece como observação geral. Os nomes dos grupos são sugestão e podem ser trocados. O botão **Story** (imagem única) continua no layout anterior; o carrossel passou a existir só em Story (o toggle Post/Story foi retirado). Sem migração.
+

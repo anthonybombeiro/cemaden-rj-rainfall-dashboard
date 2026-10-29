@@ -299,6 +299,10 @@ A pedido do usuário (cor do mapa passava previsão errada em dia de sol com pan
 
 A pedido do usuário: nos dois modelos (imagem única e carrossel) os ícones, e no carrossel também as temperaturas, ficam no entorno do mapa com uma linha curta até a região. Posicionamento automático e determinístico pelo espaço livre em volta do Estado. Só local; imagens enviadas para aprovação antes de publicar. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: Post no modelo A e carrossel Story no modelo D (modelo local, não publicado)
+
+A pedido do usuário, depois de quatro propostas: o Post passou a ter mapa com balões em volta, texto geral, Sol do Estado, tabela por grupos de regiões (umidade e vento) e observações só do que difere; o carrossel Story tem no slide 1 balões completos (com umidade e vento) e no slide 2 os textos normais com os mesmos números. Só local; imagens enviadas para aprovação antes de publicar. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
