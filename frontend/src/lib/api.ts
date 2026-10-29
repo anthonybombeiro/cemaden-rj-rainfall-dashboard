@@ -899,6 +899,17 @@ export async function fetchPrevisoes(data: string): Promise<Previsao[]> {
   return r;
 }
 
+/** Previsão do dia para a página pública (`GET /publico/previsao/`, sem login): sem `data`, o dia mais recente com previsão. */
+export type PrevisaoPublica = { data: string; texto_geral: string; previsoes: Previsao[] };
+
+export async function fetchPrevisaoPublica(data?: string): Promise<PrevisaoPublica> {
+  const res = await fetch(`${API_BASE_URL}/publico/previsao/${data ? `?data=${encodeURIComponent(data)}` : ""}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const r = (await res.json()) as { data: string; texto_geral: string; previsoes: Partial<Previsao>[] };
+  // o servidor público não manda autoria nem datas de edição: preenche o resto para o mesmo tipo das telas internas
+  return { ...r, previsoes: r.previsoes.map((p) => ({ id: 0, origem: "", criado_por: "", atualizado_por: "", atualizado_em: "", ...p }) as Previsao) };
+}
+
 /** Nascer e pôr do sol (HH:MM) por REDEC no dia, da tabela de referência 2026-2035
  * (`GET /previsoes/sol/`). Fora do período da tabela devolve {}. */
 export type SolDoDia = { data: string; regioes: Record<string, { nascer: string; por: string }> };

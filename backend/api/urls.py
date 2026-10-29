@@ -25,6 +25,7 @@ from .monitoramento_views import (
 from .dsat_imagery_views import DsatSateliteImageryView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetRadarMosaicoView, RedemetSateliteImageryView
 from .floodhub_views import FloodHubEventosView, FloodHubValidacaoView, FloodHubView
+from .previsao_publica_views import PublicoPrevisaoView
 from .resumo_views import Resumo24hView
 from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
@@ -94,6 +95,7 @@ urlpatterns = [
     path("monitoramento/registros/", RegistrosNivelView.as_view(), name="monitoramento-registros"),
     path("monitoramento/sugestoes/", SugestoesNivelView.as_view(), name="monitoramento-sugestoes"),
     path("publico/monitoramento/", PublicoMonitoramentoView.as_view(), name="publico-monitoramento"),
+    path("publico/previsao/", PublicoPrevisaoView.as_view(), name="publico-previsao"),
     path("imagery/radar-mosaico/", RedemetRadarMosaicoView.as_view(), name="imagery-radar-mosaico"),
     path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),
 ] + router.urls

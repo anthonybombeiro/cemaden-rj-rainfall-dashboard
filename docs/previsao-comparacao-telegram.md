@@ -225,3 +225,9 @@ O story do carrossel, publicado no Instagram, tem o título e a data do cabeçal
 ### Mapa da aba no celular igual ao do carrossel (29/10/2026)
 O modo de ícones em volta do mapa só para celular foi retirado: em **qualquer tela** a aba Mapa → Previsão usa o mesmo mapa do carrossel (balões completos, posições `SLOTS_TELA`), clicável. No celular ele ocupa a largura toda, como a imagem do story, e o texto dos balões continua legível. A altura limitada à da janela vale só quando o mapa fica ao lado dos cartões (≥ 1024 px).
 
+### Previsão na página pública (29/10/2026)
+O mapa de **Mapa → Previsão** passou a fazer parte da **página pública** (`/publico`, sem login), numa seção "Previsão do tempo por regional (REDEC)" entre a lista de municípios em NM 2 ou acima e a visão geral dos mapas de risco.
+- **Backend:** `GET /api/publico/previsao/?data=AAAA-MM-DD` (`api/previsao_publica_views.py`, rota em `api/urls.py`), sem login e só leitura. Sem `data`, devolve o dia mais recente com previsão; com `data`, aceita de 31 dias atrás a 7 dias à frente (fora disso 400). Devolve `data`, `texto_geral`, `previsoes` e `gerado_em`, **só com os campos de interesse público** (temperaturas, umidade, vento, Sol, comentário, ícone): não expõe quem cadastrou, datas de edição, origem nem id. Cabeçalho `Cache-Control: public, max-age=60`. Testes em `api/test_publico_previsao.py` (5 casos); suíte `api` com 32 testes passando.
+- **Frontend:** `PrevisaoMapa` ganhou os parâmetros `publico` (busca no endpoint público, sem botões de Post, Carrossel e Tabela, data limitada a 31 dias atrás e 7 à frente) e `embutido` (sem rolagem própria; cartões em 1 coluna ao lado do mapa a partir de 1024 px). É o mesmo mapa com balões clicáveis das telas internas, no celular na largura toda. `fetchPrevisaoPublica` em `lib/api.ts`.
+- Sem migração. A página pública continua sem nenhum dado de usuário.
+

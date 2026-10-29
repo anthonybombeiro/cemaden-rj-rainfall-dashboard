@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import MapaNiveis from "@/components/monitoramento/MapaNiveis";
+import PrevisaoMapa from "@/components/PrevisaoMapa";
 import RiskChoroplethMap from "@/components/RiskChoroplethMap";
 import { normalizeMunicipioName, RISK_ALERT_TIPO_LABELS, RISK_LEVEL_COLORS, RISK_LEVEL_LABELS, RiskAlert, RiskAlertTipo, RiskLevel } from "@/lib/api";
 import { corTextoSobre, ESCALA_NM, fetchPublico, fmtDataHora, NIVEIS_NM, PublicoResposta, SIGNIFICADO_NM } from "@/lib/nivelMonitoramento";
@@ -99,6 +100,14 @@ export default function PublicoMonitoramento() {
               )}
             </section>
 
+            <section aria-labelledby="previsao">
+              <h2 id="previsao" className="mb-2 text-sm font-bold text-gray-800">Previsão do tempo por regional (REDEC)</h2>
+              <div className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm sm:p-3">
+                <PrevisaoMapa publico embutido />
+              </div>
+              <p className="mt-1 text-[11px] text-gray-500">Toque numa região, ou no balão dela, para destacar os detalhes. Previsão elaborada pelos meteorologistas do CEMADEN-RJ.</p>
+            </section>
+
             <section aria-labelledby="riscos">
               <h2 id="riscos" className="mb-2 text-sm font-bold text-gray-800">Visão geral dos mapas de risco</h2>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -123,7 +132,7 @@ export default function PublicoMonitoramento() {
       </main>
 
       <footer className="mx-auto max-w-6xl px-4 pb-8 pt-2 text-[11px] leading-snug text-gray-500">
-        Fonte: CEMADEN-RJ / SEDEC-RJ. O Nível de Monitoramento segue a Portaria MIDR nº 2.458/2026 e o PLANCON 2026/2027 e é definido por município (vale o mais alto entre meteorologia, hidrologia e geologia). Esta página não substitui os alertas oficiais enviados à população (SMS, Defesa Civil Alerta e demais canais) nem a orientação da Defesa Civil do seu município. Emergência: 199 (Defesa Civil) ou 193 (Bombeiros).
+        Fonte: CEMADEN-RJ / SEDEC-RJ. A previsão do tempo é atualizada a cada dia pelos meteorologistas do CEMADEN-RJ. O Nível de Monitoramento segue a Portaria MIDR nº 2.458/2026 e o PLANCON 2026/2027 e é definido por município (vale o mais alto entre meteorologia, hidrologia e geologia). Esta página não substitui os alertas oficiais enviados à população (SMS, Defesa Civil Alerta e demais canais) nem a orientação da Defesa Civil do seu município. Emergência: 199 (Defesa Civil) ou 193 (Bombeiros).
       </footer>
     </div>
   );

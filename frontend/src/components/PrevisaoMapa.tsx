@@ -7,7 +7,7 @@ import { createPortal } from "react-dom";
 
 import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, AJUSTES_STORY, FEED_H, FEED_W, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, SLOTS_TELA, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
 import ShareModal from "@/components/ShareModal";
-import { fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
+import { fetchDataUltimaPrevisao, fetchPrevisaoPublica, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
 import { EMOJI_POR_ICONE, iconeSrc } from "@/lib/meteorologia";
 import { copiarImagemParaAreaDeTransferencia, copiarParaAreaDeTransferencia, ehDispositivoMovel, ShareData } from "@/lib/shareExport";
@@ -213,7 +213,7 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children, slid
 
 /** Mapa → "Previsão": previsão do CEMADEN-RJ do dia no mapa das REDECs (sem mapa-base), com cartões completos (situação, mín/máx,
  * umidade, vento e comentário) e exportação em post quadrado, story vertical 1080×1920 e tabela. */
-export default function PrevisaoMapa() {
+export default function PrevisaoMapa({ publico = false, embutido = false }: { publico?: boolean; embutido?: boolean }) {
   const [geo, setGeo] = useState<GeoJsonFeatureCollection | null>(null);
   const [data, setData] = useState<string | null>(null);
   const [previsoes, setPrevisoes] = useState<Previsao[]>([]);
@@ -235,13 +235,14 @@ export default function PrevisaoMapa() {
       .then((r) => r.json())
       .then((g: GeoJsonFeatureCollection) => !cancelado && setGeo(g))
       .catch(() => !cancelado && setErro("Não foi possível carregar o mapa das REDECs."));
-    fetchDataUltimaPrevisao()
+    // na página pública (sem login) o servidor devolve o dia mais recente; internamente vem de /previsoes/ultima/
+    (publico ? fetchPrevisaoPublica().then((r) => r.data) : fetchDataUltimaPrevisao())
       .then((d) => !cancelado && setData(d ?? hojeIso()))
       .catch(() => !cancelado && setData(hojeIso()));
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [publico]);
 
   useEffect(() => {
     if (!data) return;
@@ -251,22 +252,34 @@ export default function PrevisaoMapa() {
       setCarregando(true);
       setSelecionada(null);
     });
-    // Texto geral do estado: se falhar, a previsão aparece mesmo assim (só sem o cartão de texto).
-    fetchTextoGeralPrevisao(data)
-      .then((t) => !cancelado && setTextoGeral(t.texto_geral ?? ""))
-      .catch(() => !cancelado && setTextoGeral(""));
-    fetchPrevisoes(data)
-      .then((p) => {
-        if (cancelado) return;
-        setPrevisoes(p);
-        setErro(null);
-      })
-      .catch(() => !cancelado && setErro("Não foi possível carregar a previsão."))
-      .finally(() => !cancelado && setCarregando(false));
+    if (publico) {
+      fetchPrevisaoPublica(data)
+        .then((r) => {
+          if (cancelado) return;
+          setPrevisoes(r.previsoes);
+          setTextoGeral(r.texto_geral ?? "");
+          setErro(null);
+        })
+        .catch(() => !cancelado && setErro("Não foi possível carregar a previsão deste dia."))
+        .finally(() => !cancelado && setCarregando(false));
+    } else {
+      // Texto geral do estado: se falhar, a previsão aparece mesmo assim (só sem o cartão de texto).
+      fetchTextoGeralPrevisao(data)
+        .then((t) => !cancelado && setTextoGeral(t.texto_geral ?? ""))
+        .catch(() => !cancelado && setTextoGeral(""));
+      fetchPrevisoes(data)
+        .then((p) => {
+          if (cancelado) return;
+          setPrevisoes(p);
+          setErro(null);
+        })
+        .catch(() => !cancelado && setErro("Não foi possível carregar a previsão."))
+        .finally(() => !cancelado && setCarregando(false));
+    }
     return () => {
       cancelado = true;
     };
-  }, [data]);
+  }, [data, publico]);
 
   const ordenadas = useMemo(() => ORDEM_REDEC.map((r) => ({ regiao: r, p: previsoes.find((x) => x.regiao === r) })), [previsoes]);
   const hm = (t?: string) => (t ? t.slice(0, 5) : "—");
@@ -326,17 +339,17 @@ export default function PrevisaoMapa() {
 
   const btn = "flex items-center gap-1 rounded px-2.5 py-1.5 text-sm font-medium disabled:opacity-40";
   return (
-    <div className="flex h-full w-full flex-col overflow-auto bg-white p-2 sm:p-3">
+    <div className={embutido ? "flex w-full flex-col bg-white" : "flex h-full w-full flex-col overflow-auto bg-white p-2 sm:p-3"}>
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm">
         <button type="button" aria-label="Dia anterior" onClick={() => data && setData(somaDias(data, -1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200">
           <ChevronLeft size={16} />
         </button>
-        <input type="date" value={data ?? ""} onChange={(e) => e.target.value && setData(e.target.value)} className="rounded border border-gray-300 bg-white px-2 py-1" />
+        <input type="date" value={data ?? ""} min={publico ? somaDias(hojeIso(), -31) : undefined} max={publico ? somaDias(hojeIso(), 7) : undefined} onChange={(e) => e.target.value && setData(e.target.value)} className="rounded border border-gray-300 bg-white px-2 py-1" />
         <button type="button" aria-label="Próximo dia" onClick={() => data && setData(somaDias(data, 1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200">
           <ChevronRight size={16} />
         </button>
         {data && <span className="font-semibold text-gray-800">{dataExtenso(data)}</span>}
-        <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto">
+        <div className={`${publico ? "hidden" : "flex"} w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto`}>
           <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("feed")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Post de feed 1080×1350">
             <Share2 size={15} />
             Post
@@ -358,12 +371,12 @@ export default function PrevisaoMapa() {
       ) : !previsoes.length ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">Ainda não há previsão cadastrada para {data ? dataExtenso(data) : "este dia"}. Use as setas para ver outro dia.</div>
       ) : (
-        <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] 2xl:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]">
+        <div className={`grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] ${embutido ? "" : "2xl:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]"}`}>
           <div className="lg:sticky lg:top-0 lg:self-start">
             {/* o mesmo mapa do carrossel (balões completos) em qualquer tela: no celular ele ocupa a largura toda, como a imagem do story */}
             <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1125} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_TELA} ajustes={AJUSTES_STORY} selecionada={selecionada} onSelecionar={selecionar} className="mx-auto w-full rounded-lg bg-sky-50" style={lado ? { maxHeight: "calc(100vh - 19rem)" } : undefined} />
           </div>
-          <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+          <div className={`grid grid-cols-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-1 ${embutido ? "" : "2xl:grid-cols-2"}`}>
             <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="tela" />
             {ordenadas.map(({ regiao, p }) => (
               <CartaoRedec key={regiao} id={`cartao-${regiao}`} regiao={regiao} p={p} variante="tela" classico ativo={selecionada === regiao} onClick={() => selecionar(regiao)} />

@@ -331,6 +331,10 @@ O story do carrossel tinha o cabeçalho coberto pelo perfil do Instagram. A pedi
 
 A pedido do usuário, o celular passou a mostrar na aba Mapa → Previsão o mesmo mapa com balões completos do carrossel, na largura toda (antes mostrava só ícones em volta). Só frontend, sem migração.
 
+## 29/10/2026 — Previsão na página pública (publicado)
+
+A pedido do usuário, o mapa de Mapa → Previsão (balões clicáveis e cartões ao lado) entrou na página pública `/publico`. Novo endpoint público somente leitura `GET /api/publico/previsao/` (sem autoria nem datas de edição; testes passando), enviado por SFTP (`api/previsao_publica_views.py` e `api/urls.py`; sem migração), e frontend publicado. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
