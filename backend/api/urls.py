@@ -6,6 +6,7 @@ from .admin_views import (
     AnaDiagnosticoSuperuserView,
     EnvCheckView,
     FixSirenesChuvaSobrepostaSuperuserView,
+    ImportarInformativosSuperuserView,
     ImportarRecomendacoesSuperuserView,
     MigrateSuperuserView,
     PopulateSireneRefSuperuserView,
@@ -31,6 +32,7 @@ from .informativo_views import (InformativoAcaoView, InformativoAcompanhamentoVi
 from .resumo_views import Resumo24hView
 from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
+from .publico_sirenes_views import PublicoSirenesView
 from .refresh_views import RefreshNowView, RefreshRedemetView, RefreshSirenesView, SirenesStatusView
 from .views import (
     AlertEventViewSet,
@@ -60,6 +62,7 @@ urlpatterns = [
     path("admin/migrate/", MigrateSuperuserView.as_view(), name="admin-migrate"),
     path("admin/ana/", AnaDiagnosticoSuperuserView.as_view(), name="admin-ana"),
     path("admin/importar-recomendacoes/", ImportarRecomendacoesSuperuserView.as_view(), name="admin-importar-recomendacoes"),
+    path("admin/importar-informativos/", ImportarInformativosSuperuserView.as_view(), name="admin-importar-informativos"),
     path("admin/populate-sirene-ref/", PopulateSireneRefSuperuserView.as_view(), name="admin-populate-sirene-ref"),
     path("admin/set-risco-sirene/", SetRiscoSireneSuperuserView.as_view(), name="admin-set-risco-sirene"),
     path(
@@ -107,6 +110,7 @@ urlpatterns = [
     path("informativos/<int:pk>/", InformativoDetalheView.as_view(), name="informativos-detalhe"),
     path("informativos/<int:pk>/<str:acao>/", InformativoAcaoView.as_view(), name="informativos-acao"),
     path("publico/informativo/", PublicoInformativoView.as_view(), name="publico-informativo"),
+    path("publico/sirenes/", PublicoSirenesView.as_view(), name="publico-sirenes"),
     path("imagery/radar-mosaico/", RedemetRadarMosaicoView.as_view(), name="imagery-radar-mosaico"),
     path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),
 ] + router.urls

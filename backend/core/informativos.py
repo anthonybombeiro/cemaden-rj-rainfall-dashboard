@@ -235,10 +235,10 @@ def frase_livro_ocorrencias(numero: int, ano: int, enviado_em: dt.datetime, iten
     return base
 
 
-def lacunas(numeros: Iterable[int]) -> list[int]:
-    """Números que faltam na sequência (do 1º ao maior)."""
+def lacunas(numeros: Iterable[int], desde: int = 1) -> list[int]:
+    """Números que faltam na sequência (de `desde` ao maior). Em 2024 a equipe continuou a contagem de 2023 (178 a 316): para o histórico use `desde=min(numeros)`."""
     ns = sorted(set(numeros))
-    return [n for n in range(1, ns[-1] + 1) if n not in set(ns)] if ns else []
+    return [n for n in range(desde, ns[-1] + 1) if n not in set(ns)] if ns else []
 
 
 # ---------------------------------------------------------------- normalização do histórico (planilha 2020-2026)

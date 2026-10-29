@@ -35,6 +35,13 @@ Lê a planilha de controle (abas 2020–2026: nº, ano, data, hora, REDEC, chuva
 Resultado da simulação sobre a planilha real (banco descartável): **1.813 informativos, 14.809 linhas por REDEC, 3.093 com SMS**; 85 linhas para revisão (datas em texto ambíguas de 2022/2023, REDEC truncada). Lacunas de numeração por ano: 2020: 4, 2021: 27, 2022: 24, 2023: 11, 2024: 180 (a planilha de 2024 começa no nº 178 — provável continuação de 2023; conferir antes de usar a numeração), 2025: 9, 2026: 41.
 **A importação em produção depende de autorização explícita** (e de `openpyxl` instalado só na máquina que roda o comando).
 
+## Importação em produção (29/10/2026 — FEITA)
+* Resultado: **1.818 informativos** gravados (2020: 460, 2021: 401, 2022: 327, 2023: 166, 2024: 136, 2025: 176, 2026: 152), todos `importado=True`, estado enviado, só previsão e SMS por REDEC (a planilha não tem o texto). Próximo número de 2026: 194.
+* Como: `manage.py importar_informativos planilha.xlsx --json core/data/informativos_planilha.json` (local, com openpyxl) gera o arquivo; o servidor lê esse JSON em `POST /api/admin/importar-informativos/` (superusuário; `{"dry_run": true}` só conta; repetível). A lógica está em `core/importacao_informativos.py`.
+* Datas em texto ambíguas: só são aceitas quando a numeração prova qual é (o informativo anterior e o seguinte do mesmo ano delimitam a data). Foram resolvidas 4; a lista está no relatório. `125*` (asterisco de reenvio) agora vira o nº 125.
+* **Ficaram de fora 8 informativos** (2022: nº 14 e 59 a 63; 2023: nº 39 e 99 — só têm data em texto ambígua que a numeração não resolve) e 46 linhas para revisão: `docs/informativos-importacao-revisao.csv`. Corrigir a data na planilha e rodar de novo (repetível) importa só o que falta.
+* **Numeração de 2024:** a equipe não reiniciou a contagem em 01/01/2024; o ano vai de 178 a 316 (contínuo, sem buracos), continuando 2023 (que termina no 176; o 177 não consta na planilha). Os números foram mantidos como foram emitidos. O "180 lacunas" que a simulação mostrava era só o trecho 1–177 inexistente; `lacunas(numeros, desde=...)` evita esse falso alarme no relatório.
+
 ## Testes
 `api/test_informativos.py` (13: login, numeração e ano, dois usuários, texto/ajuste manual, matriz, fluxo e cancelamento sem apagar, SMS, duplicar, prévia, acompanhamento/lacunas/radar, vigência 6 h, público, histórico/CSV/estatísticas), `api/test_informativos_texto.py` (19), `api/test_importar_informativos.py` (4). Suíte `api core`: 83 OK.
 

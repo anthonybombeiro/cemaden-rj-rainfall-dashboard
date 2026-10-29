@@ -347,6 +347,13 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 * Lição de ferramenta: heredoc Python na Bash converte `\n` em quebra real (quebrou duas f-strings); usar `chr(92)` ou arquivo gravado com Write. `openpyxl` instalado no venv local só para a importação.
 * Modo TV: desenho apresentado ao usuário para aprovação (não implementado).
 
+## 29/10/2026 (tarde) — Modo TV público e importação do histórico de informativos
+* **Modo TV**: página pública `https://cemadenrj.preserve.rio.br/tv/` (sem login, `noindex`). Alterna sozinha entre Nível de Monitoramento, Previsão por regional, Mapas de risco, Informativo vigente (só aparece quando existe um vigente e público) e Sirenes; conteúdo mais alto que a tela rola devagar durante a exibição. Parâmetros no endereço: `?seg=15` (segundos por tela, 4 a 120, padrão 12) e `?telas=nm,previsao,riscos,informativo,sirenes` (escolhe e ordena). Teclado: espaço pausa, setas trocam, F tela cheia. Atualiza os dados a cada 30–60 s, recarrega a página a cada 30 min (pega versão nova) e pede ao navegador para não apagar a tela. Código: `frontend/src/components/ModoTv.tsx`, `frontend/src/app/tv/page.tsx`.
+* **Sirenes públicas** (autorizado pelo usuário): `GET /api/publico/sirenes/` (sem login): totais online/offline e as sirenes tocando (nome, município, bairro, ação, desde quando). Sem endereço, coordenadas ou telefones. `api/publico_sirenes_views.py` + 2 testes.
+* **Servidor**: o Apache só serve `/tv/` com uma regra no `.htaccess` da raiz (`RewriteRule ^tv/?$ /tv.html [L]`, ao lado da do `/publico`); sem ela dá 403. A regra foi acrescentada por SFTP (cópia em `.htaccess.bak-tv`). **Lembrete:** o `.htaccess` não está no repositório; toda página nova do Next exportado precisa de uma regra assim.
+* **Importação do histórico de informativos em produção**: feita com autorização explícita do usuário (1.818 informativos). Detalhes na seção própria de `informativo-meteorologico.md`; relatório de revisão em `informativos-importacao-revisao.csv`.
+* Ordem seguida (sem migração nova): código do backend por SFTP → conferir `200` → frontend → regra do `.htaccess`. O Chrome travou nas duas abas (timeout de 45 s); navegar para outra página do site destravou.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

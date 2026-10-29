@@ -686,6 +686,19 @@ class ImportarRecomendacoesSuperuserView(APIView):
         return Response({"ok": True, **importar(dry_run=bool(request.data.get("dry_run")))})
 
 
+class ImportarInformativosSuperuserView(APIView):
+    """POST /api/admin/importar-informativos/ — importa o histórico de informativos (planilha 2020-2026, já convertida em
+    `core/data/informativos_planilha.json`). Superusuário logado, sessão + CSRF. Corpo opcional `{"dry_run": true}` só conta.
+    Repetível: (ano, número) que já existe não é tocado."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        from core.importacao_informativos import importar_do_arquivo
+
+        return Response({"ok": True, **importar_do_arquivo(dry_run=bool(request.data.get("dry_run")))})
+
+
 class AnaDiagnosticoSuperuserView(APIView):
     """POST /api/admin/ana/ — diagnóstico da API HidroWebService da ANA (superusuário logado, sessão + CSRF).
     Corpo: {"acao": "inventario"} lista as estações do RJ que entrariam (e as descartadas, por motivo);
