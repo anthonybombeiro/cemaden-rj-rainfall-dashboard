@@ -323,6 +323,10 @@ Publicados o Post (modelo A), o carrossel Story (modelo D), a data por extenso e
 
 A pedido do usuário, depois do uso em produção: fim do corte no mapa interativo, balões de baixo lado a lado, layout por tamanho de tela (celular no estilo do story, tablet e PC com cartões 2 a 2), botão Story retirado (o carrossel o substitui) e botões Compartilhar e Copiar texto visíveis no carrossel do celular. Só frontend, sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: dia e data no canto do mapa do carrossel (modelo local, não publicado)
+
+O story do carrossel tinha o cabeçalho coberto pelo perfil do Instagram. A pedido do usuário, cabeçalho e rodapé ficaram como estão (a imagem também serve ao Telegram e ao WhatsApp) e o dia da semana e a data foram acrescentados em duas linhas no canto superior esquerdo do mapa (slide 1) e do mapinha (slide 2). Imagens enviadas para aprovação. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

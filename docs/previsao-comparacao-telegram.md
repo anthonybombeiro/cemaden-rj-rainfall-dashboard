@@ -219,3 +219,6 @@ Problemas encontrados pelo usuário e correção:
 - **Botões do carrossel (Compartilhar e Copiar texto):** a barra de abas do carrossel não entrava no cálculo da altura do pop-up, e no celular os botões de baixo ficavam cortados. A barra entrou na conta; agora a prévia diminui e os botões (Baixar este slide, Baixar os 2 slides, Copiar imagem, Compartilhar no celular, Copiar texto) aparecem inteiros.
 Arquivos: `PrevisaoMapa.tsx` (`useMediaQuery`, `ExportModal`), `PrevisaoMapaCorpo.tsx` (`SLOTS_TELA`). Sem migração.
 
+### Dia e data no canto do mapa do carrossel (29/10/2026; NÃO publicado)
+O story do carrossel, publicado no Instagram, tem o título e a data do cabeçalho cobertos pelo perfil (≈ 150 px do topo) e o rodapé cobrido pelo campo "Diga algo" (≈ 110 px da base). Foram propostas faixas de segurança; o usuário preferiu **manter cabeçalho e rodapé como estão** (para usar a mesma imagem no Telegram e no WhatsApp) e **só acrescentar o dia da semana e a data em duas linhas** no canto superior esquerdo do mapa: slide 1 ("Quarta-feira" em 56 px e "28/10/2026" em 48 px) e slide 2, dentro do mapinha numerado (30 px e 26 px). Assim a informação continua legível mesmo quando o Instagram cobre o cabeçalho. Arquivo: `PrevisaoMapaCorpo.tsx` (`DiaEData`, `diaEData`). Sem migração.
+

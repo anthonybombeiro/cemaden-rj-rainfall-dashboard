@@ -864,6 +864,26 @@ export function CorpoFeed({ geo, previsoes, titulo, data, textoGeral }: PropsArt
 }
 
 // ---------------------------------------------------------------- carrossel Story (modelo D): slide 1 mapa com balão completo; slide 2 os cartões de cada região
+/** "Quinta-feira, 29/10/2026" → ["Quinta-feira", "29/10/2026"]. */
+const diaEData = (longa: string): [string, string] => {
+  const i = longa.indexOf(", ");
+  return i < 0 ? [longa, ""] : [longa.slice(0, i), longa.slice(i + 2)];
+};
+
+/** Dia da semana e data em duas linhas, no canto superior esquerdo do mapa (o cabeçalho continua como está). */
+function DiaEData({ dia, data, fonteDia, fonteData, className }: { dia: string; data: string; fonteDia: number; fonteData: number; className: string }) {
+  return (
+    <div className={`pointer-events-none absolute z-10 leading-tight text-[#0f4c81] ${className}`}>
+      <div className="font-extrabold" style={{ fontSize: fonteDia }}>
+        {dia}
+      </div>
+      <div className="font-bold" style={{ fontSize: fonteData }}>
+        {data}
+      </div>
+    </div>
+  );
+}
+
 type ConfigSlide = {
   cab: { altura: number; fonteTitulo: number; logo: number };
   rodape: { altura: number; fonte: number };
@@ -878,10 +898,12 @@ const SLIDE: ConfigSlide = {
 /** Slide 1: balões completos em volta do mapa (ícone, máxima, mínima, umidade e vento, com o número da região), cada um perto da sua região; embaixo o texto geral e o Sol do Estado. */
 function SlideMapa({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
   const t = (textoGeral ?? "").trim();
+  const [dia, dataCurta] = diaEData(data);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo={titulo} data={data} altura={SLIDE.cab.altura} fonteTitulo={SLIDE.cab.fonteTitulo} logo={SLIDE.cab.logo} />
-      <div className="min-h-0 flex-1 bg-sky-50">
+      <div className="relative min-h-0 flex-1 bg-sky-50">
+        <DiaEData dia={dia} data={dataCurta} fonteDia={56} fonteData={48} className="left-9 top-8" />
         <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1290} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_STORY} ajustes={AJUSTES_STORY} className="h-full w-full" />
       </div>
       {t && (
@@ -900,12 +922,14 @@ function SlideMapa({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
 /** Slide 2: o mapa de referência só com os números no canto superior esquerdo e, depois dele, o cartão de cada região (o cartão clássico: ícone, mínima/máxima, Sol, umidade, vento e comentário), com os mesmos números do slide 1. */
 function SlideDetalhes({ geo, previsoes, data }: PropsArte) {
   const itens = ordenar(previsoes);
+  const [dia, dataCurta] = diaEData(data);
   const comentarioPx = ajustarComentarioPx(maiorComentario(previsoes), 484, 90, 26);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo="Previsão por região" data={data} altura={SLIDE.cab.altura} fonteTitulo={SLIDE.cab.fonteTitulo} logo={SLIDE.cab.logo} />
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 px-4 pb-2.5 pt-2.5" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
-        <div className="min-h-0 overflow-hidden rounded-lg border border-slate-300 bg-sky-50">
+        <div className="relative min-h-0 overflow-hidden rounded-lg border border-slate-300 bg-sky-50">
+          <DiaEData dia={dia} data={dataCurta} fonteDia={30} fonteData={26} className="left-3 top-2" />
           <MapaRedec geo={geo} previsoes={previsoes} largura={SLIDE.indice.largura} altura={SLIDE.indice.altura} raioNumero={SLIDE.indice.raio} modo="numeros" className="h-full w-full" />
         </div>
         {itens.map(({ regiao, p }) => (
