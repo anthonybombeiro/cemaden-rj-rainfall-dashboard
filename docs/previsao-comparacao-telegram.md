@@ -198,3 +198,15 @@ Como as posições são fixas, o mapa do Post encolhe conforme a tabela cresce (
 - **Carrossel, slide 1**: a linha da Sul I termina um pouco à direita do centro da região (`AJUSTES_STORY`), para não encostar na da Sul II; o balão da Baixada Fluminense foi para a direita (fração 0,662 × 1,226 do mapa), de modo que a linha dela não passe mais sob o balão da Capital.
 - **Numeração oficial das REDECs, global**: 1 Capital, **2 Baixada Fluminense, 3 Metropolitana**, 4 Costa Verde, 5 Sul I, 6 Sul II, 7 Serrana I, 8 Serrana II, 9 Baixada Litorânea, 10 Norte, 11 Noroeste (a mesma dos Contatos). A lista `REDECS` em `frontend/src/lib/api.ts` passou da ordem alfabética para a ordem oficial e é a única fonte: as artes (`ORDEM_REDEC`), os números do mapa e dos cartões, as tabelas e as listas do sistema que usam `REDECS` (cartões da aba Previsão CEMADEN-RJ, cadastro da previsão, filtro por REDEC) seguem essa ordem. As posições dos balões agora são guardadas **por nome da região**, não pela posição na lista. A ordem das frases do texto geral (`ORDEM_TEXTO`, como nos informativos) não mudou. O backend continua com a lista em ordem alfabética (só usada como escolhas do campo).
 
+### Publicação das artes (29/10/2026) e mapa da aba Mapa → Previsão no modelo do carrossel
+**Publicado em produção (só frontend, sem migração):** Post no modelo A, carrossel Story no modelo D (balões nas posições desenhadas pelo usuário), data por extenso nas artes, numeração oficial das REDECs (`REDECS` como fonte única), mapa neutro com ícones e balões em volta.
+
+**Mapa da aba Mapa → Previsão (telas ≥ 1024 px):** usa o mesmo mapa do slide 1 do carrossel (neutro, balões completos nas posições `SLOTS_STORY`, com o ajuste `AJUSTES_STORY`), em duas colunas 7/5 com os cartões ao lado.
+- **Clicáveis:** as regiões e também os balões. Clicar ilumina a região (azul-claro), contorna o balão e **destaca o cartão ao lado** (anel azul e fundo azul-claro) e o traz à vista; clicar de novo limpa.
+- **Cartão ao lado:** layout clássico (ícone no canto, mín/máx, Sol, umidade, vento e comentário), uma coluna.
+- Sem o mapinha só de números do slide 2 (os balões já levam o número).
+- O mapa é limitado à altura da janela (`calc(100vh - 15rem)`) e fica fixo à esquerda enquanto os cartões rolam (a grade perdia o `sticky` por encolher junto com a janela; agora `shrink-0`).
+- Telas estreitas (< 1024 px) mantêm os ícones sobre as regiões, porque os balões ficariam pequenos demais.
+
+**Aba Meteorologia → Previsão CEMADEN-RJ:** os cartões ganharam o **número oficial da REDEC** num círculo azul-escuro antes do nome e seguem a ordem oficial (1 a 11).
+

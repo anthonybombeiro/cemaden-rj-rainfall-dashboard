@@ -315,6 +315,10 @@ A pedido do usuário: balões nas posições que ele desenhou (fixas, em fraçã
 
 A pedido do usuário: data "Quarta-feira, 28/10/2026" em letra maior nas artes; Post com umidade centralizada e vento no fim da tabela; ajuste das linhas da Sul I/Sul II e da Baixada Fluminense no slide 1; e numeração oficial das REDECs em todo o sistema (2 Baixada Fluminense, 3 Metropolitana), com `REDECS` como fonte única. Só local; imagens enviadas. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: publicação das artes e mapa clicável da aba Mapa → Previsão
+
+Publicados o Post (modelo A), o carrossel Story (modelo D), a data por extenso e a numeração oficial das REDECs (verificado por leitura: lista de REDECs na nova ordem e data longa nos arquivos do site; sem "Observações"). Em seguida, a pedido do usuário: mapa da aba Mapa → Previsão no modelo do carrossel (balões completos, regiões e balões clicáveis que destacam o cartão ao lado) e número oficial nos cartões da aba Meteorologia → Previsão CEMADEN-RJ. Só frontend, sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

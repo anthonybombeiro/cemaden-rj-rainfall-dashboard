@@ -2,10 +2,10 @@
 
 import { toPng } from "html-to-image";
 import { ChevronLeft, ChevronRight, Images, Share2, Smartphone, Table2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
-import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, CorpoStory, FEED_H, FEED_W, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
+import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, CorpoStory, AJUSTES_STORY, FEED_H, FEED_W, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, SLOTS_STORY, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
 import ShareModal from "@/components/ShareModal";
 import { fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
@@ -207,6 +207,21 @@ export default function PrevisaoMapa() {
   const [erro, setErro] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "story" | "carrossel" | null>(null);
+  // telas largas: mapa com os balões completos do carrossel; telas estreitas: ícones sobre as regiões (os balões ficariam pequenos demais)
+  const largo = useSyncExternalStore(
+    (aviso) => {
+      const mq = window.matchMedia("(min-width: 1024px)");
+      mq.addEventListener("change", aviso);
+      return () => mq.removeEventListener("change", aviso);
+    },
+    () => window.matchMedia("(min-width: 1024px)").matches,
+    () => false,
+  );
+  // clicar numa região ou balão destaca o cartão ao lado (e o traz à vista); clicar de novo limpa
+  const selecionar = (r: string) => {
+    setSelecionada((a) => (a === r ? null : r));
+    window.setTimeout(() => document.getElementById(`cartao-${r}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 0);
+  };
 
   useEffect(() => {
     let cancelado = false;
@@ -341,14 +356,18 @@ export default function PrevisaoMapa() {
       ) : !previsoes.length ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">Ainda não há previsão cadastrada para {data ? dataExtenso(data) : "este dia"}. Use as setas para ver outro dia.</div>
       ) : (
-        <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
           <div className="lg:sticky lg:top-0 lg:self-start">
-            <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={460} modo="icone" tamIcone={46} selecionada={selecionada} onSelecionar={(r) => setSelecionada((a) => (a === r ? null : r))} className="w-full rounded-lg bg-sky-50" />
+            {largo ? (
+              <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1150} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_STORY} ajustes={AJUSTES_STORY} selecionada={selecionada} onSelecionar={selecionar} className="mx-auto w-full rounded-lg bg-sky-50" style={{ maxHeight: "calc(100vh - 15rem)" }} />
+            ) : (
+              <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={460} modo="icone" tamIcone={46} selecionada={selecionada} onSelecionar={selecionar} className="w-full rounded-lg bg-sky-50" />
+            )}
           </div>
-          <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-1">
             <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="tela" />
             {ordenadas.map(({ regiao, p }) => (
-              <CartaoRedec key={regiao} regiao={regiao} p={p} variante="tela" ativo={selecionada === regiao} onClick={() => setSelecionada((a) => (a === regiao ? null : regiao))} />
+              <CartaoRedec key={regiao} id={`cartao-${regiao}`} regiao={regiao} p={p} variante="tela" classico ativo={selecionada === regiao} onClick={() => selecionar(regiao)} />
             ))}
           </div>
         </div>

@@ -263,6 +263,7 @@ export function MapaRedec({
   posicoes,
   ajustes,
   className,
+  style,
 }: {
   geo: GeoJsonFeatureCollection;
   previsoes: Previsao[];
@@ -284,6 +285,7 @@ export function MapaRedec({
   /** modo "entorno": desloca o ponto da região onde a linha termina (fração do retângulo do mapa), para a linha não encostar em outra. */
   ajustes?: Record<string, [number, number]>;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const detalhes = comTemp && balao.info !== undefined;
   const linhaH = detalhes ? Math.round((balao.info ?? 0) * 1.4) : 0;
@@ -330,7 +332,7 @@ export function MapaRedec({
   const por = useMemo(() => new Map(previsoes.map((p) => [p.regiao, p])), [previsoes]);
   const distMin = tamIcone / 2 + 4;
   return (
-    <svg viewBox={`0 0 ${largura} ${altura}`} className={className} role="img" aria-label="Previsão do tempo por REDEC">
+    <svg viewBox={`0 0 ${largura} ${altura}`} className={className} style={style} role="img" aria-label="Previsão do tempo por REDEC">
       {itens.map((it) => (
         <path
           key={it.redec}
@@ -367,8 +369,8 @@ export function MapaRedec({
           const isz = info + 2;
           const linha1 = topo + topoH;
           return (
-            <g key={`n-${it.redec}`} pointerEvents="none">
-              <rect x={esq} y={topo} width={bw} height={bh} rx={14} fill="#fff" stroke="#94a3b8" strokeWidth={2} />
+            <g key={`n-${it.redec}`} pointerEvents={onSelecionar ? "auto" : "none"} className={onSelecionar ? "cursor-pointer" : undefined} onClick={onSelecionar ? () => onSelecionar(it.redec) : undefined}>
+              <rect x={esq} y={topo} width={bw} height={bh} rx={14} fill={selecionada === it.redec ? "#eff6ff" : "#fff"} stroke={selecionada === it.redec ? "#1d4ed8" : "#94a3b8"} strokeWidth={selecionada === it.redec ? 5 : 2} />
               <image href={iconeSrc(p.icone)} x={esq + 12} y={cy1 - balao.icone / 2} width={balao.icone} height={balao.icone} preserveAspectRatio="xMidYMid meet" />
               <text x={xt} y={cy1 - balao.fonte * 0.1} fontSize={balao.fonte} fontWeight="800" fill="#dc2626">
                 {r0(p.temperatura_maxima)}°
@@ -400,8 +402,8 @@ export function MapaRedec({
           );
         }
         return (
-          <g key={`n-${it.redec}`} pointerEvents="none">
-            <circle cx={cx} cy={cy} r={tamIcone / 2 + 3} fill="#fff" stroke="#94a3b8" strokeWidth={1.5} />
+          <g key={`n-${it.redec}`} pointerEvents={onSelecionar ? "auto" : "none"} className={onSelecionar ? "cursor-pointer" : undefined} onClick={onSelecionar ? () => onSelecionar(it.redec) : undefined}>
+            <circle cx={cx} cy={cy} r={tamIcone / 2 + 3} fill={selecionada === it.redec ? "#eff6ff" : "#fff"} stroke={selecionada === it.redec ? "#1d4ed8" : "#94a3b8"} strokeWidth={selecionada === it.redec ? 3 : 1.5} />
             <image href={iconeSrc(p.icone)} x={cx - tamIcone / 2} y={cy - tamIcone / 2} width={tamIcone} height={tamIcone} preserveAspectRatio="xMidYMid meet" />
             <Selo x={cx - tamIcone / 2 - 2} y={cy - tamIcone / 2 - 2} r={raioNumero} n={n} />
           </g>
@@ -433,14 +435,18 @@ const TAMANHOS: Record<VarianteCartao, { badge: string; nome: string; sit: strin
 
 /** Cartão de uma REDEC com todos os dados: situação, mínima e máxima (no canto onde ficava o ícone, que agora está no mapa), umidade, nascer/pôr do Sol,
  * vento e comentário. Os ícones de umidade, vento e Sol são os mesmos dos cartões da aba Previsão CEMADEN-RJ (Lucide). */
-export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx, ocultarComentario, classico }: { regiao: string; p?: Previsao; variante: VarianteCartao; ativo?: boolean; onClick?: () => void; comentarioPx?: number; ocultarComentario?: boolean; classico?: boolean }) {
+export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx, ocultarComentario, classico, id }: { regiao: string; p?: Previsao; variante: VarianteCartao; ativo?: boolean; onClick?: () => void; comentarioPx?: number; ocultarComentario?: boolean; classico?: boolean; id?: string }) {
   const n = ORDEM_REDEC.indexOf(regiao) + 1;
   const fixo = variante !== "tela"; // story/feed: tamanhos em px, comentário ajustado ao espaço
   const tam = TAMANHOS[variante];
   if (classico) {
     // layout clássico: ícone do tempo no canto, mín/máx em destaque, Sol à direita, umidade e vento embaixo
     return (
-      <div className={`flex min-w-0 flex-col overflow-hidden rounded-lg border border-slate-300 bg-white ${tam.pad}`}>
+      <div
+        id={id}
+        onClick={onClick}
+        className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white ${ativo ? "border-blue-600 bg-blue-50 ring-2 ring-blue-500" : "border-slate-300"} ${onClick ? "cursor-pointer" : ""} ${tam.pad}`}
+      >
         <div className="flex items-center gap-2">
           <span className={`flex shrink-0 items-center justify-center rounded-full bg-[#0f2a4a] font-bold text-white ${tam.badge}`}>{n}</span>
           <div className="min-w-0 flex-1 leading-tight">
@@ -478,7 +484,7 @@ export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx,
               </span>
             </div>
             {p.comentario && (
-              <p className="mt-1 min-h-0 overflow-hidden text-slate-600" style={comentarioPx ? { fontSize: comentarioPx, lineHeight: `${Math.round(comentarioPx * 1.2)}px` } : undefined}>
+              <p className={`mt-1 min-h-0 overflow-hidden text-slate-600 ${variante === "tela" ? "text-xs leading-relaxed" : ""}`} style={comentarioPx ? { fontSize: comentarioPx, lineHeight: `${Math.round(comentarioPx * 1.2)}px` } : undefined}>
                 {p.comentario}
               </p>
             )}
@@ -735,7 +741,7 @@ const SLOTS_POST: Record<string, [number, number]> = {
   NORTE: [1.1346, 0.3079],
   NOROESTE: [0.9482, 0.0351],
 };
-const SLOTS_STORY: Record<string, [number, number]> = {
+export const SLOTS_STORY: Record<string, [number, number]> = {
   CAPITAL: [0.3618, 1.0151],
   "BAIXADA FLUMINENSE": [0.662, 1.226], // à direita da Capital, para a linha não passar sob o balão dela
   METROPOLITANA: [0.749, 1.0137],
@@ -749,7 +755,7 @@ const SLOTS_STORY: Record<string, [number, number]> = {
   NOROESTE: [0.6441, -0.1603],
 };
 /** Slide 1: a linha da Sul I termina um pouco à direita do centro da região, para não encostar na linha da Sul II. */
-const AJUSTES_STORY: Record<string, [number, number]> = { "SUL I": [0.034, 0] };
+export const AJUSTES_STORY: Record<string, [number, number]> = { "SUL I": [0.034, 0] };
 
 /** Faixa de horários do Estado ("05:04–05:14", ou um só se forem iguais). */
 function faixaHora(previsoes: Previsao[], campo: "nascer_sol" | "por_sol"): string {

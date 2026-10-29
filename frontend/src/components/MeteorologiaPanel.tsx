@@ -55,11 +55,20 @@ function IconeTempo({ icone }: { icone: string }) {
   );
 }
 
+/** Número oficial da REDEC (o mesmo do mapa e das artes). */
+function NumeroRedec({ regiao }: { regiao: string }) {
+  const n = (REDECS as readonly string[]).indexOf(regiao) + 1;
+  return n > 0 ? <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0f2a4a] text-xs font-bold text-white">{n}</span> : null;
+}
+
 function PrevisaoCard({ regiao, previsao }: { regiao: string; previsao?: Previsao }) {
   if (!previsao) {
     return (
       <div className="rounded-lg border border-dashed border-gray-300 bg-white p-4">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">{regiao}</h3>
+        <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-800">
+          <NumeroRedec regiao={regiao} />
+          {regiao}
+        </h3>
         <p className="mt-3 text-sm text-gray-400">Sem previsão para esta data.</p>
       </div>
     );
@@ -67,7 +76,10 @@ function PrevisaoCard({ regiao, previsao }: { regiao: string; previsao?: Previsa
   return (
     <div className="flex flex-col rounded-lg border border-gray-200 border-t-4 border-t-sedec-600 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">{regiao}</h3>
+        <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-800">
+          <NumeroRedec regiao={regiao} />
+          {regiao}
+        </h3>
         <IconeTempo icone={previsao.icone} />
       </div>
 
