@@ -222,9 +222,7 @@ export default function PrevisaoMapa() {
   const [erro, setErro] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "carrossel" | null>(null);
-  // tablet e PC: mapa com os balões completos do carrossel; celular: ícones em volta do mapa, como no story (os balões ficariam pequenos demais)
-  const baloes = useMediaQuery("(min-width: 768px)");
-  const lado = useMediaQuery("(min-width: 1024px)"); // mapa fixo ao lado dos cartões
+  const lado = useMediaQuery("(min-width: 1024px)"); // mapa fixo ao lado dos cartões (e limitado à altura da janela)
   // clicar numa região ou balão destaca o cartão ao lado (e o traz à vista); clicar de novo limpa
   const selecionar = (r: string) => {
     setSelecionada((a) => (a === r ? null : r));
@@ -362,11 +360,8 @@ export default function PrevisaoMapa() {
       ) : (
         <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] 2xl:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]">
           <div className="lg:sticky lg:top-0 lg:self-start">
-            {baloes ? (
-              <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1125} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_TELA} ajustes={AJUSTES_STORY} selecionada={selecionada} onSelecionar={selecionar} className="mx-auto w-full rounded-lg bg-sky-50" style={lado ? { maxHeight: "calc(100vh - 19rem)" } : undefined} />
-            ) : (
-              <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={660} raioNumero={13} modo="entorno" tamIcone={58} margemMapa={34} selecionada={selecionada} onSelecionar={selecionar} className="w-full rounded-lg bg-sky-50" />
-            )}
+            {/* o mesmo mapa do carrossel (balões completos) em qualquer tela: no celular ele ocupa a largura toda, como a imagem do story */}
+            <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1125} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_TELA} ajustes={AJUSTES_STORY} selecionada={selecionada} onSelecionar={selecionar} className="mx-auto w-full rounded-lg bg-sky-50" style={lado ? { maxHeight: "calc(100vh - 19rem)" } : undefined} />
           </div>
           <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
             <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="tela" />

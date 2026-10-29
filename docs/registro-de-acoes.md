@@ -327,6 +327,10 @@ A pedido do usuário, depois do uso em produção: fim do corte no mapa interati
 
 O story do carrossel tinha o cabeçalho coberto pelo perfil do Instagram. A pedido do usuário, cabeçalho e rodapé ficaram como estão (a imagem também serve ao Telegram e ao WhatsApp) e o dia da semana e a data foram acrescentados em duas linhas no canto superior esquerdo do mapa (slide 1) e do mapinha (slide 2). Imagens enviadas para aprovação. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: mapa da aba no celular igual ao do carrossel (publicado)
+
+A pedido do usuário, o celular passou a mostrar na aba Mapa → Previsão o mesmo mapa com balões completos do carrossel, na largura toda (antes mostrava só ícones em volta). Só frontend, sem migração.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

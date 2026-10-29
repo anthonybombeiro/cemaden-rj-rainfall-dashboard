@@ -222,3 +222,6 @@ Arquivos: `PrevisaoMapa.tsx` (`useMediaQuery`, `ExportModal`), `PrevisaoMapaCorp
 ### Dia e data no canto do mapa do carrossel (29/10/2026; NÃO publicado)
 O story do carrossel, publicado no Instagram, tem o título e a data do cabeçalho cobertos pelo perfil (≈ 150 px do topo) e o rodapé cobrido pelo campo "Diga algo" (≈ 110 px da base). Foram propostas faixas de segurança; o usuário preferiu **manter cabeçalho e rodapé como estão** (para usar a mesma imagem no Telegram e no WhatsApp) e **só acrescentar o dia da semana e a data em duas linhas** no canto superior esquerdo do mapa: slide 1 ("Quarta-feira" em 56 px e "28/10/2026" em 48 px) e slide 2, dentro do mapinha numerado (30 px e 26 px). Assim a informação continua legível mesmo quando o Instagram cobre o cabeçalho. Arquivo: `PrevisaoMapaCorpo.tsx` (`DiaEData`, `diaEData`). Sem migração.
 
+### Mapa da aba no celular igual ao do carrossel (29/10/2026)
+O modo de ícones em volta do mapa só para celular foi retirado: em **qualquer tela** a aba Mapa → Previsão usa o mesmo mapa do carrossel (balões completos, posições `SLOTS_TELA`), clicável. No celular ele ocupa a largura toda, como a imagem do story, e o texto dos balões continua legível. A altura limitada à da janela vale só quando o mapa fica ao lado dos cartões (≥ 1024 px).
+
