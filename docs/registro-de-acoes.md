@@ -311,6 +311,10 @@ A pedido do usuário: balões perto das regiões em volta do mapa (busca local q
 
 A pedido do usuário: balões nas posições que ele desenhou (fixas, em fração do mapa); Post com linha única do Sol e, por região, umidade, vento e o texto; observações excluídas no Post e no carrossel; slide 2 do carrossel com o cartão clássico. Só local; imagens enviadas. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: data por extenso, colunas do Post, linhas do slide 1 e numeração oficial das REDECs (modelo local, não publicado)
+
+A pedido do usuário: data "Quarta-feira, 28/10/2026" em letra maior nas artes; Post com umidade centralizada e vento no fim da tabela; ajuste das linhas da Sul I/Sul II e da Baixada Fluminense no slide 1; e numeração oficial das REDECs em todo o sistema (2 Baixada Fluminense, 3 Metropolitana), com `REDECS` como fonte única. Só local; imagens enviadas. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

@@ -3,7 +3,7 @@
 import { Droplets, FileText, Sunrise, Sunset, Wind } from "lucide-react";
 import { useMemo } from "react";
 
-import { Previsao } from "@/lib/api";
+import { Previsao, REDECS } from "@/lib/api";
 import { computeBBox, geometryToPath, GeoJsonFeature, GeoJsonFeatureCollection, makeProjector } from "@/lib/geo";
 import { iconeDominante, iconeSrc, ICONES_TEMPO } from "@/lib/meteorologia";
 
@@ -11,8 +11,8 @@ import { iconeDominante, iconeSrc, ICONES_TEMPO } from "@/lib/meteorologia";
  * (situação, mín/máx, umidade, vento, comentário). Composições do mesmo conteúdo: tela (responsiva), post (quadrado), story (1080×1920) e carrossel
  * de dois slides (mapa grande com ícone e temperaturas + detalhes por região). */
 
-/** Ordem fixa (a numeração do mapa e dos cartões). */
-export const ORDEM_REDEC = ["CAPITAL", "METROPOLITANA", "BAIXADA FLUMINENSE", "COSTA VERDE", "SUL I", "SUL II", "SERRANA I", "SERRANA II", "BAIXADA LITORÂNEA", "NORTE", "NOROESTE"];
+/** Ordem e numeração oficiais das REDECs (a mesma de `REDECS`): a numeração do mapa e dos cartões. */
+export const ORDEM_REDEC: readonly string[] = REDECS;
 export const nomeBonito = (r: string) => r.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()).replace(/ i$/i, " I").replace(/ ii$/i, " II");
 
 export const rotuloTempo = (icone: string) => ICONES_TEMPO.find((i) => i.key === icone)?.label ?? icone;
@@ -261,6 +261,7 @@ export function MapaRedec({
   balao = { icone: 56, fonte: 28 },
   margemMapa,
   posicoes,
+  ajustes,
   className,
 }: {
   geo: GeoJsonFeatureCollection;
@@ -279,7 +280,9 @@ export function MapaRedec({
   /** Espaço (px do viewBox) deixado em volta do Estado; no modo "entorno" é onde os marcadores cabem. */
   margemMapa?: number;
   /** modo "entorno": posição de cada balão (na ordem das REDECs) em fração do retângulo do mapa; sem isso, o posicionamento é automático. */
-  posicoes?: [number, number][];
+  posicoes?: Record<string, [number, number]>;
+  /** modo "entorno": desloca o ponto da região onde a linha termina (fração do retângulo do mapa), para a linha não encostar em outra. */
+  ajustes?: Record<string, [number, number]>;
   className?: string;
 }) {
   const detalhes = comTemp && balao.info !== undefined;
@@ -292,15 +295,19 @@ export function MapaRedec({
   const itens = useMemo(() => {
     const pad = margemMapa ?? (modo === "entorno" ? 40 : modo === "icone" ? Math.round(tamIcone * 0.5) : 6);
     const proj = makeProjector(computeBBox(geo), largura, altura, pad);
-    const base = geo.features.map((f) => ({ redec: f.properties.redec, d: geometryToPath(f.geometry, proj), centro: centroideMaiorAnel(f, proj) }));
+    const bb = computeBBox(geo);
+    const [x0, y0] = proj(bb.minLon, bb.maxLat);
+    const [x1, y1] = proj(bb.maxLon, bb.minLat);
+    const base = geo.features.map((f) => {
+      const c = centroideMaiorAnel(f, proj);
+      const aj = ajustes?.[f.properties.redec];
+      return { redec: f.properties.redec, d: geometryToPath(f.geometry, proj), centro: (aj ? [c[0] + aj[0] * (x1 - x0), c[1] + aj[1] * (y1 - y0)] : c) as Ponto };
+    });
     let marcador = base.map((b) => b.centro);
     if (modo === "icone") marcador = afastar(marcador, tamIcone + 8, tamIcone + 8, largura, altura);
-    if (modo === "entorno" && posicoes && posicoes.length >= ORDEM_REDEC.length) {
-      const bb = computeBBox(geo);
-      const [x0, y0] = proj(bb.minLon, bb.maxLat);
-      const [x1, y1] = proj(bb.maxLon, bb.minLat);
+    if (modo === "entorno" && posicoes && ORDEM_REDEC.every((r) => posicoes[r])) {
       marcador = base.map((b) => {
-        const [u, v] = posicoes[Math.max(ORDEM_REDEC.indexOf(b.redec), 0)];
+        const [u, v] = posicoes[b.redec];
         return [x0 + u * (x1 - x0), y0 + v * (y1 - y0)] as Ponto;
       });
     } else if (modo === "entorno") marcador = posicionarEntorno(base.map((b) => b.d), marcador, largura, altura, caixaW + raioNumero, caixaH + raioNumero);
@@ -319,7 +326,7 @@ export function MapaRedec({
       }
       return { ...b, marcador: marcador[i], fim };
     });
-  }, [geo, largura, altura, modo, tamIcone, comTemp, bw, bh, caixaW, caixaH, raioNumero, margemMapa, posicoes]);
+  }, [geo, largura, altura, modo, tamIcone, comTemp, bw, bh, caixaW, caixaH, raioNumero, margemMapa, posicoes, ajustes]);
   const por = useMemo(() => new Map(previsoes.map((p) => [p.regiao, p])), [previsoes]);
   const distMin = tamIcone / 2 + 4;
   return (
@@ -599,7 +606,7 @@ function Cabecalho({ titulo, data, altura, fonteTitulo, logo }: { titulo: string
         <div className="font-extrabold leading-tight" style={{ fontSize: fonteTitulo }}>
           {titulo}
         </div>
-        <div className="text-sky-100" style={{ fontSize: Math.round(fonteTitulo * 0.6) }}>
+        <div className="font-semibold text-sky-100" style={{ fontSize: Math.round(fonteTitulo * 0.78) }}>
           {data}
         </div>
       </div>
@@ -713,34 +720,36 @@ export const FEED_W = 1080;
 export const FEED_H = 1350;
 
 // ---------------------------------------------------------------- peças do Post (modelo A) e do carrossel Story (modelo D)
-/** Posição de cada balão, na ordem das REDECs (1 a 11), em fração do retângulo do mapa: [0,0] é o canto superior esquerdo do Estado e [1,1] o inferior direito; fora de 0–1 = fora do mapa.
+/** Posição de cada balão, por região, em fração do retângulo do mapa: [0,0] é o canto superior esquerdo do Estado e [1,1] o inferior direito; fora de 0–1 = fora do mapa.
  * Desenhadas pelo usuário sobre o modelo (cada balão perto da sua região, em volta do mapa). */
-const SLOTS_POST: [number, number][] = [
-  [0.2604, 0.9835], // 1 Capital
-  [0.7692, 0.9835], // 2 Metropolitana
-  [0.4985, 0.9835], // 3 Baixada Fluminense
-  [-0.1346, 0.9649], // 4 Costa Verde
-  [0.2559, 0.1963], // 5 Sul I
-  [0.034, 0.4566], // 6 Sul II
-  [0.4956, 0.2831], // 7 Serrana I
-  [0.5488, 0.0971], // 8 Serrana II
-  [0.9571, 0.6798], // 9 Baixada Litorânea
-  [1.1346, 0.3079], // 10 Norte
-  [0.9482, 0.0351], // 11 Noroeste
-];
-const SLOTS_STORY: [number, number][] = [
-  [0.3618, 1.0151], // 1 Capital
-  [0.749, 1.0137], // 2 Metropolitana
-  [0.4824, 1.2425], // 3 Baixada Fluminense
-  [0.1029, 1.1219], // 4 Costa Verde
-  [0.2441, 0.1521], // 5 Sul I
-  [0.1265, 0.3986], // 6 Sul II
-  [0.4912, 0.2753], // 7 Serrana I
-  [0.4912, 0.0616], // 8 Serrana II
-  [0.895, 0.7685], // 9 Baixada Litorânea
-  [0.9029, -0.111], // 10 Norte
-  [0.6441, -0.1603], // 11 Noroeste
-];
+const SLOTS_POST: Record<string, [number, number]> = {
+  CAPITAL: [0.2604, 0.9835],
+  "BAIXADA FLUMINENSE": [0.4985, 0.9835],
+  METROPOLITANA: [0.7692, 0.9835],
+  "COSTA VERDE": [-0.1346, 0.9649],
+  "SUL I": [0.2559, 0.1963],
+  "SUL II": [0.034, 0.4566],
+  "SERRANA I": [0.4956, 0.2831],
+  "SERRANA II": [0.5488, 0.0971],
+  "BAIXADA LITORÂNEA": [0.9571, 0.6798],
+  NORTE: [1.1346, 0.3079],
+  NOROESTE: [0.9482, 0.0351],
+};
+const SLOTS_STORY: Record<string, [number, number]> = {
+  CAPITAL: [0.3618, 1.0151],
+  "BAIXADA FLUMINENSE": [0.662, 1.226], // à direita da Capital, para a linha não passar sob o balão dela
+  METROPOLITANA: [0.749, 1.0137],
+  "COSTA VERDE": [0.1029, 1.1219],
+  "SUL I": [0.2441, 0.1521],
+  "SUL II": [0.1265, 0.3986],
+  "SERRANA I": [0.4912, 0.2753],
+  "SERRANA II": [0.4912, 0.0616],
+  "BAIXADA LITORÂNEA": [0.895, 0.7685],
+  NORTE: [0.9029, -0.111],
+  NOROESTE: [0.6441, -0.1603],
+};
+/** Slide 1: a linha da Sul I termina um pouco à direita do centro da região, para não encostar na linha da Sul II. */
+const AJUSTES_STORY: Record<string, [number, number]> = { "SUL I": [0.034, 0] };
 
 /** Faixa de horários do Estado ("05:04–05:14", ou um só se forem iguais). */
 function faixaHora(previsoes: Previsao[], campo: "nascer_sol" | "por_sol"): string {
@@ -765,7 +774,7 @@ function LinhaSol({ previsoes, altura, fonte, icone }: { previsoes: Previsao[]; 
 /** Tabela do Post, uma região por bloco de duas linhas, na ordem dos números: 1ª linha com número, região, umidade (mín~máx) e vento; 2ª linha com o texto da região. */
 function TabelaRegioes({ previsoes, fonte, fonteTexto, larguraTexto }: { previsoes: Previsao[]; fonte: number; fonteTexto: number; larguraTexto: number }) {
   const por = new Map(previsoes.map((p) => [p.regiao, p]));
-  const cols = "300px 180px minmax(0,1fr)";
+  const cols = "335px 330px minmax(0,1fr)";
   const isz = Math.round(fonte * 0.95);
   const maior = maiorComentario(previsoes);
   const px = ajustarComentarioPx(maior, larguraTexto, Math.round(fonteTexto * 1.2) * 2, fonteTexto, 13);
@@ -773,8 +782,8 @@ function TabelaRegioes({ previsoes, fonte, fonteTexto, larguraTexto }: { previso
     <div className="shrink-0 overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-800" style={{ fontSize: fonte }}>
       <div className="grid items-center bg-[#0f2a4a] px-3 font-semibold text-white" style={{ gridTemplateColumns: cols, height: Math.round(fonte * 1.5) }}>
         <span>Região</span>
-        <span>Umidade</span>
-        <span>Vento</span>
+        <span className="text-center">Umidade</span>
+        <span className="text-right">Vento</span>
       </div>
       {ORDEM_REDEC.map((r, i) => {
         const p = por.get(r);
@@ -789,10 +798,10 @@ function TabelaRegioes({ previsoes, fonte, fonteTexto, larguraTexto }: { previso
               </span>
               {p ? (
                 <>
-                  <span className="whitespace-nowrap">
+                  <span className="whitespace-nowrap text-center">
                     {r0(p.umidade_minima)}~{r0(p.umidade_maxima)}%
                   </span>
-                  <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+                  <span className="flex min-w-0 items-center justify-end gap-1.5 whitespace-nowrap">
                     <Wind size={isz} className="shrink-0 text-orange-500" />
                     <span className="truncate">{textoVento(p)}</span>
                   </span>
@@ -860,7 +869,7 @@ function SlideMapa({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo={titulo} data={data} altura={SLIDE.cab.altura} fonteTitulo={SLIDE.cab.fonteTitulo} logo={SLIDE.cab.logo} />
       <div className="min-h-0 flex-1 bg-sky-50">
-        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1290} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_STORY} className="h-full w-full" />
+        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1290} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_STORY} ajustes={AJUSTES_STORY} className="h-full w-full" />
       </div>
       {t && (
         <div className="shrink-0 bg-sky-50 px-4 pb-3" style={{ height: 330 }}>

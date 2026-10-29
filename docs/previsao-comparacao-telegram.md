@@ -192,3 +192,9 @@ O usuário marcou sobre as imagens onde cada balão deve ficar (perto da região
 
 Como as posições são fixas, o mapa do Post encolhe conforme a tabela cresce (a imagem do mapa é escalada para a altura que sobra). Sem migração.
 
+### Data por extenso, colunas do Post, linhas do slide 1 e numeração oficial das REDECs (29/10/2026, NÃO publicado)
+- **Data nas artes** (Post, Story e carrossel): "Quarta-feira, 28/10/2026", com letra maior (78% do título, antes 60%) e em negrito. As tabelas e o texto copiado continuam com a data curta ("qua 28/10/2026").
+- **Post (A)**: colunas da tabela ajustadas: **Região** (335 px), **Umidade centralizada** e **Vento no fim da tabela**, alinhado à direita.
+- **Carrossel, slide 1**: a linha da Sul I termina um pouco à direita do centro da região (`AJUSTES_STORY`), para não encostar na da Sul II; o balão da Baixada Fluminense foi para a direita (fração 0,662 × 1,226 do mapa), de modo que a linha dela não passe mais sob o balão da Capital.
+- **Numeração oficial das REDECs, global**: 1 Capital, **2 Baixada Fluminense, 3 Metropolitana**, 4 Costa Verde, 5 Sul I, 6 Sul II, 7 Serrana I, 8 Serrana II, 9 Baixada Litorânea, 10 Norte, 11 Noroeste (a mesma dos Contatos). A lista `REDECS` em `frontend/src/lib/api.ts` passou da ordem alfabética para a ordem oficial e é a única fonte: as artes (`ORDEM_REDEC`), os números do mapa e dos cartões, as tabelas e as listas do sistema que usam `REDECS` (cartões da aba Previsão CEMADEN-RJ, cadastro da previsão, filtro por REDEC) seguem essa ordem. As posições dos balões agora são guardadas **por nome da região**, não pela posição na lista. A ordem das frases do texto geral (`ORDEM_TEXTO`, como nos informativos) não mudou. O backend continua com a lista em ordem alfabética (só usada como escolhas do campo).
+

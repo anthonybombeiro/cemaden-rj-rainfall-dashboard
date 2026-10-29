@@ -841,20 +841,20 @@ export function getChuva1hFaixa(
   return null;
 }
 
-/** As 11 REDECs (Regionais de Defesa Civil) do estado do RJ — mesma lista
- * usada no backend (ingestion/connectors/cemaden_rj_alertas.py). */
+/** As 11 REDECs (Regionais de Defesa Civil) do estado do RJ, na ordem e com a numeração oficiais: a posição na lista + 1 é o número da REDEC
+ * (REDEC 1 Capital, 2 Baixada Fluminense, 3 Metropolitana…). Os mesmos nomes do backend (ingestion/connectors/cemaden_rj_alertas.py). */
 export const REDECS = [
-  "BAIXADA FLUMINENSE",
-  "BAIXADA LITORÂNEA",
   "CAPITAL",
-  "COSTA VERDE",
+  "BAIXADA FLUMINENSE",
   "METROPOLITANA",
-  "NORTE",
-  "NOROESTE",
-  "SERRANA I",
-  "SERRANA II",
+  "COSTA VERDE",
   "SUL I",
   "SUL II",
+  "SERRANA I",
+  "SERRANA II",
+  "BAIXADA LITORÂNEA",
+  "NORTE",
+  "NOROESTE",
 ] as const;
 
 /** Município → REDEC, montado a partir do endpoint de risco geológico por

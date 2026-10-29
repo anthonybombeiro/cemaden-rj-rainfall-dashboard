@@ -23,6 +23,12 @@ const dataExtenso = (iso: string) => {
   const [a, m, d] = iso.split("-").map(Number);
   return `${SEMANA[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]} ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${a}`;
 };
+const DIAS_LONGOS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+/** Data das artes: dia da semana por extenso, "Quarta-feira, 28/10/2026". */
+const dataLonga = (iso: string) => {
+  const [a, m, d] = iso.split("-").map(Number);
+  return `${DIAS_LONGOS[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]}, ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${a}`;
+};
 const r0 = (n: number) => Math.round(Number(n));
 
 /** Modal de exportação em tamanho real (story 1080×1920 ou post 1080×1350): prévia reduzida, PNG exato, copiar imagem/texto. */
@@ -351,7 +357,7 @@ export default function PrevisaoMapa() {
       {compartilhar === "tabela" && dadosTabela && <ShareModal data={dadosTabela} onClose={() => setCompartilhar(null)} />}
       {compartilhar === "story" && geo && data && (
         <ExportModal titulo="Story 1080×1920" w={STORY_W} h={STORY_H} nomeArquivo={`cemaden-rj-previsao-story-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>
-          <CorpoStory geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} textoGeral={textoGeral} />
+          <CorpoStory geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataLonga(data)} textoGeral={textoGeral} />
         </ExportModal>
       )}
       {compartilhar === "carrossel" && geo && data && (
@@ -364,14 +370,14 @@ export default function PrevisaoMapa() {
           onClose={() => setCompartilhar(null)}
           rotulosSlides={["1 · Mapa", "2 · Textos"]}
           slides={[
-            carrosselMapa({ geo, previsoes, titulo: "Previsão do tempo", data: dataExtenso(data), textoGeral }),
-            carrosselDetalhes({ geo, previsoes, titulo: "Previsão do tempo", data: dataExtenso(data), textoGeral }),
+            carrosselMapa({ geo, previsoes, titulo: "Previsão do tempo", data: dataLonga(data), textoGeral }),
+            carrosselDetalhes({ geo, previsoes, titulo: "Previsão do tempo", data: dataLonga(data), textoGeral }),
           ]}
         />
       )}
       {compartilhar === "feed" && geo && data && (
         <ExportModal titulo="Post 1080×1350" w={FEED_W} h={FEED_H} nomeArquivo={`cemaden-rj-previsao-post-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>
-          <CorpoFeed geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataExtenso(data)} textoGeral={textoGeral} />
+          <CorpoFeed geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataLonga(data)} textoGeral={textoGeral} />
         </ExportModal>
       )}
     </div>
