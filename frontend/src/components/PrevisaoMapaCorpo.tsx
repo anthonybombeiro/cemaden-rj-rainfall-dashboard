@@ -199,7 +199,7 @@ export function CartaoRedec({ regiao, p, variante, ativo, onClick, comentarioPx,
 
 /** Cartão do texto geral do estado: mesmo tamanho e estrutura dos cartões das REDECs, é o primeiro dos 12 cartões (1 geral + 11 REDECs) na
  * tela e nas artes. O ícone é a imagem do clima mais frequente entre as REDECs. Sem texto: na tela mostra um lembrete; nas artes não aparece. */
-export function CartaoGeral({ texto, previsoes, variante, lembrete = true }: { texto?: string; previsoes: Previsao[]; variante: VarianteCartao; lembrete?: boolean }) {
+export function CartaoGeral({ texto, previsoes, variante, lembrete = true, area }: { texto?: string; previsoes: Previsao[]; variante: VarianteCartao; lembrete?: boolean; area?: { largura: number; altura: number; max: number } }) {
   const t = (texto ?? "").trim();
   const tam = TAMANHOS[variante];
   if (!t) {
@@ -221,9 +221,9 @@ export function CartaoGeral({ texto, previsoes, variante, lembrete = true }: { t
   }
   const icone = iconeDominante(previsoes.map((x) => x.icone));
   const fixo = variante !== "tela";
-  const px = variante === "story" ? ajustarComentarioPx(t.length, 480, 124, 28, 12) : variante === "feed" ? ajustarComentarioPx(t.length, 470, 62, 20, 10) : undefined;
+  const px = area ? ajustarComentarioPx(t.length, area.largura, area.altura, area.max, 12) : variante === "story" ? ajustarComentarioPx(t.length, 480, 124, 28, 12) : variante === "feed" ? ajustarComentarioPx(t.length, 470, 62, 20, 10) : undefined;
   return (
-    <div className={`flex min-w-0 flex-col overflow-hidden rounded-lg border border-blue-300 bg-blue-50 ${tam.pad}`} aria-label="Previsão geral do estado">
+    <div className={`flex min-w-0 flex-col overflow-hidden rounded-lg border border-blue-300 bg-blue-50 ${area ? "h-full w-full" : ""} ${tam.pad}`} aria-label="Previsão geral do estado">
       <div className="flex items-center gap-2">
         <span className={`flex shrink-0 items-center justify-center rounded-full bg-[#0f4c81] text-white ${tam.badge}`}>
           <FileText size={variante === "story" ? 20 : variante === "feed" ? 16 : 14} />
@@ -263,6 +263,25 @@ export function LegendaTempo({ className }: { className?: string }) {
           {c.rotulo}
         </span>
       ))}
+    </div>
+  );
+}
+
+/** Legenda das cores do mapa como cartão: ocupa a 12ª célula das artes (11 REDECs + este). */
+function CartaoLegenda({ fonte, quadro }: { fonte: number; quadro: number }) {
+  return (
+    <div className="flex min-w-0 flex-col justify-center overflow-hidden rounded-lg border border-slate-300 bg-white px-4 py-2">
+      <div className="mb-1 font-bold uppercase tracking-tight text-slate-700" style={{ fontSize: fonte }}>
+        Cores do mapa
+      </div>
+      <div className="grid grid-flow-col grid-cols-2 grid-rows-3 gap-x-3 gap-y-1 text-slate-700" style={{ fontSize: fonte * 0.9 }}>
+        {CLASSES_TEMPO.map((c) => (
+          <span key={c.rotulo} className="flex items-center gap-1.5 whitespace-nowrap">
+            <i className="inline-block shrink-0 rounded-sm border border-black/10" style={{ background: c.cor, width: quadro, height: quadro }} />
+            {c.rotulo}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -310,19 +329,25 @@ export function CorpoStory({ geo, previsoes, titulo, data, textoGeral }: { geo: 
   const itens = ordenar(previsoes);
   const temGeral = !!(textoGeral ?? "").trim();
   const ocultar = comentarioRepetido(previsoes, textoGeral);
-  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, 70, 20);
+  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, 52, 20);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo={titulo} data={data} altura={170} fonteTitulo={46} logo={84} />
-      <div className="shrink-0 bg-sky-50" style={{ height: 280 }}>
-        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={280} raioNumero={17} className="h-full w-full" />
+      <div className="flex shrink-0 gap-2.5 px-4 py-2.5" style={{ height: 500 }}>
+        <div className="min-w-0 flex-1 rounded-lg bg-sky-50">
+          <MapaRedec geo={geo} previsoes={previsoes} largura={640} altura={480} raioNumero={15} className="h-full w-full" />
+        </div>
+        {temGeral && (
+          <div className="flex shrink-0" style={{ width: 400 }}>
+            <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="story" area={{ largura: 362, altura: 380, max: 32 }} />
+          </div>
+        )}
       </div>
-      <LegendaTempo className="shrink-0 py-2 text-[18px]" />
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 px-4 pb-2.5" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
-        {temGeral && <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="story" />}
         {itens.map(({ regiao, p }) => (
           <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} ocultarComentario={ocultar} />
         ))}
+        <CartaoLegenda fonte={19} quadro={18} />
       </div>
       <Rodape altura={58} fonte={24} />
     </div>
@@ -336,19 +361,25 @@ export function CorpoFeed({ geo, previsoes, titulo, data, textoGeral }: { geo: G
   const itens = ordenar(previsoes);
   const temGeral = !!(textoGeral ?? "").trim();
   const ocultar = comentarioRepetido(previsoes, textoGeral);
-  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, 32, 15);
+  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, 26, 15);
   return (
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: FEED_W, height: FEED_H }}>
       <Cabecalho titulo={titulo} data={data} altura={120} fonteTitulo={40} logo={68} />
-      <div className="shrink-0 bg-sky-50" style={{ height: 200 }}>
-        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={200} raioNumero={13} className="h-full w-full" />
+      <div className="flex shrink-0 gap-2 px-3 py-2" style={{ height: 360 }}>
+        <div className="min-w-0 flex-1 rounded-lg bg-sky-50">
+          <MapaRedec geo={geo} previsoes={previsoes} largura={560} altura={340} raioNumero={12} className="h-full w-full" />
+        </div>
+        {temGeral && (
+          <div className="flex shrink-0" style={{ width: 460 }}>
+            <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="feed" area={{ largura: 430, altura: 270, max: 26 }} />
+          </div>
+        )}
       </div>
-      <LegendaTempo className="shrink-0 py-1.5 text-[15px]" />
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 px-3 pb-2" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
-        {temGeral && <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="feed" />}
         {itens.map(({ regiao, p }) => (
           <CartaoRedec key={regiao} regiao={regiao} p={p} variante="feed" comentarioPx={comentarioPx} ocultarComentario={ocultar} />
         ))}
+        <CartaoLegenda fonte={15} quadro={14} />
       </div>
       <Rodape altura={46} fonte={19} />
     </div>

@@ -122,3 +122,15 @@ Pedido do usuário depois de ver o primeiro formato (card largo acima das REDECs
 
 Teste (banco de teste local, dados fictícios): 12 cartões de tamanho idêntico em todas as visões (grade da aba: 459 × 285 px; story: 218 px; post: 148 px); sem texto geral, 11 cartões e nenhum cartão cortado; pior caso (11 comentários diferentes de 200 caracteres + texto de 429) sem corte (texto geral a 14 px no story e 10 px no post); comentário repetido nas 11 REDECs some dos cartões das artes; pop-up sem rolagem no PC (1041 px) e no celular (375 px), com os 5 botões visíveis.
 
+### Teste de layout das artes — mapa grande ao lado do texto geral (29/10/2026)
+Pedido: o mapa do Story e do Post estava pequeno (uma faixa de 280 px / 200 px com o Estado ocupando só ~390 px de largura), ilegível, e os números cobriam quase uma região inteira.
+
+| Item | Story 1080×1920 | Post 1080×1350 |
+|---|---|---|
+| Faixa do topo (mapa + texto geral) | 500 px: mapa à esquerda (~640×480) e **cartão da previsão geral à direita**, de 400 px de largura, com texto em até 32 px | 360 px: mapa (~560×340) e cartão geral de 460 px, texto em até 26 px |
+| Números das regiões | raio 15 (antes 17, sobre um mapa 2× menor) | raio 12 (antes 13) |
+| Cartões das REDECs | 11 cartões em 2 colunas × 6 linhas (187 px cada), mais **a legenda de cores como 12ª célula** (antes era uma linha sob o mapa) | idem (127 px cada) |
+| Comentário nos cartões | continua escondido se for igual nas 11 REDECs e houver texto geral; senão cabe em 52 px (Story) / 26 px (Post) | idem |
+
+Sem texto geral escrito, o mapa ocupa a faixa toda. Nada cortado na verificação local (banco de teste; 13 células sem rolagem interna). Só os dois formatos exportáveis mudaram; a tela (aba Previsão e Mapa → Previsão) segue como estava. Arquivo: `PrevisaoMapaCorpo.tsx` (`CorpoStory`, `CorpoFeed`, `CartaoGeral` com `area`, `CartaoLegenda`).
+
