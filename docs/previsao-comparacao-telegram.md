@@ -122,15 +122,17 @@ Pedido do usuário depois de ver o primeiro formato (card largo acima das REDECs
 
 Teste (banco de teste local, dados fictícios): 12 cartões de tamanho idêntico em todas as visões (grade da aba: 459 × 285 px; story: 218 px; post: 148 px); sem texto geral, 11 cartões e nenhum cartão cortado; pior caso (11 comentários diferentes de 200 caracteres + texto de 429) sem corte (texto geral a 14 px no story e 10 px no post); comentário repetido nas 11 REDECs some dos cartões das artes; pop-up sem rolagem no PC (1041 px) e no celular (375 px), com os 5 botões visíveis.
 
-### Teste de layout das artes — mapa grande ao lado do texto geral (29/10/2026)
-Pedido: o mapa do Story e do Post estava pequeno (uma faixa de 280 px / 200 px com o Estado ocupando só ~390 px de largura), ilegível, e os números cobriam quase uma região inteira.
+### Layout aprovado das artes — legenda em linha longa, mapa à esquerda, texto geral à direita (29/10/2026)
+Pedido: o mapa do Story e do Post estava pequeno (uma faixa de 280 px / 200 px com o Estado ocupando só ~390 px de largura), ilegível, e os números cobriam quase uma região inteira. Foram três rodadas de modelo; a 1ª (mapa + texto geral no topo e 11 cartões abaixo) chegou a ser publicada e foi reprovada; as seguintes foram mostradas ao usuário por imagem antes de publicar. O formato final foi aprovado ("ficou maravilhoso").
 
 | Item | Story 1080×1920 | Post 1080×1350 |
 |---|---|---|
-| Faixa do topo (mapa + texto geral) | 500 px: mapa à esquerda (~640×480) e **cartão da previsão geral à direita**, de 400 px de largura, com texto em até 32 px | 360 px: mapa (~560×340) e cartão geral de 460 px, texto em até 26 px |
+| Legenda de cores | **uma linha longa** sob o cabeçalho, sobre o mapa e o texto geral, com os rótulos completos (21 px) | idem (17 px) |
+| Coluna da esquerda | mapa (~555×467) e **5 cartões**: Capital, Metropolitana, Baixada Fluminense, Costa Verde, Sul I | mapa (~524×355) e os mesmos 5 cartões |
+| Coluna da direita | **texto geral** (até 32 px; 27 px com o texto de teste) e **6 cartões**: Sul II, Serrana I, Serrana II, Baixada Litorânea, Norte, Noroeste | texto geral (até 26 px) e os mesmos 6 cartões |
+| Larguras | esquerda 553 px, direita 481 px (a esquerda é um pouco mais larga para o mapa) | 522 px cada |
+| Cartões das REDECs | 221 px de altura; comentário em 20 px | 146 px; comentário em 15 px |
 | Números das regiões | raio 15 (antes 17, sobre um mapa 2× menor) | raio 12 (antes 13) |
-| Cartões das REDECs | 11 cartões em 2 colunas × 6 linhas (187 px cada), mais **a legenda de cores como 12ª célula** (antes era uma linha sob o mapa) | idem (127 px cada) |
-| Comentário nos cartões | continua escondido se for igual nas 11 REDECs e houver texto geral; senão cabe em 52 px (Story) / 26 px (Post) | idem |
 
-Sem texto geral escrito, o mapa ocupa a faixa toda. Nada cortado na verificação local (banco de teste; 13 células sem rolagem interna). Só os dois formatos exportáveis mudaram; a tela (aba Previsão e Mapa → Previsão) segue como estava. Arquivo: `PrevisaoMapaCorpo.tsx` (`CorpoStory`, `CorpoFeed`, `CartaoGeral` com `area`, `CartaoLegenda`).
+As duas colunas fecham na mesma altura (pesos flex: o bloco do mapa pesa o do texto geral + 1 cartão). Sem texto geral escrito, a legenda de cores em cartão ocupa o lugar dele, para a coluna da direita não ficar com buraco. Nada cortado na verificação local (banco de teste). Só os dois formatos exportáveis mudaram; a tela (aba Previsão e Mapa → Previsão) segue como estava. Arquivo: `PrevisaoMapaCorpo.tsx` (`CorpoArte` com `CFG_STORY`/`CFG_FEED`, `CartaoGeral` com `area`, `CartaoLegenda`).
 

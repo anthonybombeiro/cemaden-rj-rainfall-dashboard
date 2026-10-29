@@ -267,7 +267,7 @@ export function LegendaTempo({ className }: { className?: string }) {
   );
 }
 
-/** Legenda das cores do mapa como cartão: ocupa a 12ª célula das artes (11 REDECs + este). */
+/** Legenda das cores do mapa como cartão: ocupa o lugar do texto geral nas artes quando ele não foi escrito. */
 function CartaoLegenda({ fonte, quadro }: { fonte: number; quadro: number }) {
   return (
     <div className="flex min-w-0 flex-col justify-center overflow-hidden rounded-lg border border-slate-300 bg-white px-4 py-2">
@@ -322,66 +322,116 @@ function Rodape({ altura, fonte }: { altura: number; fonte: number }) {
 }
 
 // ---------------------------------------------------------------- composições exportáveis
-export const STORY_W = 1080;
-export const STORY_H = 1920;
-/** Story vertical 1080×1920: logos, mapa e os 11 cartões (2 colunas) com sol, umidade, vento e o comentário inteiro. */
-export function CorpoStory({ geo, previsoes, titulo, data, textoGeral }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; textoGeral?: string }) {
+type ConfigArte = {
+  variante: "story" | "feed";
+  largura: number;
+  altura: number;
+  cab: { altura: number; fonteTitulo: number; logo: number };
+  rodape: { altura: number; fonte: number };
+  /** Peso (flex) do cartão geral; o bloco do mapa pesa `geral + 1`, para as duas colunas fecharem na mesma altura (5 cartões + mapa × 6 cartões + geral). */
+  geral: number;
+  /** Largura relativa da coluna da esquerda (mapa) frente à da direita. */
+  esq: number;
+  pad: string;
+  gap: string;
+  raio: number;
+  mapa: { largura: number; altura: number };
+  legenda: string;
+  area: { largura: number; altura: number; max: number };
+  comentario: { altura: number; max: number };
+  legendaCartao: { fonte: number; quadro: number };
+};
+
+/** Legenda numa linha longa sobre tudo; abaixo, duas colunas: à esquerda o mapa sobre os 5 primeiros cartões; à direita o texto geral sobre os outros 6. */
+function CorpoArte({ cfg, geo, previsoes, titulo, data, textoGeral }: { cfg: ConfigArte; geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; textoGeral?: string }) {
   const itens = ordenar(previsoes);
   const temGeral = !!(textoGeral ?? "").trim();
   const ocultar = comentarioRepetido(previsoes, textoGeral);
-  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, 52, 20);
+  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, cfg.comentario.altura, cfg.comentario.max);
+  const cartao = ({ regiao, p }: (typeof itens)[number]) => (
+    <CartaoRedec key={regiao} regiao={regiao} p={p} variante={cfg.variante} comentarioPx={comentarioPx} ocultarComentario={ocultar} />
+  );
   return (
-    <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
-      <Cabecalho titulo={titulo} data={data} altura={170} fonteTitulo={46} logo={84} />
-      <div className="flex shrink-0 gap-2.5 px-4 py-2.5" style={{ height: 500 }}>
-        <div className="min-w-0 flex-1 rounded-lg bg-sky-50">
-          <MapaRedec geo={geo} previsoes={previsoes} largura={640} altura={480} raioNumero={15} className="h-full w-full" />
-        </div>
-        {temGeral && (
-          <div className="flex shrink-0" style={{ width: 400 }}>
-            <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="story" area={{ largura: 362, altura: 380, max: 32 }} />
+    <div className="flex flex-col overflow-hidden bg-white" style={{ width: cfg.largura, height: cfg.altura }}>
+      <Cabecalho titulo={titulo} data={data} altura={cfg.cab.altura} fonteTitulo={cfg.cab.fonteTitulo} logo={cfg.cab.logo} />
+      <LegendaTempo className={`shrink-0 whitespace-nowrap ${cfg.legenda}`} />
+      <div className={`flex min-h-0 flex-1 ${cfg.pad} ${cfg.gap}`}>
+        <div className={`flex min-w-0 flex-col ${cfg.gap}`} style={{ flex: `${cfg.esq} 1 0` }}>
+          <div className="min-h-0 rounded-lg bg-sky-50" style={{ flex: `${cfg.geral + 1} 1 0` }}>
+            <MapaRedec geo={geo} previsoes={previsoes} largura={cfg.mapa.largura} altura={cfg.mapa.altura} raioNumero={cfg.raio} className="h-full w-full" />
           </div>
-        )}
+          {itens.slice(0, 5).map((it) => (
+            <div key={it.regiao} className="flex min-h-0" style={{ flex: "1 1 0" }}>
+              <div className="flex min-w-0 flex-1 flex-col [&>*]:flex-1">{cartao(it)}</div>
+            </div>
+          ))}
+        </div>
+        <div className={`flex min-w-0 flex-1 flex-col ${cfg.gap}`}>
+          <div className="flex min-h-0" style={{ flex: `${cfg.geral} 1 0` }}>
+            {temGeral ? (
+              <CartaoGeral texto={textoGeral} previsoes={previsoes} variante={cfg.variante} area={cfg.area} />
+            ) : (
+              <div className="flex min-w-0 flex-1 flex-col [&>*]:flex-1">
+                <CartaoLegenda fonte={cfg.legendaCartao.fonte} quadro={cfg.legendaCartao.quadro} />
+              </div>
+            )}
+          </div>
+          {itens.slice(5).map((it) => (
+            <div key={it.regiao} className="flex min-h-0" style={{ flex: "1 1 0" }}>
+              <div className="flex min-w-0 flex-1 flex-col [&>*]:flex-1">{cartao(it)}</div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 px-4 pb-2.5" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
-        {itens.map(({ regiao, p }) => (
-          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} ocultarComentario={ocultar} />
-        ))}
-        <CartaoLegenda fonte={19} quadro={18} />
-      </div>
-      <Rodape altura={58} fonte={24} />
+      <Rodape altura={cfg.rodape.altura} fonte={cfg.rodape.fonte} />
     </div>
   );
 }
 
+export const STORY_W = 1080;
+export const STORY_H = 1920;
+const CFG_STORY: ConfigArte = {
+  variante: "story",
+  largura: STORY_W,
+  altura: STORY_H,
+  cab: { altura: 170, fonteTitulo: 46, logo: 84 },
+  rodape: { altura: 58, fonte: 24 },
+  geral: 1.1,
+  esq: 1.15,
+  pad: "px-4 pb-2.5",
+  gap: "gap-2.5",
+  raio: 15,
+  mapa: { largura: 556, altura: 464 },
+  legenda: "py-2.5 text-[21px]",
+  area: { largura: 445, altura: 165, max: 30 },
+  comentario: { altura: 80, max: 20 },
+  legendaCartao: { fonte: 19, quadro: 18 },
+};
+/** Story vertical 1080×1920: mapa e 5 REDECs à esquerda; texto geral e 6 REDECs à direita, com sol, umidade, vento e o comentário. */
+export function CorpoStory(props: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; textoGeral?: string }) {
+  return <CorpoArte cfg={CFG_STORY} {...props} />;
+}
+
 export const FEED_W = 1080;
 export const FEED_H = 1350;
+const CFG_FEED: ConfigArte = {
+  variante: "feed",
+  largura: FEED_W,
+  altura: FEED_H,
+  cab: { altura: 120, fonteTitulo: 40, logo: 68 },
+  rodape: { altura: 46, fonte: 19 },
+  geral: 1.4,
+  esq: 1,
+  pad: "px-3 pb-2",
+  gap: "gap-2",
+  raio: 12,
+  mapa: { largura: 524, altura: 352 },
+  legenda: "py-2 text-[17px]",
+  area: { largura: 490, altura: 145, max: 26 },
+  comentario: { altura: 40, max: 15 },
+  legendaCartao: { fonte: 15, quadro: 14 },
+};
 /** Post de feed 1080×1350 (4:5): mesmo conteúdo do story em formato menor. */
-export function CorpoFeed({ geo, previsoes, titulo, data, textoGeral }: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; textoGeral?: string }) {
-  const itens = ordenar(previsoes);
-  const temGeral = !!(textoGeral ?? "").trim();
-  const ocultar = comentarioRepetido(previsoes, textoGeral);
-  const comentarioPx = ajustarComentarioPx(ocultar ? 0 : maiorComentario(previsoes), 484, 26, 15);
-  return (
-    <div className="flex flex-col overflow-hidden bg-white" style={{ width: FEED_W, height: FEED_H }}>
-      <Cabecalho titulo={titulo} data={data} altura={120} fonteTitulo={40} logo={68} />
-      <div className="flex shrink-0 gap-2 px-3 py-2" style={{ height: 360 }}>
-        <div className="min-w-0 flex-1 rounded-lg bg-sky-50">
-          <MapaRedec geo={geo} previsoes={previsoes} largura={560} altura={340} raioNumero={12} className="h-full w-full" />
-        </div>
-        {temGeral && (
-          <div className="flex shrink-0" style={{ width: 460 }}>
-            <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="feed" area={{ largura: 430, altura: 270, max: 26 }} />
-          </div>
-        )}
-      </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 px-3 pb-2" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
-        {itens.map(({ regiao, p }) => (
-          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="feed" comentarioPx={comentarioPx} ocultarComentario={ocultar} />
-        ))}
-        <CartaoLegenda fonte={15} quadro={14} />
-      </div>
-      <Rodape altura={46} fonte={19} />
-    </div>
-  );
+export function CorpoFeed(props: { geo: GeoJsonFeatureCollection; previsoes: Previsao[]; titulo: string; data: string; textoGeral?: string }) {
+  return <CorpoArte cfg={CFG_FEED} {...props} />;
 }

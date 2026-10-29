@@ -287,9 +287,9 @@ A pedido do usuário: o texto geral deixou de ser um card largo e virou o **1º 
 
 Front compilado e implantado (95 arquivos, 0 falhas; sem backend nem migração). Verificado em produção por leitura: aba Previsão CEMADEN-RJ com 12 cartões de mesma altura (o 1º é "Previsão geral"), Mapa → Previsão com 12 cartões, 11 ícones de gota (Lucide) e nenhum emoji, Story (12 cartões de 216 px) e Post (12 cartões de 148 px) sem barra de rolagem no pop-up e desenhados no `<body>`.
 
-## 29/10/2026 — Story e Post: mapa maior ao lado do texto geral (teste)
+## 29/10/2026 — Story e Post: mapa maior à esquerda, texto geral à direita (publicado)
 
-A pedido do usuário (mapa pequeno e ilegível, números cobrindo as regiões): no Story e no Post o mapa passou para a esquerda, maior (~2,3× a área), com o cartão da previsão geral à direita; os 11 cartões das REDECs vêm abaixo em 2 colunas e a legenda de cores virou a 12ª célula. Só frontend, sem migração. Detalhes e medidas em `previsao-comparacao-telegram.md`.
+A pedido do usuário (mapa pequeno e ilegível, números cobrindo as regiões): legenda em uma linha longa sob o cabeçalho; abaixo, à esquerda o mapa (~2,3× a área anterior) sobre 5 cartões de REDEC e à direita o cartão da previsão geral sobre os outros 6. Uma 1ª versão (mapa + texto no topo, 11 cartões abaixo) foi publicada por engano e reprovada; as seguintes foram mostradas por imagem antes de publicar (regra salva na memória). Só frontend, sem migração; verificado em produção por leitura. Medidas e arquivos em `previsao-comparacao-telegram.md`.
 
 ## Pendências abertas (03/10/2026)
 
