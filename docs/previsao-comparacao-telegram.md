@@ -174,3 +174,10 @@ Motivo: o cartão por região repetia no rodapé dados que o mapa já mostra (m�
 
 Regras das observações: o comentário mais repetido (se vale para metade das REDECs ou mais) é tratado como o do texto geral e não se repete; só os diferentes aparecem, com número e nome. Sem texto geral escrito, o comentário comum aparece como observação geral. Os nomes dos grupos são sugestão e podem ser trocados. O botão **Story** (imagem única) continua no layout anterior; o carrossel passou a existir só em Story (o toggle Post/Story foi retirado). Sem migração.
 
+### Ajustes pedidos depois de ver o modelo A e o D (29/10/2026, NÃO publicado)
+- **Balões perto da região e em volta do mapa**, como na imagem aprovada: o posicionamento (`posicionarEntorno`) passou a ter uma **busca local** depois da escolha inicial. Cada balão tenta as posições livres e fica com a de menor custo (comprimento da linha + penalidade por cruzar outra linha ou outro balão); depois há troca de posições entre pares quando o custo total cai. Vale para o Post (A) e para o slide 1 do carrossel (D). A troca simples de pares da versão anterior foi substituída.
+- **Post (A)**: tabela sem separação por grupos, listada pela numeração 1 a 11; **sem barra de umidade** (só "mín~máx %", ex. 69~100%); colunas **Região, Umidade, Nascer · Pôr do Sol e Vento** (o Sol agora é por região, e a linha do Sol do Estado saiu do Post); observações só das regiões cujo comentário difere (nenhuma coluna de observação).
+- **Carrossel Story, slide 1 (D)**: balão completo mantido (ícone, máxima, mínima, umidade e vento), com a linha do Sol do Estado, o texto geral e as observações embaixo.
+- **Carrossel Story, slide 2**: o **mapa de referência com os números vem primeiro** (canto superior esquerdo) e os cartões das regiões 1 a 11 depois.
+Arquivo: `PrevisaoMapaCorpo.tsx` (`posicionarEntorno`, `TabelaRegioes`, `SlideDetalhes`). Sem migração.
+

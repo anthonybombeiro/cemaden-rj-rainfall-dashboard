@@ -82,7 +82,7 @@ function afastar(origem: Ponto[], larg: number, alt: number, W: number, H: numbe
 
 /** Posiciona cada marcador (caixa `larg`×`alt`) no espaço livre ao redor do Estado, o mais perto possível do ponto da região (estilo mapa do INEA: balões
  * em volta, ligados à região por uma linha curta). Rasteriza o contorno num canvas pequeno (passo de 6 px, com folga) e escolhe, região a região, a posição livre
- * mais próxima que não toque o Estado nem os marcadores já postos; as regiões da borda escolhem primeiro. Determinístico. */
+ * mais próxima que não toque o Estado nem os marcadores já postos; as regiões da borda escolhem primeiro. Depois uma busca local move cada balão para a posição livre de menor custo (linha curta, sem cruzar outra linha nem outro balão). Determinístico. */
 function posicionarEntorno(ds: string[], ancoras: Ponto[], W: number, H: number, larg: number, alt: number): Ponto[] {
   if (typeof document === "undefined") return ancoras;
   const passo = 6;
@@ -148,19 +148,83 @@ function posicionarEntorno(ds: string[], ancoras: Ponto[], W: number, H: number,
       postos.push(m.p);
     }
   }
-  // troca de posições entre pares enquanto o comprimento total das linhas diminuir (desfaz cruzamentos: as caixas têm o mesmo tamanho, então são intercambiáveis)
-  const dist = (x: Ponto, y: Ponto) => Math.hypot(x[0] - y[0], x[1] - y[1]);
-  for (let volta = 0; volta < 60; volta++) {
-    let trocou = false;
-    for (let i = 0; i < out.length; i++) {
-      for (let j = i + 1; j < out.length; j++) {
-        if (dist(ancoras[i], out[j]) + dist(ancoras[j], out[i]) < dist(ancoras[i], out[i]) + dist(ancoras[j], out[j]) - 1) {
-          [out[i], out[j]] = [out[j], out[i]];
-          trocou = true;
+  // refino: cada balão tenta as posições livres e fica com a de menor custo = comprimento da linha + penalidade por cruzar outra linha ou outro balão
+  const cand: Ponto[] = [];
+  for (let j = ml; j < linhas - ml; j += 2) for (let i = mc; i < cols - mc; i += 2) if (ocupadas(i - mc, j - ml, i + mc, j + ml) === 0) cand.push([i * passo + passo / 2, j * passo + passo / 2]);
+  const hw = larg / 2;
+  const hh = alt / 2;
+  const lim = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
+  const ponta = (a: Ponto, c: Ponto): Ponto => [lim(a[0], c[0] - hw, c[0] + hw), lim(a[1], c[1] - hh, c[1] + hh)];
+  const orient = (a: Ponto, b: Ponto, c: Ponto) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  const cruza = (a: Ponto, b: Ponto, c: Ponto, d: Ponto) => orient(a, b, c) * orient(a, b, d) < 0 && orient(c, d, a) * orient(c, d, b) < 0;
+  const bate = (a: Ponto, b: Ponto, c: Ponto) => {
+    const x0 = c[0] - hw + 2;
+    const x1 = c[0] + hw - 2;
+    const y0 = c[1] - hh + 2;
+    const y1 = c[1] + hh - 2;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const pp = [-dx, dx, -dy, dy];
+    const qq = [a[0] - x0, x1 - a[0], a[1] - y0, y1 - a[1]];
+    let t0 = 0;
+    let t1 = 1;
+    for (let k = 0; k < 4; k++) {
+      if (pp[k] === 0) {
+        if (qq[k] < 0) return false;
+      } else {
+        const t = qq[k] / pp[k];
+        if (pp[k] < 0) {
+          if (t > t1) return false;
+          if (t > t0) t0 = t;
+        } else {
+          if (t < t0) return false;
+          if (t < t1) t1 = t;
         }
       }
     }
-    if (!trocou) break;
+    return true;
+  };
+  const custo = (i: number, pos: Ponto) => {
+    const ei = ponta(ancoras[i], pos);
+    let c = Math.hypot(ancoras[i][0] - ei[0], ancoras[i][1] - ei[1]);
+    for (let j = 0; j < out.length; j++) {
+      if (j === i) continue;
+      const ej = ponta(ancoras[j], out[j]);
+      if (cruza(ancoras[i], ei, ancoras[j], ej)) c += 600;
+      if (bate(ancoras[i], ei, out[j])) c += 500;
+      if (bate(ancoras[j], ej, pos)) c += 500;
+    }
+    return c;
+  };
+  for (let volta = 0; volta < 10; volta++) {
+    let mudou = false;
+    for (let i = 0; i < out.length; i++) {
+      let melhorC = custo(i, out[i]);
+      let melhorP = out[i];
+      for (const c of cand) {
+        if (out.some((q, j) => j !== i && Math.abs(q[0] - c[0]) < larg + gap && Math.abs(q[1] - c[1]) < alt + gap)) continue;
+        const k = custo(i, c);
+        if (k < melhorC - 0.5) [melhorC, melhorP] = [k, c];
+      }
+      if (melhorP !== out[i]) {
+        out[i] = melhorP;
+        mudou = true;
+      }
+    }
+    // troca de posições entre pares quando o custo total cai (as caixas têm o mesmo tamanho)
+    const total = () => out.reduce((acc, _, i) => acc + custo(i, out[i]), 0);
+    let atual = total();
+    for (let i = 0; i < out.length; i++) {
+      for (let j = i + 1; j < out.length; j++) {
+        [out[i], out[j]] = [out[j], out[i]];
+        const novo = total();
+        if (novo < atual - 0.5) {
+          atual = novo;
+          mudou = true;
+        } else [out[i], out[j]] = [out[j], out[i]];
+      }
+    }
+    if (!mudou) break;
   }
   return out;
 }
@@ -216,10 +280,10 @@ export function MapaRedec({
   className?: string;
 }) {
   const detalhes = comTemp && balao.info !== undefined;
-  const linhaH = detalhes ? Math.round((balao.info ?? 0) * 1.45) : 0;
-  const topoH = Math.max(balao.icone, Math.round(balao.fonte * 2.05)) + 14;
-  const bw = detalhes ? 232 : 12 + balao.icone + 8 + Math.round(balao.fonte * 1.9) + 12;
-  const bh = detalhes ? topoH + 2 * linhaH + 8 : balao.icone + 14;
+  const linhaH = detalhes ? Math.round((balao.info ?? 0) * 1.4) : 0;
+  const topoH = Math.max(balao.icone, Math.round(balao.fonte * 2.05)) + 12;
+  const bw = detalhes ? Math.round((balao.info ?? 0) * 12.1) : 12 + balao.icone + 8 + Math.round(balao.fonte * 1.9) + 12;
+  const bh = detalhes ? topoH + 2 * linhaH + 6 : balao.icone + 14;
   const caixaW = comTemp ? bw : tamIcone + 6;
   const caixaH = comTemp ? bh : tamIcone + 6;
   const itens = useMemo(() => {
@@ -647,69 +711,58 @@ function Observacoes({ obs, largura, altura, max }: { obs: Observacao; largura: 
   );
 }
 
-const GRUPOS_TABELA = [
-  { nome: "Grande Rio", regioes: ["CAPITAL", "METROPOLITANA", "BAIXADA FLUMINENSE"] },
-  { nome: "Sul do Estado", regioes: ["COSTA VERDE", "SUL I", "SUL II"] },
-  { nome: "Região Serrana", regioes: ["SERRANA I", "SERRANA II"] },
-  { nome: "Leste e Norte", regioes: ["BAIXADA LITORÂNEA", "NORTE", "NOROESTE"] },
-];
-
-/** Tabela por grupos de regiões com o que o mapa não mostra: umidade (com barra de mínima a máxima) e vento. Mesmos números do mapa. */
-function TabelaGrupos({ previsoes, linha, fonte }: { previsoes: Previsao[]; linha: number; fonte: number }) {
+/** Tabela do Post com o que o mapa não mostra, uma linha por região na ordem dos números: umidade (mín~máx), nascer e pôr do Sol e vento. */
+function TabelaRegioes({ previsoes, linha, fonte }: { previsoes: Previsao[]; linha: number; fonte: number }) {
   const por = new Map(previsoes.map((p) => [p.regiao, p]));
-  const cols = "310px 300px minmax(0,1fr)";
+  const cols = "290px 190px 270px minmax(0,1fr)";
   const isz = Math.round(fonte * 0.95);
   return (
     <div className="shrink-0 overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-800" style={{ fontSize: fonte }}>
       <div className="grid items-center bg-[#0f2a4a] px-3 font-semibold text-white" style={{ gridTemplateColumns: cols, height: Math.round(linha * 0.85) }}>
         <span>Região</span>
         <span>Umidade</span>
+        <span>Nascer · Pôr do Sol</span>
         <span>Vento</span>
       </div>
-      {GRUPOS_TABELA.map((g) => (
-        <div key={g.nome}>
-          <div className="flex items-center bg-sky-100 px-3 font-bold uppercase tracking-wide text-[#0f4c81]" style={{ height: Math.round(linha * 0.75), fontSize: Math.round(fonte * 0.78) }}>
-            {g.nome}
-          </div>
-          {g.regioes.map((r) => {
-            const p = por.get(r);
-            const n = ORDEM_REDEC.indexOf(r) + 1;
-            return (
-              <div key={r} className="grid items-center border-t border-slate-100 px-3" style={{ gridTemplateColumns: cols, height: linha }}>
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="flex shrink-0 items-center justify-center rounded-full bg-[#0f2a4a] font-bold text-white" style={{ width: linha * 0.72, height: linha * 0.72, fontSize: fonte * 0.8 }}>
-                    {n}
-                  </span>
-                  <span className="truncate font-semibold">{nomeBonito(r)}</span>
+      {ORDEM_REDEC.map((r, i) => {
+        const p = por.get(r);
+        return (
+          <div key={r} className={`grid items-center border-t border-slate-100 px-3 ${i % 2 ? "bg-slate-50" : ""}`} style={{ gridTemplateColumns: cols, height: linha }}>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="flex shrink-0 items-center justify-center rounded-full bg-[#0f2a4a] font-bold text-white" style={{ width: linha * 0.7, height: linha * 0.7, fontSize: fonte * 0.78 }}>
+                {i + 1}
+              </span>
+              <span className="truncate font-semibold">{nomeBonito(r)}</span>
+            </span>
+            {p ? (
+              <>
+                <span className="whitespace-nowrap">
+                  {r0(p.umidade_minima)}~{r0(p.umidade_maxima)}%
                 </span>
-                {p ? (
-                  <span className="flex items-center gap-2 whitespace-nowrap">
-                    <span className="w-[112px]">{textoUmidade(p)}</span>
-                    <span className="relative inline-block h-2.5 w-[130px] rounded-full bg-slate-200">
-                      <span className="absolute inset-y-0 rounded-full bg-sky-500" style={{ left: `${Math.min(r0(p.umidade_minima), 100)}%`, width: `${Math.max(Math.min(r0(p.umidade_maxima), 100) - Math.min(r0(p.umidade_minima), 100), 2)}%` }} />
-                    </span>
+                <span className="flex items-center gap-3 whitespace-nowrap">
+                  <span className="flex items-center gap-1">
+                    <Sunrise size={isz} className="shrink-0 text-amber-500" /> {hm(p.nascer_sol)}
                   </span>
-                ) : (
-                  <span>—</span>
-                )}
-                {p ? (
-                  <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-                    <Wind size={isz} className="shrink-0 text-orange-500" />
-                    <span className="truncate">{textoVento(p)}</span>
+                  <span className="flex items-center gap-1">
+                    <Sunset size={isz} className="shrink-0 text-amber-700" /> {hm(p.por_sol)}
                   </span>
-                ) : (
-                  <span>—</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ))}
+                </span>
+                <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+                  <Wind size={isz} className="shrink-0 text-orange-500" />
+                  <span className="truncate">{textoVento(p)}</span>
+                </span>
+              </>
+            ) : (
+              <span className="col-span-3">Sem previsão</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-/** Post 1080×1350 (modelo A): mapa com balões de ícone e temperaturas em volta; texto geral; Sol do Estado; tabela por grupos (umidade e vento); observações só das regiões que diferem. */
+/** Post 1080×1350 (modelo A): mapa com balões de ícone e temperaturas em volta; texto geral; tabela por região (umidade, Sol e vento); observações só das regiões que diferem. */
 export function CorpoFeed({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
   const t = (textoGeral ?? "").trim();
   const obs = observacoes(previsoes, !!t);
@@ -720,7 +773,7 @@ export function CorpoFeed({ geo, previsoes, titulo, data, textoGeral }: PropsArt
       <Cabecalho titulo={titulo} data={data} altura={120} fonteTitulo={40} logo={68} />
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-2 pt-2.5">
         <div className="min-h-0 flex-1 rounded-lg bg-sky-50">
-          <MapaRedec geo={geo} previsoes={previsoes} largura={1056} altura={temObs ? 476 : 552} raioNumero={11} modo="entorno" comTemp balao={{ icone: 54, fonte: 29 }} margemMapa={28} className="h-full w-full" />
+          <MapaRedec geo={geo} previsoes={previsoes} largura={1056} altura={temObs ? 540 : 616} raioNumero={11} modo="entorno" comTemp balao={{ icone: 54, fonte: 29 }} margemMapa={28} className="h-full w-full" />
         </div>
         {t && (
           <div className="flex shrink-0 items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 px-3" style={{ height: 92 }}>
@@ -731,8 +784,7 @@ export function CorpoFeed({ geo, previsoes, titulo, data, textoGeral }: PropsArt
             </p>
           </div>
         )}
-        <LinhaSol previsoes={previsoes} altura={34} fonte={19} icone={19} />
-        <TabelaGrupos previsoes={previsoes} linha={31} fonte={19} />
+        <TabelaRegioes previsoes={previsoes} linha={37} fonte={21} />
         {temObs && <Observacoes obs={obs} largura={1000} altura={52} max={20} />}
       </div>
       <Rodape altura={46} fonte={19} />
@@ -761,7 +813,7 @@ function SlideMapa({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo={titulo} data={data} altura={SLIDE.cab.altura} fonteTitulo={SLIDE.cab.fonteTitulo} logo={SLIDE.cab.logo} />
       <div className="min-h-0 flex-1 bg-sky-50">
-        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={temObs ? 1150 : 1290} raioNumero={17} modo="entorno" comTemp balao={{ icone: 64, fonte: 34, info: 19 }} margemMapa={30} className="h-full w-full" />
+        <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={temObs ? 1150 : 1290} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} className="h-full w-full" />
       </div>
       {t && (
         <div className="shrink-0 bg-sky-50 px-4 pb-3" style={{ height: 330 }}>
@@ -781,7 +833,7 @@ function SlideMapa({ geo, previsoes, titulo, data, textoGeral }: PropsArte) {
   );
 }
 
-/** Slide 2: os textos normais de cada região (situação, mínima e máxima, umidade, vento, Sol e comentário), com os mesmos números do slide 1 e, na 12ª célula, o mapa de referência só com os números. */
+/** Slide 2: o mapa de referência só com os números no canto superior esquerdo e, depois dele, os textos normais de cada região (situação, mínima e máxima, umidade, vento, Sol e comentário), com os mesmos números do slide 1. */
 function SlideDetalhes({ geo, previsoes, data }: PropsArte) {
   const itens = ordenar(previsoes);
   const comentarioPx = ajustarComentarioPx(maiorComentario(previsoes), 484, 118, 26);
@@ -789,12 +841,12 @@ function SlideDetalhes({ geo, previsoes, data }: PropsArte) {
     <div className="flex flex-col overflow-hidden bg-white" style={{ width: STORY_W, height: STORY_H }}>
       <Cabecalho titulo="Previsão por região" data={data} altura={SLIDE.cab.altura} fonteTitulo={SLIDE.cab.fonteTitulo} logo={SLIDE.cab.logo} />
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 px-4 pb-2.5 pt-2.5" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
-        {itens.map(({ regiao, p }) => (
-          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} />
-        ))}
         <div className="min-h-0 overflow-hidden rounded-lg border border-slate-300 bg-sky-50">
           <MapaRedec geo={geo} previsoes={previsoes} largura={SLIDE.indice.largura} altura={SLIDE.indice.altura} raioNumero={SLIDE.indice.raio} modo="numeros" className="h-full w-full" />
         </div>
+        {itens.map(({ regiao, p }) => (
+          <CartaoRedec key={regiao} regiao={regiao} p={p} variante="story" comentarioPx={comentarioPx} />
+        ))}
       </div>
       <Rodape altura={SLIDE.rodape.altura} fonte={SLIDE.rodape.fonte} />
     </div>

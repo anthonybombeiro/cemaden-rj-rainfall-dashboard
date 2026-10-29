@@ -303,6 +303,10 @@ A pedido do usuário: nos dois modelos (imagem única e carrossel) os ícones, e
 
 A pedido do usuário, depois de quatro propostas: o Post passou a ter mapa com balões em volta, texto geral, Sol do Estado, tabela por grupos de regiões (umidade e vento) e observações só do que difere; o carrossel Story tem no slide 1 balões completos (com umidade e vento) e no slide 2 os textos normais com os mesmos números. Só local; imagens enviadas para aprovação antes de publicar. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: ajustes do modelo A e do D (modelo local, não publicado)
+
+A pedido do usuário: balões perto das regiões em volta do mapa (busca local que minimiza o comprimento das linhas e os cruzamentos), tabela do Post por numeração, sem barra de umidade, com Sol por região; mapa de referência primeiro no slide 2 do carrossel. Só local; imagens enviadas. Sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.
