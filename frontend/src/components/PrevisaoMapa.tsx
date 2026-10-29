@@ -9,6 +9,7 @@ import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, 
 import ShareModal from "@/components/ShareModal";
 import { fetchDataUltimaPrevisao, fetchPrevisaoPublica, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
+import { intervaloVisivel } from "@/lib/intervaloVisivel";
 import { EMOJI_POR_ICONE, iconeSrc } from "@/lib/meteorologia";
 import { copiarImagemParaAreaDeTransferencia, copiarParaAreaDeTransferencia, ehDispositivoMovel, ShareData } from "@/lib/shareExport";
 
@@ -221,6 +222,11 @@ export default function PrevisaoMapa({ publico = false, embutido = false }: { pu
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
+  const manual = useRef(false); // o visitante escolheu outro dia: a atualização automática não o tira de lá
+  const mudarData = (d: string) => {
+    manual.current = true;
+    setData(d);
+  };
   const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "carrossel" | null>(null);
   const lado = useMediaQuery("(min-width: 1024px)"); // mapa fixo ao lado dos cartões (e limitado à altura da janela)
   // clicar numa região ou balão destaca o cartão ao lado (e o traz à vista); clicar de novo limpa
@@ -280,6 +286,21 @@ export default function PrevisaoMapa({ publico = false, embutido = false }: { pu
       cancelado = true;
     };
   }, [data, publico]);
+
+  // página pública deixada aberta (TV, videowall): a cada 5 min busca de novo o dia mais recente, a menos que o visitante tenha escolhido outro dia
+  useEffect(() => {
+    if (!publico) return;
+    return intervaloVisivel(() => {
+      if (manual.current) return;
+      fetchPrevisaoPublica()
+        .then((r) => {
+          setData(r.data);
+          setPrevisoes(r.previsoes);
+          setTextoGeral(r.texto_geral ?? "");
+        })
+        .catch(() => undefined);
+    }, 300_000);
+  }, [publico]);
 
   const ordenadas = useMemo(() => ORDEM_REDEC.map((r) => ({ regiao: r, p: previsoes.find((x) => x.regiao === r) })), [previsoes]);
   const hm = (t?: string) => (t ? t.slice(0, 5) : "—");
@@ -341,11 +362,11 @@ export default function PrevisaoMapa({ publico = false, embutido = false }: { pu
   return (
     <div className={embutido ? "flex w-full flex-col bg-white" : "flex h-full w-full flex-col overflow-auto bg-white p-2 sm:p-3"}>
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm">
-        <button type="button" aria-label="Dia anterior" onClick={() => data && setData(somaDias(data, -1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200">
+        <button type="button" aria-label="Dia anterior" onClick={() => data && mudarData(somaDias(data, -1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200">
           <ChevronLeft size={16} />
         </button>
-        <input type="date" value={data ?? ""} min={publico ? somaDias(hojeIso(), -31) : undefined} max={publico ? somaDias(hojeIso(), 7) : undefined} onChange={(e) => e.target.value && setData(e.target.value)} className="rounded border border-gray-300 bg-white px-2 py-1" />
-        <button type="button" aria-label="Próximo dia" onClick={() => data && setData(somaDias(data, 1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200">
+        <input type="date" value={data ?? ""} min={publico ? somaDias(hojeIso(), -31) : undefined} max={publico ? somaDias(hojeIso(), 7) : undefined} onChange={(e) => e.target.value && mudarData(e.target.value)} className="rounded border border-gray-300 bg-white px-2 py-1" />
+        <button type="button" aria-label="Próximo dia" onClick={() => data && mudarData(somaDias(data, 1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200">
           <ChevronRight size={16} />
         </button>
         {data && <span className="font-semibold text-gray-800">{dataExtenso(data)}</span>}
@@ -371,12 +392,12 @@ export default function PrevisaoMapa({ publico = false, embutido = false }: { pu
       ) : !previsoes.length ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">Ainda não há previsão cadastrada para {data ? dataExtenso(data) : "este dia"}. Use as setas para ver outro dia.</div>
       ) : (
-        <div className={`grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] ${embutido ? "" : "2xl:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]"}`}>
+        <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] 2xl:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]">
           <div className="lg:sticky lg:top-0 lg:self-start">
             {/* o mesmo mapa do carrossel (balões completos) em qualquer tela: no celular ele ocupa a largura toda, como a imagem do story */}
-            <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1125} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_TELA} ajustes={AJUSTES_STORY} selecionada={selecionada} onSelecionar={selecionar} className="mx-auto w-full rounded-lg bg-sky-50" style={lado ? { maxHeight: "calc(100vh - 19rem)" } : undefined} />
+            <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1125} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_TELA} ajustes={AJUSTES_STORY} selecionada={selecionada} onSelecionar={selecionar} className="mx-auto w-full rounded-lg bg-sky-50" style={lado && !embutido ? { maxHeight: "calc(100vh - 19rem)" } : undefined} />
           </div>
-          <div className={`grid grid-cols-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-1 ${embutido ? "" : "2xl:grid-cols-2"}`}>
+          <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
             <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="tela" />
             {ordenadas.map(({ regiao, p }) => (
               <CartaoRedec key={regiao} id={`cartao-${regiao}`} regiao={regiao} p={p} variante="tela" classico ativo={selecionada === regiao} onClick={() => selecionar(regiao)} />

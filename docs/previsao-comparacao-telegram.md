@@ -231,3 +231,12 @@ O mapa de **Mapa → Previsão** passou a fazer parte da **página pública** (`
 - **Frontend:** `PrevisaoMapa` ganhou os parâmetros `publico` (busca no endpoint público, sem botões de Post, Carrossel e Tabela, data limitada a 31 dias atrás e 7 à frente) e `embutido` (sem rolagem própria; cartões em 1 coluna ao lado do mapa a partir de 1024 px). É o mesmo mapa com balões clicáveis das telas internas, no celular na largura toda. `fetchPrevisaoPublica` em `lib/api.ts`.
 - Sem migração. A página pública continua sem nenhum dado de usuário.
 
+### Página pública fluida, para qualquer tela (29/10/2026)
+A página `/publico` ficava presa numa coluna estreita (`max-w-6xl`, 1152 px) e parecia uma tela curta em monitores, TVs e videowalls. Agora:
+- **Largura fluida:** o conteúdo usa a tela toda (`w-full`, teto de `120rem`) com margens que crescem (`px-4`, `sm:px-6`, `xl:px-8`).
+- **TV, videowall, monitor 4K:** acima de 1920 px o tamanho-base da página cresce com a largura (`html{font-size:max(16px,calc(100vw / 120))}`, só nesta rota), então tudo (letras, mapa, espaços) é proporcional ao layout de 1920 px e preenche a tela: 2560 px → 21 px, 3840 px → 32 px. Textos em px fixo da página foram trocados por rem. Abaixo de 1920 px nada muda (16 px).
+- **Layouts por largura:** celular na vertical e na horizontal, em 1 coluna; tablet (≥ 1024 px): mapa à esquerda e cartões em 1 coluna; PC/TV (≥ 1536 px): mapa em metade da largura e **cartões 2 a 2**, a seção da previsão cabe numa tela de 1920×1080; mapas de risco em 2 colunas e, a partir de 1280 px, em 4 colunas. O mapa do Nível de Monitoramento tem altura máxima em rem (`min(75vh, 40rem)`), então cresce junto na TV.
+- **Sem limite de altura da janela** na previsão embutida (a página rola normalmente).
+- **Tela deixada aberta (TV/videowall):** a previsão se atualiza sozinha a cada 5 minutos (e passa para o dia seguinte quando ele é cadastrado), a menos que o visitante tenha escolhido outro dia; o Nível de Monitoramento já atualizava a cada 1 minuto.
+Arquivos: `PublicoMonitoramento.tsx`, `PrevisaoMapa.tsx`. Sem migração. Ainda não há um "modo TV" que role sozinho entre as seções; fica como possível próximo passo.
+

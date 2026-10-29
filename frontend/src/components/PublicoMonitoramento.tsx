@@ -32,8 +32,10 @@ export default function PublicoMonitoramento() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
+      {/* Telas grandes (TV, videowall, monitor 4K): acima de 1920 px o tamanho-base cresce com a largura da tela, então o conteúdo mantém as proporções e preenche tudo. */}
+      <style>{`html{font-size:max(16px,calc(100vw / 120))}`}</style>
       <header className="bg-[#1f3864] text-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+        <div className="mx-auto flex w-full max-w-[120rem] flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-6 xl:px-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-cemadenrj.png" alt="CEMADEN-RJ" className="h-9 w-auto self-start sm:h-10" />
           <div className="min-w-0 sm:flex-1">
@@ -44,7 +46,7 @@ export default function PublicoMonitoramento() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-5 px-4 py-4">
+      <main className="mx-auto w-full max-w-[120rem] space-y-5 px-4 py-4 sm:px-6 xl:space-y-6 xl:px-8">
         {erro && !d && <p className="rounded bg-red-50 p-3 text-sm text-red-700">Não foi possível carregar os dados agora. Tente novamente em instantes.</p>}
         {d && (
           <>
@@ -57,8 +59,8 @@ export default function PublicoMonitoramento() {
             <section aria-labelledby="mapa-nm" className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
               <div>
                 <h2 id="mapa-nm" className="mb-2 text-sm font-bold text-gray-800">Mapa do Nível de Monitoramento por município</h2>
-                <MapaNiveis niveis={d.niveis} rotuloMin={3} altura="min(75vh, 620px)" />
-                <p className="mt-1 text-[11px] text-gray-500">Contorno azul: regionais de Defesa Civil (REDEC). Passe o mouse ou toque num município para ver o nível. Hachurado = vigência vencida, em revisão.</p>
+                <MapaNiveis niveis={d.niveis} rotuloMin={3} altura="min(75vh, 40rem)" />
+                <p className="mt-1 text-[0.6875rem] text-gray-500">Contorno azul: regionais de Defesa Civil (REDEC). Passe o mouse ou toque num município para ver o nível. Hachurado = vigência vencida, em revisão.</p>
               </div>
               <div className="space-y-2">
                 <h2 className="text-sm font-bold text-gray-800">Os seis níveis</h2>
@@ -66,7 +68,7 @@ export default function PublicoMonitoramento() {
                   <div key={n} className="flex gap-2 rounded-md border border-gray-200 bg-white p-2 text-xs">
                     <span className="flex h-9 w-14 shrink-0 flex-col items-center justify-center rounded font-bold leading-tight" style={{ background: ESCALA_NM[n].cor, color: corTextoSobre(ESCALA_NM[n].cor) }}>
                       <span>{ESCALA_NM[n].sigla}</span>
-                      <span className="text-[9px]">{d.resumo[String(n)] ?? 0} mun.</span>
+                      <span className="text-[0.5625rem]">{d.resumo[String(n)] ?? 0} mun.</span>
                     </span>
                     <span className="min-w-0">
                       <b className="text-gray-800">{ESCALA_NM[n].nome}</b> — {SIGNIFICADO_NM[n].quando}
@@ -105,12 +107,12 @@ export default function PublicoMonitoramento() {
               <div className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm sm:p-3">
                 <PrevisaoMapa publico embutido />
               </div>
-              <p className="mt-1 text-[11px] text-gray-500">Toque numa região, ou no balão dela, para destacar os detalhes. Previsão elaborada pelos meteorologistas do CEMADEN-RJ.</p>
+              <p className="mt-1 text-[0.6875rem] text-gray-500">Toque numa região, ou no balão dela, para destacar os detalhes. Previsão elaborada pelos meteorologistas do CEMADEN-RJ.</p>
             </section>
 
             <section aria-labelledby="riscos">
               <h2 id="riscos" className="mb-2 text-sm font-bold text-gray-800">Visão geral dos mapas de risco</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {TIPOS.map((tipo) => {
                   const lista = d.riscos.filter((r) => r.tipo === tipo) as unknown as RiskAlert[];
                   return (
@@ -123,7 +125,7 @@ export default function PublicoMonitoramento() {
                   );
                 })}
               </div>
-              <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-600">
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.6875rem] text-gray-600">
                 {NIVEIS_RISCO.map((n) => <span key={n} className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm border border-black/10" style={{ background: RISK_LEVEL_COLORS[n] }} />{RISK_LEVEL_LABELS[n]}</span>)}
               </div>
             </section>
@@ -131,7 +133,7 @@ export default function PublicoMonitoramento() {
         )}
       </main>
 
-      <footer className="mx-auto max-w-6xl px-4 pb-8 pt-2 text-[11px] leading-snug text-gray-500">
+      <footer className="mx-auto w-full max-w-[120rem] px-4 pb-8 pt-2 text-[0.6875rem] leading-snug text-gray-500 sm:px-6 xl:px-8">
         Fonte: CEMADEN-RJ / SEDEC-RJ. A previsão do tempo é atualizada a cada dia pelos meteorologistas do CEMADEN-RJ. O Nível de Monitoramento segue a Portaria MIDR nº 2.458/2026 e o PLANCON 2026/2027 e é definido por município (vale o mais alto entre meteorologia, hidrologia e geologia). Esta página não substitui os alertas oficiais enviados à população (SMS, Defesa Civil Alerta e demais canais) nem a orientação da Defesa Civil do seu município. Emergência: 199 (Defesa Civil) ou 193 (Bombeiros).
       </footer>
     </div>
