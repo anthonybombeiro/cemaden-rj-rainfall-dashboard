@@ -813,6 +813,7 @@ class NivelMonitoramento(models.Model):
     nivel = models.PositiveSmallIntegerField(default=0)
     vigencia_ate = models.DateTimeField(null=True, blank=True, help_text="Fim da vigência (máx. 24 h para NM 2+); vencida = revisar.")
     registro = models.ForeignKey("NivelMonitoramentoRegistro", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    origem = models.CharField(max_length=10, default="humano", help_text="humano (lançado por um plantonista) ou automatico (gerado pelo sistema a partir dos mapas de risco).")
     atualizado_em = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -844,6 +845,8 @@ class NivelMonitoramentoRegistro(models.Model):
     aviso_motivo = models.CharField(max_length=300, blank=True)
     encerramento = models.BooleanField(default=False, help_text="Retorno à normalidade (cancelamento/encerramento do alerta, não alerta novo).")
     lote = models.CharField(max_length=36, blank=True, db_index=True, help_text="Identificador do lançamento em lote (vários municípios de uma vez).")
+    origem = models.CharField(max_length=10, default="humano", help_text="humano ou automatico (sistema).")
+    sinais = models.JSONField(default=list, blank=True, help_text="Sinais que sustentaram o nível (só nos registros automáticos).")
     registrado_por = models.CharField(max_length=150, blank=True)
     registrado_em = models.DateTimeField(auto_now_add=True, db_index=True)
 
@@ -854,3 +857,141 @@ class NivelMonitoramentoRegistro(models.Model):
 
     def __str__(self):
         return f"{self.municipio} · NM {self.nivel_anterior}→{self.nivel} · {self.registrado_em:%d/%m %H:%M}"
+
+
+class ConfiguracaoNm(models.Model):
+    """Configuração e estado da automação do Nível de Monitoramento (uma linha só, pk=1; editável no Admin).
+
+    O sistema gera sozinho, a partir dos mapas de risco (hidrológico, geológico e severidade meteorológica), os níveis que não dependem de validação
+    humana, até `nivel_maximo_auto` (padrão NM 2). Acima disso só sugere (aba Produção → Pendências). NM 4 e NM 5 são sempre decisão humana."""
+
+    ativo = models.BooleanField(default=True, help_text="Desligue para o sistema parar de gerar níveis sozinho.")
+    nivel_maximo_auto = models.PositiveSmallIntegerField(default=2, help_text="Maior NM que o sistema pode gerar sem validação (0 a 3; NM 4 e 5 nunca).")
+    ultima_execucao = models.DateTimeField(null=True, blank=True)
+    ultimo_resumo = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "automação do nível de monitoramento"
+        verbose_name_plural = "automação do nível de monitoramento"
+
+    @classmethod
+    def obter(cls) -> "ConfiguracaoNm":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        self.nivel_maximo_auto = max(0, min(int(self.nivel_maximo_auto), 3))
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Automação do NM · {'ativa' if self.ativo else 'desligada'} · até NM {self.nivel_maximo_auto}"
+
+
+# ---------------------------------------------------------------- Informativo meteorológico (29/10/2026)
+class InformativoMeteorologico(models.Model):
+    """Informativo meteorológico do CEMADEN-RJ (nº/AAAA): cenário atual e previsão das próximas 6 h por REDEC, no modelo de texto do grupo de operadores.
+
+    O texto é gerado a partir da matriz por REDEC (`InformativoRegiao`) e pode ser ajustado à mão; guarda-se o texto final E a matriz. A numeração reinicia
+    a cada ano e o número é reservado ao criar o rascunho. Fluxo: rascunho → revisado → enviado (ou cancelado, nunca apagado). Documentação: docs/informativo-meteorologico.md."""
+
+    class Estado(models.TextChoices):
+        RASCUNHO = "rascunho", "Rascunho"
+        REVISADO = "revisado", "Revisado"
+        ENVIADO = "enviado", "Enviado"
+        CANCELADO = "cancelado", "Cancelado"
+
+    numero = models.PositiveIntegerField()
+    ano = models.PositiveIntegerField(db_index=True)
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.RASCUNHO, db_index=True)
+    emitido_em = models.DateTimeField(null=True, blank=True, db_index=True, help_text="Data e hora que vão no texto (padrão: agora ao criar).")
+    texto = models.TextField(blank=True, help_text="Texto final (gerado e/ou ajustado à mão).")
+    texto_gerado = models.TextField(blank=True, help_text="Último texto gerado pela matriz (para saber se houve ajuste manual).")
+    texto_livre = models.BooleanField(default=False, help_text="Modo texto livre: casos fora do padrão; a matriz não gera o texto.")
+    aproximacao_regioes = models.JSONField(default=list, blank=True, help_text="REDECs de que núcleos de chuva se aproximam.")
+    aproximacao_por = models.CharField(max_length=40, blank=True, help_text="De onde vêm (ex.: Minas Gerais).")
+    aproximacao_intensidade = models.CharField(max_length=40, blank=True)
+    radar_fonte = models.CharField(max_length=120, blank=True, help_text="Ex.: Radar Tool INEA (Pico do Couto).")
+    radar_quadro_em = models.DateTimeField(null=True, blank=True, help_text="Hora do quadro de radar anexado.")
+    publico = models.BooleanField(default=False, help_text="Mostrar na página pública enquanto vigente (6 h).")
+    observacao = models.CharField(max_length=300, blank=True)
+    motivo_cancelamento = models.CharField(max_length=300, blank=True)
+    criado_por = models.CharField(max_length=150, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    revisado_por = models.CharField(max_length=150, blank=True)
+    revisado_em = models.DateTimeField(null=True, blank=True)
+    enviado_por = models.CharField(max_length=150, blank=True)
+    enviado_em = models.DateTimeField(null=True, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    historico = models.JSONField(default=list, blank=True, help_text="Quem fez o quê e quando (criou, editou, revisou, enviou, cancelou).")
+    importado = models.BooleanField(default=False, help_text="Veio da planilha de controle (2020-2026).")
+
+    class Meta:
+        ordering = ["-ano", "-numero"]
+        constraints = [models.UniqueConstraint(fields=["ano", "numero"], name="unique_informativo_numero_por_ano")]
+        verbose_name = "informativo meteorológico"
+        verbose_name_plural = "informativos meteorológicos"
+
+    def __str__(self):
+        return f"Informativo nº {self.numero}/{self.ano} · {self.get_estado_display()}"
+
+
+class InformativoRegiao(models.Model):
+    """Uma linha por REDEC do informativo: chuva atual, chuva prevista nas 6 h e complementos; SMS enviado (SIM/NÃO) para o controle."""
+
+    informativo = models.ForeignKey(InformativoMeteorologico, on_delete=models.CASCADE, related_name="regioes")
+    regiao = models.CharField(max_length=30)
+    chuva_atual = models.CharField(max_length=40, blank=True)
+    raios_atual = models.BooleanField(default=False)
+    chuva_prevista = models.CharField(max_length=40, blank=True)
+    vento_previsto = models.CharField(max_length=40, blank=True, help_text="Rajadas: moderado | moderado_ocasion_forte | forte.")
+    raios = models.BooleanField(default=False)
+    granizo = models.BooleanField(default=False)
+    isolada = models.BooleanField(default=False)
+    sms_enviado = models.BooleanField(default=False)
+    sms_enviado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["informativo", "regiao"], name="unique_informativo_regiao")]
+        ordering = ["informativo", "regiao"]
+        verbose_name = "região do informativo"
+        verbose_name_plural = "regiões do informativo"
+
+    def __str__(self):
+        return f"{self.informativo} · {self.regiao}"
+
+
+class ConfiguracaoInformativo(models.Model):
+    """Textos e regras configuráveis do informativo (uma linha só, pk=1; Admin): rodapé do texto e cadência do radar."""
+
+    rodape = models.TextField(
+        default=(
+            "Em caso de mudança de cenário, a Defesa Civil Estadual atualizará as informações e emitirá os alertas necessários pelas equipes de monitoramento do CEMADEN-RJ." "\n"
+            "Fiquem atentos aos informativos e alertas emitidos por nossas fontes oficiais." "\n"
+            "Sigam o perfil @defesacivil_rj para informações atualizadas."
+        ),
+        blank=True,
+    )
+    radar_fonte = models.CharField(max_length=120, default="Radar Tool INEA (Pico do Couto)")
+    validade_horas = models.PositiveSmallIntegerField(default=6, help_text="Validade do informativo (renovar a cada 6 h se a chuva continua).")
+    cadencia_radar_min = models.JSONField(
+        default=dict, blank=True,
+        help_text='Minutos entre reenvios do radar: {"intenso": 30, "moderada": 60, "noite": 120, "noite_fraca": 180}. Vazio = padrão do protocolo.',
+    )
+
+    class Meta:
+        verbose_name = "configuração do informativo"
+        verbose_name_plural = "configuração do informativo"
+
+    @classmethod
+    def obter(cls) -> "ConfiguracaoInformativo":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return "Configuração do informativo"
+

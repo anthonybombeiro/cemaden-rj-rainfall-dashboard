@@ -157,19 +157,58 @@ class MunicipioComSireneAdmin(admin.ModelAdmin):
     search_fields = ("municipio",)
 
 
-from core.models import NivelMonitoramento, NivelMonitoramentoRegistro  # noqa: E402
+from core.models import ConfiguracaoNm, NivelMonitoramento, NivelMonitoramentoRegistro  # noqa: E402
 
 
 @admin.register(NivelMonitoramento)
 class NivelMonitoramentoAdmin(admin.ModelAdmin):
-    list_display = ("municipio", "nivel", "vigencia_ate", "atualizado_em")
-    list_filter = ("nivel",)
+    list_display = ("municipio", "nivel", "origem", "vigencia_ate", "atualizado_em")
+    list_filter = ("nivel", "origem")
     search_fields = ("municipio",)
 
 
 @admin.register(NivelMonitoramentoRegistro)
 class NivelMonitoramentoRegistroAdmin(admin.ModelAdmin):
-    list_display = ("registrado_em", "municipio", "nivel_anterior", "nivel", "equipe", "aprovado_por", "registrado_por", "encerramento")
-    list_filter = ("nivel", "equipe", "encerramento")
+    list_display = ("registrado_em", "municipio", "nivel_anterior", "nivel", "equipe", "aprovado_por", "registrado_por", "origem", "encerramento")
+    list_filter = ("nivel", "origem", "equipe", "encerramento")
     search_fields = ("municipio", "motivo", "registrado_por", "aprovado_por")
     date_hierarchy = "registrado_em"
+
+
+@admin.register(ConfiguracaoNm)
+class ConfiguracaoNmAdmin(admin.ModelAdmin):
+    """Interruptor e teto da automação do NM (uma linha só)."""
+
+    list_display = ("__str__", "ativo", "nivel_maximo_auto", "ultima_execucao")
+    readonly_fields = ("ultima_execucao", "ultimo_resumo")
+
+    def has_add_permission(self, request):
+        return not ConfiguracaoNm.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+from core.models import ConfiguracaoInformativo, InformativoMeteorologico, InformativoRegiao  # noqa: E402
+
+
+class InformativoRegiaoInline(admin.TabularInline):
+    model = InformativoRegiao
+    extra = 0
+
+
+@admin.register(InformativoMeteorologico)
+class InformativoMeteorologicoAdmin(admin.ModelAdmin):
+    list_display = ("numero", "ano", "estado", "emitido_em", "enviado_por", "publico", "importado")
+    list_filter = ("ano", "estado", "publico", "importado")
+    inlines = [InformativoRegiaoInline]
+    readonly_fields = ("historico",)
+
+
+@admin.register(ConfiguracaoInformativo)
+class ConfiguracaoInformativoAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return not ConfiguracaoInformativo.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+

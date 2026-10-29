@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import MapaNiveis from "@/components/monitoramento/MapaNiveis";
+import InformativoPublico from "@/components/InformativoPublico";
 import PrevisaoMapa from "@/components/PrevisaoMapa";
 import RiskChoroplethMap from "@/components/RiskChoroplethMap";
 import { normalizeMunicipioName, RISK_ALERT_TIPO_LABELS, RISK_LEVEL_COLORS, RISK_LEVEL_LABELS, RiskAlert, RiskAlertTipo, RiskLevel } from "@/lib/api";
@@ -92,7 +93,7 @@ export default function PublicoMonitoramento() {
                         <tr key={n.municipio} className="border-t border-gray-100">
                           <td className="px-3 py-1.5 font-medium">{n.municipio}</td>
                           <td className="px-3 py-1.5 text-gray-600">{n.regiao}</td>
-                          <td className="px-3 py-1.5"><span className="whitespace-nowrap rounded px-2 py-0.5 text-xs font-bold" style={{ background: ESCALA_NM[n.nivel].cor, color: corTextoSobre(ESCALA_NM[n.nivel].cor) }}>{ESCALA_NM[n.nivel].sigla} {ESCALA_NM[n.nivel].nome}</span></td>
+                          <td className="px-3 py-1.5"><span className="whitespace-nowrap rounded px-2 py-0.5 text-xs font-bold" style={{ background: ESCALA_NM[n.nivel].cor, color: corTextoSobre(ESCALA_NM[n.nivel].cor) }}>{ESCALA_NM[n.nivel].sigla} {ESCALA_NM[n.nivel].nome}</span>{n.origem === "automatico" && <span className="ml-1 text-[0.6875rem] text-gray-500" title="Gerado automaticamente a partir dos mapas de risco">automático</span>}</td>
                           <td className={`px-3 py-1.5 text-xs ${n.vencida ? "font-semibold text-red-600" : "text-gray-600"}`}>{n.vencida ? "Vencida — em revisão" : n.vigencia_ate ? `até ${fmtDataHora(n.vigencia_ate)}` : "—"}</td>
                         </tr>
                       ))}
@@ -101,6 +102,8 @@ export default function PublicoMonitoramento() {
                 </div>
               )}
             </section>
+
+            <InformativoPublico />
 
             <section aria-labelledby="previsao">
               <h2 id="previsao" className="mb-2 text-sm font-bold text-gray-800">Previsão do tempo por regional (REDEC)</h2>
@@ -134,7 +137,7 @@ export default function PublicoMonitoramento() {
       </main>
 
       <footer className="mx-auto w-full max-w-[120rem] px-4 pb-8 pt-2 text-[0.6875rem] leading-snug text-gray-500 sm:px-6 xl:px-8">
-        Fonte: CEMADEN-RJ / SEDEC-RJ. A previsão do tempo é atualizada a cada dia pelos meteorologistas do CEMADEN-RJ. O Nível de Monitoramento segue a Portaria MIDR nº 2.458/2026 e o PLANCON 2026/2027 e é definido por município (vale o mais alto entre meteorologia, hidrologia e geologia). Esta página não substitui os alertas oficiais enviados à população (SMS, Defesa Civil Alerta e demais canais) nem a orientação da Defesa Civil do seu município. Emergência: 199 (Defesa Civil) ou 193 (Bombeiros).
+        Fonte: CEMADEN-RJ / SEDEC-RJ. A previsão do tempo é atualizada a cada dia pelos meteorologistas do CEMADEN-RJ. O Nível de Monitoramento segue a Portaria MIDR nº 2.458/2026 e o PLANCON 2026/2027 e é definido por município (vale o mais alto entre meteorologia, hidrologia e geologia). Os níveis NM 1 e NM 2 podem ser gerados automaticamente a partir dos mapas de risco (marcados como automático); NM 3 a NM 5 são confirmados pela equipe. Esta página não substitui os alertas oficiais enviados à população (SMS, Defesa Civil Alerta e demais canais) nem a orientação da Defesa Civil do seu município. Emergência: 199 (Defesa Civil) ou 193 (Bombeiros).
       </footer>
     </div>
   );

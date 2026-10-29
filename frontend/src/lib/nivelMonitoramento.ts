@@ -36,6 +36,8 @@ export type NivelMunicipio = {
   vigencia_ate: string | null;
   vencida: boolean;
   atualizado_em: string | null;
+  /** "automatico" (gerado pelo sistema a partir dos mapas de risco), "humano" ou "" (sem registro). */
+  origem?: string;
 };
 
 export type NiveisResposta = {
@@ -71,12 +73,14 @@ export type RegistroNivel = {
   lote: string;
   registrado_por: string;
   registrado_em: string;
+  origem?: string;
+  sinais?: Record<string, unknown>[];
 };
 
 export type Sugestao = {
   municipio: string;
   regiao: string;
-  tipo: "risco_tecnico" | "recomendacao_sirene" | "vigencia_vencida";
+  tipo: "risco_tecnico" | "cota_hidrologica" | "recomendacao_sirene" | "vigencia_vencida";
   atual: number;
   sugerido: number | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -111,6 +115,17 @@ export const fetchRegistrosNivel = (p: { municipio?: string; horas?: number; lim
   return getJson<RegistroNivel[]>(`/monitoramento/registros/?${q}`);
 };
 export const fetchSugestoes = () => getJson<{ gerado_em: string; sugestoes: Sugestao[] }>("/monitoramento/sugestoes/");
+
+/** Estado da automação do NM (os níveis que o sistema gera sozinho a partir dos mapas de risco). */
+export type AutomacaoNm = {
+  ativo: boolean;
+  nivel_maximo_auto: number;
+  ultima_execucao: string | null;
+  ultimo_resumo: { criados?: number; renovados?: number; rebaixados?: number; mantidos?: number; bloqueados_por_humano?: number; sem_dado?: number };
+  vigentes_automaticos: Record<string, number>;
+  regras: { renovar_quando_restam_h: number; histerese_baixar_h: number; bloqueio_humano_nm01_h: number };
+};
+export const fetchAutomacaoNm = () => getJson<AutomacaoNm>("/monitoramento/automatico/");
 
 function csrf(): string | null {
   const m = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);

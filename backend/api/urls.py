@@ -16,6 +16,7 @@ from .auth_views import ChangePasswordView, CsrfView, LoginView, LogoutView, MeV
 from .inea_radar_views import INEARadarImageryView
 from .ingest_views import IngestStatusView, RemoteReadingsIngestView
 from .monitoramento_views import (
+    AutomacaoNmView,
     NiveisMonitoramentoView,
     PublicoMonitoramentoView,
     RegistrarNivelView,
@@ -26,6 +27,7 @@ from .dsat_imagery_views import DsatSateliteImageryView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetRadarMosaicoView, RedemetSateliteImageryView
 from .floodhub_views import FloodHubEventosView, FloodHubValidacaoView, FloodHubView
 from .previsao_publica_views import PublicoPrevisaoView
+from .informativo_views import (InformativoAcaoView, InformativoAcompanhamentoView, InformativoDetalheView, InformativoEstatisticasView, InformativoExportarView, InformativoPreviaView, InformativosView, PublicoInformativoView)
 from .resumo_views import Resumo24hView
 from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
@@ -94,8 +96,17 @@ urlpatterns = [
     path("monitoramento/registrar/", RegistrarNivelView.as_view(), name="monitoramento-registrar"),
     path("monitoramento/registros/", RegistrosNivelView.as_view(), name="monitoramento-registros"),
     path("monitoramento/sugestoes/", SugestoesNivelView.as_view(), name="monitoramento-sugestoes"),
+    path("monitoramento/automatico/", AutomacaoNmView.as_view(), name="monitoramento-automatico"),
     path("publico/monitoramento/", PublicoMonitoramentoView.as_view(), name="publico-monitoramento"),
     path("publico/previsao/", PublicoPrevisaoView.as_view(), name="publico-previsao"),
+    path("informativos/", InformativosView.as_view(), name="informativos"),
+    path("informativos/previa/", InformativoPreviaView.as_view(), name="informativos-previa"),
+    path("informativos/acompanhamento/", InformativoAcompanhamentoView.as_view(), name="informativos-acompanhamento"),
+    path("informativos/estatisticas/", InformativoEstatisticasView.as_view(), name="informativos-estatisticas"),
+    path("informativos/exportar/", InformativoExportarView.as_view(), name="informativos-exportar"),
+    path("informativos/<int:pk>/", InformativoDetalheView.as_view(), name="informativos-detalhe"),
+    path("informativos/<int:pk>/<str:acao>/", InformativoAcaoView.as_view(), name="informativos-acao"),
+    path("publico/informativo/", PublicoInformativoView.as_view(), name="publico-informativo"),
     path("imagery/radar-mosaico/", RedemetRadarMosaicoView.as_view(), name="imagery-radar-mosaico"),
     path("imagery/radar-inea/", INEARadarImageryView.as_view(), name="imagery-radar-inea"),
 ] + router.urls

@@ -14,6 +14,16 @@ Implementado em 28/10/2026. Texto-base: `docs/plancon-2026-2027-adequacao-portar
 
 O NM é **por município** (vale o mais alto entre meteorologia, hidrologia e geologia). Vigência máxima de 24 h; vencida, o município aparece hachurado ("em revisão") até novo lançamento.
 
+## NM automático (implementado em 29/10/2026 — local; produção após a migração 0027)
+Supera a seção "O NM não sobe sozinho" abaixo (mantida como histórico do diagnóstico).
+* **Só os mapas de risco** (hidrológico, geológico e severidade meteorológica da REDEC) geram NM sozinhos, pelo piso do PLANCON: muito baixo → NM 0, baixo → NM 1, moderado → NM 2, alto/muito alto → NM 3. Teto configurável em `ConfiguracaoNm` (Admin): padrão **NM 2**, máximo NM 3. **NM 4 e NM 5 nunca são automáticos** (exigem gatilho, impacto ≤ 2 h, área delimitada, aprovação e aviso à COMDEC/REDEC).
+* Convivência com o plantonista: nível lançado por humano e ainda ativo **nunca** é alterado (NM ≥ 2: vigência não vencida; NM 0–1: lançado há menos de 6 h). O sistema só age em município sem linha, com linha automática ou com linha humana vencida. Subir é imediato; descer só após 3 h (histerese); NM 2+ automático tem vigência de 24 h e é renovado quando restam < 6 h e o risco continua. Município sem dado de risco não é tocado.
+* Rastro: registros com `origem="automatico"`, os `sinais` que sustentaram o nível e responsável "Sistema (automático)"; selo "automático" no Histórico e na página pública.
+* Execução: sem cron novo (a API do cPanel não permite) — "carona" nos jobs existentes: depois de `sync_risk_alerts` e das ingestões `inea`/`redemet` (no máximo a cada 10 min). Botão "Aplicar agora" e status em Produção → Pendências; endpoint `GET/POST /api/monitoramento/automatico/`. Interruptor `ativo` no Admin.
+* **Sugestões (continuam humanas):** o que passa do teto (alto/muito alto → NM 3), **cota de rio** (CotaHidrologica: atenção → NM 1, alerta → NM 2, transbordo/extrema → NM 3, leitura ≤ 3 h; nova sugestão `cota_hidrologica`), recomendação de sirene e vigência vencida.
+* Testes: `api/test_nm_automatico.py` (14) + `api.test_monitoramento` (22 no total, OK).
+* **Propostas para decidir (ainda não feitas):** gatilhos pluviométricos GI–GIV (hoje calculados dentro da view de sirenes, `api/views.py`) como sugestão de NM 3/4; chuva observada acima da escala (>50 mm/h muito forte); previsão do informativo (`nm_sugerido`) e rajadas/raios; Flood Hub e avisos da Marinha; sirene tocando; selo de pendências na aba principal.
+
 ## O NM **não** sobe sozinho (verificado em 28/10/2026)
 * O nível vigente de cada município vem **só** das linhas gravadas por um usuário (`NivelMonitoramento`); sem linha o município está em **NM 0**. Nenhuma rotina agendada ou regra do servidor lança NM 1, 2 ou 3 (`_niveis_vigentes()` em `api/monitoramento_views.py`).
 * O que existe é **sugestão** (`GET /api/monitoramento/sugestoes/`, aba Produção → **Pendências (n)**): (1) risco técnico (hidrológico, geológico, meteorológico) acima do NM vigente — risco **moderado → NM 2**, **alto ou muito alto → NM 3**; (2) recomendação de mobilização de sirene do dia → NM 4 a avaliar; (3) vigência vencida. Cada sugestão traz "Abrir no formulário", e o plantonista decide.

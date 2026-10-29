@@ -15,7 +15,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.models import NivelMonitoramento, NivelMonitoramentoRegistro, RecomendacaoAlarme, RiskAlert
+from core.models import ConfiguracaoNm, NivelMonitoramento, NivelMonitoramentoRegistro, RecomendacaoAlarme, RiskAlert
+from core import nm_automatico
 from core.municipios import MUNICIPIOS_CANONICOS, normalizar_para_canonico
 from core.niveis_monitoramento import (
     ANTECEDENCIAS,
@@ -28,8 +29,8 @@ from core.niveis_monitoramento import (
     validar_registro,
 )
 
-COM_GRANULARIDADE_MUNICIPAL = {RiskAlert.Tipo.GEOLOGICO, RiskAlert.Tipo.HIDROLOGICO}
-TIPOS_CHUVA = [RiskAlert.Tipo.HIDROLOGICO, RiskAlert.Tipo.GEOLOGICO, RiskAlert.Tipo.METEOROLOGICO]
+COM_GRANULARIDADE_MUNICIPAL = nm_automatico.COM_GRANULARIDADE_MUNICIPAL
+TIPOS_CHUVA = nm_automatico.TIPOS_CHUVA
 
 
 def _niveis_vigentes() -> list[dict]:
@@ -52,6 +53,7 @@ def _niveis_vigentes() -> list[dict]:
                 "vigencia_ate": n.vigencia_ate if n else None,
                 "vencida": bool(n and nivel >= 2 and n.vigencia_ate and n.vigencia_ate < agora),
                 "atualizado_em": n.atualizado_em if n else None,
+                "origem": n.origem if n else "",
             }
         )
     return out
@@ -205,6 +207,8 @@ def _serializa_registro(r: NivelMonitoramentoRegistro) -> dict:
         "aviso_motivo": r.aviso_motivo,
         "encerramento": r.encerramento,
         "lote": r.lote,
+        "origem": r.origem,
+        "sinais": r.sinais,
         "registrado_por": r.registrado_por,
         "registrado_em": r.registrado_em,
     }
@@ -239,27 +243,22 @@ class SugestoesNivelView(APIView):
 
     def get(self, request):
         niveis = {n["municipio"]: n for n in _niveis_vigentes()}
-        redec = municipios_redec()
         agora = timezone.now()
-        riscos: dict[str, list[dict]] = {}  # município -> fontes de risco
-        alertas = list(RiskAlert.objects.filter(tipo__in=TIPOS_CHUVA))
-        municipais = {(a.tipo, a.municipio): a for a in alertas if a.municipio}
-        por_redec = {(a.tipo, a.redec): a for a in alertas if not a.municipio}
-        for m in MUNICIPIOS_CANONICOS:
-            regiao = redec.get(m, {}).get("regiao", "")
-            for tipo in TIPOS_CHUVA:
-                a = municipais.get((tipo, m))
-                if a is None and tipo not in COM_GRANULARIDADE_MUNICIPAL:
-                    a = por_redec.get((tipo, regiao))
-                if a is not None:
-                    riscos.setdefault(m, []).append({"tipo": tipo, "risco": a.risco, "atualizado_em": a.atualizado_em, "piso": PISO_POR_RISCO.get(a.risco, 0)})
-        out = []
+        out: list[dict] = []
+        riscos = nm_automatico.riscos_por_municipio()  # município -> fontes de risco
         for m, fontes in riscos.items():
             piso = max(f["piso"] for f in fontes)
             atual = niveis[m]["nivel"]
             if piso > atual and piso >= 2:
-                out.append({"municipio": m, "regiao": niveis[m]["regiao"], "tipo": "risco_tecnico", "atual": atual, "sugerido": piso, "fontes": [f for f in fontes if f["piso"] == piso],
-                            "orientacao": "Risco técnico acima do nível vigente. Previsão com mais de 2 h fica no máximo em NM 3; NM 4 exige gatilho atingido/fenômeno detectado, até 2 h e área delimitada."})
+                out_item = {"municipio": m, "regiao": niveis[m]["regiao"], "tipo": "risco_tecnico", "atual": atual, "sugerido": piso, "fontes": [f for f in fontes if f["piso"] == piso],
+                            "orientacao": "Risco técnico acima do nível vigente. Previsão com mais de 2 h fica no máximo em NM 3; NM 4 exige gatilho atingido/fenômeno detectado, até 2 h e área delimitada."}
+                out.append(out_item)
+        for m, fontes in nm_automatico.cotas_por_municipio(agora).items():
+            piso = max(f["piso"] for f in fontes)
+            atual = niveis.get(m, {}).get("nivel", 0)
+            if piso > atual and piso >= 2:
+                out.append({"municipio": m, "regiao": niveis[m]["regiao"], "tipo": "cota_hidrologica", "atual": atual, "sugerido": piso, "fontes": [f for f in fontes if f["piso"] == piso],
+                            "orientacao": "Nível do rio passou da cota de alerta/transbordo (leitura das últimas 3 h). Confira a tendência e o INEA antes de lançar; NM 4 só com gatilho atingido, impacto em até 2 h e área delimitada."})
         hoje = timezone.localdate()
         for r in RecomendacaoAlarme.objects.filter(data=hoje):
             quando = timezone.make_aware(dt.datetime.combine(r.data, r.hora), timezone.get_current_timezone())
@@ -275,6 +274,32 @@ class SugestoesNivelView(APIView):
                             "orientacao": "Vigência vencida: atualize o alerta (CAP) ou registre o retorno à normalidade."})
         out.sort(key=lambda s: (-(s["sugerido"] if s["sugerido"] is not None else 9), s["municipio"]))
         return Response({"gerado_em": agora, "sugestoes": out})
+
+
+class AutomacaoNmView(APIView):
+    """GET /api/monitoramento/automatico/ — estado da automação do NM (ativa?, teto, última execução e resumo, quantos NM automáticos vigentes).
+    POST — roda a sincronização agora (atalho do plantonista; respeita o interruptor, que fica no Admin)."""
+
+    def get(self, request):
+        cfg = ConfiguracaoNm.obter()
+        automaticos = NivelMonitoramento.objects.filter(origem="automatico", nivel__gte=1)
+        return Response(
+            {
+                "ativo": cfg.ativo,
+                "nivel_maximo_auto": cfg.nivel_maximo_auto,
+                "ultima_execucao": cfg.ultima_execucao,
+                "ultimo_resumo": cfg.ultimo_resumo,
+                "vigentes_automaticos": {str(n): automaticos.filter(nivel=n).count() for n in (1, 2, 3)},
+                "regras": {
+                    "renovar_quando_restam_h": nm_automatico.RENOVAR_QUANDO_RESTAM_H,
+                    "histerese_baixar_h": nm_automatico.HISTERESE_BAIXAR_H,
+                    "bloqueio_humano_nm01_h": nm_automatico.BLOQUEIO_HUMANO_NM01_H,
+                },
+            }
+        )
+
+    def post(self, request):
+        return Response(nm_automatico.sincronizar())
 
 
 class PublicoMonitoramentoView(APIView):
@@ -294,7 +319,7 @@ class PublicoMonitoramentoView(APIView):
         resposta = Response(
             {
                 "gerado_em": timezone.now(),
-                "niveis": [{k: n[k] for k in ("municipio", "redec", "regiao", "nivel", "vigencia_ate", "vencida", "atualizado_em")} for n in niveis],
+                "niveis": [{k: n[k] for k in ("municipio", "redec", "regiao", "nivel", "vigencia_ate", "vencida", "atualizado_em", "origem")} for n in niveis],
                 "resumo": _resumo(niveis),
                 "escala": {str(k): {kk: vv for kk, vv in v.items() if kk in ("sigla", "nome", "cor", "alerta")} for k, v in NIVEIS.items()},
                 "riscos": riscos,

@@ -339,6 +339,14 @@ A pedido do usuário, o mapa de Mapa → Previsão (balões clicáveis e cartõe
 
 A página pública parecia uma tela curta (coluna de 1152 px). Agora é fluida, escala em telas acima de 1920 px (TV, videowall, 4K), usa 2 e 4 colunas em telas largas, e a previsão se atualiza sozinha a cada 5 minutos. Verificada localmente em 390, 844×390, 1024×768, 1920×1080 e 3840×2160. Só frontend, sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — NM automático e informativo meteorológico (local, NÃO publicado)
+
+Pedido: automatizar o que não depende de ação do técnico no NM, fazer o informativo meteorológico (F1–F29, fases A–D) e desenhar o modo TV. Feito **somente local** (migrações 0027 e 0028 ainda não aplicadas em produção; nada foi gravado em dado real).
+* **NM automático**: `core/nm_automatico.py`, `ConfiguracaoNm`, `AutomacaoNmView`, caronas em `admin_views.py`, sugestão de cota hidrológica, selo "automático". Regras e propostas: `nivel-monitoramento-plancon.md`. 14 testes novos.
+* **Informativo meteorológico (fase A + parte das B–D)**: modelos, gerador de texto validado com os informativos reais 168–193, API completa, tela em Produção → Meteorologia, card na página pública, importador `importar_informativos` (simulado sobre a planilha real: 1.813 informativos). Detalhes e o que falta: `informativo-meteorologico.md`.
+* Lição de ferramenta: heredoc Python na Bash converte `\n` em quebra real (quebrou duas f-strings); usar `chr(92)` ou arquivo gravado com Write. `openpyxl` instalado no venv local só para a importação.
+* Modo TV: desenho apresentado ao usuário para aprovação (não implementado).
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

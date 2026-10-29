@@ -148,6 +148,12 @@ class AdminOpsView(APIView):
                     except Exception as exc:  # noqa: BLE001 - a carona nunca derruba a ingestão da REDEMET
                         logger.exception("Falha na carona da ANA")
                         saida.write(f"\n  ana (carona): falhou ({exc.__class__.__name__})")
+                if source in ("inea", "redemet"):  # carona (cron de 15 min): mantém o NM automático em dia (a cada 10 min no máximo)
+                    from core import nm_automatico
+
+                    nm = nm_automatico.sincronizar_se_vencido(10)
+                    if nm is not None:
+                        saida.write(f"\n  nm automático: {nm}")
                 if source == "inea":  # carona (cron de 15 min): atualiza o Google Flood Hub a cada 30 min
                     from ingestion import floodhub as floodhub_mod
 
@@ -161,6 +167,11 @@ class AdminOpsView(APIView):
 
                 resultado = cemaden_rj_alertas.sync()
                 saida.write(resultado.summary())
+                from core import nm_automatico
+
+                nm = nm_automatico.sincronizar_se_vencido(0)  # os mapas de risco acabaram de mudar: aplica a automação do NM
+                if nm is not None:
+                    saida.write(f"\n  nm automático: {nm}")
             elif action == "sync_avisos_mau_tempo":
                 from ingestion.connectors import marinha_avisos
 

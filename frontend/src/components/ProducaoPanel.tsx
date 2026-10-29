@@ -7,17 +7,19 @@ import Etiqueta from "@/components/monitoramento/Etiqueta";
 import GuiaPlantao from "@/components/monitoramento/GuiaPlantao";
 import LancarNivel, { PreLancamento } from "@/components/monitoramento/LancarNivel";
 import MapaNiveis from "@/components/monitoramento/MapaNiveis";
+import { API_BASE_URL } from "@/lib/api";
 import { intervaloVisivel } from "@/lib/intervaloVisivel";
-import { ESCALA_NM, fetchNiveis, fetchRegistrosNivel, fetchSugestoes, fmtDataHora, NiveisResposta, NIVEIS_NM, RegistroNivel, Sugestao } from "@/lib/nivelMonitoramento";
+import { AutomacaoNm, ESCALA_NM, fetchAutomacaoNm, fetchNiveis, fetchRegistrosNivel, fetchSugestoes, fmtDataHora, NiveisResposta, NIVEIS_NM, RegistroNivel, Sugestao } from "@/lib/nivelMonitoramento";
 
 type Sub = "lancar" | "pendencias" | "historico" | "suporte";
 
 const ROTULO_TIPO: Record<Sugestao["tipo"], string> = {
   risco_tecnico: "Risco técnico acima do nível",
+  cota_hidrologica: "Cota do rio acima do nível",
   recomendacao_sirene: "Recomendação de sirene hoje",
   vigencia_vencida: "Vigência vencida",
 };
-const ROTULO_RISCO: Record<string, string> = { hidrologico: "Hidrológico", geologico: "Geológico", meteorologico: "Meteorológico", recomendacao_sirene: "Sirene", vigencia: "Vigência" };
+const ROTULO_RISCO: Record<string, string> = { hidrologico: "Hidrológico", geologico: "Geológico", meteorologico: "Meteorológico", recomendacao_sirene: "Sirene", vigencia: "Vigência", cota: "Cota do rio" };
 const NOME_RISCO: Record<string, string> = { muito_baixo: "muito baixo", baixo: "baixo", moderado: "moderado", alto: "alto", muito_alto: "muito alto" };
 
 /** Aba "Produção": onde o plantonista lança o Nível de Monitoramento (PLANCON 2026/2027) com as regras do plano, vê as pendências
@@ -27,6 +29,8 @@ export default function ProducaoPanel({ selecaoInicial = [] }: { selecaoInicial?
   const [dados, setDados] = useState<NiveisResposta | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([]);
+  const [auto, setAuto] = useState<AutomacaoNm | null>(null);
+  const [aplicando, setAplicando] = useState(false);
   const [registros, setRegistros] = useState<RegistroNivel[] | null>(null);
   const [sub, setSub] = useState<Sub>("lancar");
   const [selecionados, setSelecionados] = useState<string[]>(selecaoInicial);
@@ -37,9 +41,10 @@ export default function ProducaoPanel({ selecaoInicial = [] }: { selecaoInicial?
 
   const carregar = useCallback(async () => {
     try {
-      const [n, s] = await Promise.all([fetchNiveis(), fetchSugestoes()]);
+      const [n, s, a] = await Promise.all([fetchNiveis(), fetchSugestoes(), fetchAutomacaoNm().catch(() => null)]);
       setDados(n);
       setSugestoes(s.sugestoes);
+      setAuto(a);
       setErro(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Falha ao carregar.");
@@ -162,7 +167,37 @@ export default function ProducaoPanel({ selecaoInicial = [] }: { selecaoInicial?
 
         {sub === "pendencias" && (
           <div className="max-w-4xl space-y-2">
-            <p className="text-xs text-gray-500">Onde o nível vigente parece defasado em relação ao risco técnico, à recomendação de sirene de hoje ou à vigência. O painel só sugere: <b>o lançamento é sempre do plantonista</b> (NM 4 e NM 5 nunca são automáticos).</p>
+            {auto && (
+              <div className={`rounded-md border p-2.5 text-xs ${auto.ativo ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">
+                    NM automático {auto.ativo ? `ligado — o sistema gera sozinho até ${ESCALA_NM[auto.nivel_maximo_auto].sigla}` : "desligado (interruptor no Admin)"}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={aplicando || !auto.ativo}
+                    onClick={async () => {
+                      setAplicando(true);
+                      try {
+                        const t = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
+                        await fetch(`${API_BASE_URL}/monitoramento/automatico/`, { method: "POST", credentials: "include", headers: t ? { "X-CSRFToken": decodeURIComponent(t[1]) } : {} });
+                      } finally {
+                        await carregar();
+                        setAplicando(false);
+                      }
+                    }}
+                    className="rounded border border-emerald-300 bg-white px-2 py-1 font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    {aplicando ? "Aplicando…" : "Aplicar agora"}
+                  </button>
+                </div>
+                <p className="mt-1">
+                  A partir dos mapas de risco (hidrológico, geológico e severidade meteorológica): baixo → NM 1, moderado → NM 2. Níveis lançados por você não são mexidos enquanto estiverem ativos; o sistema só desce depois de {auto.regras.histerese_baixar_h} h e renova o NM 2 a cada 24 h
+                  enquanto o risco continua. Agora: {auto.vigentes_automaticos["1"] ?? 0} município(s) em NM 1, {auto.vigentes_automaticos["2"] ?? 0} em NM 2{(auto.vigentes_automaticos["3"] ?? 0) > 0 ? `, ${auto.vigentes_automaticos["3"]} em NM 3` : ""}, gerados automaticamente. Última execução: {auto.ultima_execucao ? fmtDataHora(auto.ultima_execucao) : "ainda não rodou"}.
+                </p>
+              </div>
+            )}
+            <p className="text-xs text-gray-500">Onde o nível vigente parece defasado em relação ao risco técnico, à cota dos rios, à recomendação de sirene de hoje ou à vigência. O que passa do teto automático fica aqui como <b>sugestão</b>: o lançamento é do plantonista (NM 4 e NM 5 nunca são automáticos).</p>
             {sugestoes.length === 0 && <p className="rounded bg-green-50 p-3 text-sm text-green-800">Nenhuma pendência: os níveis vigentes acompanham o risco técnico atual.</p>}
             {grupos.map(({ base: s, municipios }) => (
               <div key={`${s.regiao}-${s.tipo}-${s.sugerido}-${municipios[0]}`} className="rounded-md border border-gray-200 p-2.5 text-xs">
@@ -176,6 +211,7 @@ export default function ProducaoPanel({ selecaoInicial = [] }: { selecaoInicial?
                       {ROTULO_RISCO[f.tipo] ?? f.tipo}
                       {f.risco ? `: ${NOME_RISCO[f.risco] ?? f.risco}` : ""}
                       {f.numero ? ` ${f.numero} às ${f.hora}` : ""}
+                      {f.fonte === "cota" ? `: ${f.estacao} em ${f.classe} (${f.nivel_cm} cm)` : ""}
                       {f.vigencia_ate ? ` (até ${fmtDataHora(f.vigencia_ate)})` : ""}
                     </span>
                   ))}
@@ -187,7 +223,7 @@ export default function ProducaoPanel({ selecaoInicial = [] }: { selecaoInicial?
                   className="mt-1.5 rounded bg-blue-600 px-2.5 py-1 font-medium text-white hover:bg-blue-700"
                   onClick={() => {
                     setSelecionados(municipios);
-                    setPre({ nivel: s.sugerido ?? s.atual, motivo: s.tipo === "risco_tecnico" ? `Risco técnico: ${s.fontes.map((f) => `${ROTULO_RISCO[f.tipo] ?? f.tipo} ${NOME_RISCO[f.risco] ?? ""}`).join("; ")}.` : s.tipo === "recomendacao_sirene" ? `Recomendação de mobilização de sirene ${s.fontes[0]?.numero ?? ""} (${s.fontes[0]?.estacao ?? ""}).` : "" });
+                    setPre({ nivel: s.sugerido ?? s.atual, motivo: s.tipo === "risco_tecnico" ? `Risco técnico: ${s.fontes.map((f) => `${ROTULO_RISCO[f.tipo] ?? f.tipo} ${NOME_RISCO[f.risco] ?? ""}`).join("; ")}.` : s.tipo === "cota_hidrologica" ? `Cota do rio: ${s.fontes.map((f) => `${f.estacao} (${f.rio || "rio"}) em ${f.classe}, ${f.nivel_cm} cm`).join("; ")}.` : s.tipo === "recomendacao_sirene" ? `Recomendação de mobilização de sirene ${s.fontes[0]?.numero ?? ""} (${s.fontes[0]?.estacao ?? ""}).` : "" });
                     setSub("lancar");
                   }}
                 >
@@ -216,7 +252,7 @@ export default function ProducaoPanel({ selecaoInicial = [] }: { selecaoInicial?
                         <td className="px-2 py-1 font-medium text-gray-800">{r.municipio}</td>
                         <td className="whitespace-nowrap px-2 py-1"><Etiqueta n={r.nivel_anterior} /> → <Etiqueta n={r.nivel} />{r.encerramento && <span className="ml-1 text-gray-500">(encerrado)</span>}</td>
                         <td className="px-2 py-1 text-gray-600">
-                          <b>{r.registrado_por}</b>{r.equipe ? ` · ${dados.equipes[r.equipe] ?? r.equipe}` : ""}
+                          {r.origem === "automatico" && <span className="mr-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">automático</span>}<b>{r.registrado_por}</b>{r.equipe ? ` · ${dados.equipes[r.equipe] ?? r.equipe}` : ""}
                           {r.motivo && <span className="block text-gray-500">{r.motivo}</span>}
                           {r.aprovado_por && <span className="block text-gray-500">Aprovado por {r.aprovado_por}{r.comdec_avisada_em ? ` · COMDEC ${fmtDataHora(r.comdec_avisada_em)}` : ""}{r.redec_avisada_em ? ` · REDEC ${fmtDataHora(r.redec_avisada_em)}` : ""}{r.aviso_simultaneo ? ` · aviso simultâneo (${r.aviso_motivo})` : ""}</span>}
                           {r.ferramentas && <span className="block text-gray-400">{r.ferramentas}</span>}

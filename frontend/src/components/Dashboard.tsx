@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import AlertsPanel from "@/components/AlertsPanel";
-import ProducaoPanel from "@/components/ProducaoPanel";
+import ProducaoHub from "@/components/ProducaoHub";
 import DataTable, { METEOROLOGICAL_READING_TYPES } from "@/components/DataTable";
 import FilterToggleBar from "@/components/FilterToggleBar";
 import ContatosMap from "@/components/ContatosMap";
@@ -1333,7 +1333,7 @@ export default function Dashboard({
           )}
           {viewMode === "meteorologia" && <MeteorologiaPanel key={cadastroPrevisao?.versao ?? 0} abrirCadastro={cadastroPrevisao?.data ?? null} />}
           {viewMode === "alertas" && <AlertsPanel onLancar={abrirProducao} />}
-          {viewMode === "producao" && <ProducaoPanel key={selecaoNmVersao} selecaoInicial={selecaoNm} />}
+          {viewMode === "producao" && <ProducaoHub key={selecaoNmVersao} selecaoInicial={selecaoNm} />}
           {viewMode === "resumo" && <ResumoPanel onOpenStation={(id) => setPainelEstacaoId(id)} />}
 
           {/* Painel de histórico de estação IN-APP — por cima do conteúdo da
