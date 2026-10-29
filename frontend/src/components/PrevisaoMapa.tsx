@@ -1,11 +1,11 @@
 "use client";
 
 import { toPng } from "html-to-image";
-import { ChevronLeft, ChevronRight, Images, Share2, Smartphone, Table2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Images, Share2, Table2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
-import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, CorpoStory, AJUSTES_STORY, FEED_H, FEED_W, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, SLOTS_STORY, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
+import { carrosselDetalhes, carrosselMapa, CartaoGeral, CartaoRedec, CorpoFeed, AJUSTES_STORY, FEED_H, FEED_W, MapaRedec, nomeBonito, ORDEM_REDEC, rotuloTempo, SLOTS_TELA, STORY_H, STORY_W, textoUmidade, textoVento } from "@/components/PrevisaoMapaCorpo";
 import ShareModal from "@/components/ShareModal";
 import { fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao } from "@/lib/api";
 import { GeoJsonFeatureCollection } from "@/lib/geo";
@@ -31,11 +31,25 @@ const dataLonga = (iso: string) => {
 };
 const r0 = (n: number) => Math.round(Number(n));
 
+/** Consulta de mídia reativa (sem estado em efeito). */
+function useMediaQuery(consulta: string): boolean {
+  return useSyncExternalStore(
+    (aviso) => {
+      const mq = window.matchMedia(consulta);
+      mq.addEventListener("change", aviso);
+      return () => mq.removeEventListener("change", aviso);
+    },
+    () => window.matchMedia(consulta).matches,
+    () => false,
+  );
+}
+
 /** Modal de exportação em tamanho real (story 1080×1920 ou post 1080×1350): prévia reduzida, PNG exato, copiar imagem/texto. */
 function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children, slides, rotulosSlides, extra }: { titulo: string; w: number; h: number; nomeArquivo: string; texto: string; onClose: () => void; children?: React.ReactNode; slides?: React.ReactNode[]; rotulosSlides?: string[]; extra?: React.ReactNode }) {
   const alvo = useRef<HTMLDivElement>(null);
   const caixa = useRef<HTMLDivElement>(null);
   const topo = useRef<HTMLDivElement>(null);
+  const abas = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLDivElement>(null);
   const [escala, setEscala] = useState(0.3);
   const [busy, setBusy] = useState(false);
@@ -49,13 +63,14 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children, slid
     const el = caixa.current;
     if (!el) return;
     const calc = () => {
-      const livre = window.innerHeight * 0.96 - (topo.current?.offsetHeight ?? 0) - (base.current?.offsetHeight ?? 0) - 16;
+      const livre = window.innerHeight * 0.96 - (topo.current?.offsetHeight ?? 0) - (abas.current?.offsetHeight ?? 0) - (base.current?.offsetHeight ?? 0) - 16;
       setEscala(Math.max(0.1, Math.min((el.clientWidth - 16) / w, livre / h)));
     };
     calc();
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     if (base.current) ro.observe(base.current);
+    if (abas.current) ro.observe(abas.current);
     window.addEventListener("resize", calc);
     return () => {
       ro.disconnect();
@@ -139,7 +154,7 @@ function ExportModal({ titulo, w, h, nomeArquivo, texto, onClose, children, slid
           </button>
         </div>
         {(extra || slides) && (
-          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-gray-200 px-4 py-2">
+          <div ref={abas} className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-gray-200 px-4 py-2">
             {extra}
             {slides && (
               <div className="flex gap-1.5">
@@ -206,17 +221,10 @@ export default function PrevisaoMapa() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
-  const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "story" | "carrossel" | null>(null);
-  // telas largas: mapa com os balões completos do carrossel; telas estreitas: ícones sobre as regiões (os balões ficariam pequenos demais)
-  const largo = useSyncExternalStore(
-    (aviso) => {
-      const mq = window.matchMedia("(min-width: 1024px)");
-      mq.addEventListener("change", aviso);
-      return () => mq.removeEventListener("change", aviso);
-    },
-    () => window.matchMedia("(min-width: 1024px)").matches,
-    () => false,
-  );
+  const [compartilhar, setCompartilhar] = useState<"feed" | "tabela" | "carrossel" | null>(null);
+  // tablet e PC: mapa com os balões completos do carrossel; celular: ícones em volta do mapa, como no story (os balões ficariam pequenos demais)
+  const baloes = useMediaQuery("(min-width: 768px)");
+  const lado = useMediaQuery("(min-width: 1024px)"); // mapa fixo ao lado dos cartões
   // clicar numa região ou balão destaca o cartão ao lado (e o traz à vista); clicar de novo limpa
   const selecionar = (r: string) => {
     setSelecionada((a) => (a === r ? null : r));
@@ -331,15 +339,11 @@ export default function PrevisaoMapa() {
         </button>
         {data && <span className="font-semibold text-gray-800">{dataExtenso(data)}</span>}
         <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto">
-          <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("story")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Story vertical 1080×1920 com comentários">
-            <Smartphone size={15} />
-            Story
-          </button>
           <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("feed")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Post de feed 1080×1350">
             <Share2 size={15} />
             Post
           </button>
-          <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("carrossel")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Carrossel Story de 2 imagens: mapa com balões completos + textos de cada região">
+          <button type="button" disabled={!previsoes.length} onClick={() => setCompartilhar("carrossel")} className={`${btn} bg-blue-600 text-white hover:bg-blue-700`} title="Story em carrossel de 2 imagens (1080×1920): mapa com balões completos + textos de cada região">
             <Images size={15} />
             Carrossel
           </button>
@@ -356,15 +360,15 @@ export default function PrevisaoMapa() {
       ) : !previsoes.length ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">Ainda não há previsão cadastrada para {data ? dataExtenso(data) : "este dia"}. Use as setas para ver outro dia.</div>
       ) : (
-        <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] 2xl:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]">
           <div className="lg:sticky lg:top-0 lg:self-start">
-            {largo ? (
-              <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1150} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_STORY} ajustes={AJUSTES_STORY} selecionada={selecionada} onSelecionar={selecionar} className="mx-auto w-full rounded-lg bg-sky-50" style={{ maxHeight: "calc(100vh - 15rem)" }} />
+            {baloes ? (
+              <MapaRedec geo={geo} previsoes={previsoes} largura={1080} altura={1125} raioNumero={17} modo="entorno" comTemp balao={{ icone: 62, fonte: 30, info: 18 }} margemMapa={30} posicoes={SLOTS_TELA} ajustes={AJUSTES_STORY} selecionada={selecionada} onSelecionar={selecionar} className="mx-auto w-full rounded-lg bg-sky-50" style={lado ? { maxHeight: "calc(100vh - 19rem)" } : undefined} />
             ) : (
-              <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={460} modo="icone" tamIcone={46} selecionada={selecionada} onSelecionar={selecionar} className="w-full rounded-lg bg-sky-50" />
+              <MapaRedec geo={geo} previsoes={previsoes} largura={720} altura={660} raioNumero={13} modo="entorno" tamIcone={58} margemMapa={34} selecionada={selecionada} onSelecionar={selecionar} className="w-full rounded-lg bg-sky-50" />
             )}
           </div>
-          <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
             <CartaoGeral texto={textoGeral} previsoes={previsoes} variante="tela" />
             {ordenadas.map(({ regiao, p }) => (
               <CartaoRedec key={regiao} id={`cartao-${regiao}`} regiao={regiao} p={p} variante="tela" classico ativo={selecionada === regiao} onClick={() => selecionar(regiao)} />
@@ -374,11 +378,6 @@ export default function PrevisaoMapa() {
       )}
 
       {compartilhar === "tabela" && dadosTabela && <ShareModal data={dadosTabela} onClose={() => setCompartilhar(null)} />}
-      {compartilhar === "story" && geo && data && (
-        <ExportModal titulo="Story 1080×1920" w={STORY_W} h={STORY_H} nomeArquivo={`cemaden-rj-previsao-story-${data}`} texto={texto} onClose={() => setCompartilhar(null)}>
-          <CorpoStory geo={geo} previsoes={previsoes} titulo="Previsão do tempo" data={dataLonga(data)} textoGeral={textoGeral} />
-        </ExportModal>
-      )}
       {compartilhar === "carrossel" && geo && data && (
         <ExportModal
           titulo="Carrossel Story 1080×1920"

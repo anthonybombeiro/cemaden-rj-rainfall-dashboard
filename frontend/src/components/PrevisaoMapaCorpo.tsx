@@ -754,6 +754,13 @@ export const SLOTS_STORY: Record<string, [number, number]> = {
   NORTE: [0.9029, -0.111],
   NOROESTE: [0.6441, -0.1603],
 };
+/** Mapa da aba Mapa → Previsão: as mesmas posições do carrossel, mas com Capital, Baixada Fluminense e Metropolitana lado a lado embaixo do mapa (aproveita melhor a tela). */
+export const SLOTS_TELA: Record<string, [number, number]> = {
+  ...SLOTS_STORY,
+  CAPITAL: [0.3588, 1.0479],
+  "BAIXADA FLUMINENSE": [0.6245, 1.0479],
+  METROPOLITANA: [0.8706, 1.0479],
+};
 /** Slide 1: a linha da Sul I termina um pouco à direita do centro da região, para não encostar na linha da Sul II. */
 export const AJUSTES_STORY: Record<string, [number, number]> = { "SUL I": [0.034, 0] };
 

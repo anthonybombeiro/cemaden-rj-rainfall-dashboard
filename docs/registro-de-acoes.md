@@ -319,6 +319,10 @@ A pedido do usuário: data "Quarta-feira, 28/10/2026" em letra maior nas artes; 
 
 Publicados o Post (modelo A), o carrossel Story (modelo D), a data por extenso e a numeração oficial das REDECs (verificado por leitura: lista de REDECs na nova ordem e data longa nos arquivos do site; sem "Observações"). Em seguida, a pedido do usuário: mapa da aba Mapa → Previsão no modelo do carrossel (balões completos, regiões e balões clicáveis que destacam o cartão ao lado) e número oficial nos cartões da aba Meteorologia → Previsão CEMADEN-RJ. Só frontend, sem migração. Detalhes em `previsao-comparacao-telegram.md`.
 
+## 29/10/2026 — Previsão: correções do mapa da aba e do carrossel (publicado)
+
+A pedido do usuário, depois do uso em produção: fim do corte no mapa interativo, balões de baixo lado a lado, layout por tamanho de tela (celular no estilo do story, tablet e PC com cartões 2 a 2), botão Story retirado (o carrossel o substitui) e botões Compartilhar e Copiar texto visíveis no carrossel do celular. Só frontend, sem migração. Detalhes em `previsao-comparacao-telegram.md`.
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

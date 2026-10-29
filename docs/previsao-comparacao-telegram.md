@@ -210,3 +210,12 @@ Como as posições são fixas, o mapa do Post encolhe conforme a tabela cresce (
 
 **Aba Meteorologia → Previsão CEMADEN-RJ:** os cartões ganharam o **número oficial da REDEC** num círculo azul-escuro antes do nome e seguem a ordem oficial (1 a 11).
 
+### Correções do mapa da aba e do carrossel após o uso em produção (29/10/2026)
+Problemas encontrados pelo usuário e correção:
+- **Corte no mapa interativo:** o balão da Baixada Fluminense (agora número 2) ficava fora da área do SVG (altura 1150 para um conteúdo de ~1170) e era cortado. O mapa da aba usa agora a altura 1125 com as posições de `SLOTS_TELA` e foi conferido que todos os balões cabem na área.
+- **Balões lado a lado:** em `SLOTS_TELA`, **Capital, Baixada Fluminense e Metropolitana** ficam em fila, na mesma altura, embaixo do mapa (posições desenhadas pelo usuário); as demais são as do carrossel.
+- **Layout por tela:** celular (< 768 px): mapa de largura total no estilo do story, **ícones em volta do mapa ligados por linha** (posicionamento automático) e cartões em 1 coluna; tablet (768 a 1023 px): mapa de largura total com balões completos e cartões **2 a 2** embaixo; PC (1024 a 1535 px): mapa fixo à esquerda (7/12) e cartões em 1 coluna; PC largo (≥ 1536 px): mapa (6/12) e cartões **2 a 2**. A altura do mapa é limitada à da janela (`100vh − 19rem`) quando ele fica ao lado dos cartões.
+- **Story sai, carrossel entra:** o botão **Story** foi retirado; o **Carrossel** (Story de 2 imagens) o substitui. Ficam Post, Carrossel e Tabela.
+- **Botões do carrossel (Compartilhar e Copiar texto):** a barra de abas do carrossel não entrava no cálculo da altura do pop-up, e no celular os botões de baixo ficavam cortados. A barra entrou na conta; agora a prévia diminui e os botões (Baixar este slide, Baixar os 2 slides, Copiar imagem, Compartilhar no celular, Copiar texto) aparecem inteiros.
+Arquivos: `PrevisaoMapa.tsx` (`useMediaQuery`, `ExportModal`), `PrevisaoMapaCorpo.tsx` (`SLOTS_TELA`). Sem migração.
+
