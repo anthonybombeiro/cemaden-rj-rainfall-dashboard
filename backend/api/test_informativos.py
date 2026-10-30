@@ -107,6 +107,88 @@ class InformativosApiTest(APITestCase):
         self.assertEqual(a["vigente"]["sms_pendentes"], ["SUL I"])
         self.assertEqual(len(a["vigente"]["regioes_sem_informacao"]), 10)
 
+    def test_acompanhamento_traz_texto_do_vigente_e_anteriores_do_episodio(self):
+        ids = []
+        for _ in range(3):
+            i = self.client.post(U, {"itens": itens("SUL I", prevista="moderada_forte")}, format="json").data
+            self.client.post(f"{U}{i['id']}/enviar/")
+            ids.append(i["id"])
+        agora = timezone.now()
+        for k, pk in enumerate(ids):  # mais antigo primeiro: -1 h, -2 h... e o terceiro (vigente) agora
+            InformativoMeteorologico.objects.filter(pk=pk).update(enviado_em=agora - dt.timedelta(hours=(2 - k) * 5 if k < 2 else 0))
+        InformativoMeteorologico.objects.filter(pk=ids[0]).update(enviado_em=agora - dt.timedelta(hours=40))  # fora do episódio (pausa > 12 h)
+        a = self.client.get(U + "acompanhamento/").data
+        self.assertIn("INFORMATIVO METEOROLÓGICO", a["vigente"]["texto"])
+        self.assertEqual(a["vigente"]["id"], ids[2])
+        self.assertEqual([e["id"] for e in a["episodio"]], [ids[1]])
+        self.assertIn("nm_sugerido", a["episodio"][0])
+
+    def test_novas_intensidades_e_aproximacao_no_texto(self):
+        from core import informativos as inf
+        casos = {"forte": "forte", "muito forte": "muito_forte", "forte a muito forte": "forte_muito_forte", "forte a ocasionalmente muito forte": "forte_ocasion_muito_forte", "pontualmente forte": "pontual_forte"}
+        for texto, chave in casos.items():
+            self.assertEqual(inf.normalizar_intensidade(texto), chave)
+        ordem = sorted(inf.INTENSIDADES, key=inf.gravidade)
+        self.assertLess(ordem.index("moderada_forte"), ordem.index("forte"))
+        self.assertLess(ordem.index("forte"), ordem.index("moderada_muito_forte"))
+        r = self.client.post(U + "previa/", {"itens": itens("NORTE", prevista="forte_muito_forte"), "aproximacao": {"regioes": ["Capital"], "intensidade": "forte", "por": "Minas Gerais"}}, format="json").data
+        self.assertIn("forte a muito forte", r["texto"])
+        self.assertIn("Núcleos de chuva forte se aproximam da região Capital, por Minas Gerais", r["texto"])
+
+    def _enviado(self, **kw):
+        i = self.client.post(U, {"itens": itens("SUL I", **kw)}, format="json").data
+        self.client.post(f"{U}{i['id']}/enviar/")
+        return i["id"]
+
+    def test_varios_reenvios_de_radar_no_mesmo_informativo(self):
+        iid = self._enviado(prevista="moderada_forte")
+        for radar in ("Radar Tool INEA (Guaratiba)", "REDEMET (Pico do Couto)"):
+            r = self.client.post(f"{U}{iid}/envios/", {"tipo": "radar", "detalhe": radar, "quadro_em": "2026-10-30T02:46:00-03:00"}, format="json")
+            self.assertEqual(r.status_code, 201)
+        d = self.client.get(f"{U}{iid}/").data
+        self.assertEqual([e["detalhe"] for e in d["envios"]][::-1], ["Radar Tool INEA (Guaratiba)", "REDEMET (Pico do Couto)"])
+        self.assertEqual(self.client.post(f"{U}{iid}/envios/", {"tipo": "radar"}, format="json").status_code, 400)  # sem radar
+        proximo = self.client.get(U + "acompanhamento/").data["vigente"]["radar_proximo_em"]
+        self.assertTrue(proximo)
+
+    def test_envio_so_em_informativo_enviado(self):
+        i = self.cria().data
+        self.assertEqual(self.client.post(f"{U}{i['id']}/envios/", {"tipo": "radar", "detalhe": "x"}, format="json").status_code, 409)
+
+    def test_idap_varias_ferramentas_exige_autorizacao_e_pede_confirmacao_dos_avisos(self):
+        iid = self._enviado(prevista="moderada")  # moderada: abaixo do mínimo do SMS
+        post = lambda **kw: self.client.post(f"{U}{iid}/envios/", {"tipo": "idap", **kw}, format="json")  # noqa: E731
+        self.assertEqual(post(canais=["SMS"]).status_code, 400)  # sem autorização
+        self.assertEqual(post(autorizado_por="Diretor").status_code, 400)  # nenhuma ferramenta
+        aviso = post(canais=["SMS", "Telegram"], autorizado_por="Diretor")
+        self.assertEqual(aviso.status_code, 409)
+        self.assertEqual(len(aviso.data["avisos"]), 1)  # só o SMS: Telegram aceita moderada
+        self.assertIn("moderada a forte", aviso.data["avisos"][0])
+        ok = post(canais=["SMS", "Telegram"], autorizado_por="Diretor", regioes=["Sul I"], confirmar_avisos=True)
+        self.assertEqual(ok.status_code, 201)
+        self.assertEqual([e["canal"] for e in ok.data["envios"]], ["SMS", "Telegram"])
+        self.assertTrue(all(e["validado_por"] == "ana" for e in ok.data["envios"]))  # preencher é validar
+        dca = post(canais=["DCA"], autorizado_por="Diretor")
+        self.assertEqual(dca.status_code, 409)
+        self.assertTrue(any("NM 4" in a for a in dca.data["avisos"]))
+        self.assertEqual(post(canais=["Facebook"], autorizado_por="D").status_code, 400)
+        sem_validar = post(canais=["WhatsApp"], autorizado_por="D", validado=False)
+        self.assertEqual(sem_validar.status_code, 201)
+        self.assertIsNone(sem_validar.data["envios"][0]["validado_em"])
+
+    def test_validar_depois_e_lixeira_so_admin(self):
+        iid = self._enviado(prevista="moderada_forte")
+        eid = self.client.post(f"{U}{iid}/envios/", {"tipo": "idap", "canais": ["SMS"], "autorizado_por": "Diretor", "validado": False}, format="json").data["envios"][0]["id"]
+        self.client.force_authenticate(self.u2)
+        v = self.client.post(f"{U}envios/{eid}/validar/").data["envio"]
+        self.assertEqual(v["validado_por"], "beto")
+        self.assertEqual(self.client.delete(f"{U}envios/{eid}/").status_code, 403)
+        self.client.force_authenticate(get_user_model().objects.create_superuser("root", password="x"))
+        self.assertEqual(self.client.delete(f"{U}envios/{eid}/").status_code, 200)
+
+    def test_publico_vem_marcado_por_padrao(self):
+        self.assertTrue(self.cria().data["publico"])
+
     def test_vigencia_expira_em_6h(self):
         i = self.client.post(U, {"itens": itens("SUL I")}, format="json").data
         self.client.post(f"{U}{i['id']}/enviar/")
@@ -117,6 +199,7 @@ class InformativosApiTest(APITestCase):
     def test_publico_so_se_marcado_enviado_e_vigente(self):
         i = self.client.post(U, {"itens": itens("SUL I")}, format="json").data
         self.client.post(f"{U}{i['id']}/enviar/")
+        self.client.patch(f"{U}{i['id']}/", {"publico": False}, format="json")  # o usuário desmarcou
         self.client.force_authenticate(None)
         self.assertIsNone(self.client.get("/api/publico/informativo/").data["informativo"])  # enviado mas não marcado público
         self.client.force_authenticate(self.u1)

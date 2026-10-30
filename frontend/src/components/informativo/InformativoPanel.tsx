@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -14,6 +15,7 @@ import {
   fetchInformativos,
   INTENSIDADES,
   ItemRegiao,
+  gravidade,
   itemVazio,
   nomeRegiao,
   previaInformativo,
@@ -24,14 +26,27 @@ import {
   salvarInformativo,
   urlExportar,
 } from "@/lib/informativo";
-import { horaLocal } from "@/lib/mapaCanvas";
 import { fmtDataHora } from "@/lib/nivelMonitoramento";
 
 import ApoioChuva from "./ApoioChuva";
+import CardInformativo from "./CardInformativo";
+import PublicarInformativo from "./PublicarInformativo";
+import RadarCompartilhar from "./RadarCompartilhar";
+import ValidarIdap from "./ValidarIdap";
 import FilaRevisao from "./FilaRevisao";
-import { MapaInformativo, RadarRecorte } from "./ImagensInformativo";
 import TextoLivreGuiado from "./TextoLivreGuiado";
 import Verificacao from "./Verificacao";
+
+const MapaVigente = dynamic(() => import("./MapaVigente"), { ssr: false, loading: () => <div className="flex h-72 items-center justify-center text-sm text-gray-400">Carregando mapa…</div> });
+
+/** Insere frases do texto livre guiado antes do rodapé ("Em caso de mudança de cenário…"). */
+function comFrases(texto: string, frases: string[]): string {
+  if (!frases.length) return texto;
+  const bloco = frases.join("\n");
+  const ponto = texto.indexOf("Em caso de mudança de cenário");
+  const sem_fim = (t: string) => t.replace(/\n+$/, "");
+  return ponto >= 0 ? `${sem_fim(texto.slice(0, ponto))}\n${bloco}\n\n${texto.slice(ponto)}` : `${sem_fim(texto)}\n${bloco}`;
+}
 
 type Sub = "compor" | "acompanhar" | "historico" | "verificacao";
 
@@ -47,6 +62,7 @@ const ESTADO: Record<Resumo["estado"], { rotulo: string; cor: string }> = {
 export default function InformativoPanel() {
   const [sub, setSub] = useState<Sub>("acompanhar");
   const [abertoId, setAbertoId] = useState<number | null>(null);
+  const [publicar, setPublicar] = useState<Detalhe | null>(null);
 
   const abrir = (id: number) => {
     setAbertoId(id);
@@ -62,7 +78,8 @@ export default function InformativoPanel() {
         ))}
       </div>
       {sub === "acompanhar" && <Acompanhar onNovo={() => { setAbertoId(null); setSub("compor"); }} onAbrir={abrir} />}
-      {sub === "compor" && <Compor key={abertoId ?? "novo"} id={abertoId} onSalvo={setAbertoId} />}
+      {sub === "compor" && <Compor key={abertoId ?? "novo"} id={abertoId} onSalvo={setAbertoId} onFechar={() => setAbertoId(null)} onPublicar={setPublicar} />}
+      {publicar && <PublicarInformativo i={publicar} onClose={() => setPublicar(null)} />}
       {sub === "historico" && <Historico onAbrir={abrir} />}
       {sub === "verificacao" && <Verificacao />}
     </div>
@@ -73,7 +90,15 @@ export default function InformativoPanel() {
 function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: number) => void }) {
   const [a, setA] = useState<Acompanhamento | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [mensagem, setMensagem] = useState<Detalhe | null>(null);
+  const [radar, setRadar] = useState<Detalhe | null>(null);
+  const [validar, setValidar] = useState<Detalhe | null>(null);
   const carregar = useCallback(() => fetchAcompanhamento().then(setA).catch((e) => setErro(e.message)), []);
+  const acoes = { onAbrir, onMensagem: setMensagem, onRadar: setRadar, onValidar: setValidar, onCancelar: (d: Detalhe) => cancelar(d) };
+  const cancelar = (d: Detalhe) => {
+    const motivo = window.prompt(`Motivo do cancelamento do informativo nº ${d.numero}/${d.ano} (ele não é apagado):`);
+    if (motivo) acaoInformativo(d.id, "cancelar", { motivo }).then(carregar).catch((e) => setErro(e.message));
+  };
   useEffect(() => {
     carregar();
     const t = setInterval(carregar, 60_000);
@@ -83,23 +108,26 @@ function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: num
   if (!a) return <p className="text-sm text-gray-500">Carregando…</p>;
   const v = a.vigente;
   return (
-    <div className="max-w-3xl space-y-3 text-sm">
+    <div className="space-y-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-gray-600">Próximo número: <b>{a.proximo_numero.numero}/{a.proximo_numero.ano}</b>{a.rascunhos > 0 && ` · ${a.rascunhos} rascunho(s) em aberto`}</span>
         <button type="button" onClick={onNovo} className="rounded bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Novo informativo</button>
       </div>
       {v ? (
-        <div className="space-y-1.5 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-950">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <b>Vigente: nº {v.numero}/{v.ano}</b>
-            <button type="button" onClick={() => onAbrir(v.id)} className="rounded border border-emerald-300 bg-white px-2 py-1 text-xs hover:bg-emerald-100">Abrir</button>
+        <>
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-2 shadow-sm"><MapaVigente itens={v.itens} /></div>
+          <h3 className="text-sm font-bold text-gray-700">Vigente</h3>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            <CardInformativo i={v} destaque acoes={acoes} rodape={
+              <div className="mt-2 space-y-1 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-950">
+                <p>Vale por mais <b>{Math.floor(v.minutos_restantes / 60)} h {v.minutos_restantes % 60} min</b>.</p>
+                <p className={v.radar_atrasado ? "font-semibold text-red-700" : ""}>Radar: reenviar a cada {v.radar_intervalo_min} min ({v.radar_faixa.replace("_", " ")}) — próximo até {fmtDataHora(v.radar_proximo_em)}{v.radar_atrasado ? " (ATRASADO)" : ""}.</p>
+                {v.sms_pendentes.length > 0 && <p className="text-amber-800">SMS (IDAP) ainda não marcado como enviado: {v.sms_pendentes.map(nomeRegiao).join(", ")}.</p>}
+                {v.regioes_sem_informacao.length > 0 && <p className="text-gray-600">Sem informação: {v.regioes_sem_informacao.map(nomeRegiao).join(", ")}.</p>}
+              </div>
+            } />
           </div>
-          <p>Enviado {v.enviado_em ? fmtDataHora(v.enviado_em) : ""} por {v.enviado_por}. Vale por mais <b>{Math.floor(v.minutos_restantes / 60)} h {v.minutos_restantes % 60} min</b>.</p>
-          <p className={v.radar_atrasado ? "font-semibold text-red-700" : ""}>
-            Radar: reenviar a cada {v.radar_intervalo_min} min ({v.radar_faixa.replace("_", " ")}) — próximo até {fmtDataHora(v.radar_proximo_em)}{v.radar_atrasado ? " (ATRASADO)" : ""}.
-          </p>
-          {v.sms_pendentes.length > 0 && <p className="text-amber-800">SMS (IDAP) ainda não marcado como enviado: {v.sms_pendentes.map(nomeRegiao).join(", ")}.</p>}
-        </div>
+        </>
       ) : (
         <p className="rounded-md border border-gray-200 bg-gray-50 p-3 text-gray-700">Nenhum informativo vigente (valem 6 h a partir do envio).</p>
       )}
@@ -112,6 +140,15 @@ function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: num
         <p className="text-xs text-gray-700">
           Chuva nas estações (última hora): {Object.entries(a.chuva_atual).sort((x, y) => y[1].max_1h_mm - x[1].max_1h_mm).map(([r, c]) => `${nomeRegiao(r)} ${c.rotulo.toLowerCase()} (${c.max_1h_mm} mm/h)`).join(" · ")}
         </p>
+      )}
+      {a.episodio.length > 0 && (
+        <>
+          <h3 className="text-sm font-bold text-gray-700">Anteriores deste episódio de mau tempo ({a.episodio.length})</h3>
+          <p className="-mt-2 text-xs text-gray-500">Sequência de envios sem pausa maior que 12 h.</p>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {a.episodio.map((e) => <CardInformativo key={e.id} i={e} acoes={acoes} />)}
+          </div>
+        </>
       )}
       <div>
         <p className="mb-1 text-xs font-semibold text-gray-700">Informativos de hoje ({a.hoje.length})</p>
@@ -129,6 +166,9 @@ function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: num
           </ul>
         )}
       </div>
+      {mensagem && <PublicarInformativo i={mensagem} onClose={() => setMensagem(null)} />}
+      {radar && <RadarCompartilhar det={radar} onAtualiza={(d) => { setRadar(d); carregar(); }} onClose={() => setRadar(null)} />}
+      {validar && <ValidarIdap det={validar} onAtualiza={(d) => { setValidar(d); carregar(); }} onClose={() => setValidar(null)} />}
       {a.lacunas.length > 0 && (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-amber-900">
           Há números faltando na sequência de {a.ano}: <b>{a.lacunas.slice(0, 20).join(", ")}{a.lacunas.length > 20 ? "…" : ""}</b>. Pode ser informativo emitido fora do painel — confira antes de preencher.
@@ -139,12 +179,14 @@ function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: num
 }
 
 // ------------------------------------------------------------------------------------------ compositor
-function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => void }) {
+function Compor({ id, onSalvo, onFechar, onPublicar }: { id: number | null; onSalvo: (id: number) => void; onFechar: () => void; onPublicar: (d: Detalhe) => void }) {
   const [det, setDet] = useState<Detalhe | null>(null);
   const [itens, setItens] = useState<ItemRegiao[]>(REGIOES_ORDEM.map(itemVazio));
   const [aprox, setAprox] = useState({ regioes: [] as string[], intensidade: "", por: "" });
   const [texto, setTexto] = useState("");
   const [manual, setManual] = useState(false);
+  const [frases, setFrases] = useState<string[]>([]);
+  const ultimo = useRef<Detalhe | null>(null);
   const [previa, setPrevia] = useState<Previa | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -152,6 +194,7 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
 
   const aplica = useCallback((d: Detalhe) => {
     setDet(d);
+    setFrases([]);
     setItens(REGIOES_ORDEM.map((r) => d.itens.find((i) => i.regiao === r) ?? itemVazio(r)));
     setAprox(d.aproximacao);
     setTexto(d.texto);
@@ -168,45 +211,57 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
     if (t.current) clearTimeout(t.current);
     t.current = setTimeout(() => {
       previaInformativo({ itens: itens.filter((i) => i.chuva_atual || i.chuva_prevista), aproximacao: aprox.regioes.length ? aprox : undefined, numero: det?.numero, ano: det?.ano, emitido_em: det?.emitido_em ?? undefined })
-        .then((p) => { setPrevia(p); if (!manual) setTexto(p.texto); })
+        .then((p) => { setPrevia(p); if (!manual) setTexto(comFrases(p.texto, frases)); })
         .catch(() => undefined);
     }, 400);
     return () => { if (t.current) clearTimeout(t.current); };
-  }, [itens, aprox, det, manual, bloqueado]);
+  }, [itens, aprox, det, manual, bloqueado, frases]);
 
   const muda = (regiao: string, campo: keyof ItemRegiao, valor: string | boolean) => setItens((l) => l.map((i) => (i.regiao === regiao ? { ...i, [campo]: valor } : i)));
   const preenchidos = itens.filter((i) => i.chuva_atual || i.chuva_prevista);
 
-  const executa = async (fn: () => Promise<Detalhe>, ok: string) => {
+  const executa = async (fn: () => Promise<Detalhe>, ok: string): Promise<boolean> => {
     setOcupado(true);
     setMsg(null);
     try {
       const d = await fn();
+      ultimo.current = d;
       aplica(d);
       onSalvo(d.id);
       setMsg({ tipo: "ok", texto: ok });
+      return true;
     } catch (e) {
       setMsg({ tipo: "erro", texto: e instanceof Error ? e.message : "Falha." });
+      return false;
     } finally {
       setOcupado(false);
     }
   };
   const salvar = () =>
     executa(async () => {
-      const corpo = { itens: preenchidos, aproximacao_regioes: aprox.regioes, aproximacao_por: aprox.por, aproximacao_intensidade: aprox.intensidade, ...(manual ? { texto } : {}) };
+      const corpo = { itens: preenchidos, aproximacao_regioes: aprox.regioes, aproximacao_por: aprox.por, aproximacao_intensidade: aprox.intensidade, ...(manual || frases.length ? { texto } : {}) };
       return det ? salvarInformativo(det.id, corpo) : criarInformativo({ itens: preenchidos }).then((d) => salvarInformativo(d.id, corpo));
     }, "Rascunho salvo.");
-  const acao = (a: "revisar" | "enviar") => () => executa(async () => { const base = det ?? (await criarInformativo({ itens: preenchidos })); if (!det || a === "enviar") await salvarInformativo(base.id, { itens: preenchidos, ...(manual ? { texto } : {}) }); return acaoInformativo(base.id, a); }, a === "enviar" ? "Envio registrado. Lembre: o painel não envia — copie o texto e envie nos canais." : "Marcado como revisado.");
+  const acao = (a: "revisar" | "enviar") => () => executa(async () => { const base = det ?? (await criarInformativo({ itens: preenchidos })); if (!det || a === "enviar") await salvarInformativo(base.id, { itens: preenchidos, aproximacao_regioes: aprox.regioes, aproximacao_por: aprox.por, aproximacao_intensidade: aprox.intensidade, ...(manual || frases.length ? { texto } : {}) }); return acaoInformativo(base.id, a); }, a === "enviar" ? "Envio registrado. Lembre: o painel não envia — copie o texto e envie nos canais." : "Marcado como revisado.");
+  // "Registrar envio" só registra; "Registrar e Publicar" registra e já abre a arte do informativo (e o texto) para publicar
+  const enviarEGerar = async () => { if ((await acao("enviar")()) && ultimo.current) onPublicar(ultimo.current); };
   const cancelar = () => {
     const motivo = window.prompt("Motivo do cancelamento (o informativo não é apagado):");
     if (motivo && det) executa(() => acaoInformativo(det.id, "cancelar", { motivo }), "Informativo cancelado.");
   };
-  // insere a frase do texto livre guiado antes do rodapé ("Em caso de mudança de cenário…"); passa a valer como texto ajustado à mão
+  // frase do texto livre guiado: enquanto o texto é gerado, a frase entra na geração (matriz e núcleos continuam atualizando o texto); com texto ajustado à mão, entra direto nele
   const inserirFrase = (frase: string) => {
-    const ponto = texto.indexOf("Em caso de mudança de cenário");
-    const sem_fim = (t: string) => t.replace(/\n+$/, "");
-    setTexto(ponto >= 0 ? `${sem_fim(texto.slice(0, ponto))}\n${frase}\n\n${texto.slice(ponto)}` : `${sem_fim(texto)}\n${frase}`);
-    setManual(true);
+    if (manual) setTexto((t) => comFrases(t, [frase]));
+    else setFrases((l) => [...l, frase]);
+  };
+  const limpar = () => {
+    if (!window.confirm("Limpar tudo o que foi digitado (matriz, núcleos que se aproximam, frases e texto)? O informativo salvo não muda até você salvar.")) return;
+    setItens(REGIOES_ORDEM.map(itemVazio));
+    setAprox({ regioes: [], intensidade: "", por: "" });
+    setFrases([]);
+    setManual(false);
+    setTexto("");
+    setMsg({ tipo: "ok", texto: "Campos limpos." });
   };
   const copiar = () => navigator.clipboard?.writeText(texto).then(() => setMsg({ tipo: "ok", texto: "Texto copiado." })).catch(() => setMsg({ tipo: "erro", texto: "Não foi possível copiar." }));
 
@@ -246,7 +301,7 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
                 </select>
               </div>
             </fieldset>
-            {det && det.estado !== "cancelado" && INTENSIDADES.findIndex((o) => o.chave === i.chuva_prevista) >= 4 && (
+            {det && det.estado !== "cancelado" && gravidade(i.chuva_prevista) >= 4 && (
               <label className="mt-1 flex items-center gap-1 px-1 text-xs font-medium text-amber-800">
                 <input type="checkbox" checked={!!i.sms_enviado} onChange={(e) => executa(() => acaoInformativo(det.id, "sms", { regioes: [i.regiao], enviado: e.target.checked }), "SMS atualizado.")} /> SMS enviado (IDAP)
               </label>
@@ -275,21 +330,17 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs">
             <b>Texto{manual ? " (ajustado à mão)" : " (gerado)"}</b>
             <span className="flex gap-1.5">
-              {manual && !bloqueado && <button type="button" onClick={() => { setManual(false); if (previa) setTexto(previa.texto); }} className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Regerar</button>}
+              {manual && !bloqueado && <button type="button" onClick={() => { setManual(false); setFrases([]); if (previa) setTexto(previa.texto); }} className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Regerar</button>}
+              {det && <button type="button" onClick={onFechar} title="Fechar a edição e voltar ao novo informativo em branco" className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Fechar edição</button>}
+              {!bloqueado && <button type="button" onClick={limpar} className="rounded border border-red-300 px-2 py-1 text-red-700 hover:bg-red-50">Limpar</button>}
               <button type="button" onClick={copiar} className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Copiar</button>
             </span>
           </div>
+          {manual && !bloqueado && <p className="mb-1 rounded bg-amber-50 p-1.5 text-[11px] text-amber-900">Texto ajustado à mão: mudanças na matriz e nos núcleos que se aproximam <b>não entram</b> no texto até você clicar em Regerar.</p>}
           <textarea value={texto} readOnly={bloqueado} onChange={(e) => { setTexto(e.target.value); setManual(true); }} rows={18} className="w-full rounded border border-gray-200 p-2 font-mono text-xs leading-relaxed" />
           <p className="mt-1 text-[11px] text-gray-500">{texto.length} caracteres. Texto livre fica por sua conta; a matriz ao lado só gera o texto enquanto você não editar à mão.</p>
         </div>
         {!bloqueado && <TextoLivreGuiado onInserir={inserirFrase} />}
-        <details className="rounded-md border border-gray-200 bg-white p-2.5 text-xs">
-          <summary className="cursor-pointer font-semibold">Imagens para enviar (recorte do radar e mapa da previsão)</summary>
-          <div className="mt-2 space-y-4">
-            <RadarRecorte />
-            <MapaInformativo itens={itens} numero={det?.numero} ano={det?.ano} hora={det?.emitido_em ? horaLocal(new Date(det.emitido_em)) : undefined} />
-          </div>
-        </details>
         {(det?.nm_sugerido ?? previa?.nm_sugerido ?? []).length > 0 && (
           <p className="rounded-md border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
             NM sugerido pela previsão: {(det?.nm_sugerido ?? previa?.nm_sugerido ?? []).map((n) => `${nomeRegiao(n.regiao)} NM ${n.nm}${n.so_a_pedido ? " (só a pedido da meteorologia)" : ""}`).join("; ")}. É sugestão: o lançamento do NM é do plantonista.
@@ -309,6 +360,7 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
             <button type="button" disabled={ocupado} onClick={salvar} className="rounded border border-gray-300 bg-white px-3 py-2 font-medium hover:bg-gray-50 disabled:opacity-50">Salvar rascunho</button>
             {det?.estado !== "revisado" && <button type="button" disabled={ocupado || preenchidos.length === 0} onClick={acao("revisar")} className="rounded border border-sky-300 bg-sky-50 px-3 py-2 font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-50">Marcar revisado</button>}
             <button type="button" disabled={ocupado || preenchidos.length === 0} onClick={acao("enviar")} className="rounded bg-emerald-700 px-3 py-2 font-medium text-white hover:bg-emerald-600 disabled:opacity-50">Registrar envio</button>
+            <button type="button" disabled={ocupado || preenchidos.length === 0} onClick={enviarEGerar} className="rounded border border-emerald-700 bg-white px-3 py-2 font-medium text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">Registrar e Publicar</button>
             {det && <button type="button" disabled={ocupado} onClick={cancelar} className="rounded border border-red-300 bg-white px-3 py-2 font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">Cancelar</button>}
           </div>
         )}

@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class Source(models.Model):
@@ -913,7 +914,7 @@ class InformativoMeteorologico(models.Model):
     aproximacao_intensidade = models.CharField(max_length=40, blank=True)
     radar_fonte = models.CharField(max_length=120, blank=True, help_text="Ex.: Radar Tool INEA (Pico do Couto).")
     radar_quadro_em = models.DateTimeField(null=True, blank=True, help_text="Hora do quadro de radar anexado.")
-    publico = models.BooleanField(default=False, help_text="Mostrar na página pública enquanto vigente (6 h).")
+    publico = models.BooleanField(default=True, help_text="Mostrar na página pública enquanto vigente (6 h).")
     observacao = models.CharField(max_length=300, blank=True)
     motivo_cancelamento = models.CharField(max_length=300, blank=True)
     criado_por = models.CharField(max_length=150, blank=True)
@@ -959,6 +960,37 @@ class InformativoRegiao(models.Model):
 
     def __str__(self):
         return f"{self.informativo} · {self.regiao}"
+
+
+class InformativoEnvio(models.Model):
+    """Envio registrado de um informativo já enviado: reenvios do radar (vários por informativo, cada um com o radar escolhido e a hora do quadro) e
+    canais da Idap (SMS, Google Alertas, TV por assinatura, DCA) com a validação por outra pessoa. O painel NÃO envia: registra o que a equipe fez."""
+
+    class Tipo(models.TextChoices):
+        RADAR = "radar", "Radar"
+        IDAP = "idap", "Idap"
+
+    informativo = models.ForeignKey(InformativoMeteorologico, on_delete=models.CASCADE, related_name="envios")
+    tipo = models.CharField(max_length=10, choices=Tipo.choices)
+    canal = models.CharField(max_length=40, help_text="Radar | SMS | Google Alertas | TV por assinatura | DCA.")
+    detalhe = models.CharField(max_length=160, blank=True, help_text="Radar e produto usados (ex.: Radar Tool INEA (Guaratiba)).")
+    quadro_em = models.DateTimeField(null=True, blank=True, help_text="Hora do quadro de radar enviado.")
+    regioes = models.JSONField(default=list, blank=True)
+    protocolo = models.CharField(max_length=80, blank=True, help_text="Número/identificação do disparo na Idap.")
+    autorizado_por = models.CharField(max_length=120, blank=True, help_text="Quem autorizou (ok do diretor) — Idap.")
+    observacao = models.CharField(max_length=300, blank=True)
+    enviado_em = models.DateTimeField(default=timezone.now)
+    enviado_por = models.CharField(max_length=150, blank=True)
+    validado_em = models.DateTimeField(null=True, blank=True)
+    validado_por = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        ordering = ["-enviado_em", "-id"]
+        verbose_name = "envio do informativo"
+        verbose_name_plural = "envios do informativo"
+
+    def __str__(self):
+        return f"{self.informativo} · {self.canal}"
 
 
 class ConfiguracaoInformativo(models.Model):

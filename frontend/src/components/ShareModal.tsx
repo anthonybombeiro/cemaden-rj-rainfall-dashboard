@@ -1,13 +1,15 @@
 "use client";
 
 import { toPng } from "html-to-image";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   copiarImagemParaAreaDeTransferencia,
   copiarParaAreaDeTransferencia,
   ehDispositivoMovel,
+  ALTURA_POR_PROPORCAO,
   gerarTextoCompartilhavel,
+  Proporcao,
   ShareData,
 } from "@/lib/shareExport";
 
@@ -35,10 +37,21 @@ import {
  * shareExport.ts) — o modal em si não sabe nada de sirene/vento/chuva. */
 
 const LARGURA_CARD = 760;
-const ALTURA_CARD = 760;
 
 export default function ShareModal({ data, onClose }: { data: ShareData; onClose: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const [escolhida, setProporcao] = useState<Proporcao>(data.proporcoes?.[0] ?? "1:1");
+  const proporcao: Proporcao = data.proporcoes?.length === 1 ? data.proporcoes[0] : escolhida;
+  const ALTURA_CARD = ALTURA_POR_PROPORCAO[proporcao];
+  // prévia sem rolagem: reduz o card para caber na janela (só na tela; a exportação usa o card em tamanho real)
+  const [escala, setEscala] = useState(1);
+  useEffect(() => {
+    if (!data.semRolagem) return;
+    const ajusta = () => setEscala(Math.min(1, (Math.min(window.innerWidth, 672) - 64) / LARGURA_CARD, (window.innerHeight * 0.92 - 230) / ALTURA_CARD));
+    ajusta();
+    window.addEventListener("resize", ajusta);
+    return () => window.removeEventListener("resize", ajusta);
+  }, [data.semRolagem, ALTURA_CARD]);
   const [gerandoImagem, setGerandoImagem] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [imagemCopiada, setImagemCopiada] = useState(false);
@@ -49,7 +62,8 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
 
   const gerarPng = async (): Promise<Blob | null> => {
     if (!cardRef.current) return null;
-    const dataUrl = await toPng(cardRef.current, { backgroundColor: "#ffffff", pixelRatio: 2 });
+    // transform: none — a prévia pode estar reduzida na tela (semRolagem), mas a imagem sai sempre em tamanho real
+    const dataUrl = await toPng(cardRef.current, { backgroundColor: "#ffffff", pixelRatio: 2, style: { transform: "none" } });
     const res = await fetch(dataUrl);
     return res.blob();
   };
@@ -143,24 +157,34 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto bg-gray-100 p-4">
+        {data.proporcoes && data.proporcoes.length > 1 && (
+          <div className="flex shrink-0 items-center gap-1.5 border-b border-gray-200 px-4 py-2 text-xs">
+            <span className="text-gray-500">Formato da imagem:</span>
+            {data.proporcoes.map((p) => (
+              <button key={p} type="button" onClick={() => setProporcao(p)} className={`rounded-full border px-2.5 py-1 font-medium ${proporcao === p ? "border-sedec-600 bg-sedec-600 text-white" : "border-gray-300 text-gray-700"}`}>{p}</button>
+            ))}
+          </div>
+        )}
+        {data.topo && <div className="shrink-0 border-b border-gray-200 px-4 py-2 text-xs">{data.topo}</div>}
+        <div className={`min-h-0 flex-1 bg-gray-100 p-4 ${data.semRolagem ? "overflow-hidden" : "overflow-auto"}`}>
           {/* Card no layout final — é ESSE elemento que vira a imagem.
               Tamanho FIXO em pixels (não w-full/max-w-*) de propósito — ver
               docstring do componente. Em tela estreita o preview rola na
               horizontal (overflow-auto do container pai); a imagem
               exportada usa sempre o mesmo tamanho real, não o que coube na
               tela de quem está olhando o modal. */}
+          <div className="mx-auto" style={data.semRolagem ? { width: LARGURA_CARD * escala, height: ALTURA_CARD * escala } : undefined}>
           <div
             ref={cardRef}
             className="mx-auto flex flex-col overflow-hidden bg-white shadow"
-            style={{ width: LARGURA_CARD, height: ALTURA_CARD }}
+            style={{ width: LARGURA_CARD, height: ALTURA_CARD, ...(data.semRolagem ? { transform: `scale(${escala})`, transformOrigin: "top left" } : {}) }}
           >
             {/* Cabeçalho azul — logos sempre visíveis, independente do
                 fundo (pedido do usuário, 2026-10-01). */}
             <div className="flex shrink-0 items-center justify-between gap-3 bg-sedec-600 px-5 py-4">
               <div className="min-w-0">
-                <h3 className="text-[15px] font-bold leading-tight text-white">{data.titulo}</h3>
-                <p className="mt-0.5 text-[11px] text-sedec-100">{data.rotuloData ?? "Dados de"}: {data.dataHora}</p>
+                <h3 className="text-[15px] font-bold leading-tight text-white">{data.cabecalho ? data.cabecalho[0] : data.titulo}</h3>
+                <p className="mt-0.5 text-[11px] text-sedec-100">{data.cabecalho ? data.cabecalho[1] : `${data.rotuloData ?? "Dados de"}: ${data.dataHora}`}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <img src="/logo-defesa-civil.png" alt="" className="h-10 w-auto" />
@@ -177,11 +201,11 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                 pro corpo e pintam por cima do rodapé (que vem logo depois
                 no layout), em vez de simplesmente cortar o que não coube. */}
             <div className="flex min-h-0 flex-1 flex-col justify-start overflow-hidden px-4 py-3">
-              {!data.corpo && data.destaque && (
+              {!data.corpo && !data.corpoPor && data.destaque && (
                 <p className="mb-2.5 shrink-0 rounded border-l-4 border-sedec-600 bg-blue-50 px-3 py-2 text-[12px] leading-snug text-gray-800">{data.destaque}</p>
               )}
-              {data.corpo ? (
-                data.corpo
+              {data.corpoPor || data.corpo ? (
+                (data.corpoPor ? data.corpoPor(proporcao) : data.corpo)
               ) : (
               <table className="w-full table-fixed border-collapse text-[10.5px]">
                 {data.colunas.some((c) => c.larguraPct) && (
@@ -233,7 +257,7 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
               </table>
               )}
 
-              {!data.corpo && data.legenda && data.legenda.length > 0 && (
+              {!data.corpo && !data.corpoPor && data.legenda && data.legenda.length > 0 && (
                 <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[9.5px] text-gray-600">
                   {data.legenda.map((leg) => (
                     <span key={leg.rotulo} className="flex items-center gap-1">
@@ -251,6 +275,7 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
             <p className="shrink-0 border-t border-gray-100 px-4 py-2 text-center text-[9.5px] text-gray-400">
               {data.fonteTexto}
             </p>
+          </div>
           </div>
         </div>
 
@@ -290,6 +315,7 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
             >
               {copiado ? "✓ Copiado!" : "📋 Copiar texto"}
             </button>
+            {data.acoes}
             {mostrarShareNativo && (
               <button
                 type="button"

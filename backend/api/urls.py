@@ -28,7 +28,7 @@ from .dsat_imagery_views import DsatSateliteImageryView
 from .redemet_imagery_views import RedemetRadarImageryView, RedemetRadarMosaicoView, RedemetSateliteImageryView
 from .floodhub_views import FloodHubEventosView, FloodHubValidacaoView, FloodHubView
 from .previsao_publica_views import PublicoPrevisaoView
-from .informativo_views import (InformativoAcaoView, InformativoAcompanhamentoView, InformativoDetalheView, InformativoEstatisticasView, InformativoExportarView, InformativoPreviaView, InformativosView, PublicoInformativoView)
+from .informativo_views import (InformativoAcaoView, InformativoAcompanhamentoView, InformativoDetalheView, InformativoEnvioItemView, InformativoEnviosView, InformativoEstatisticasView, InformativoExportarView, InformativoPreviaView, InformativosView, PublicoInformativoView)
 from .resumo_views import Resumo24hView
 from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
@@ -112,6 +112,9 @@ urlpatterns = [
     path("informativos/importacao-revisao/", ImportacaoRevisaoView.as_view(), name="informativos-importacao-revisao"),
     path("informativos/radar/imagem/", InformativoRadarImagemView.as_view(), name="informativos-radar-imagem"),
     path("informativos/exportar/", InformativoExportarView.as_view(), name="informativos-exportar"),
+    path("informativos/envios/<int:eid>/", InformativoEnvioItemView.as_view(), name="informativos-envio"),
+    path("informativos/envios/<int:eid>/validar/", InformativoEnvioItemView.as_view(), name="informativos-envio-validar"),
+    path("informativos/<int:pk>/envios/", InformativoEnviosView.as_view(), name="informativos-envios"),
     path("informativos/<int:pk>/", InformativoDetalheView.as_view(), name="informativos-detalhe"),
     path("informativos/<int:pk>/<str:acao>/", InformativoAcaoView.as_view(), name="informativos-acao"),
     path("publico/informativo/", PublicoInformativoView.as_view(), name="publico-informativo"),

@@ -28,16 +28,21 @@ from typing import Iterable
 ORDEM_TEXTO = ["COSTA VERDE", "SUL I", "SUL II", "CAPITAL", "BAIXADA FLUMINENSE", "SERRANA I", "SERRANA II", "METROPOLITANA", "BAIXADA LITORÂNEA", "NORTE", "NOROESTE"]
 REGIOES = sorted(ORDEM_TEXTO)
 
-# intensidade → (rótulo no texto, gravidade de 1 a 8)
-INTENSIDADES: dict[str, tuple[str, int]] = {
+# intensidade → (rótulo no texto, gravidade; escala contínua: os limiares do código usam >=4, >=5 e >=6)
+INTENSIDADES: dict[str, tuple[str, float]] = {
     "fraca": ("fraca", 1),
     "fraca_moderada": ("fraca a moderada", 2),
     "moderada": ("moderada", 3),
     "moderada_ocasion_forte": ("moderada a ocasionalmente forte", 4),
+    "pontual_forte": ("pontualmente forte", 4.5),
     "moderada_forte": ("moderada a forte", 5),
+    "forte": ("forte", 5.5),
     "moderada_ocasion_muito_forte": ("moderada a ocasionalmente muito forte", 6),
+    "forte_ocasion_muito_forte": ("forte a ocasionalmente muito forte", 6.5),
     "moderada_muito_forte": ("moderada a muito forte", 7),
+    "forte_muito_forte": ("forte a muito forte", 7.5),
     "pontual_muito_forte": ("pontualmente muito forte", 8),
+    "muito_forte": ("muito forte", 9),
 }
 RAJADAS = {"moderado": "moderado", "moderado_ocasion_forte": "moderado a ocasionalmente forte", "forte": "forte"}
 
@@ -50,7 +55,7 @@ def rotulo_intensidade(chave: str) -> str:
     return INTENSIDADES[chave][0] if chave in INTENSIDADES else chave
 
 
-def gravidade(chave: str) -> int:
+def gravidade(chave: str) -> float:
     return INTENSIDADES.get(chave, ("", 0))[1]
 
 
@@ -285,18 +290,26 @@ def normalizar_intensidade(texto: str) -> str:
     muito = "muito forte" in t
     ocasional = "ocasion" in t
     pontual = "pontual" in t
+    moderada = "moderad" in t
+    forte_sozinho = len(re.findall(r"forte", t)) - len(re.findall(r"muito forte", t))  # "forte" fora de "muito forte"
     if pontual and muito:
         return "pontual_muito_forte"
-    if "moderad" in t and "forte" in t:
+    if pontual and "forte" in t:
+        return "pontual_forte"
+    if moderada and "forte" in t:
         if muito:
             return "moderada_ocasion_muito_forte" if ocasional else "moderada_muito_forte"
         return "moderada_ocasion_forte" if ocasional else "moderada_forte"
-    if "fraca" in t and "moderad" in t:
+    if "fraca" in t and moderada:
         return "fraca_moderada"
-    if "moderad" in t:
+    if moderada:
         return "moderada"
     if "fraca" in t:
         return "fraca"
+    if muito and forte_sozinho > 0:
+        return "forte_ocasion_muito_forte" if ocasional else "forte_muito_forte"
+    if muito:
+        return "muito_forte"
     if "forte" in t:
-        return "moderada_forte"
+        return "forte"
     return ""

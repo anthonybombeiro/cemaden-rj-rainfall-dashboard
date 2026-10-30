@@ -3,17 +3,27 @@ import { API_BASE_URL, getJson } from "@/lib/api";
 
 export const REGIOES_ORDEM = ["COSTA VERDE", "SUL I", "SUL II", "CAPITAL", "BAIXADA FLUMINENSE", "SERRANA I", "SERRANA II", "METROPOLITANA", "BAIXADA LITORÂNEA", "NORTE", "NOROESTE"];
 
-export const INTENSIDADES: { chave: string; rotulo: string }[] = [
-  { chave: "", rotulo: "—" },
-  { chave: "fraca", rotulo: "Fraca" },
-  { chave: "fraca_moderada", rotulo: "Fraca a moderada" },
-  { chave: "moderada", rotulo: "Moderada" },
-  { chave: "moderada_ocasion_forte", rotulo: "Moderada a ocasionalmente forte" },
-  { chave: "moderada_forte", rotulo: "Moderada a forte" },
-  { chave: "moderada_ocasion_muito_forte", rotulo: "Moderada a ocasionalmente muito forte" },
-  { chave: "moderada_muito_forte", rotulo: "Moderada a muito forte" },
-  { chave: "pontual_muito_forte", rotulo: "Pontualmente muito forte" },
+export const INTENSIDADES: { chave: string; rotulo: string; grav: number }[] = [
+  { chave: "", rotulo: "—", grav: 0 },
+  { chave: "fraca", rotulo: "Fraca", grav: 1 },
+  { chave: "fraca_moderada", rotulo: "Fraca a moderada", grav: 2 },
+  { chave: "moderada", rotulo: "Moderada", grav: 3 },
+  { chave: "moderada_ocasion_forte", rotulo: "Moderada a ocasionalmente forte", grav: 4 },
+  { chave: "pontual_forte", rotulo: "Pontualmente forte", grav: 4.5 },
+  { chave: "moderada_forte", rotulo: "Moderada a forte", grav: 5 },
+  { chave: "forte", rotulo: "Forte", grav: 5.5 },
+  { chave: "moderada_ocasion_muito_forte", rotulo: "Moderada a ocasionalmente muito forte", grav: 6 },
+  { chave: "forte_ocasion_muito_forte", rotulo: "Forte a ocasionalmente muito forte", grav: 6.5 },
+  { chave: "moderada_muito_forte", rotulo: "Moderada a muito forte", grav: 7 },
+  { chave: "forte_muito_forte", rotulo: "Forte a muito forte", grav: 7.5 },
+  { chave: "pontual_muito_forte", rotulo: "Pontualmente muito forte", grav: 8 },
+  { chave: "muito_forte", rotulo: "Muito forte", grav: 9 },
 ];
+/** Gravidade da intensidade (a mesma escala do backend, `core/informativos.py`). */
+export const gravidade = (chave: string) => INTENSIDADES.find((o) => o.chave === chave)?.grav ?? 0;
+/** Cor da REDEC pela intensidade (por faixa de gravidade). */
+export const COR_GRAVIDADE = ["#cbd5e1", "#86efac", "#4ade80", "#facc15", "#fb923c", "#ef4444", "#b91c1c", "#7f1d1d", "#581c87"];
+export const corGravidade = (chave: string) => COR_GRAVIDADE[Math.min(Math.ceil(gravidade(chave)), COR_GRAVIDADE.length - 1)];
 export const RAJADAS = [
   { chave: "", rotulo: "Sem rajadas" },
   { chave: "moderado", rotulo: "Rajadas moderadas" },
@@ -52,6 +62,23 @@ export type Resumo = {
   enviado_por: string;
   criado_por: string;
 };
+export type Envio = {
+  id: number;
+  tipo: "radar" | "idap";
+  canal: string;
+  detalhe: string;
+  quadro_em: string | null;
+  regioes: string[];
+  protocolo: string;
+  autorizado_por: string;
+  observacao: string;
+  enviado_em: string;
+  enviado_por: string;
+  validado_em: string | null;
+  validado_por: string;
+};
+// as mesmas ferramentas do lançamento do NM
+export const CANAIS_IDAP = ["Google Alertas", "Telegram", "WhatsApp", "SMS", "TV por assinatura", "DCA"];
 export type Detalhe = Resumo & {
   texto: string;
   texto_livre: boolean;
@@ -69,6 +96,7 @@ export type Detalhe = Resumo & {
   sms: { aplicavel: boolean; regioes: string[]; sms: string; tv: string; sms_cabe: boolean; tv_cabe: boolean; aviso?: string };
   livro_ocorrencias: string;
   radar_intervalo_min: number;
+  envios: Envio[];
 };
 export type Previa = { texto: string; sms: Detalhe["sms"]; maior_gravidade: number; caracteres: number; nm_sugerido: Detalhe["nm_sugerido"] };
 export type Acompanhamento = {
@@ -77,7 +105,7 @@ export type Acompanhamento = {
   lacunas: number[];
   rascunhos: number;
   vigente:
-    | (Resumo & {
+    | (Detalhe & {
         radar_intervalo_min: number;
         radar_faixa: string;
         radar_proximo_em: string;
@@ -90,6 +118,7 @@ export type Acompanhamento = {
   emitir: { emitir: boolean; urgencia: "" | "media" | "alta"; regioes: string[]; motivo: string; renovar_em: string | null } | null;
   chuva_atual: Record<string, ChuvaRegiao>;
   hoje: Resumo[];
+  episodio: Detalhe[];
 };
 export type ChuvaRegiao = { max_1h_mm: number; rotulo: string; classe: "fraca" | "moderada" | "forte" | "muito_forte"; estacao: string; municipio: string };
 export type SugestaoRegiao = { regiao: string; chuva_atual: string; raios_atual: boolean; chuva_prevista: string; raios: boolean; motivos: string[] };
@@ -118,7 +147,16 @@ function csrf(): string | null {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-async function enviar<T>(metodo: "POST" | "PATCH", caminho: string, corpo?: unknown): Promise<T> {
+/** Erro de API que pode trazer `avisos` (resposta 409 do registro de envio: confirmar e repetir com `confirmar_avisos`). */
+export class ErroApi extends Error {
+  avisos: string[];
+  constructor(mensagem: string, avisos: string[] = []) {
+    super(mensagem);
+    this.avisos = avisos;
+  }
+}
+
+async function enviar<T>(metodo: "POST" | "PATCH" | "DELETE", caminho: string, corpo?: unknown): Promise<T> {
   const token = csrf();
   const res = await fetch(`${API_BASE_URL}${caminho}`, {
     method: metodo,
@@ -127,7 +165,7 @@ async function enviar<T>(metodo: "POST" | "PATCH", caminho: string, corpo?: unkn
     body: corpo === undefined ? undefined : JSON.stringify(corpo),
   });
   const dados = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(dados?.detail ?? `Falha na requisição: HTTP ${res.status}`);
+  if (!res.ok) throw new ErroApi(dados?.detail ?? `Falha na requisição: HTTP ${res.status}`, dados?.avisos ?? []);
   return dados as T;
 }
 
@@ -145,3 +183,10 @@ export const fetchVerificacao = (dias: number) => getJson<Verificacao>(`/informa
 export const fetchPendentes = () => getJson<{ pendentes: Pendente[] }>("/informativos/importacao-revisao/");
 export const resolverPendente = (corpo: { ano: number; numero: number; data: string; hora: string }) => enviar<Resumo>("POST", "/informativos/importacao-revisao/", corpo);
 export const urlImagemRadar = (url: string) => `${API_BASE_URL}/informativos/radar/imagem/?url=${encodeURIComponent(url)}`;
+
+export const registrarEnvio = (id: number, corpo: { tipo: "radar" | "idap"; canais?: string[]; detalhe?: string; quadro_em?: string; regioes?: string[]; autorizado_por?: string; protocolo?: string; observacao?: string; validado?: boolean; confirmar_avisos?: boolean }) =>
+  enviar<{ informativo: Detalhe }>("POST", `/informativos/${id}/envios/`, corpo);
+export const validarEnvio = (eid: number, validado = true) => enviar<{ envio: Envio; informativo: Detalhe }>("POST", `/informativos/envios/${eid}/validar/`, { validado });
+export const apagarEnvio = (eid: number) => enviar<Detalhe>("DELETE", `/informativos/envios/${eid}/`);
+
+export const fmtErro = (e: unknown) => (e instanceof Error ? e.message : "Falha na operação.");

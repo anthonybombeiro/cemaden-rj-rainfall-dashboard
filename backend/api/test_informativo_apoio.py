@@ -210,6 +210,10 @@ class RadarImagemTest(APITestCase):
             r = self.client.get(self.URL, {"url": self.OK})
             self.assertEqual((r.status_code, r["Content-Type"]), (200, "image/png"))
             self.assertEqual(g.call_args[0][0], self.OK)
+        redemet = "https://estatico-redemet.decea.mil.br/radar/2026/10/02/pc/maxcappi/maps/2026-10-02--02:46:47.png"
+        with mock.patch("api.informativo_apoio_views._get_com_retentativa", return_value=R(bytes([0x89]) + b"PNG....")):
+            self.assertEqual(self.client.get(self.URL, {"url": redemet}).status_code, 200)  # radar da REDEMET (Pico do Couto)
+            self.assertEqual(self.client.get(self.URL, {"url": redemet.replace("/radar/", "/satelite/")}).status_code, 400)
         with mock.patch("api.informativo_apoio_views._get_com_retentativa", return_value=R(b"<html>")):
             self.assertEqual(self.client.get(self.URL, {"url": self.OK}).status_code, 502)
 

@@ -19,7 +19,8 @@ from rest_framework.views import APIView
 
 from core import informativo_apoio as apoio
 from core import informativos as inf
-from core.models import ConfiguracaoInformativo, InformativoMeteorologico, InformativoRegiao
+from core import informativo_envios as envios_regras
+from core.models import ConfiguracaoInformativo, InformativoEnvio, InformativoMeteorologico, InformativoRegiao
 
 CAMPOS_REGIAO = ("chuva_atual", "raios_atual", "chuva_prevista", "vento_previsto", "raios", "granizo", "isolada")
 ACOES = {"revisar": "revisado", "enviar": "enviado", "cancelar": "cancelado"}
@@ -60,6 +61,14 @@ def _registra(i: InformativoMeteorologico, usuario: str, acao: str, detalhe: str
     i.historico = [*i.historico, {"em": timezone.now().isoformat(), "por": usuario, "acao": acao, "detalhe": detalhe}]
 
 
+def _envio(e: InformativoEnvio) -> dict:
+    return {
+        "id": e.id, "tipo": e.tipo, "canal": e.canal, "detalhe": e.detalhe, "quadro_em": e.quadro_em, "regioes": e.regioes, "protocolo": e.protocolo,
+        "autorizado_por": e.autorizado_por, "observacao": e.observacao, "enviado_em": e.enviado_em, "enviado_por": e.enviado_por,
+        "validado_em": e.validado_em, "validado_por": e.validado_por,
+    }
+
+
 def _serializa(i: InformativoMeteorologico, detalhe: bool = True) -> dict:
     itens = _itens(i)
     out = {
@@ -93,6 +102,7 @@ def _serializa(i: InformativoMeteorologico, detalhe: bool = True) -> dict:
             revisado_por=i.revisado_por,
             revisado_em=i.revisado_em,
             historico=i.historico,
+            envios=[_envio(e) for e in i.envios.all()],
             nm_sugerido=[{"regiao": x["regiao"], "nm": inf.nm_sugerido(x)[0], "so_a_pedido": inf.nm_sugerido(x)[1]} for x in itens if x["chuva_prevista"]],
             sms=inf.texto_sms(itens),
             livro_ocorrencias=inf.frase_livro_ocorrencias(i.numero, i.ano, timezone.localtime(i.enviado_em or i.emitido_em or timezone.now()), itens),
@@ -245,6 +255,102 @@ class InformativoDetalheView(APIView):
         return Response(_serializa(i))
 
 
+class InformativoEnviosView(APIView):
+    """POST `<id>/envios/`: registra um reenvio do radar (`tipo=radar`, `detalhe`, `quadro_em`; pode repetir quantas vezes precisar) ou um canal da Idap
+    (`tipo=idap`, `canal`, `autorizado_por`, `regioes`, `protocolo`). Só em informativo enviado. Regras de `core/informativo_envios.py`: erro bloqueia; aviso
+    devolve 409 com a lista e só grava com `confirmar_avisos=true`. O painel não envia nada."""
+
+    def post(self, request, pk):
+        d = request.data or {}
+        usuario = _usuario(request)
+        with transaction.atomic():
+            try:
+                i = InformativoMeteorologico.objects.select_for_update().get(pk=pk)
+            except InformativoMeteorologico.DoesNotExist:
+                return Response({"detail": "Informativo não encontrado."}, status=404)
+            if i.estado != "enviado":
+                return Response({"detail": "Só informativo já registrado como enviado recebe reenvio de radar ou envio pela Idap."}, status=409)
+            tipo = str(d.get("tipo") or "")
+            if tipo not in ("radar", "idap"):
+                return Response({"detail": "Tipo inválido (radar ou idap)."}, status=400)
+            regioes = [r for x in (d.get("regioes") or []) for r in inf.normalizar_regiao(str(x))]
+            quadro = parse_datetime(d["quadro_em"]) if d.get("quadro_em") else None
+            if quadro is not None and timezone.is_naive(quadro):
+                quadro = timezone.make_aware(quadro)
+            if tipo == "radar":
+                canal, detalhe, autorizado = "Radar", str(d.get("detalhe") or "").strip()[:160], ""
+                if not detalhe:
+                    return Response({"detail": "Informe qual radar foi enviado."}, status=400)
+            else:
+                canais = [str(c) for c in (d.get("canais") or ([d["canal"]] if d.get("canal") else []))]
+                if not canais:
+                    return Response({"detail": "Marque ao menos uma ferramenta da Idap."}, status=400)
+                autorizado = str(d.get("autorizado_por") or "").strip()[:120]
+                erros, avisos = [], []
+                for c in canais:
+                    er, av = envios_regras.avaliar_idap(c, _itens(i), autorizado, regioes)
+                    erros += [x for x in er if x not in erros]
+                    avisos += av
+                if erros:
+                    return Response({"detail": " ".join(erros), "erros": erros}, status=400)
+                if avisos and not d.get("confirmar_avisos"):
+                    return Response({"detail": "Confirme os avisos para registrar.", "avisos": avisos}, status=409)
+                criados = []
+                agora = timezone.now()
+                for c in canais:  # a validação é o próprio preenchimento (`validado`, padrão sim): quem confirma que o disparo saiu na Idap
+                    criados.append(InformativoEnvio.objects.create(
+                        informativo=i, tipo="idap", canal=c, regioes=regioes, protocolo=str(d.get("protocolo") or "")[:80], autorizado_por=autorizado,
+                        observacao=str(d.get("observacao") or "")[:300], enviado_por=usuario,
+                        validado_em=agora if d.get("validado", True) else None, validado_por=usuario if d.get("validado", True) else "",
+                    ))
+                _registra(i, usuario, "envio Idap", ", ".join(canais))
+                i.save(update_fields=["historico", "atualizado_em"])
+                return Response({"envios": [_envio(x) for x in criados], "informativo": _serializa(i)}, status=201)
+            e = InformativoEnvio.objects.create(
+                informativo=i, tipo=tipo, canal=canal, detalhe=detalhe, quadro_em=quadro, regioes=regioes, protocolo="",
+                autorizado_por="", observacao=str(d.get("observacao") or "")[:300], enviado_por=usuario,
+            )
+            _registra(i, usuario, "envio", f"{canal}{': ' + detalhe if detalhe else ''}")
+            i.save(update_fields=["historico", "atualizado_em"])
+        return Response({"envio": _envio(e), "informativo": _serializa(i)}, status=201)
+
+
+class InformativoEnvioItemView(APIView):
+    """POST `envios/<id>/validar/` (`validado` true/false: outra pessoa confirma que o disparo saiu na Idap) e DELETE `envios/<id>/` (lixeira: só administrador)."""
+
+    def post(self, request, eid):
+        d = request.data or {}
+        try:
+            e = InformativoEnvio.objects.select_related("informativo").get(pk=eid)
+        except InformativoEnvio.DoesNotExist:
+            return Response({"detail": "Envio não encontrado."}, status=404)
+        if e.tipo != "idap":
+            return Response({"detail": "Só envios da Idap são validados."}, status=400)
+        usuario = _usuario(request)
+        if d.get("validado", True):
+            e.validado_em, e.validado_por = timezone.now(), usuario
+        else:
+            e.validado_em, e.validado_por = None, ""
+        e.save(update_fields=["validado_em", "validado_por"])
+        i = e.informativo
+        _registra(i, usuario, "validou envio" if e.validado_em else "desfez validação", e.canal)
+        i.save(update_fields=["historico", "atualizado_em"])
+        return Response({"envio": _envio(e), "informativo": _serializa(i)})
+
+    def delete(self, request, eid):
+        if not request.user.is_superuser:
+            return Response({"detail": "Só administrador apaga um envio registrado."}, status=403)
+        try:
+            e = InformativoEnvio.objects.select_related("informativo").get(pk=eid)
+        except InformativoEnvio.DoesNotExist:
+            return Response({"detail": "Envio não encontrado."}, status=404)
+        i = e.informativo
+        _registra(i, _usuario(request), "apagou envio", f"{e.canal} {e.detalhe}".strip())
+        e.delete()
+        i.save(update_fields=["historico", "atualizado_em"])
+        return Response(_serializa(i))
+
+
 class InformativoPreviaView(APIView):
     """POST: gera o texto sem salvar (a prévia ao vivo do compositor)."""
 
@@ -309,6 +415,24 @@ class InformativoAcaoView(APIView):
         return Response(_serializa(i))
 
 
+EPISODIO_LACUNA_H = 12
+EPISODIO_MAX = 12
+
+
+def _episodio(vigente: InformativoMeteorologico | None) -> list[InformativoMeteorologico]:
+    """Informativos enviados anteriores do mesmo episódio de mau tempo: sequência para trás a partir do último enviado, enquanto o intervalo
+    entre envios consecutivos não passar de 12 h (o vigente fica de fora, pois já tem seu card). Sem informativo recente, vazio."""
+    recentes = list(InformativoMeteorologico.objects.filter(estado="enviado", enviado_em__isnull=False).prefetch_related("regioes").order_by("-enviado_em")[: EPISODIO_MAX + 1])
+    if not recentes or timezone.now() - recentes[0].enviado_em > dt.timedelta(hours=EPISODIO_LACUNA_H + 6):
+        return []
+    cadeia = [recentes[0]]
+    for x in recentes[1:]:
+        if cadeia[-1].enviado_em - x.enviado_em > dt.timedelta(hours=EPISODIO_LACUNA_H):
+            break
+        cadeia.append(x)
+    return [x for x in cadeia if not (vigente and x.pk == vigente.pk)][:EPISODIO_MAX]
+
+
 class InformativoAcompanhamentoView(APIView):
     """O que a equipe precisa ver agora: informativo vigente, relógio do radar, lacunas na numeração, SMS pendentes, regiões sem informação."""
 
@@ -325,9 +449,10 @@ class InformativoAcompanhamentoView(APIView):
             g, raios = inf.maior_gravidade(itens)
             hora = timezone.localtime(agora).hour
             intervalo, faixa = inf.intervalo_radar_min(g, raios, hora, cfg.cadencia_radar_min or None)
-            proximo = (vigente.enviado_em or agora) + dt.timedelta(minutes=intervalo)
+            ultimo_radar = vigente.envios.filter(tipo="radar").order_by("-enviado_em").first()
+            proximo = ((ultimo_radar.enviado_em if ultimo_radar else None) or vigente.enviado_em or agora) + dt.timedelta(minutes=intervalo)
             out["vigente"] = {
-                **_serializa(vigente, detalhe=False),
+                **_serializa(vigente, detalhe=True),
                 "radar_intervalo_min": intervalo,
                 "radar_faixa": faixa,
                 "radar_proximo_em": proximo,
@@ -341,6 +466,7 @@ class InformativoAcompanhamentoView(APIView):
         out["emitir"] = {**apoio.quando_emitir(ref, chuva, agora), "renovar_em": _vigente_ate(vigente) if vigente else None}
         out["chuva_atual"] = {r: {k: v[k] for k in ("max_1h_mm", "rotulo", "classe", "estacao", "municipio")} for r, v in chuva.items()}
         inicio_dia = timezone.localtime(agora).replace(hour=0, minute=0, second=0, microsecond=0)
+        out["episodio"] = [_serializa(x) for x in _episodio(vigente)]
         out["hoje"] = [_serializa(x, detalhe=False) for x in InformativoMeteorologico.objects.filter(emitido_em__gte=inicio_dia).exclude(estado="cancelado").order_by("-emitido_em").prefetch_related("regioes")]
         return Response(out)
 

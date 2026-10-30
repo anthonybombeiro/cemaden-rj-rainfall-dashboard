@@ -117,7 +117,7 @@ class ImportacaoRevisaoView(APIView):
         return Response(_serializa(i, detalhe=False), status=201)
 
 
-PREFIXO_RADAR_INEA = "https://radartool.inea.rj.gov.br/radar-tool/img/"
+PREFIXOS_RADAR = ("https://radartool.inea.rj.gov.br/radar-tool/img/", "https://estatico-redemet.decea.mil.br/radar/")
 MAX_BYTES_RADAR = 6 * 1024 * 1024
 ASSINATURA_PNG = bytes([0x89]) + b"PNG"
 
@@ -125,11 +125,11 @@ ASSINATURA_PNG = bytes([0x89]) + b"PNG"
 class InformativoRadarImagemView(APIView):
     """GET /api/informativos/radar/imagem/?url=… — F14: entrega pelo nosso servidor o quadro de radar do INEA, para o navegador poder recortar o estado e
     escrever a legenda num canvas (a imagem do INEA não libera CORS, o canvas ficaria "contaminado" e não poderia ser exportado). Só aceita PNG do Radar Tool do
-    INEA (lista fechada: nunca busca outro endereço)."""
+    INEA e do radar da REDEMET (lista fechada: nunca busca outro endereço)."""
 
     def get(self, request):
         url = str(request.query_params.get("url") or "")
-        if not url.startswith(PREFIXO_RADAR_INEA) or not url.endswith(".png") or ".." in url or "?" in url or "#" in url:
+        if not url.startswith(PREFIXOS_RADAR) or not url.endswith(".png") or ".." in url or "?" in url or "#" in url:
             return Response({"detail": "Endereço de radar inválido."}, status=400)
         try:
             r = _get_com_retentativa(url, {}, tries=2, timeout=20)

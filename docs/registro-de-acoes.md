@@ -374,3 +374,19 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 8. **Reconferir Alerta Rio e Niterói em 24-48 h** (96 h oficial × nosso após o `m05`); investigar o intervalo mediano de 60 min do CEMADEN; descobrir quem reescreve o cron de sirenes.
 9. **Conferências agendadas** (08/10 10:00 e 10/10 22:00) de Alerta Rio e Niterói; ler `cron_monitor.log` para saber quando (e se) o cron de sirenes mudou; decidir sobre a redundância via GitHub Actions para as sirenes.
 10. INMET e REDEMET: validar as novas abas em produção com login (os tokens só existem no servidor).
+
+## 30/10/2026 (noite) — Acompanhamento do informativo em cards
+- Pedido: ver no acompanhamento a mensagem do vigente e os últimos enviados, como no aviso de mau tempo (mapa dos ativos + cards dos anteriores do episódio, com notificações e sugestões). Fila de decisão registrada em `informativo-meteorologico.md`.
+- Backend (`api/informativo_views.py`) publicado por SFTP, sem migração; front construído sem o bloco "Imagens para enviar" (aguarda OK) e publicado (Failed: 0). Testes: 34 OK.
+
+## 30/10/2026 (noite) — Ajustes do compositor
+- Núcleos que se aproximam no texto, botões Raios/Rajadas separados, cinco intensidades novas, botão Limpar. Backend (`core/informativos.py`) e front publicados (Failed: 0, bloco de imagens ainda fora). Testes: 40 OK.
+
+## 30/10/2026 (madrugada) — Protótipo de envio, imagens e validação Idap (NÃO publicado)
+- Código local: modelo e migração 0029 (`InformativoEnvio`), regras de Idap, rotas de envio/validação, proxy de radar com REDEMET, imagem do informativo 1:1/4:3/3:4, radar 1:1 com escolha do radar, card no estilo das recomendações. Banco de teste local migrado e semeado (`test_rest.sqlite3`, usuário de teste local). Nada enviado ao servidor.
+
+## 30/10/2026 (manhã) — 2ª rodada do protótipo de envio e imagens (NÃO publicado)
+- Ajustes pedidos pelo usuário: compositor intacto + Registrar e Publicar + Fechar edição; arte 3:4 com radar e 1:1 só texto; radar 1:1 no card com seletor e prévia sem rolagem; cabeçalho do painel no radar; card no estilo INMET/mau tempo; popup de validação Idap com as ferramentas do NM; publicar na página pública marcado por padrão (migração 0030). Corrigido bug de exportação com prévia reduzida. Tudo só local.
+
+## 30/10/2026 — Publicado: envio, imagens e validação Idap
+- Aprovado pelo usuário. Ordem: migrações 0029/0030 por SFTP → `POST /api/admin/migrate/` (OK) → backend (models, informativos, informativo_envios, informativo_views, informativo_apoio_views, urls) → front (Failed: 0). Verificado em produção só por leitura: acompanhamento devolve `envios` e `episodio`; informativo vigente nº 195 com publicação ainda desmarcada (o padrão novo vale só para os novos).

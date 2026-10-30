@@ -62,3 +62,30 @@ Lógica em `core/informativo_apoio.py`; rotas em `api/informativo_apoio_views.py
 | F14 (parte técnica) | Rota que entrega o quadro de radar do INEA pelo nosso servidor (o INEA não libera CORS e o canvas não poderia ser exportado). Lista fechada: só PNG de `radartool.inea.rj.gov.br/radar-tool/img/` | `GET /api/informativos/radar/imagem/?url=` |
 
 Ainda **não** feito: o recorte do radar com legenda (F14, tela) e o mapa/arte das 11 REDECs (F20) — são arte nova e esperam a aprovação do modelo visual antes de publicar.
+
+## Fila de decisão (30/10/2026) — aguardando o usuário
+1. **Imagens do informativo** (recorte do radar com legenda e mapa das 11 REDECs): modelo enviado, código pronto (`ImagensInformativo.tsx`), **não publicado**. Publica quando houver OK ou ajustes.
+2. **Lagoa de Imboassica no NM:** desligar da sugestão (recomendado) ou manter com aviso "lagoa".
+3. **Gatilhos do NM:** começar por GI–GIV e "sirene tocando", sempre como sugestão (recomendado); depois chuva observada, rajadas/raios, Flood Hub e Marinha.
+4. **Oito informativos antigos sem data** (2022: nº 14, 59–63; 2023: nº 39, 99): preencher pela fila de revisão do Histórico quando houver as datas.
+5. **Nº 177/2024:** confirmar se existiu (a numeração de 2024 segue a de 2023 a partir do 178).
+
+## Acompanhamento em cards (30/10/2026) — publicado
+Mesmo padrão dos avisos de mau tempo: **mapa das REDECs** coloridas pela chuva prevista do vigente; **card do vigente** (mensagem publicada, regiões com ⚡/❄/SMS, validade, radar, SMS pendentes, notificações = histórico de ações, sugestões = NM, texto de SMS/TV, observação); **cards dos anteriores do episódio** (enviados em sequência sem pausa maior que 12 h, até 12) com o mesmo conteúdo. API: `acompanhamento/` agora devolve `vigente` em detalhe completo e `episodio` (lista de detalhes). Código: `CardInformativo.tsx`, `MapaVigente.tsx`, `_episodio` em `informativo_views.py`; teste novo em `test_informativos.py`.
+
+## Ajustes do compositor (30/10/2026, noite) — publicado
+- **Núcleos que se aproximam** não entravam no texto quando o texto estava "ajustado à mão" (inclusive por inserir frase do texto livre, que antes ligava esse modo sem avisar). Agora a frase guiada entra na geração (matriz e núcleos seguem atualizando) e, com texto ajustado à mão, aparece um aviso explicando que mudanças não entram até **Regerar**. Salvar e Registrar envio passaram a enviar também os núcleos.
+- **Raios** e **Rajadas de vento** são botões separados no texto livre guiado.
+- **Intensidades novas:** Pontualmente forte, Forte, Forte a ocasionalmente muito forte, Forte a muito forte e Muito forte. A gravidade virou escala contínua (pontual_forte 4,5; forte 5,5; forte_ocasion_muito_forte 6,5; forte_muito_forte 7,5; muito_forte 9) para manter os limiares (≥4 SMS, ≥5 radar intenso, ≥6 NM 3 a pedido). `normalizar_intensidade` reconhece as novas; "forte" sozinho deixou de virar "moderada a forte".
+- **Limpar:** botão ao lado de Copiar apaga matriz, núcleos, frases e texto digitados (com confirmação); diferente de Regerar.
+
+## Envio, imagens e validação Idap (30/10/2026) — PUBLICADO em 30/10 (aprovado pelo usuário; migrações 0029 e 0030 aplicadas)
+Regra do usuário: **nada se tira do Compor informativo** (texto livre guiado, Salvar rascunho, Marcar revisado, Registrar envio). Só entra o botão **Registrar e Publicar**, que registra o envio e abre a arte. Aprovado e publicado.
+- **Compor:** + **Registrar e Publicar** (gera a arte) e + **Fechar edição** (ao lado de Limpar; volta ao novo informativo em branco). O bloco de radar/Idap que havia sido posto no compositor saiu. "Mostrar na página pública enquanto vigente" vem **marcado por padrão** (`publico` default True; migração 0030).
+- **Arte do informativo** (`PublicarInformativo.tsx`), um formato por vez: **3:4 com radar** (radar no topo, legenda de uma linha em fonte menor, cenário e previsão em faixas, rodapé só com a fonte e a validade) ou **1:1 só texto** (sem chips de região). Letra maior, ajustada ao tamanho do texto.
+- **Radar** (`RadarCompartilhar.tsx`, `lib/radarImagem.ts`): ícone no card; caixa de compartilhar com **seletor de radar no topo**, prévia **sem barras de rolagem** e os botões de sempre; cabeçalho = título do painel ("Painel Integrado de Monitoramento" / "CEMADEN-RJ / SEDEC"); mapa centralizado ocupando o máximo, fundo transparente; legenda de uma linha "Radar X - atualização de HHhMM (hora local)"; texto copiado: "*Painel Integrado de Monitoramento CEMADEN-RJ*" + a legenda. Pode registrar o envio do radar várias vezes.
+- **Card do Acompanhamento** (`CardInformativo.tsx`): desenho dos cards do INMET/mau tempo (faixa superior, título, etiquetas, mensagem enviada, dados); controles depois da mensagem: ícones **gerar arte, radar, editar, lixeira (cancela)**, botão **Validar envio Idap**, notificações e sugestões. Sem a lista de regiões com ícones.
+- **Validar envio Idap** (`ValidarIdap.tsx`, popup como o "Validar" da recomendação): ferramentas = as mesmas do NM (Google Alertas, Telegram, WhatsApp, SMS, TV por assinatura, DCA), quem autorizou, regiões, identificação do disparo, observação; preencher e confirmar é a validação (dá para registrar sem validar e validar depois). Avisos pedem confirmação (SMS abaixo de moderada a forte; TV e DCA só NM 4 e 5). Lixeira só administrador.
+- `ShareModal`: novos campos `cabecalho`, `topo`, `semRolagem`, `acoes`; a exportação sai sempre em tamanho real (`transform: none`), mesmo com a prévia reduzida. Proxy de radar também aceita PNG da REDEMET.
+- Testes: 40 do backend OK; no navegador local: radar, arte 3:4 e 1:1, Registrar e Publicar, Fechar edição, popup Idap.
+- Publicação: migrações → migrate → backend → front, sem 500. Não testado em produção: quadro real da REDEMET (chave só no servidor) — conferir no primeiro uso. As duas artes (3:4 com radar e 1:1 só texto) ficam.

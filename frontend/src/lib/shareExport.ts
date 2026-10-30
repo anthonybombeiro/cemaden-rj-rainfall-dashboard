@@ -27,6 +27,9 @@ export type ShareLinha = {
  * Muito forte/Forte/Moderada/Fraca/Atrasada). `chave` tem que bater com o
  * valor de `linhas[i].valores[agruparPor.chave]`. */
 export type ShareGrupo = { chave: string; rotulo: string; emoji: string };
+export type Proporcao = "1:1" | "4:3" | "3:4";
+export const ALTURA_POR_PROPORCAO: Record<Proporcao, number> = { "1:1": 760, "4:3": 570, "3:4": 1013 };
+
 export type ShareData = {
   titulo: string;
   /** Ex: "22/09/2026 17:23:15" — já formatado, fuso America/Sao_Paulo. Pro
@@ -63,6 +66,17 @@ export type ShareData = {
   textoPronto?: string;
   /** Rótulo antes de `dataHora` no cabeçalho do card (padrão "Dados de"). */
   rotuloData?: string;
+  /** Formatos oferecidos para a imagem (o primeiro é o padrão): 1:1 (760×760), 4:3 (760×570) e 3:4 (760×1013). Com `corpoPor`, o corpo se adapta ao formato. */
+  proporcoes?: Proporcao[];
+  corpoPor?: (p: Proporcao) => import("react").ReactNode;
+  /** Cabeçalho do card com duas linhas de texto próprias (no lugar de título e data), ex.: o título do painel. */
+  cabecalho?: [string, string];
+  /** Controles acima da prévia (ex.: escolha do radar). */
+  topo?: import("react").ReactNode;
+  /** Prévia reduzida para caber na tela, sem barras de rolagem (a imagem exportada continua no tamanho real). */
+  semRolagem?: boolean;
+  /** Botões extras na barra de ações do modal (ex.: "Registrar envio"). */
+  acoes?: import("react").ReactNode;
   /** Texto de destaque acima da tabela (ex.: texto geral do estado na previsão): aparece num cartão no card e abre o texto copiado. */
   destaque?: string;
 };

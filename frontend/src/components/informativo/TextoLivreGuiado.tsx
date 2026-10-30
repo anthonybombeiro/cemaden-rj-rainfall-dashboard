@@ -14,16 +14,17 @@ export function ondeRegioes(selecionadas: string[]): string {
   return `nas regiões ${lista(rs.map(nomeRegiao))}`;
 }
 
-type Modelo = "granizo" | "raios_rajadas" | "pancadas" | "melhora" | "atualizacao";
+type Modelo = "granizo" | "raios" | "rajadas" | "pancadas" | "melhora" | "atualizacao";
 const MODELOS: { id: Modelo; rotulo: string }[] = [
   { id: "granizo", rotulo: "Granizo pontual" },
-  { id: "raios_rajadas", rotulo: "Raios e rajadas" },
+  { id: "raios", rotulo: "Raios" },
+  { id: "rajadas", rotulo: "Rajadas de vento" },
   { id: "pancadas", rotulo: "Pancadas isoladas" },
   { id: "melhora", rotulo: "Melhora do cenário" },
   { id: "atualizacao", rotulo: "Atualização" },
 ];
 
-/** F28: modo texto livre guiado — para casos fora do padrão da matriz (granizo isolado, raios e rajadas, melhora, atualização). Monta a frase no estilo dos
+/** F28: modo texto livre guiado — para casos fora do padrão da matriz (granizo isolado, raios, rajadas de vento, melhora, atualização). Monta a frase no estilo dos
  * informativos reais e a insere no texto; o cabeçalho, o rodapé, a numeração e o registro continuam os mesmos. */
 export default function TextoLivreGuiado({ onInserir }: { onInserir: (paragrafo: string) => void }) {
   const [modelo, setModelo] = useState<Modelo>("granizo");
@@ -38,7 +39,8 @@ export default function TextoLivreGuiado({ onInserir }: { onInserir: (paragrafo:
     modelo === "atualizacao" ? (nota.trim() ? `🔄 Atualização: ${nota.trim()}` : "") :
     !onde ? "" :
     modelo === "granizo" ? `❄️ Possibilidade de granizo pontual ${onde}.` :
-    modelo === "raios_rajadas" ? `⛈️ Raios e rajadas de vento ${rotuloVento} ${onde}.` :
+    modelo === "raios" ? `⚡ Possibilidade de raios ${onde}.` :
+    modelo === "rajadas" ? `💨 Rajadas de vento ${rotuloVento} ${onde}.` :
     modelo === "pancadas" ? `⛈️ Pancadas isoladas de chuva ${rotuloInt} ${onde}.` :
     `✅ Cenário em melhora: sem previsão de chuva significativa para as próximas 6 horas ${onde}.`;
   return (
@@ -54,7 +56,7 @@ export default function TextoLivreGuiado({ onInserir }: { onInserir: (paragrafo:
           </div>
         )}
         {modelo === "pancadas" && <select value={intensidade} onChange={(e) => setIntensidade(e.target.value)} className="rounded border border-gray-300 px-1.5 py-1">{INTENSIDADES.filter((o) => o.chave).map((o) => <option key={o.chave} value={o.chave}>{o.rotulo}</option>)}</select>}
-        {modelo === "raios_rajadas" && <select value={vento} onChange={(e) => setVento(e.target.value)} className="rounded border border-gray-300 px-1.5 py-1">{RAJADAS.filter((o) => o.chave).map((o) => <option key={o.chave} value={o.chave}>{o.rotulo}</option>)}</select>}
+        {modelo === "rajadas" && <select value={vento} onChange={(e) => setVento(e.target.value)} className="rounded border border-gray-300 px-1.5 py-1">{RAJADAS.filter((o) => o.chave).map((o) => <option key={o.chave} value={o.chave}>{o.rotulo}</option>)}</select>}
         {modelo === "atualizacao" && <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="O que mudou (uma frase)" className="w-full rounded border border-gray-300 px-1.5 py-1" />}
         <p className="rounded bg-gray-50 p-1.5 text-gray-800">{frase || "Escolha as regiões para montar a frase."}</p>
         <button type="button" disabled={!frase} onClick={() => { onInserir(frase); setRegioes([]); setNota(""); }} className="rounded bg-gray-800 px-3 py-1.5 font-medium text-white hover:bg-gray-700 disabled:opacity-50">Inserir no texto</button>
