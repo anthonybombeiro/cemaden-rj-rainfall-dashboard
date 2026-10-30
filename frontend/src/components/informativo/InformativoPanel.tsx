@@ -24,10 +24,12 @@ import {
   salvarInformativo,
   urlExportar,
 } from "@/lib/informativo";
+import { horaLocal } from "@/lib/mapaCanvas";
 import { fmtDataHora } from "@/lib/nivelMonitoramento";
 
 import ApoioChuva from "./ApoioChuva";
 import FilaRevisao from "./FilaRevisao";
+import { MapaInformativo, RadarRecorte } from "./ImagensInformativo";
 import TextoLivreGuiado from "./TextoLivreGuiado";
 import Verificacao from "./Verificacao";
 
@@ -281,6 +283,13 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
           <p className="mt-1 text-[11px] text-gray-500">{texto.length} caracteres. Texto livre fica por sua conta; a matriz ao lado só gera o texto enquanto você não editar à mão.</p>
         </div>
         {!bloqueado && <TextoLivreGuiado onInserir={inserirFrase} />}
+        <details className="rounded-md border border-gray-200 bg-white p-2.5 text-xs">
+          <summary className="cursor-pointer font-semibold">Imagens para enviar (recorte do radar e mapa da previsão)</summary>
+          <div className="mt-2 space-y-4">
+            <RadarRecorte />
+            <MapaInformativo itens={itens} numero={det?.numero} ano={det?.ano} hora={det?.emitido_em ? horaLocal(new Date(det.emitido_em)) : undefined} />
+          </div>
+        </details>
         {(det?.nm_sugerido ?? previa?.nm_sugerido ?? []).length > 0 && (
           <p className="rounded-md border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
             NM sugerido pela previsão: {(det?.nm_sugerido ?? previa?.nm_sugerido ?? []).map((n) => `${nomeRegiao(n.regiao)} NM ${n.nm}${n.so_a_pedido ? " (só a pedido da meteorologia)" : ""}`).join("; ")}. É sugestão: o lançamento do NM é do plantonista.
