@@ -236,6 +236,23 @@ class RegistrosNivelView(APIView):
         return Response([_serializa_registro(r) for r in qs[:limite]])
 
 
+def _sugestoes_do_informativo(niveis: dict[str, dict], agora: dt.datetime) -> list[dict]:
+    """Sugestões de NM vindas do informativo meteorológico vigente (enviado e dentro das 6 h); NM 3 só aparece marcado como "a pedido da meteorologia"."""
+    from core import informativo_apoio as apoio
+    from core.models import InformativoMeteorologico
+
+    i = InformativoMeteorologico.objects.filter(estado="enviado", importado=False).order_by("-enviado_em").first()
+    if i is None or i.enviado_em is None or agora - i.enviado_em > dt.timedelta(hours=6):
+        return []
+    itens = [{"regiao": r.regiao, "chuva_atual": r.chuva_atual, "chuva_prevista": r.chuva_prevista, "vento_previsto": r.vento_previsto, "raios": r.raios, "granizo": r.granizo} for r in i.regioes.all()]
+    out = []
+    for s in apoio.sugestoes_nm(itens, i.numero, i.ano, niveis):
+        a_pedido = " NM 3 só a pedido da meteorologia." if s["so_a_pedido"] else ""
+        out.append({"municipio": s["municipio"], "regiao": s["regiao"], "tipo": "informativo", "atual": s["atual"], "sugerido": s["sugerido"], "fontes": [s["fonte"]],
+                    "orientacao": f"Previsão do informativo nº {i.numero}/{i.ano} para a REDEC.{a_pedido} Sugestão apenas: confirme com a meteorologia; NM 4 exige gatilho, impacto em até 2 h e área delimitada."})
+    return out
+
+
 class SugestoesNivelView(APIView):
     """GET /api/monitoramento/sugestoes/ — onde o nível vigente parece defasado e pede lançamento humano:
     (1) risco técnico (hidrológico, geológico, meteorológico) acima do NM vigente; (2) recomendação de mobilização de sirene hoje (NM 4
@@ -259,6 +276,7 @@ class SugestoesNivelView(APIView):
             if piso > atual and piso >= 2:
                 out.append({"municipio": m, "regiao": niveis[m]["regiao"], "tipo": "cota_hidrologica", "atual": atual, "sugerido": piso, "fontes": [f for f in fontes if f["piso"] == piso],
                             "orientacao": "Nível do rio passou da cota de alerta/transbordo (leitura das últimas 3 h). Confira a tendência e o INEA antes de lançar; NM 4 só com gatilho atingido, impacto em até 2 h e área delimitada."})
+        out.extend(_sugestoes_do_informativo(niveis, agora))
         hoje = timezone.localdate()
         for r in RecomendacaoAlarme.objects.filter(data=hoje):
             quando = timezone.make_aware(dt.datetime.combine(r.data, r.hora), timezone.get_current_timezone())

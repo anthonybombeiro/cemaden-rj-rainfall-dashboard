@@ -21,6 +21,8 @@ export const RAJADAS = [
   { chave: "forte", rotulo: "Rajadas fortes" },
 ];
 
+export const nomeRegiao = (r: string) => r.split(" ").map((p) => (/^I{1,2}$/.test(p) ? p : p.charAt(0) + p.slice(1).toLowerCase())).join(" ");
+
 export type ItemRegiao = {
   regiao: string;
   chuva_atual: string;
@@ -85,8 +87,30 @@ export type Acompanhamento = {
         regioes_sem_informacao: string[];
       })
     | null;
-  emitir: { renovar_em: string; motivo: string } | null;
+  emitir: { emitir: boolean; urgencia: "" | "media" | "alta"; regioes: string[]; motivo: string; renovar_em: string | null } | null;
+  chuva_atual: Record<string, ChuvaRegiao>;
+  hoje: Resumo[];
 };
+export type ChuvaRegiao = { max_1h_mm: number; rotulo: string; classe: "fraca" | "moderada" | "forte" | "muito_forte"; estacao: string; municipio: string };
+export type SugestaoRegiao = { regiao: string; chuva_atual: string; raios_atual: boolean; chuva_prevista: string; raios: boolean; motivos: string[] };
+export type Apoio = {
+  gerado_em: string;
+  chuva_atual: Record<string, ChuvaRegiao>;
+  sugestao: SugestaoRegiao[];
+  descobertas: { regiao: string; rotulo: string; max_1h_mm: number; estacao: string; municipio: string }[];
+  ultimo: { numero: number; ano: number; emitido_em: string | null; itens: ItemRegiao[] } | null;
+  aviso: string;
+};
+type Indices = { acertos: number; falsos_alarmes: number; perdas: number; acertos_negativos: number; pod: number | null; far: number | null; csi: number | null; vies: number | null; acuracia: number | null };
+export type Verificacao = {
+  dias: number;
+  janela_h: number;
+  criterio: string;
+  observacao: string;
+  total: Indices;
+  informativos: (Indices & { numero: number; ano: number; emitido_em: string; regioes: { regiao: string; previu: boolean; ocorreu: boolean; max_1h_mm: number | null; estacao: string | null; resultado: string }[] })[];
+};
+export type Pendente = { ano: number; numero: number; linhas: { regiao: string; chuva_prevista: string; vento_previsto: string; sms_enviado: boolean }[]; datas_texto: string[]; horas: string[] };
 export type Estatisticas = { ano: number; total: number; por_mes: { mes: number; total: number }[]; por_regiao: Record<string, { informativos: number; sms: number; forte_ou_mais: number }> };
 
 function csrf(): string | null {
@@ -116,3 +140,8 @@ export const salvarInformativo = (id: number, corpo: Record<string, unknown>) =>
 export const previaInformativo = (corpo: { itens: ItemRegiao[]; aproximacao?: Detalhe["aproximacao"]; emitido_em?: string; numero?: number; ano?: number }) => enviar<Previa>("POST", "/informativos/previa/", corpo);
 export const acaoInformativo = (id: number, acao: "revisar" | "enviar" | "cancelar" | "sms", corpo: Record<string, unknown> = {}) => enviar<Detalhe>("POST", `/informativos/${id}/${acao}/`, corpo);
 export const urlExportar = (ano: number) => `${API_BASE_URL}/informativos/exportar/?ano=${ano}`;
+export const fetchApoio = () => getJson<Apoio>("/informativos/apoio/");
+export const fetchVerificacao = (dias: number) => getJson<Verificacao>(`/informativos/verificacao/?dias=${dias}`);
+export const fetchPendentes = () => getJson<{ pendentes: Pendente[] }>("/informativos/importacao-revisao/");
+export const resolverPendente = (corpo: { ano: number; numero: number; data: string; hora: string }) => enviar<Resumo>("POST", "/informativos/importacao-revisao/", corpo);
+export const urlImagemRadar = (url: string) => `${API_BASE_URL}/informativos/radar/imagem/?url=${encodeURIComponent(url)}`;

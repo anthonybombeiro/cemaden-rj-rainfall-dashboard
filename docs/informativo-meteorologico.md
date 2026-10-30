@@ -45,5 +45,20 @@ Resultado da simulação sobre a planilha real (banco descartável): **1.813 inf
 ## Testes
 `api/test_informativos.py` (13: login, numeração e ano, dois usuários, texto/ajuste manual, matriz, fluxo e cancelamento sem apagar, SMS, duplicar, prévia, acompanhamento/lacunas/radar, vigência 6 h, público, histórico/CSV/estatísticas), `api/test_informativos_texto.py` (19), `api/test_importar_informativos.py` (4). Suíte `api core`: 83 OK.
 
-## Ainda não feito (fases B–D)
-Sugestão automática de chuva por estações + radar (F9–F12), recorte do radar com legenda (F14), sugestão de NM vinda do informativo para a aba Pendências (F18), faixa/mapa do informativo (F19–F20), bloco do Resumo 24 h (F22), verificação de acerto (F26), fila de revisão da importação na tela (F24), texto livre guiado (F28).
+## Fases B a D (30/10/2026): implementado e publicado
+Lógica em `core/informativo_apoio.py`; rotas em `api/informativo_apoio_views.py`; 21 testes novos (`api/test_informativo_apoio.py`). Tudo é leitura e **sugestão**: nada decide pelo técnico.
+| Item | O que faz | Onde |
+|---|---|---|
+| F9 | Maior chuva de 1 h das estações de cada REDEC, na escala única (fraca 0,2 · moderada 5,1 · forte 25,1 · muito forte > 50 mm/h), só leituras dos últimos 90 min. A classe vira a intensidade da matriz (forte → moderada a forte; muito forte → pontualmente muito forte) | `GET /api/informativos/apoio/`; botão **Preencher a matriz** no compositor (só preenche campos vazios) |
+| F10 | Previsão do dia: ícone com chuva → "fraca a moderada"; com raios → "moderada" + raios. Nunca propõe previsão abaixo da chuva atual. Botão **Copiar o último** copia a matriz do último enviado | idem |
+| F11 | **Quando emitir**: sem informativo vigente e chuva forte (urgência alta) ou moderada (média); região descoberta; informativo a vencer (< 45 min) com chuva | `emitir` em `acompanhamento/` |
+| F12 | **Região descoberta**: chuva ≥ moderada numa REDEC que o vigente não cobre (nem cenário nem previsão ≥ moderada) | `descobertas` em `apoio/` e `emitir` |
+| F18 | Previsão do informativo vigente (enviado, < 6 h, não importado) → sugestão de NM por município da REDEC, em **Produção → Pendências** (tipo `informativo`). Tabela: moderada a forte → NM 1; com raios/rajadas → NM 2; ≥ moderada a ocasionalmente muito forte, granizo ou rajada forte → NM 3 marcado "só a pedido da meteorologia"; só aparece acima do NM vigente e a partir de NM 2 | `SugestoesNivelView` |
+| F19 | **Faixa** no topo do painel: nº, hora, validade, regiões, cor pela maior intensidade, "radar atrasado" e o aviso de emitir | `FaixaInformativo.tsx` (consulta a cada 2 min, pausa com a aba oculta) |
+| F22 | Lista **Informativos de hoje** no Acompanhamento e bloco "Informativos meteorológicos no período" no Resumo 24 h | `hoje` em `acompanhamento/`; `informativos` em `GET /api/resumo/` |
+| F24 | **Fila de revisão da importação** na aba Histórico: os 8 informativos sem data utilizável (2022: 14, 59 a 63; 2023: 39, 99) aparecem com as regiões da planilha; quem sabe a data e a hora completa (nada é adivinhado) | `GET/POST /api/informativos/importacao-revisao/`; vem de `core/data/informativos_planilha.json` (`pendentes`) |
+| F26 | **Verificação**: previsto (moderada a forte ou mais) × medido (chuva de 1 h ≥ 5,1 mm em estação da REDEC nas 6 h seguintes, só janelas fechadas). Acertos, falsos alarmes, perdas, acertos negativos, POD, FAR, CSI, viés e acurácia. Informativos importados ficam de fora | aba **Verificação**; `GET /api/informativos/verificacao/?dias=` (até 90 dias, 40 informativos) |
+| F28 | **Texto livre guiado**: frases prontas (granizo pontual, raios e rajadas, pancadas isoladas, melhora do cenário, atualização) inseridas antes do rodapé; o texto passa a valer como ajustado à mão | `TextoLivreGuiado.tsx` |
+| F14 (parte técnica) | Rota que entrega o quadro de radar do INEA pelo nosso servidor (o INEA não libera CORS e o canvas não poderia ser exportado). Lista fechada: só PNG de `radartool.inea.rj.gov.br/radar-tool/img/` | `GET /api/informativos/radar/imagem/?url=` |
+
+Ainda **não** feito: o recorte do radar com legenda (F14, tela) e o mapa/arte das 11 REDECs (F20) — são arte nova e esperam a aprovação do modelo visual antes de publicar.

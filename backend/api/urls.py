@@ -33,6 +33,7 @@ from .resumo_views import Resumo24hView
 from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
 from .publico_sirenes_views import PublicoSirenesView
+from .informativo_apoio_views import ImportacaoRevisaoView, InformativoApoioView, InformativoRadarImagemView, InformativoVerificacaoView
 from .refresh_views import RefreshNowView, RefreshRedemetView, RefreshSirenesView, SirenesStatusView
 from .views import (
     AlertEventViewSet,
@@ -106,6 +107,10 @@ urlpatterns = [
     path("informativos/previa/", InformativoPreviaView.as_view(), name="informativos-previa"),
     path("informativos/acompanhamento/", InformativoAcompanhamentoView.as_view(), name="informativos-acompanhamento"),
     path("informativos/estatisticas/", InformativoEstatisticasView.as_view(), name="informativos-estatisticas"),
+    path("informativos/apoio/", InformativoApoioView.as_view(), name="informativos-apoio"),
+    path("informativos/verificacao/", InformativoVerificacaoView.as_view(), name="informativos-verificacao"),
+    path("informativos/importacao-revisao/", ImportacaoRevisaoView.as_view(), name="informativos-importacao-revisao"),
+    path("informativos/radar/imagem/", InformativoRadarImagemView.as_view(), name="informativos-radar-imagem"),
     path("informativos/exportar/", InformativoExportarView.as_view(), name="informativos-exportar"),
     path("informativos/<int:pk>/", InformativoDetalheView.as_view(), name="informativos-detalhe"),
     path("informativos/<int:pk>/<str:acao>/", InformativoAcaoView.as_view(), name="informativos-acao"),

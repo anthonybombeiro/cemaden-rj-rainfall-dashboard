@@ -354,6 +354,12 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 * **Importação do histórico de informativos em produção**: feita com autorização explícita do usuário (1.818 informativos). Detalhes na seção própria de `informativo-meteorologico.md`; relatório de revisão em `informativos-importacao-revisao.csv`.
 * Ordem seguida (sem migração nova): código do backend por SFTP → conferir `200` → frontend → regra do `.htaccess`. O Chrome travou nas duas abas (timeout de 45 s); navegar para outra página do site destravou.
 
+## 30/10/2026 — Informativo: fases B a D (apoio ao plantão)
+* Backend (sem migração; subido por SFTP, conferido `200`): `core/informativo_apoio.py`, `api/informativo_apoio_views.py`, rotas `informativos/apoio|verificacao|importacao-revisao|radar/imagem`, `emitir`/`chuva_atual`/`hoje` no acompanhamento, sugestão de NM do informativo em `monitoramento/sugestoes`, `informativos` no Resumo 24 h. Frontend: `ApoioChuva`, `Verificacao`, `FilaRevisao`, `TextoLivreGuiado`, `FaixaInformativo` (faixa no Dashboard) e blocos no Resumo 24 h. 106 testes `api core` OK.
+* Conferido em produção **só por leitura** (GET): apoio, acompanhamento (já havia o informativo nº 194 vigente, criado pela equipe), fila de revisão (8 pendentes), verificação. Nada foi gravado em produção nesta etapa.
+* Detalhes e regras: `informativo-meteorologico.md` (seção "Fases B a D"). Pendente: F14 (recorte do radar com legenda) e F20 (mapa/arte), aguardando aprovação do modelo visual.
+* Lição: heredoc na Bash converte `\\n` em quebra de linha real também em arquivos TSX/Python gerados por script (quebrou uma função de inserir frase); para trechos com `\\n` use o Edit. A tela local pede login: criei um usuário de teste só no banco local de teste (nunca em produção).
+
 ## Pendências abertas (03/10/2026)
 
 1. ~~Aplicar `sync_sirenes` a cada 2 min no cron~~ — **feito e verificado**.

@@ -17,6 +17,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core import informativo_apoio as apoio
 from core import informativos as inf
 from core.models import ConfiguracaoInformativo, InformativoMeteorologico, InformativoRegiao
 
@@ -335,7 +336,12 @@ class InformativoAcompanhamentoView(APIView):
                 "sms_pendentes": [x["regiao"] for x in itens if inf.gravidade(x["chuva_prevista"]) >= 4 and not x["sms_enviado"]],
                 "regioes_sem_informacao": [r for r in inf.REGIOES if r not in {x["regiao"] for x in itens}],
             }
-            out["emitir"] = {"renovar_em": _vigente_ate(vigente), "motivo": "Informativo a vencer: renovar se a chuva continua." if (_vigente_ate(vigente) - agora) < dt.timedelta(minutes=45) else ""}
+        chuva = apoio.chuva_atual_cacheada()
+        ref = {"numero": vigente.numero, "ano": vigente.ano, "vigente_ate": _vigente_ate(vigente), "itens": _itens(vigente)} if vigente else None
+        out["emitir"] = {**apoio.quando_emitir(ref, chuva, agora), "renovar_em": _vigente_ate(vigente) if vigente else None}
+        out["chuva_atual"] = {r: {k: v[k] for k in ("max_1h_mm", "rotulo", "classe", "estacao", "municipio")} for r, v in chuva.items()}
+        inicio_dia = timezone.localtime(agora).replace(hour=0, minute=0, second=0, microsecond=0)
+        out["hoje"] = [_serializa(x, detalhe=False) for x in InformativoMeteorologico.objects.filter(emitido_em__gte=inicio_dia).exclude(estado="cancelado").order_by("-emitido_em").prefetch_related("regioes")]
         return Response(out)
 
 

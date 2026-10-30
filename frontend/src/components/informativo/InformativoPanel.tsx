@@ -15,6 +15,7 @@ import {
   INTENSIDADES,
   ItemRegiao,
   itemVazio,
+  nomeRegiao,
   previaInformativo,
   Previa,
   RAJADAS,
@@ -25,7 +26,12 @@ import {
 } from "@/lib/informativo";
 import { fmtDataHora } from "@/lib/nivelMonitoramento";
 
-type Sub = "compor" | "acompanhar" | "historico";
+import ApoioChuva from "./ApoioChuva";
+import FilaRevisao from "./FilaRevisao";
+import TextoLivreGuiado from "./TextoLivreGuiado";
+import Verificacao from "./Verificacao";
+
+type Sub = "compor" | "acompanhar" | "historico" | "verificacao";
 
 const ESTADO: Record<Resumo["estado"], { rotulo: string; cor: string }> = {
   rascunho: { rotulo: "Rascunho", cor: "bg-gray-100 text-gray-700" },
@@ -33,7 +39,6 @@ const ESTADO: Record<Resumo["estado"], { rotulo: string; cor: string }> = {
   enviado: { rotulo: "Enviado", cor: "bg-emerald-100 text-emerald-800" },
   cancelado: { rotulo: "Cancelado", cor: "bg-red-100 text-red-800" },
 };
-const nomeRegiao = (r: string) => r.split(" ").map((p) => (/^I{1,2}$/.test(p) ? p : p.charAt(0) + p.slice(1).toLowerCase())).join(" ");
 
 /** Aba Produção → Meteorologia: compõe o informativo (texto no modelo do grupo de operadores), acompanha a vigência de 6 h e o relógio do radar, e guarda o
  * histórico. O painel NÃO envia nada (SMS/WhatsApp/Telegram): registra o que a equipe enviou. */
@@ -48,15 +53,16 @@ export default function InformativoPanel() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5 text-xs">
-        {(["acompanhar", "compor", "historico"] as Sub[]).map((s) => (
+        {(["acompanhar", "compor", "historico", "verificacao"] as Sub[]).map((s) => (
           <button key={s} type="button" onClick={() => setSub(s)} className={`rounded-full px-3 py-1.5 font-medium ${sub === s ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
-            {s === "acompanhar" ? "Acompanhamento" : s === "compor" ? "Compor informativo" : "Histórico"}
+            {s === "acompanhar" ? "Acompanhamento" : s === "compor" ? "Compor informativo" : s === "historico" ? "Histórico" : "Verificação"}
           </button>
         ))}
       </div>
       {sub === "acompanhar" && <Acompanhar onNovo={() => { setAbertoId(null); setSub("compor"); }} onAbrir={abrir} />}
       {sub === "compor" && <Compor key={abertoId ?? "novo"} id={abertoId} onSalvo={setAbertoId} />}
       {sub === "historico" && <Historico onAbrir={abrir} />}
+      {sub === "verificacao" && <Verificacao />}
     </div>
   );
 }
@@ -91,11 +97,36 @@ function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: num
             Radar: reenviar a cada {v.radar_intervalo_min} min ({v.radar_faixa.replace("_", " ")}) — próximo até {fmtDataHora(v.radar_proximo_em)}{v.radar_atrasado ? " (ATRASADO)" : ""}.
           </p>
           {v.sms_pendentes.length > 0 && <p className="text-amber-800">SMS (IDAP) ainda não marcado como enviado: {v.sms_pendentes.map(nomeRegiao).join(", ")}.</p>}
-          {a.emitir?.motivo && <p className="font-semibold text-amber-800">{a.emitir.motivo}</p>}
         </div>
       ) : (
         <p className="rounded-md border border-gray-200 bg-gray-50 p-3 text-gray-700">Nenhum informativo vigente (valem 6 h a partir do envio).</p>
       )}
+      {a.emitir?.motivo && (
+        <p className={`rounded-md border p-2.5 font-semibold ${a.emitir.urgencia === "alta" ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+          {a.emitir.emitir ? (a.emitir.urgencia === "alta" ? "Emitir agora: " : "Considere emitir: ") : ""}{a.emitir.motivo}
+        </p>
+      )}
+      {Object.keys(a.chuva_atual).length > 0 && (
+        <p className="text-xs text-gray-700">
+          Chuva nas estações (última hora): {Object.entries(a.chuva_atual).sort((x, y) => y[1].max_1h_mm - x[1].max_1h_mm).map(([r, c]) => `${nomeRegiao(r)} ${c.rotulo.toLowerCase()} (${c.max_1h_mm} mm/h)`).join(" · ")}
+        </p>
+      )}
+      <div>
+        <p className="mb-1 text-xs font-semibold text-gray-700">Informativos de hoje ({a.hoje.length})</p>
+        {a.hoje.length === 0 ? <p className="text-xs text-gray-500">Nenhum informativo hoje.</p> : (
+          <ul className="space-y-1 text-xs">
+            {a.hoje.map((i) => (
+              <li key={i.id} className="flex flex-wrap items-center gap-2 rounded border border-gray-200 bg-white px-2 py-1.5">
+                <b>nº {i.numero}/{i.ano}</b>
+                <span>{i.emitido_em ? fmtDataHora(i.emitido_em) : "—"}</span>
+                <span className={`rounded px-1.5 py-0.5 ${ESTADO[i.estado].cor}`}>{ESTADO[i.estado].rotulo}</span>
+                <span className="min-w-0 flex-1 truncate text-gray-600">{i.regioes.map(nomeRegiao).join(", ") || "—"}</span>
+                <button type="button" onClick={() => onAbrir(i.id)} className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50">Abrir</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {a.lacunas.length > 0 && (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-amber-900">
           Há números faltando na sequência de {a.ano}: <b>{a.lacunas.slice(0, 20).join(", ")}{a.lacunas.length > 20 ? "…" : ""}</b>. Pode ser informativo emitido fora do painel — confira antes de preencher.
@@ -168,6 +199,13 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
     const motivo = window.prompt("Motivo do cancelamento (o informativo não é apagado):");
     if (motivo && det) executa(() => acaoInformativo(det.id, "cancelar", { motivo }), "Informativo cancelado.");
   };
+  // insere a frase do texto livre guiado antes do rodapé ("Em caso de mudança de cenário…"); passa a valer como texto ajustado à mão
+  const inserirFrase = (frase: string) => {
+    const ponto = texto.indexOf("Em caso de mudança de cenário");
+    const sem_fim = (t: string) => t.replace(/\n+$/, "");
+    setTexto(ponto >= 0 ? `${sem_fim(texto.slice(0, ponto))}\n${frase}\n\n${texto.slice(ponto)}` : `${sem_fim(texto)}\n${frase}`);
+    setManual(true);
+  };
   const copiar = () => navigator.clipboard?.writeText(texto).then(() => setMsg({ tipo: "ok", texto: "Texto copiado." })).catch(() => setMsg({ tipo: "erro", texto: "Não foi possível copiar." }));
 
   return (
@@ -178,6 +216,7 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
           {det && <span className={`rounded px-2 py-0.5 text-xs font-medium ${ESTADO[det.estado].cor}`}>{ESTADO[det.estado].rotulo}</span>}
           {det?.importado && <span className="text-xs text-gray-500">importado da planilha</span>}
         </div>
+        {!bloqueado && <ApoioChuva itens={itens} desabilitado={ocupado} onAplicar={(novos, resumo) => { setItens(novos); setMsg({ tipo: "ok", texto: resumo }); }} />}
         <div className="space-y-2">
           {itens.map((i) => (
             <div key={i.regiao}>
@@ -241,6 +280,7 @@ function Compor({ id, onSalvo }: { id: number | null; onSalvo: (id: number) => v
           <textarea value={texto} readOnly={bloqueado} onChange={(e) => { setTexto(e.target.value); setManual(true); }} rows={18} className="w-full rounded border border-gray-200 p-2 font-mono text-xs leading-relaxed" />
           <p className="mt-1 text-[11px] text-gray-500">{texto.length} caracteres. Texto livre fica por sua conta; a matriz ao lado só gera o texto enquanto você não editar à mão.</p>
         </div>
+        {!bloqueado && <TextoLivreGuiado onInserir={inserirFrase} />}
         {(det?.nm_sugerido ?? previa?.nm_sugerido ?? []).length > 0 && (
           <p className="rounded-md border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
             NM sugerido pela previsão: {(det?.nm_sugerido ?? previa?.nm_sugerido ?? []).map((n) => `${nomeRegiao(n.regiao)} NM ${n.nm}${n.so_a_pedido ? " (só a pedido da meteorologia)" : ""}`).join("; ")}. É sugestão: o lançamento do NM é do plantonista.
@@ -305,6 +345,7 @@ function Historico({ onAbrir }: { onAbrir: (id: number) => void }) {
   };
   return (
     <div className="space-y-3 text-sm">
+      <FilaRevisao onMudou={() => setAno((a) => a)} />
       <div className="flex flex-wrap items-end gap-2 text-xs">
         <label className="flex flex-col gap-0.5">Ano
           <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="rounded border border-gray-300 px-1.5 py-1">{Array.from({ length: anoAtual - 2019 }, (_, k) => anoAtual - k).map((a) => <option key={a}>{a}</option>)}</select>

@@ -24,6 +24,7 @@ import FloodHubPanel from "@/components/FloodHubPanel";
 import ResumoPanel from "@/components/ResumoPanel";
 import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
 import PrevisaoAmanhaBanner from "@/components/PrevisaoAmanhaBanner";
+import FaixaInformativo from "@/components/FaixaInformativo";
 import SaudeFontesBanner from "@/components/SaudeFontesBanner";
 import { lerModoSalvo, ModoMapa, salvarModo } from "@/lib/mapaModos";
 import { PreRecomendacao, preDeSirene } from "@/lib/recomendacoes";
@@ -988,6 +989,7 @@ export default function Dashboard({
           </div>
         )}
         <SaudeFontesBanner />
+        <FaixaInformativo />
         <PrevisaoAmanhaBanner onCadastrar={abrirCadastroPrevisao} onPendente={setPrevisaoAmanhaPendente} />
         {activeAlertEvents.length > 0 && (
           <div className="animate-pulse bg-red-600 px-4 py-1.5 text-sm font-bold text-white">

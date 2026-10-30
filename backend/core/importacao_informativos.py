@@ -90,8 +90,9 @@ def _numero(valor) -> int:
     return int(float(str(valor).strip().rstrip("*")))
 
 
-def ler_planilha(wb, anos: list[int] | None = None) -> tuple[dict, list[list]]:
-    """Devolve (grupos, revisao). `grupos[(ano, número)] = {"quando": datetime|None, "linhas": [...], "amb": [(texto, hora)]}`."""
+def ler_planilha(wb, anos: list[int] | None = None) -> tuple[dict, list[list], list[dict]]:
+    """Devolve (grupos, revisao, pendentes). `grupos[(ano, número)] = {"quando": datetime|None, "linhas": [...], "amb": [(texto, hora)]}`; `pendentes` são os
+    informativos sem data utilizável (ficam fora de `grupos`, mas com as linhas por REDEC guardadas para a fila de revisão da tela completá-los depois).`"""
     grupos: dict[tuple[int, int], dict] = defaultdict(lambda: {"quando": None, "linhas": [], "amb": []})
     revisao: list[list] = []
     for ws in wb.worksheets:
@@ -128,11 +129,13 @@ def ler_planilha(wb, anos: list[int] | None = None) -> tuple[dict, list[list]]:
             for r in regioes:
                 g["linhas"].append({"regiao": r, "chuva_prevista": intensidade, "vento_previsto": vento, "sms_enviado": _sms(c["sms"])})
     revisao.extend(_resolver_pela_numeracao(grupos))
-    for chave in [k for k, g in grupos.items() if g["quando"] is None]:
+    pendentes: list[dict] = []
+    for chave in sorted(k for k, g in grupos.items() if g["quando"] is None):
         g = grupos.pop(chave)
         revisao.append([str(chave[0]), "", "informativo sem data utilizável (não importado)", chave[1], ""])
         revisao.extend([aba, linha, "data ilegível ou ambígua", chave[1], texto] for texto, _h, aba, linha in g["amb"])
-    return dict(grupos), revisao
+        pendentes.append({"ano": chave[0], "numero": chave[1], "linhas": g["linhas"], "datas_texto": sorted({t for t, *_ in g["amb"]}), "horas": sorted({h.strftime("%H:%M") for _t, h, *_ in g["amb"] if h})})
+    return dict(grupos), revisao, pendentes
 
 
 def _resolver_pela_numeracao(grupos: dict) -> list[list]:
@@ -178,9 +181,9 @@ def gravar(grupos: dict) -> dict:
     return {"na_planilha": len(grupos), "ja_existiam": len(grupos) - len(novos), "importados": len(novos)}
 
 
-def para_json(grupos: dict, revisao: list[list]) -> str:
+def para_json(grupos: dict, revisao: list[list], pendentes: list[dict] | None = None) -> str:
     itens = [{"ano": a, "numero": n, "quando": g["quando"].isoformat(), "linhas": g["linhas"]} for (a, n), g in sorted(grupos.items())]
-    return json.dumps({"informativos": itens, "revisao": revisao}, ensure_ascii=False)
+    return json.dumps({"informativos": itens, "revisao": revisao, "pendentes": pendentes or []}, ensure_ascii=False)
 
 
 def de_json(texto: str) -> tuple[dict, list[list]]:
@@ -196,3 +199,19 @@ def importar_do_arquivo(dry_run: bool = False) -> dict:
     if dry_run:
         return {"dry_run": True, "na_planilha": len(grupos), "ja_existiam": len(set(grupos) & existentes), "a_importar": len(set(grupos) - existentes), "revisao": len(revisao)}
     return {"dry_run": False, **gravar(grupos), "revisao": len(revisao)}
+
+
+def pendentes_do_arquivo() -> list[dict]:
+    """Informativos que a planilha não permitiu datar e que ainda não existem no banco: a fila de revisão da tela."""
+    d = json.loads(ARQUIVO.read_text(encoding="utf-8"))
+    existentes = set(InformativoMeteorologico.objects.values_list("ano", "numero"))
+    return [p for p in d.get("pendentes", []) if (p["ano"], p["numero"]) not in existentes]
+
+
+def completar_pendente(ano: int, numero: int, quando: dt.datetime) -> InformativoMeteorologico:
+    """Grava um informativo da fila com a data/hora que a pessoa informou (ValueError se não estiver na fila ou já existir)."""
+    p = next((x for x in pendentes_do_arquivo() if (x["ano"], x["numero"]) == (ano, numero)), None)
+    if p is None:
+        raise ValueError("Esse informativo não está na fila de revisão (ou já foi completado).")
+    gravar({(ano, numero): {"quando": quando, "linhas": p["linhas"], "amb": []}})
+    return InformativoMeteorologico.objects.get(ano=ano, numero=numero)

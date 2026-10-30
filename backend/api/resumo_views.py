@@ -26,7 +26,8 @@ from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.models import AlertEvent, AvisoMauTempo, Previsao, Reading, RiskAlert, Station
+from core import informativos as inf
+from core.models import AlertEvent, AvisoMauTempo, InformativoMeteorologico, Previsao, Reading, RiskAlert, Station
 from core.municipios import _chave, canonico_ou_original
 
 CACHE_S = 180
@@ -77,6 +78,16 @@ def _janela(dia_txt):
     fim = min(ini + dt.timedelta(days=1), agora)
     modo = "hoje" if dia == timezone.localdate(agora) else "dia"
     return ini, fim, dia, modo
+
+
+def _informativos_do_periodo(ini, fim) -> list[dict]:
+    """Informativos meteorológicos emitidos no período (sem cancelados), do mais novo para o mais antigo."""
+    out = []
+    for i in InformativoMeteorologico.objects.filter(emitido_em__gte=ini, emitido_em__lte=fim).exclude(estado="cancelado").order_by("-emitido_em").prefetch_related("regioes"):
+        itens = [{"regiao": r.regiao, "chuva_atual": r.chuva_atual, "chuva_prevista": r.chuva_prevista, "raios": r.raios, "raios_atual": r.raios_atual} for r in i.regioes.all()]
+        out.append({"numero": i.numero, "ano": i.ano, "estado": i.estado, "emitido_em": i.emitido_em, "regioes": [x["regiao"] for x in itens if x["chuva_atual"] or x["chuva_prevista"]],
+                    "maior_gravidade": inf.maior_gravidade(itens)[0]})
+    return out
 
 
 class Resumo24hView(APIView):
@@ -353,6 +364,7 @@ class Resumo24hView(APIView):
             },
             "regioes": regioes,
             "municipios": municipios,
+            "informativos": _informativos_do_periodo(ini, fim),
         }
         if modo != "dia":
             cache.set(chave, payload, CACHE_S)

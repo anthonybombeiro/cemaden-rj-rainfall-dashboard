@@ -311,6 +311,18 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
               ))}
             </ul>
           </div>
+          {dados.informativos && dados.informativos.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+              <h3 className="mb-2 text-sm font-semibold">Informativos meteorológicos no período ({dados.informativos.length})</h3>
+              <ul className="space-y-1 text-sm">
+                {dados.informativos.map((i) => (
+                  <li key={`${i.ano}-${i.numero}`}>
+                    <b>nº {i.numero}/{i.ano}</b> — {new Date(i.emitido_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} ({i.estado}): {i.regioes.map((r) => r.charAt(0) + r.slice(1).toLowerCase()).join(", ") || "sem regiões"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="text-[11px] text-gray-500">
             Chuva: soma dos baldes (valor oficial da fonte quando existe); “últimas 24 h” e “hoje” usam a mesma conta da tabela Precipitação.
             Temperatura e rajada: extremos das leituras no período, descartando valores fora da faixa física.

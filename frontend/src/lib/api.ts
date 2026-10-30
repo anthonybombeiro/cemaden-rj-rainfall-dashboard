@@ -1038,6 +1038,7 @@ export type ResumoRegiao = {
 };
 export type Resumo24h = {
   modo: "rolling" | "hoje" | "dia";
+  informativos?: { numero: number; ano: number; estado: string; emitido_em: string; regioes: string[]; maior_gravidade: number }[];
   dia: string;
   inicio: string;
   fim: string;

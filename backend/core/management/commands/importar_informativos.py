@@ -40,7 +40,7 @@ class Command(BaseCommand):
         except ImportError as e:  # só necessário para esta importação, que roda localmente
             raise CommandError("Instale openpyxl (pip install openpyxl) para importar a planilha.") from e
         wb = openpyxl.load_workbook(arquivo, data_only=True, read_only=True)
-        grupos, revisao = imp.ler_planilha(wb, anos)
+        grupos, revisao, pendentes = imp.ler_planilha(wb, anos)
         existentes = set(InformativoMeteorologico.objects.values_list("ano", "numero"))
         novos = {k: v for k, v in grupos.items() if k not in existentes}
         self.stdout.write(f"Informativos na planilha: {len(grupos)} · já existentes: {len(grupos) - len(novos)} · a importar: {len(novos)} · linhas no relatório: {len(revisao)}")
@@ -58,7 +58,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Relatório de revisão: {relatorio}")
         if json:
             with open(json, "w", encoding="utf-8") as f:
-                f.write(imp.para_json(grupos, revisao))
+                f.write(imp.para_json(grupos, revisao, pendentes))
             self.stdout.write(f"Arquivo para o servidor: {json}")
         if not gravar:
             self.stdout.write(self.style.WARNING("Simulação: nada foi gravado (use --gravar)."))
