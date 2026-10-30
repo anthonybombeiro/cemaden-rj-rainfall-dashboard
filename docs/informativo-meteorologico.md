@@ -89,3 +89,10 @@ Regra do usuário: **nada se tira do Compor informativo** (texto livre guiado, S
 - `ShareModal`: novos campos `cabecalho`, `topo`, `semRolagem`, `acoes`; a exportação sai sempre em tamanho real (`transform: none`), mesmo com a prévia reduzida. Proxy de radar também aceita PNG da REDEMET.
 - Testes: 40 do backend OK; no navegador local: radar, arte 3:4 e 1:1, Registrar e Publicar, Fechar edição, popup Idap.
 - Publicação: migrações → migrate → backend → front, sem 500. Não testado em produção: quadro real da REDEMET (chave só no servidor) — conferir no primeiro uso. As duas artes (3:4 com radar e 1:1 só texto) ficam.
+
+## Incidente: texto do informativo cortado em produção (30/10/2026) — CORRIGIDO
+- **Sintoma:** os informativos nº 194 e 195 mostravam só "CEMADEN-RJ / INFORMATIVO METEOROLÓGICO n°…" (cards, arte, "texto gerado"); as artes saíam com cenário e previsão "—".
+- **Causa:** o MySQL do servidor grava em utf8 de 3 bytes e **corta o texto no primeiro caractere de 4 bytes** (o emoji 📅 da linha "Data", depois 🌧), sem erro. Passava despercebido no teste local (SQLite) e antes disso o texto salvo quase não era lido.
+- **Correção:** `TextFieldSeguro` (`core/models.py`) para `texto` e `texto_gerado`: grava cada caractere fora do plano básico como `{{u:1F4C5}}` e restaura na leitura (sem alterar a coluna). Migração **0031** regenerou pela matriz os textos cortados (195 e 194; texto livre e importados ficam como estão). Verificado em produção: 195 com 864 caracteres e 194 com 655, com 📅.
+- **Compor:** a prévia em branco chegava depois de abrir um informativo salvo e sobrescrevia o texto na tela; agora a prévia não roda enquanto o informativo carrega nem para os já enviados.
+- **Atenção:** o informativo nº 193 (texto livre, criado pela equipe) está com texto vazio — não foi tocado. Outros campos de texto do painel com emoji (ex.: texto geral da Previsão) podem sofrer o mesmo corte: verificar.

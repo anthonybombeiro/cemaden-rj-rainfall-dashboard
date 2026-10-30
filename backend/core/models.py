@@ -889,6 +889,28 @@ class ConfiguracaoNm(models.Model):
         return f"Automação do NM · {'ativa' if self.ativo else 'desligada'} · até NM {self.nivel_maximo_auto}"
 
 
+import re as _re
+
+_NAO_BMP = _re.compile("[\U00010000-\U0010FFFF]")
+_TOKEN = _re.compile(r"\{\{u:([0-9A-F]{5,6})\}\}")
+
+
+class TextFieldSeguro(models.TextField):
+    """TextField que sobrevive ao MySQL em utf8 de 3 bytes do servidor: ele CORTA o texto no primeiro caractere de 4 bytes (emoji como 📅 e 🌧) sem avisar.
+    Na gravação cada caractere fora do plano básico vira `{{u:1F4C5}}`; na leitura volta ao caractere. Não muda a coluna (a migração enxerga um TextField)."""
+
+    def get_prep_value(self, value):
+        v = super().get_prep_value(value)
+        return _NAO_BMP.sub(lambda m: "{{u:%X}}" % ord(m.group()), v) if isinstance(v, str) else v
+
+    def from_db_value(self, value, expression, connection):
+        return _TOKEN.sub(lambda m: chr(int(m.group(1), 16)), value) if isinstance(value, str) else value
+
+    def deconstruct(self):
+        nome, _caminho, args, kwargs = super().deconstruct()
+        return nome, "django.db.models.TextField", args, kwargs
+
+
 # ---------------------------------------------------------------- Informativo meteorológico (29/10/2026)
 class InformativoMeteorologico(models.Model):
     """Informativo meteorológico do CEMADEN-RJ (nº/AAAA): cenário atual e previsão das próximas 6 h por REDEC, no modelo de texto do grupo de operadores.
@@ -906,8 +928,8 @@ class InformativoMeteorologico(models.Model):
     ano = models.PositiveIntegerField(db_index=True)
     estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.RASCUNHO, db_index=True)
     emitido_em = models.DateTimeField(null=True, blank=True, db_index=True, help_text="Data e hora que vão no texto (padrão: agora ao criar).")
-    texto = models.TextField(blank=True, help_text="Texto final (gerado e/ou ajustado à mão).")
-    texto_gerado = models.TextField(blank=True, help_text="Último texto gerado pela matriz (para saber se houve ajuste manual).")
+    texto = TextFieldSeguro(blank=True, help_text="Texto final (gerado e/ou ajustado à mão).")
+    texto_gerado = TextFieldSeguro(blank=True, help_text="Último texto gerado pela matriz (para saber se houve ajuste manual).")
     texto_livre = models.BooleanField(default=False, help_text="Modo texto livre: casos fora do padrão; a matriz não gera o texto.")
     aproximacao_regioes = models.JSONField(default=list, blank=True, help_text="REDECs de que núcleos de chuva se aproximam.")
     aproximacao_por = models.CharField(max_length=40, blank=True, help_text="De onde vêm (ex.: Minas Gerais).")

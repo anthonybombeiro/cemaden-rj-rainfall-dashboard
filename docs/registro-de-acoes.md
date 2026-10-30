@@ -390,3 +390,6 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 
 ## 30/10/2026 — Publicado: envio, imagens e validação Idap
 - Aprovado pelo usuário. Ordem: migrações 0029/0030 por SFTP → `POST /api/admin/migrate/` (OK) → backend (models, informativos, informativo_envios, informativo_views, informativo_apoio_views, urls) → front (Failed: 0). Verificado em produção só por leitura: acompanhamento devolve `envios` e `episodio`; informativo vigente nº 195 com publicação ainda desmarcada (o padrão novo vale só para os novos).
+
+## 30/10/2026 — Incidente: texto do informativo cortado (MySQL utf8 3 bytes) — corrigido
+- Causa e correção em `informativo-meteorologico.md`. Ordem: models.py + migração 0031 por SFTP → migrate (OK) → front. Testes: 47 OK.

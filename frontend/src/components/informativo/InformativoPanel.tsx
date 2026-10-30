@@ -207,15 +207,16 @@ function Compor({ id, onSalvo, onFechar, onPublicar }: { id: number | null; onSa
   // prévia ao vivo (não salva): 400 ms depois da última alteração
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (bloqueado) return;
+    if (bloqueado || (id && !det)) return; // informativo já salvo: o texto vem do servidor (a prévia em branco não pode sobrescrevê-lo)
+    let vivo = true;
     if (t.current) clearTimeout(t.current);
     t.current = setTimeout(() => {
       previaInformativo({ itens: itens.filter((i) => i.chuva_atual || i.chuva_prevista), aproximacao: aprox.regioes.length ? aprox : undefined, numero: det?.numero, ano: det?.ano, emitido_em: det?.emitido_em ?? undefined })
-        .then((p) => { setPrevia(p); if (!manual) setTexto(comFrases(p.texto, frases)); })
+        .then((p) => { if (!vivo) return; setPrevia(p); if (!manual) setTexto(comFrases(p.texto, frases)); })
         .catch(() => undefined);
     }, 400);
-    return () => { if (t.current) clearTimeout(t.current); };
-  }, [itens, aprox, det, manual, bloqueado, frases]);
+    return () => { vivo = false; if (t.current) clearTimeout(t.current); };
+  }, [id, itens, aprox, det, manual, bloqueado, frases]);
 
   const muda = (regiao: string, campo: keyof ItemRegiao, valor: string | boolean) => setItens((l) => l.map((i) => (i.regiao === regiao ? { ...i, [campo]: valor } : i)));
   const preenchidos = itens.filter((i) => i.chuva_atual || i.chuva_prevista);

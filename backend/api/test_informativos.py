@@ -189,6 +189,19 @@ class InformativosApiTest(APITestCase):
     def test_publico_vem_marcado_por_padrao(self):
         self.assertTrue(self.cria().data["publico"])
 
+    def test_emoji_de_4_bytes_nao_vai_ao_banco_e_volta_inteiro(self):
+        """O MySQL do servidor (utf8 de 3 bytes) corta o texto no primeiro emoji de 4 bytes: o campo escapa na gravação e restaura na leitura."""
+        from core.models import TextFieldSeguro
+
+        campo = TextFieldSeguro()
+        original = "n°1/2026\n📅 Data: 30/10\n🌧 Chuva\n⛈️ ok ⚡ ❄️"
+        gravado = campo.get_prep_value(original)
+        self.assertTrue(all(ord(c) <= 0xFFFF for c in gravado))  # nada de 4 bytes chega ao MySQL
+        self.assertEqual(campo.from_db_value(gravado, None, None), original)
+        i = self.cria().data  # o texto gerado tem 📅 e 🌧: tem de voltar completo pela API
+        self.assertIn("📅 Data", self.client.get(f"{U}{i['id']}/").data["texto"])
+        self.assertIn("PREVISÃO PARA AS PRÓXIMAS", InformativoMeteorologico.objects.get(pk=i["id"]).texto)
+
     def test_vigencia_expira_em_6h(self):
         i = self.client.post(U, {"itens": itens("SUL I")}, format="json").data
         self.client.post(f"{U}{i['id']}/enviar/")
