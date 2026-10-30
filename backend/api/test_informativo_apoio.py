@@ -213,7 +213,12 @@ class RadarImagemTest(APITestCase):
         redemet = "https://estatico-redemet.decea.mil.br/radar/2026/10/02/pc/maxcappi/maps/2026-10-02--02:46:47.png"
         with mock.patch("api.informativo_apoio_views._get_com_retentativa", return_value=R(bytes([0x89]) + b"PNG....")):
             self.assertEqual(self.client.get(self.URL, {"url": redemet}).status_code, 200)  # radar da REDEMET (Pico do Couto)
-            self.assertEqual(self.client.get(self.URL, {"url": redemet.replace("/radar/", "/satelite/")}).status_code, 400)
+            self.assertEqual(self.client.get(self.URL, {"url": redemet.replace("/radar/", "/satelite/")}).status_code, 200)  # satélite da REDEMET também
+            self.assertEqual(self.client.get(self.URL, {"url": redemet.replace("/radar/", "/outra/")}).status_code, 400)
+            goes = "https://satelite.cptec.inpe.br/repositoriogoes/goes19/goes19_web/ch13_baixa/2026/10/ch13_baixa_202610300900.jpg"
+        with mock.patch("api.informativo_apoio_views._get_com_retentativa", return_value=R(bytes([0xFF, 0xD8, 0xFF]) + b"....")):
+            r = self.client.get(self.URL, {"url": goes})  # GOES-19 do CPTEC (JPEG)
+            self.assertEqual((r.status_code, r["Content-Type"]), (200, "image/jpeg"))
         with mock.patch("api.informativo_apoio_views._get_com_retentativa", return_value=R(b"<html>")):
             self.assertEqual(self.client.get(self.URL, {"url": self.OK}).status_code, 502)
 

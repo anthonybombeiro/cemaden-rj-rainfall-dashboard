@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+import GerarImagemCamada from "@/components/informativo/GerarImagemCamada";
 import L from "leaflet";
 import CamadaGeografica from "@/components/CamadaGeografica";
 import FloodHubFicha from "@/components/FloodHubFicha";
@@ -609,6 +611,8 @@ function SeletorCamadaMeteorologica({
 }) {
   const [aberto, setAberto] = useState(false);
   const [tipoAbertoSatelite, setTipoAbertoSatelite] = useState(false);
+  // "Gerar imagem": recorte do estado do RJ da camada escolhida (radar ou satélite), para enviar nos grupos
+  const [gerandoImagem, setGerandoImagem] = useState(false);
   // O painel fica DENTRO do mapa: sem isto, rolar a lista (roda do mouse/toque) ou arrastar nela
   // movia/zoomava o mapa ao fundo. Os eventos de scroll/clique/toque param no painel.
   const painelRef = useRef<HTMLDivElement | null>(null);
@@ -637,12 +641,16 @@ function SeletorCamadaMeteorologica({
 
   return (
     <div ref={painelRef} className="absolute bottom-3 left-3 z-[1000] max-w-[calc(100vw-1.5rem)]">
+      {gerandoImagem && typeof document !== "undefined" && createPortal(
+        <GerarImagemCamada inicial={{ tipo: config.tipo === "satelite" ? "satelite" : "radar", radar: config.radar, produto: config.produtoRadar, satelite: config.tipoSatelite }} onClose={() => setGerandoImagem(false)} />,
+        document.body,
+      )}
       {aberto && (
         <div className="mb-2 w-72 max-h-[60vh] overflow-y-auto overscroll-contain rounded-md border border-gray-200 bg-white p-3 text-xs shadow-lg">
           <p className="mb-2 font-semibold text-gray-700">Camada de imagem</p>
 
           {/* Seleção principal: Nenhuma / Satélite / Radar */}
-          <div className="flex gap-1 mb-3">
+          <div className="flex flex-wrap items-center gap-1 mb-3">
             {opcoes.map((o) => (
               <button
                 key={o.valor}
@@ -658,6 +666,9 @@ function SeletorCamadaMeteorologica({
                 {o.label}
               </button>
             ))}
+            {config.tipo !== "nenhuma" && (
+              <button type="button" onClick={() => setGerandoImagem(true)} title="Gerar a imagem desta camada, recortada no estado do RJ, para enviar" className="ml-auto rounded bg-emerald-700 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-600">📷 Gerar imagem</button>
+            )}
           </div>
 
           {/* Dropdown de tipo para Satélite */}

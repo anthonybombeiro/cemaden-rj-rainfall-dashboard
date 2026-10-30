@@ -393,3 +393,6 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 
 ## 30/10/2026 — Incidente: texto do informativo cortado (MySQL utf8 3 bytes) — corrigido
 - Causa e correção em `informativo-meteorologico.md`. Ordem: models.py + migração 0031 por SFTP → migrate (OK) → front. Testes: 47 OK.
+
+## 30/10/2026 — Radares e satélite na imagem; frases removidas; texto de informativo antigo
+- Ordem: models.py + migração 0032 por SFTP → migrate (OK; 193/194/195 restaurados, frases removidas) → views → front (Failed: 0). Testes: 67 OK.

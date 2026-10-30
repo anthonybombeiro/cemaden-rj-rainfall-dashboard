@@ -4,10 +4,9 @@ import { useMemo, useState } from "react";
 
 import ShareModal from "@/components/ShareModal";
 import { horaLocal } from "@/lib/mapaCanvas";
-import { legendaRadar } from "@/lib/radarImagem";
 import { ShareData } from "@/lib/shareExport";
 
-import { SeletorRadar, useRadar } from "./useRadar";
+import { SeletorCamada, useCamada } from "./useRadar";
 
 type Base = { numero: number; ano: number; emitido_em: string | null; vigente_ate?: string | null; texto: string };
 type Formato = "radar" | "texto";
@@ -43,8 +42,8 @@ function ajustarLetra(blocos: string[][], largura: number, altura: number, max: 
  * "1:1 só texto". Mesmo cabeçalho e rodapé das postagens; o rodapé traz a fonte e a validade. */
 export default function PublicarInformativo({ i, acoes, onClose }: { i: Base; acoes?: React.ReactNode; onClose: () => void }) {
   const [formato, setFormato] = useState<Formato>("radar");
-  const radar = useRadar(formato === "radar");
-  const { quadro } = radar;
+  const radar = useCamada(undefined, formato === "radar");
+  const { imagem: quadro } = radar;
 
   const dados: ShareData = useMemo(() => {
     const { cenario, previsao, rodape } = partesDoTexto(i.texto);
@@ -60,7 +59,7 @@ export default function PublicarInformativo({ i, acoes, onClose }: { i: Base; ac
       </div>
     );
     const hh = quadro ? horaLocal(quadro.quando) : "--h--";
-    const legenda = quadro ? legendaRadar(quadro, hh) : "";
+    const legenda = quadro ? quadro.legenda(hh) : "";
     return {
       titulo: `Informativo meteorológico n°${i.numero}/${i.ano}`,
       dataHora: `${fmtData(i.emitido_em)} ${fmtHora(i.emitido_em)}`,
@@ -79,7 +78,7 @@ export default function PublicarInformativo({ i, acoes, onClose }: { i: Base; ac
               <button key={k} type="button" onClick={() => setFormato(k)} className={`rounded-full border px-2.5 py-1 font-medium ${formato === k ? "border-sedec-600 bg-sedec-600 text-white" : "border-gray-300 text-gray-700"}`}>{r}</button>
             ))}
           </div>
-          {comRadar && <SeletorRadar {...radar} />}
+          {comRadar && <SeletorCamada c={radar} somenteRadar />}
         </div>
       ),
       corpoPor: () => (

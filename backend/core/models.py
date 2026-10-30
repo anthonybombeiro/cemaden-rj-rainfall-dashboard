@@ -1020,9 +1020,7 @@ class ConfiguracaoInformativo(models.Model):
 
     rodape = models.TextField(
         default=(
-            "Em caso de mudança de cenário, a Defesa Civil Estadual atualizará as informações e emitirá os alertas necessários pelas equipes de monitoramento do CEMADEN-RJ." "\n"
-            "Fiquem atentos aos informativos e alertas emitidos por nossas fontes oficiais." "\n"
-            "Sigam o perfil @defesacivil_rj para informações atualizadas."
+            "Em caso de mudança de cenário, a Defesa Civil Estadual atualizará as informações e emitirá os alertas necessários pelas equipes de monitoramento do CEMADEN-RJ."
         ),
         blank=True,
     )

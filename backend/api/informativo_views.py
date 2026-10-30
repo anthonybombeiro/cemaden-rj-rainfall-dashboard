@@ -52,6 +52,11 @@ def _gerar_texto(i: InformativoMeteorologico, itens: list[dict] | None = None) -
     return inf.montar_texto(i.numero, i.ano, emitido, itens if itens is not None else _itens(i), _aproximacao(i), ConfiguracaoInformativo.obter().rodape)
 
 
+def _texto_ou_gerado(i: InformativoMeteorologico) -> str:
+    """Informativo antigo importado da planilha não tem texto gravado (a planilha só tem a matriz): mostra o texto gerado por ela, sem gravar. Sem matriz e sem texto, fica vazio."""
+    return i.texto if i.texto or not i.regioes.exists() else _gerar_texto(i)
+
+
 def _vigente_ate(i: InformativoMeteorologico) -> dt.datetime | None:
     base = i.enviado_em or i.emitido_em
     return base + dt.timedelta(hours=ConfiguracaoInformativo.obter().validade_horas) if base else None
@@ -90,7 +95,7 @@ def _serializa(i: InformativoMeteorologico, detalhe: bool = True) -> dict:
     if detalhe:
         g, raios = inf.maior_gravidade(itens)
         out.update(
-            texto=i.texto,
+            texto=_texto_ou_gerado(i),
             texto_livre=i.texto_livre,
             editado_a_mao=bool(i.texto and i.texto_gerado and i.texto != i.texto_gerado),
             itens=itens,
@@ -525,4 +530,4 @@ class PublicoInformativoView(APIView):
         ate = _vigente_ate(i) if i else None
         if not i or not ate or ate < agora:
             return Response({"informativo": None})
-        return Response({"informativo": {"numero": i.numero, "ano": i.ano, "texto": i.texto, "enviado_em": i.enviado_em, "vigente_ate": ate}})
+        return Response({"informativo": {"numero": i.numero, "ano": i.ano, "texto": _texto_ou_gerado(i), "enviado_em": i.enviado_em, "vigente_ate": ate}})

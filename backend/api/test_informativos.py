@@ -202,6 +202,18 @@ class InformativosApiTest(APITestCase):
         self.assertIn("📅 Data", self.client.get(f"{U}{i['id']}/").data["texto"])
         self.assertIn("PREVISÃO PARA AS PRÓXIMAS", InformativoMeteorologico.objects.get(pk=i["id"]).texto)
 
+    def test_informativo_antigo_sem_texto_mostra_o_gerado_e_rodape_sem_as_frases_removidas(self):
+        i = self.cria().data
+        InformativoMeteorologico.objects.filter(pk=i["id"]).update(texto="", texto_gerado="")  # como os importados da planilha
+        d = self.client.get(f"{U}{i['id']}/").data
+        self.assertIn("PREVISÃO PARA AS PRÓXIMAS", d["texto"])
+        self.assertEqual(InformativoMeteorologico.objects.get(pk=i["id"]).texto, "")  # não grava
+        InformativoMeteorologico.objects.filter(pk=i["id"]).update(texto_livre=True)  # importado da planilha: texto livre, sem texto, com matriz
+        self.assertIn("PREVISÃO PARA AS PRÓXIMAS", self.client.get(f"{U}{i['id']}/").data["texto"])
+        self.assertIn("Em caso de mudança de cenário", d["texto"])
+        self.assertNotIn("Fiquem atentos", d["texto"])
+        self.assertNotIn("@defesacivil_rj", d["texto"])
+
     def test_vigencia_expira_em_6h(self):
         i = self.client.post(U, {"itens": itens("SUL I")}, format="json").data
         self.client.post(f"{U}{i['id']}/enviar/")

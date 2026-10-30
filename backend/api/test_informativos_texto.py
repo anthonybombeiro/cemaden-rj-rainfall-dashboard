@@ -145,7 +145,10 @@ class NormalizacaoTest(SimpleTestCase):
             "moderada a forte": "moderada_forte",
             "chuva moderada a ocasionalmente forte": "moderada_ocasion_forte",
             "moderada a ocasionalmente muito forte": "moderada_ocasion_muito_forte",
-            "Forte": "moderada_forte",
+            "Forte": "forte",  # a intensidade "Forte" existe desde 30/10/2026 (antes caía em "moderada a forte")
+            "Muito forte": "muito_forte",
+            "Forte a muito forte": "forte_muito_forte",
+            "Pontualmente forte": "pontual_forte",
             "": "",
             "granizo": "",
         }

@@ -117,26 +117,33 @@ class ImportacaoRevisaoView(APIView):
         return Response(_serializa(i, detalhe=False), status=201)
 
 
-PREFIXOS_RADAR = ("https://radartool.inea.rj.gov.br/radar-tool/img/", "https://estatico-redemet.decea.mil.br/radar/")
-MAX_BYTES_RADAR = 6 * 1024 * 1024
+PREFIXOS_RADAR = (
+    "https://radartool.inea.rj.gov.br/radar-tool/img/",
+    "https://estatico-redemet.decea.mil.br/radar/",
+    "https://estatico-redemet.decea.mil.br/satelite/",
+    "https://satelite.cptec.inpe.br/repositoriogoes/goes19/",
+)
+MAX_BYTES_RADAR = 12 * 1024 * 1024  # os quadros do GOES-19 (CPTEC) chegam a ~4 MB
 ASSINATURA_PNG = bytes([0x89]) + b"PNG"
+ASSINATURA_JPEG = bytes([0xFF, 0xD8, 0xFF])
 
 
 class InformativoRadarImagemView(APIView):
     """GET /api/informativos/radar/imagem/?url=… — F14: entrega pelo nosso servidor o quadro de radar do INEA, para o navegador poder recortar o estado e
-    escrever a legenda num canvas (a imagem do INEA não libera CORS, o canvas ficaria "contaminado" e não poderia ser exportado). Só aceita PNG do Radar Tool do
-    INEA e do radar da REDEMET (lista fechada: nunca busca outro endereço)."""
+    escrever a legenda num canvas (a imagem do INEA não libera CORS, o canvas ficaria "contaminado" e não poderia ser exportado). Só aceita PNG/JPEG do Radar Tool do
+    INEA, do radar e do satélite da REDEMET e do GOES-19 do CPTEC/INPE (lista fechada: nunca busca outro endereço)."""
 
     def get(self, request):
         url = str(request.query_params.get("url") or "")
-        if not url.startswith(PREFIXOS_RADAR) or not url.endswith(".png") or ".." in url or "?" in url or "#" in url:
-            return Response({"detail": "Endereço de radar inválido."}, status=400)
+        if not url.startswith(PREFIXOS_RADAR) or not url.endswith((".png", ".jpg")) or ".." in url or "?" in url or "#" in url:
+            return Response({"detail": "Endereço de imagem inválido."}, status=400)
         try:
             r = _get_com_retentativa(url, {}, tries=2, timeout=20)
         except Exception:  # rede/INEA fora do ar: o compositor mostra a mensagem
             return Response({"detail": "Falha ao baixar o quadro de radar do INEA."}, status=502)
-        if len(r.content) > MAX_BYTES_RADAR or not r.content.startswith(ASSINATURA_PNG):
-            return Response({"detail": "Resposta inesperada do INEA."}, status=502)
-        resp = HttpResponse(r.content, content_type="image/png")
+        png, jpeg = r.content.startswith(ASSINATURA_PNG), r.content.startswith(ASSINATURA_JPEG)
+        if len(r.content) > MAX_BYTES_RADAR or not (png or jpeg):
+            return Response({"detail": "Resposta inesperada da fonte da imagem."}, status=502)
+        resp = HttpResponse(r.content, content_type="image/png" if png else "image/jpeg")
         resp["Cache-Control"] = "private, max-age=120"
         return resp

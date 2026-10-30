@@ -48,6 +48,9 @@ function comFrases(texto: string, frases: string[]): string {
   return ponto >= 0 ? `${sem_fim(texto.slice(0, ponto))}\n${bloco}\n\n${texto.slice(ponto)}` : `${sem_fim(texto)}\n${bloco}`;
 }
 
+/** Chave da matriz usada para saber se algo mudou desde que o informativo foi aberto. */
+function chaveDe (its: ItemRegiao[], ap: { regioes: string[]; intensidade: string; por: string }, fr: string[]) { return JSON.stringify({ i: its.filter((x) => x.chuva_atual || x.chuva_prevista), a: ap.regioes.length ? ap : null, f: fr }) }
+
 type Sub = "compor" | "acompanhar" | "historico" | "verificacao";
 
 const ESTADO: Record<Resumo["estado"], { rotulo: string; cor: string }> = {
@@ -187,6 +190,8 @@ function Compor({ id, onSalvo, onFechar, onPublicar }: { id: number | null; onSa
   const [manual, setManual] = useState(false);
   const [frases, setFrases] = useState<string[]>([]);
   const ultimo = useRef<Detalhe | null>(null);
+  // "foto" da matriz ao abrir um informativo salvo: enquanto nada mudar, o texto gravado vale (a prévia não o sobrescreve)
+  const chaveInicial = useRef<string | null>(null);
   const [previa, setPrevia] = useState<Previa | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -195,7 +200,9 @@ function Compor({ id, onSalvo, onFechar, onPublicar }: { id: number | null; onSa
   const aplica = useCallback((d: Detalhe) => {
     setDet(d);
     setFrases([]);
-    setItens(REGIOES_ORDEM.map((r) => d.itens.find((i) => i.regiao === r) ?? itemVazio(r)));
+    const itensDe = REGIOES_ORDEM.map((r) => d.itens.find((i) => i.regiao === r) ?? itemVazio(r));
+    chaveInicial.current = chaveDe(itensDe, d.aproximacao, []);
+    setItens(itensDe);
     setAprox(d.aproximacao);
     setTexto(d.texto);
     setManual(d.editado_a_mao || d.texto_livre);
@@ -212,7 +219,7 @@ function Compor({ id, onSalvo, onFechar, onPublicar }: { id: number | null; onSa
     if (t.current) clearTimeout(t.current);
     t.current = setTimeout(() => {
       previaInformativo({ itens: itens.filter((i) => i.chuva_atual || i.chuva_prevista), aproximacao: aprox.regioes.length ? aprox : undefined, numero: det?.numero, ano: det?.ano, emitido_em: det?.emitido_em ?? undefined })
-        .then((p) => { if (!vivo) return; setPrevia(p); if (!manual) setTexto(comFrases(p.texto, frases)); })
+        .then((p) => { if (!vivo) return; setPrevia(p); if (!manual && !(det && chaveDe(itens, aprox, frases) === chaveInicial.current)) setTexto(comFrases(p.texto, frases)); })
         .catch(() => undefined);
     }, 400);
     return () => { vivo = false; if (t.current) clearTimeout(t.current); };
