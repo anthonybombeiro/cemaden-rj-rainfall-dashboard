@@ -4,6 +4,7 @@ import { Clipboard, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { fetchResumo24h, Resumo24h, ResumoItem, ResumoMunicipio, ResumoRegiao } from "@/lib/api";
+import SistemasAtuantesResumo from "@/components/SistemasAtuantesResumo";
 import { BlocoAlertasFH, BlocoEventosFH } from "@/components/FloodHubPanel";
 import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
 import { FAIXAS_RAJADA } from "@/lib/ventoFaixas";
@@ -256,6 +257,7 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
         <div className="space-y-3">
           {alertasFH.length > 0 && <BlocoAlertasFH alertas={alertasFH} />}
           {eventosFH && eventosFH.no_rj.length > 0 && <BlocoEventosFH eventos={eventosFH} />}
+          <SistemasAtuantesResumo dia={dia || new Date().toLocaleDateString("sv-SE")} />
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <Cartao titulo="Municípios com chuva" valor={String(s.municipios_com_chuva)} detalhe={`${s.estacoes_com_chuva} estações com chuva`} />
             <Cartao

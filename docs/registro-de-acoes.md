@@ -401,3 +401,10 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 - **Correção:** o satélite da REDEMET (realçada/IR/visível) e o do CPTEC são o mesmo recorte do GOES-19 (mesmos limites, -56 a 12,5° de latitude, mesma proporção; a REDEMET tem ~4x menos resolução: 857x787 contra 3738x3426). Eu tratava a REDEMET como Mercator e o recorte do RJ saía deslocado; agora todos os satélites usam latitude linear (`camadaImagem.ts`).
 - **Mapa:** o botão "Gerar imagem" virou só o ícone de envio (o mesmo do card do informativo).
 
+## 31/10/2026 — Sistemas atuantes do dia (PUBLICADO, migração 0033)
+- **Pedido do usuário:** só o campo de sistemas atuantes, sem mexer no texto nem no cadastro da previsão; ver no Resumo 24 h; calendário também no Resumo 24 h.
+- **Dados:** modelo novo `SistemaAtuanteDia` (data única, `sistemas` = códigos do catálogo na ordem escolhida, o primeiro é o principal; `outro` texto livre até 80). Catálogo fixo em `core/sistemas_atuantes.py` (9 itens com cor). Rota `GET/PUT /api/sistemas-atuantes/` (`?data=` devolve o dia, o último registro anterior e o catálogo; `?mes=AAAA-MM` devolve o mês; lista e texto vazios apagam o registro). Testes: `api/test_sistemas_atuantes.py` (4; inclui "não altera o texto geral da previsão").
+- **Telas:** formulário (cartão à parte, acima do cadastro da previsão, que não foi alterado) em Meteorologia → Cadastro, com chips, "Outro", data e "Repetir de <dia anterior>"; no Resumo 24 h → Resumo, cartão com os sistemas do dia, o texto geral da previsão (só leitura) e o calendário do mês (cor = sistema principal; dia sem registro cinza).
+- **Fora desta entrega (guardado):** campo no aviso meteorológico (módulo ainda não existe), calendário na aba Verificação quando o módulo mensal existir, e conferir com o usuário se faltam sistemas no catálogo.
+- **Teste local:** banco de teste, senha de teste do usuário local redefinida; em produção só leitura da rota.
+

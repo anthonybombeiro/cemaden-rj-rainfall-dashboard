@@ -345,6 +345,27 @@ class PrevisaoDia(models.Model):
         return f"{self.data} · {self.texto_geral[:40]}"
 
 
+class SistemaAtuanteDia(models.Model):
+    """Sistemas atuantes do dia no estado (um registro por data): lista de códigos do catálogo (`core/sistemas_atuantes.py`, na
+    ordem escolhida — o primeiro é o principal) e, se preciso, um sistema em texto livre. Aparece no Resumo 24 h; não altera a previsão."""
+
+    data = models.DateField(unique=True)
+    sistemas = models.JSONField(default=list, blank=True)
+    outro = models.CharField(max_length=80, blank=True)
+    criado_por = models.CharField(max_length=150, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_por = models.CharField(max_length=150, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data"]
+        verbose_name = "sistemas atuantes do dia"
+        verbose_name_plural = "sistemas atuantes"
+
+    def __str__(self):
+        return f"{self.data} · {', '.join(self.sistemas) or self.outro}"
+
+
 class CotaHidrologica(models.Model):
     """Cotas de referência (cm) de uma estação hidrológica. Editável pelo Django
     Admin. Classificação do nível atual:

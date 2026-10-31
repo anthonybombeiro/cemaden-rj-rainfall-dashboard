@@ -948,6 +948,16 @@ export async function salvarTextoGeralPrevisao(data: string, texto: string): Pro
   return postComCsrf<TextoGeralPrevisao>("/previsoes/texto-geral/", { data, texto_geral: texto });
 }
 
+/** Sistemas atuantes do dia (catálogo fixo; o primeiro da lista é o principal). Rota `/api/sistemas-atuantes/`. */
+export type SistemaCatalogo = { id: string; rotulo: string; cor: string };
+export type SistemasDia = { data: string; sistemas: string[]; outro: string; atualizado_por: string; atualizado_em: string | null };
+export type SistemasDiaDetalhe = SistemasDia & { anterior: SistemasDia | null; catalogo: SistemaCatalogo[] };
+export type SistemasMes = { mes: string; dias: SistemasDia[]; catalogo: SistemaCatalogo[] };
+
+export const fetchSistemasDia = (data: string) => getJson<SistemasDiaDetalhe>(`/sistemas-atuantes/?data=${encodeURIComponent(data)}`);
+export const fetchSistemasMes = (mes: string) => getJson<SistemasMes>(`/sistemas-atuantes/?mes=${encodeURIComponent(mes)}`);
+export const salvarSistemasDia = (data: string, sistemas: string[], outro: string) => postComCsrf<SistemasDia>("/sistemas-atuantes/", { data, sistemas, outro });
+
 /** Situação do cadastro de um dia: quantas das 11 REDECs já têm previsão e se há texto geral. */
 export type CoberturaPrevisao = { data: string; total: number; lancadas: number; faltam: string[]; texto_geral: boolean; completo: boolean };
 

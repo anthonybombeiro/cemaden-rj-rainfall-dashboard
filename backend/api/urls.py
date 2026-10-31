@@ -30,6 +30,7 @@ from .floodhub_views import FloodHubEventosView, FloodHubValidacaoView, FloodHub
 from .previsao_publica_views import PublicoPrevisaoView
 from .informativo_views import (InformativoAcaoView, InformativoAcompanhamentoView, InformativoDetalheView, InformativoEnvioItemView, InformativoEnviosView, InformativoEstatisticasView, InformativoExportarView, InformativoPreviaView, InformativosView, PublicoInformativoView)
 from .resumo_views import Resumo24hView
+from .sistemas_atuantes_views import SistemasAtuantesView
 from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
 from .publico_sirenes_views import PublicoSirenesView
@@ -57,6 +58,7 @@ router.register("risk-alerts", RiskAlertViewSet, basename="risk-alert")
 router.register("avisos-mau-tempo", AvisoMauTempoViewSet, basename="aviso-mau-tempo")
 
 urlpatterns = [
+    path("sistemas-atuantes/", SistemasAtuantesView.as_view(), name="sistemas-atuantes"),
     path("ingest/status/", IngestStatusView.as_view(), name="ingest-status"),
     path("ingest/readings/", RemoteReadingsIngestView.as_view(), name="ingest-readings"),
     path("admin/env-check/", EnvCheckView.as_view(), name="admin-env-check"),
