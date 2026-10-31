@@ -57,8 +57,8 @@ export async function buscarQuadro(sel: Selecao): Promise<Quadro> {
     return { camadas: [{ url: d.image_url, bounds: d.bounds }], quando: utc(d.timestamp), linear, direto: false };
   };
   if (sel.tipo === "satelite") {
-    // o GOES-19 do CPTEC vem em latitude/longitude regulares (0,02°/pixel); a REDEMET segue o mesmo esticamento que o Mapa usa
-    return eDsat(sel.satelite) ? simples(await getJson<Resp>(`/imagery/dsat/?tipo=${sel.satelite}`), true) : simples(await getJson<Resp>(`/imagery/satelite/?tipo=${sel.satelite}`));
+    // CPTEC e REDEMET entregam o mesmo recorte do GOES-19 (mesmos limites e proporção), ambos em latitude/longitude regulares; a REDEMET só tem resolução ~4x menor
+    return eDsat(sel.satelite) ? simples(await getJson<Resp>(`/imagery/dsat/?tipo=${sel.satelite}`), true) : simples(await getJson<Resp>(`/imagery/satelite/?tipo=${sel.satelite}`), true);
   }
   if (sel.radar === "mosaico-sudeste") {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

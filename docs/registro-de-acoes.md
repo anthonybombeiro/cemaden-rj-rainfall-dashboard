@@ -396,3 +396,8 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 
 ## 30/10/2026 — Radares e satélite na imagem; frases removidas; texto de informativo antigo
 - Ordem: models.py + migração 0032 por SFTP → migrate (OK; 193/194/195 restaurados, frases removidas) → views → front (Failed: 0). Testes: 67 OK.
+
+## 31/10/2026 — Satélite REDEMET e botão do Mapa (publicado)
+- **Correção:** o satélite da REDEMET (realçada/IR/visível) e o do CPTEC são o mesmo recorte do GOES-19 (mesmos limites, -56 a 12,5° de latitude, mesma proporção; a REDEMET tem ~4x menos resolução: 857x787 contra 3738x3426). Eu tratava a REDEMET como Mercator e o recorte do RJ saía deslocado; agora todos os satélites usam latitude linear (`camadaImagem.ts`).
+- **Mapa:** o botão "Gerar imagem" virou só o ícone de envio (o mesmo do card do informativo).
+

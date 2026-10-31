@@ -1,6 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { Send } from "lucide-react";
 import GerarImagemCamada from "@/components/informativo/GerarImagemCamada";
 import L from "leaflet";
 import CamadaGeografica from "@/components/CamadaGeografica";
@@ -667,7 +668,7 @@ function SeletorCamadaMeteorologica({
               </button>
             ))}
             {config.tipo !== "nenhuma" && (
-              <button type="button" onClick={() => setGerandoImagem(true)} title="Gerar a imagem desta camada, recortada no estado do RJ, para enviar" className="ml-auto rounded bg-emerald-700 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-600">📷 Gerar imagem</button>
+              <button type="button" onClick={() => setGerandoImagem(true)} title="Gerar a imagem desta camada, recortada no estado do RJ, para enviar" aria-label="Gerar imagem" className="ml-auto rounded p-1.5 text-emerald-600 hover:bg-emerald-50"><Send size={16} /></button>
             )}
           </div>
 
