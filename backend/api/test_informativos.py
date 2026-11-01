@@ -73,6 +73,17 @@ class InformativosApiTest(APITestCase):
         self.assertTrue(InformativoMeteorologico.objects.filter(pk=i["id"]).exists())  # nunca apaga
         self.assertEqual(c["historico"][-1]["acao"], "cancelar")
 
+    def test_reabrir_enviado_volta_a_ser_vigente_ao_reenviar(self):
+        a = self.cria().data
+        self.client.post(f"{U}{a['id']}/enviar/")
+        b = self.cria().data
+        self.client.post(f"{U}{b['id']}/enviar/")  # b é o vigente (último enviado)
+        self.assertEqual(self.client.post(f"{U}{a['id']}/reabrir/").data["estado"], "revisado")
+        self.assertEqual(self.client.post(f"{U}{a['id']}/reabrir/").status_code, 409)  # só enviado reabre
+        self.assertEqual(self.client.patch(f"{U}{a['id']}/", {"itens": itens("SUL I", prevista="moderada_forte")}, format="json").status_code, 200)
+        self.assertEqual(self.client.post(f"{U}{a['id']}/enviar/").data["estado"], "enviado")
+        self.assertEqual(self.client.get(f"{U}acompanhamento/").data["vigente"]["id"], a["id"])
+
     def test_nao_envia_vazio(self):
         i = self.client.post(U, {}, format="json").data
         self.assertEqual(self.client.post(f"{U}{i['id']}/enviar/").status_code, 400)

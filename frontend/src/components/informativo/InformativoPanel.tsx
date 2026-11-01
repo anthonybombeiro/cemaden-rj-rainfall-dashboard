@@ -68,21 +68,26 @@ export default function InformativoPanel() {
   const [publicar, setPublicar] = useState<Detalhe | null>(null);
 
   const abrir = (id: number) => {
+    setPublicar(null);
     setAbertoId(id);
     setSub("compor");
+  };
+  const vaiPara = (s: Sub) => {
+    setPublicar(null); // a arte aberta de um informativo não pode ficar por cima de outro
+    setSub(s);
   };
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5 text-xs">
         {(["acompanhar", "compor", "historico", "verificacao"] as Sub[]).map((s) => (
-          <button key={s} type="button" onClick={() => setSub(s)} className={`rounded-full px-3 py-1.5 font-medium ${sub === s ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
+          <button key={s} type="button" onClick={() => vaiPara(s)} className={`rounded-full px-3 py-1.5 font-medium ${sub === s ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
             {s === "acompanhar" ? "Acompanhamento" : s === "compor" ? "Compor informativo" : s === "historico" ? "Histórico" : "Verificação"}
           </button>
         ))}
       </div>
-      {sub === "acompanhar" && <Acompanhar onNovo={() => { setAbertoId(null); setSub("compor"); }} onAbrir={abrir} />}
+      {sub === "acompanhar" && <Acompanhar onNovo={() => { setPublicar(null); setAbertoId(null); setSub("compor"); }} onAbrir={abrir} />}
       {sub === "compor" && <Compor key={abertoId ?? "novo"} id={abertoId} onSalvo={setAbertoId} onFechar={() => setAbertoId(null)} onPublicar={setPublicar} />}
-      {publicar && <PublicarInformativo i={publicar} onClose={() => setPublicar(null)} />}
+      {sub === "compor" && publicar && publicar.id === abertoId && <PublicarInformativo i={publicar} onClose={() => setPublicar(null)} />}
       {sub === "historico" && <Historico onAbrir={abrir} />}
       {sub === "verificacao" && <Verificacao />}
     </div>
@@ -371,6 +376,9 @@ function Compor({ id, onSalvo, onFechar, onPublicar }: { id: number | null; onSa
             <button type="button" disabled={ocupado || preenchidos.length === 0} onClick={enviarEGerar} className="rounded border border-emerald-700 bg-white px-3 py-2 font-medium text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">Registrar e Publicar</button>
             {det && <button type="button" disabled={ocupado} onClick={cancelar} className="rounded border border-red-300 bg-white px-3 py-2 font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">Cancelar</button>}
           </div>
+        )}
+        {det?.estado === "enviado" && (
+          <button type="button" disabled={ocupado} onClick={() => { if (window.confirm("Reabrir este informativo para edição? Ele deixa de ser o vigente até você registrar o envio de novo.")) { void executa(() => acaoInformativo(det.id, "reabrir"), "Informativo reaberto: edite e registre o envio de novo para torná-lo o vigente."); } }} className="rounded border border-gray-300 bg-white px-3 py-2 text-xs font-medium hover:bg-gray-50 disabled:opacity-50">Reabrir para edição</button>
         )}
         {det?.estado === "enviado" && (
           <label className="flex items-center gap-2 text-xs">

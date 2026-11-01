@@ -413,3 +413,7 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 - O cartão "Sistemas atuantes" passou para dentro do `PrevisaoForm` (mesma rolagem) e usa a data do cadastro da previsão; não tem mais seletor de dia próprio.
 - Resumo 24 h: "Resumo" mantém só sistemas do dia + texto geral; o calendário do mês foi para a nova seção "Mensal" (`SistemasAtuantesMensal`), onde entrarão outras informações mensais.
 - Só frontend, publicado por SFTP; sem migração.
+
+## Informativo: texto de outro informativo preso e "Reabrir para edição" (01/11/2026)
+- Causa do texto do 200 aparecendo ao abrir o 201: a arte/texto do "Registrar e Publicar" ficava no estado do painel e aparecia sob qualquer aba/informativo. Agora só aparece no compositor do próprio informativo e some ao trocar de aba ou abrir outro.
+- Nova ação `POST /api/informativos/<id>/reabrir/` (enviado → revisado) e botão "Reabrir para edição" no compositor. O informativo deixa de ser o vigente até registrar o envio de novo (que atualiza a hora do envio e o torna o vigente). Registrado no histórico. Teste em `test_informativos.py`.

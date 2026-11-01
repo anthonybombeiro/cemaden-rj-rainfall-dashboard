@@ -23,7 +23,7 @@ from core import informativo_envios as envios_regras
 from core.models import ConfiguracaoInformativo, InformativoEnvio, InformativoMeteorologico, InformativoRegiao
 
 CAMPOS_REGIAO = ("chuva_atual", "raios_atual", "chuva_prevista", "vento_previsto", "raios", "granizo", "isolada")
-ACOES = {"revisar": "revisado", "enviar": "enviado", "cancelar": "cancelado"}
+ACOES = {"revisar": "revisado", "enviar": "enviado", "cancelar": "cancelado", "reabrir": "revisado"}
 
 
 def _usuario(request) -> str:
@@ -400,7 +400,12 @@ class InformativoAcaoView(APIView):
                 return Response({"detail": "Ação inválida."}, status=404)
             if i.estado == "cancelado":
                 return Response({"detail": "Informativo cancelado não muda de estado."}, status=409)
-            if acao == "revisar":
+            if acao == "reabrir":
+                # volta o enviado para edição (deixa de ser o vigente até registrar o envio de novo, que atualiza a hora do envio)
+                if i.estado != "enviado":
+                    return Response({"detail": "Só informativo enviado pode ser reaberto."}, status=409)
+                i.estado = "revisado"
+            elif acao == "revisar":
                 if i.estado != "rascunho":
                     return Response({"detail": "Só rascunho pode ser revisado."}, status=409)
                 i.estado, i.revisado_por, i.revisado_em = "revisado", usuario, agora

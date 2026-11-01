@@ -176,7 +176,7 @@ export const fetchEstatisticas = (ano: number) => getJson<Estatisticas>(`/inform
 export const criarInformativo = (corpo: { itens?: ItemRegiao[]; duplicar_de?: number; emitido_em?: string } = {}) => enviar<Detalhe>("POST", "/informativos/", corpo);
 export const salvarInformativo = (id: number, corpo: Record<string, unknown>) => enviar<Detalhe>("PATCH", `/informativos/${id}/`, corpo);
 export const previaInformativo = (corpo: { itens: ItemRegiao[]; aproximacao?: Detalhe["aproximacao"]; emitido_em?: string; numero?: number; ano?: number }) => enviar<Previa>("POST", "/informativos/previa/", corpo);
-export const acaoInformativo = (id: number, acao: "revisar" | "enviar" | "cancelar" | "sms", corpo: Record<string, unknown> = {}) => enviar<Detalhe>("POST", `/informativos/${id}/${acao}/`, corpo);
+export const acaoInformativo = (id: number, acao: "revisar" | "enviar" | "cancelar" | "sms" | "reabrir", corpo: Record<string, unknown> = {}) => enviar<Detalhe>("POST", `/informativos/${id}/${acao}/`, corpo);
 export const urlExportar = (ano: number) => `${API_BASE_URL}/informativos/exportar/?ano=${ano}`;
 export const fetchApoio = () => getJson<Apoio>("/informativos/apoio/");
 export const fetchVerificacao = (dias: number) => getJson<Verificacao>(`/informativos/verificacao/?dias=${dias}`);
