@@ -252,10 +252,10 @@ function Compor({ id, onSalvo, onFechar, onPublicar }: { id: number | null; onSa
   };
   const salvar = () =>
     executa(async () => {
-      const corpo = { itens: preenchidos, aproximacao_regioes: aprox.regioes, aproximacao_por: aprox.por, aproximacao_intensidade: aprox.intensidade, ...(manual || frases.length ? { texto } : {}) };
+      const corpo = { itens: preenchidos, aproximacao_regioes: aprox.regioes, aproximacao_por: aprox.por, aproximacao_intensidade: aprox.intensidade, ...(manual || frases.length ? { texto } : { regenerar_texto: true }) };
       return det ? salvarInformativo(det.id, corpo) : criarInformativo({ itens: preenchidos }).then((d) => salvarInformativo(d.id, corpo));
     }, "Rascunho salvo.");
-  const acao = (a: "revisar" | "enviar") => () => executa(async () => { const base = det ?? (await criarInformativo({ itens: preenchidos })); if (!det || a === "enviar") await salvarInformativo(base.id, { itens: preenchidos, aproximacao_regioes: aprox.regioes, aproximacao_por: aprox.por, aproximacao_intensidade: aprox.intensidade, ...(manual || frases.length ? { texto } : {}) }); return acaoInformativo(base.id, a); }, a === "enviar" ? "Envio registrado. Lembre: o painel não envia — copie o texto e envie nos canais." : "Marcado como revisado.");
+  const acao = (a: "revisar" | "enviar") => () => executa(async () => { const base = det ?? (await criarInformativo({ itens: preenchidos })); if (!det || a === "enviar") await salvarInformativo(base.id, { itens: preenchidos, aproximacao_regioes: aprox.regioes, aproximacao_por: aprox.por, aproximacao_intensidade: aprox.intensidade, ...(manual || frases.length ? { texto } : { regenerar_texto: true }) }); return acaoInformativo(base.id, a); }, a === "enviar" ? "Envio registrado. Lembre: o painel não envia — copie o texto e envie nos canais." : "Marcado como revisado.");
   // "Registrar envio" só registra; "Registrar e Publicar" registra e já abre a arte do informativo (e o texto) para publicar
   const enviarEGerar = async () => { if ((await acao("enviar")()) && ultimo.current) onPublicar(ultimo.current); };
   const cancelar = () => {

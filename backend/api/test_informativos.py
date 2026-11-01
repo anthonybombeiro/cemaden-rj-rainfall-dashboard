@@ -84,6 +84,15 @@ class InformativosApiTest(APITestCase):
         self.assertEqual(self.client.post(f"{U}{a['id']}/enviar/").data["estado"], "enviado")
         self.assertEqual(self.client.get(f"{U}acompanhamento/").data["vigente"]["id"], a["id"])
 
+    def test_regenerar_texto_substitui_texto_ajustado_a_mao(self):
+        i = self.cria().data
+        self.client.patch(f"{U}{i['id']}/", {"itens": itens("SUL I", prevista="moderada_forte"), "texto": "texto antigo de outro informativo"}, format="json")
+        sem = self.client.patch(f"{U}{i['id']}/", {"itens": itens("SUL I", prevista="moderada_forte")}, format="json").data
+        self.assertEqual(sem["texto"], "texto antigo de outro informativo")  # sem pedir, o texto ajustado à mão vale
+        r = self.client.patch(f"{U}{i['id']}/", {"itens": itens("SUL I", prevista="moderada_forte"), "regenerar_texto": True}, format="json").data
+        self.assertIn("moderada a forte", r["texto"])
+        self.assertFalse(r["editado_a_mao"])
+
     def test_nao_envia_vazio(self):
         i = self.client.post(U, {}, format="json").data
         self.assertEqual(self.client.post(f"{U}{i['id']}/enviar/").status_code, 400)

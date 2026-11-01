@@ -417,3 +417,6 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 ## Informativo: texto de outro informativo preso e "Reabrir para edição" (01/11/2026)
 - Causa do texto do 200 aparecendo ao abrir o 201: a arte/texto do "Registrar e Publicar" ficava no estado do painel e aparecia sob qualquer aba/informativo. Agora só aparece no compositor do próprio informativo e some ao trocar de aba ou abrir outro.
 - Nova ação `POST /api/informativos/<id>/reabrir/` (enviado → revisado) e botão "Reabrir para edição" no compositor. O informativo deixa de ser o vigente até registrar o envio de novo (que atualiza a hora do envio e o torna o vigente). Registrado no histórico. Teste em `test_informativos.py`.
+
+## Informativo: salvar depois de Regerar mantinha o texto antigo (01/11/2026)
+- Causa: ao salvar sem texto na requisição, o backend mantém o texto gravado quando ele estava "ajustado à mão"; depois de Regerar, o painel não mandava nada e o texto antigo (de outro informativo) voltava. Agora, com o texto em modo gerado, o painel manda `regenerar_texto: true` ao salvar/registrar. Teste novo em `test_informativos.py`. Só frontend.
