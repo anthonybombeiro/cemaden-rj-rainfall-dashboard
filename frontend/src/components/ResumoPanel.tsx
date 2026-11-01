@@ -4,7 +4,7 @@ import { Clipboard, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { fetchResumo24h, Resumo24h, ResumoItem, ResumoMunicipio, ResumoRegiao } from "@/lib/api";
-import SistemasAtuantesResumo from "@/components/SistemasAtuantesResumo";
+import SistemasAtuantesResumo, { SistemasAtuantesMensal } from "@/components/SistemasAtuantesResumo";
 import { BlocoAlertasFH, BlocoEventosFH } from "@/components/FloodHubPanel";
 import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
 import { FAIXAS_RAJADA } from "@/lib/ventoFaixas";
@@ -12,9 +12,10 @@ import { FAIXAS_RAJADA } from "@/lib/ventoFaixas";
 /** Aba "Resumo 24 h" (07/10/2026): acontecimentos do dia, Top 10, previsão × observado por região e
  * cidades com chuva/rajada. Dados de `GET /api/resumo/` (regras em docs/resumo-24h.md). */
 
-type Sub = "resumo" | "top10" | "previsao" | "cidades";
+type Sub = "resumo" | "mensal" | "top10" | "previsao" | "cidades";
 const SUBS: { key: Sub; label: string }[] = [
   { key: "resumo", label: "Resumo" },
+  { key: "mensal", label: "Mensal" },
   { key: "top10", label: "Top 10" },
   { key: "previsao", label: "Previsão × Observado" },
   { key: "cidades", label: "Cidades" },
@@ -331,6 +332,8 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
           </p>
         </div>
       )}
+
+      {sub === "mensal" && <SistemasAtuantesMensal dia={dia || new Date().toLocaleDateString("sv-SE")} />}
 
       {dados && sub === "top10" && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

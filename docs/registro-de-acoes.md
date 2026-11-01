@@ -408,3 +408,8 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 - **Fora desta entrega (guardado):** campo no aviso meteorológico (módulo ainda não existe), calendário na aba Verificação quando o módulo mensal existir, e conferir com o usuário se faltam sistemas no catálogo.
 - **Teste local:** banco de teste, senha de teste do usuário local redefinida; em produção só leitura da rota.
 
+
+## Sistemas atuantes: data vinculada e aba Mensal (01/11/2026)
+- O cartão "Sistemas atuantes" passou para dentro do `PrevisaoForm` (mesma rolagem) e usa a data do cadastro da previsão; não tem mais seletor de dia próprio.
+- Resumo 24 h: "Resumo" mantém só sistemas do dia + texto geral; o calendário do mês foi para a nova seção "Mensal" (`SistemasAtuantesMensal`), onde entrarão outras informações mensais.
+- Só frontend, publicado por SFTP; sem migração.

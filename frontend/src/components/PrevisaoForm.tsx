@@ -3,7 +3,8 @@
 import { AlertTriangle, Check, FileText, Save, Sparkles } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchPrevisoes, fetchPrevisoesPeriodo, fetchSolDoDia, fetchTextoGeralPrevisao, Previsao, PREVISAO_JA_EXISTE, PrevisaoInput, REDECS, salvarPrevisao, salvarTextoGeralPrevisao, SolDoDia } from "@/lib/api";
+import SistemasAtuantesForm from "@/components/SistemasAtuantesForm";
+import { fetchPrevisoes,fetchPrevisoesPeriodo, fetchSolDoDia, fetchTextoGeralPrevisao, Previsao, PREVISAO_JA_EXISTE, PrevisaoInput, REDECS, salvarPrevisao, salvarTextoGeralPrevisao, SolDoDia } from "@/lib/api";
 import { ICONES_TEMPO, iconeSrc, VENTOS } from "@/lib/meteorologia";
 import { AvisoValidacao, avisosDaPrevisao, proporTextoGeral } from "@/lib/previsaoTexto";
 
@@ -507,7 +508,8 @@ export default function PrevisaoForm({ dataInicial }: { dataInicial?: string }) 
   }
 
   return (
-    <div className="h-full w-full overflow-auto bg-gray-50 p-3 sm:p-4">
+    <div className="h-full w-full space-y-4 overflow-auto bg-gray-50 p-3 sm:p-4">
+      <SistemasAtuantesForm data={data} />
       <form onSubmit={(e) => void enviar(e)} className="mx-auto max-w-4xl space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           <div>

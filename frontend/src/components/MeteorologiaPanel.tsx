@@ -10,7 +10,6 @@ import MaresPanel from "@/components/MaresPanel";
 import MeteogramasPanel from "@/components/MeteogramasPanel";
 import PrevisaoNumericaPanel from "@/components/PrevisaoNumericaPanel";
 import PrevisaoForm from "@/components/PrevisaoForm";
-import SistemasAtuantesForm from "@/components/SistemasAtuantesForm";
 import PrevisaoInmetPanel from "@/components/PrevisaoInmetPanel";
 import SondagemPanel from "@/components/SondagemPanel";
 import { AvisoMauTempo, fetchAvisosMauTempo, fetchDataUltimaPrevisao, fetchPrevisoes, fetchTextoGeralPrevisao, Previsao, REDECS } from "@/lib/api";
@@ -496,10 +495,7 @@ export default function MeteorologiaPanel({ abrirCadastro = null }: { abrirCadas
         ) : sub === "mares" ? (
           <MaresPanel />
         ) : (
-          <>
-            <div className="px-4 pt-4"><SistemasAtuantesForm /></div>
-            <PrevisaoForm dataInicial={abrirCadastro ?? undefined} />
-          </>
+          <PrevisaoForm dataInicial={abrirCadastro ?? undefined} />
         )}
       </div>
     </div>

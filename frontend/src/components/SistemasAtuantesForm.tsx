@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 
 import { fetchSistemasDia, salvarSistemasDia, SistemaCatalogo, SistemasDia } from "@/lib/api";
 
-const hoje = () => new Date().toLocaleDateString("sv-SE");
 const br = (d: string) => d.split("-").reverse().join("/");
 
-/** Sistemas atuantes do dia: chips do catálogo fixo (a ordem do clique define o principal) + um sistema em texto livre. Cartão à parte: não mexe no cadastro da previsão. */
-export default function SistemasAtuantesForm() {
-  const [data, setData] = useState(hoje);
+/** Sistemas atuantes do dia: chips do catálogo fixo (a ordem do clique define o principal) + um sistema em texto livre.
+ * A data é a do cadastro da previsão (vem de fora): trocar o dia lá troca aqui. Não mexe na previsão em si. */
+export default function SistemasAtuantesForm({ data }: { data: string }) {
   const [catalogo, setCatalogo] = useState<SistemaCatalogo[]>([]);
   const [sel, setSel] = useState<string[]>([]);
   const [outro, setOutro] = useState("");
@@ -50,15 +49,9 @@ export default function SistemasAtuantesForm() {
   };
 
   return (
-    <div className="mx-auto mb-4 w-full max-w-3xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Sistemas atuantes do dia</h3>
-        <label className="flex items-center gap-1 text-xs text-gray-600">
-          Dia
-          <input type="date" value={data} onChange={(e) => e.target.value && setData(e.target.value)} className="rounded border border-gray-300 px-2 py-1" />
-        </label>
-      </div>
-      <p className="mb-1.5 text-xs text-gray-500">Escolha um ou mais. O primeiro marcado é o principal (cor do calendário no Resumo 24 h).</p>
+    <div className="mx-auto w-full max-w-4xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-3 text-sm font-semibold">Sistemas atuantes de {br(data)}</h3>
+      <p className="mb-1.5 text-xs text-gray-500">Escolha um ou mais. O primeiro marcado é o principal (cor do calendário mensal).</p>
       <div className="mb-3 flex flex-wrap gap-2">
         {catalogo.map((c) => {
           const pos = sel.indexOf(c.id);
@@ -80,7 +73,7 @@ export default function SistemasAtuantesForm() {
         )}
         {msg && <span className={`text-xs ${msg.ok ? "text-emerald-700" : "text-red-700"}`}>{msg.texto}</span>}
       </div>
-      {salvo && <p className="mt-2 text-xs text-gray-500">Último registro de {br(salvo.data)} por {salvo.atualizado_por || "—"}.</p>}
+      {salvo && <p className="mt-2 text-xs text-gray-500">Último registro por {salvo.atualizado_por || "—"}.</p>}
     </div>
   );
 }
