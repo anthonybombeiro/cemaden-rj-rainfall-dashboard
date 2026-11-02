@@ -420,3 +420,9 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 
 ## Informativo: salvar depois de Regerar mantinha o texto antigo (01/11/2026)
 - Causa: ao salvar sem texto na requisição, o backend mantém o texto gravado quando ele estava "ajustado à mão"; depois de Regerar, o painel não mandava nada e o texto antigo (de outro informativo) voltava. Agora, com o texto em modo gerado, o painel manda `regenerar_texto: true` ao salvar/registrar. Teste novo em `test_informativos.py`. Só frontend.
+
+## 02/11/2026 — 429 do Apache (2ª vez) e ajustes de tabela/faixa
+- Site com HTTP 429 do Apache na manhã de 02/11 (~08:30 BRT), de novo para todas as rotas; voltou sozinho. Texto do chamado HostGator reaproveitado da ocorrência de 18/10 (ver acima), entregue ao usuário.
+- Tabela Hidrológica: faltava o `<col>` da coluna "Vazão m³/s" no `colgroup` (cabeçalho com 13 colunas, grupo com 12), o que deslocava todas as larguras e espremia "Atualizado em" (data quebrando letra a letra, linhas altas). Corrigido (`HidrologicaTable.tsx`), data em uma linha, larguras salvas migradas para `larguras-hidrologica-v3`.
+- Faixa "Fontes: estações paradas" ganhou botão X (fecha até o resumo mudar ou o navegador fechar; `sessionStorage`).
+- Viewport: `minimumScale 0.5`, `maximumScale 5`, `userScalable` explícitos (pinça).

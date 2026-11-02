@@ -99,7 +99,7 @@ const W_DESKTOP: Record<string, number> = {
   bacia: 150,
   regiao: 150,
   fonte: 116,
-  atualizado: 112,
+  atualizado: 152,
 };
 const W_MOBILE: Record<string, number> = {
   estacao: 120,
@@ -112,7 +112,7 @@ const W_MOBILE: Record<string, number> = {
   bacia: 120,
   regiao: 120,
   fonte: 100,
-  atualizado: 100,
+  atualizado: 140,
 };
 
 const TH_BASE =
@@ -132,7 +132,7 @@ const HidrologicaTable = forwardRef<
   // operacional imediata numa tabela de monitoramento de cheias.
   const [sortKey, setSortKey] = useState<string>("nivel_atual_m");
   const [sortAsc, setSortAsc] = useState(false);
-  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-hidrologica-v2", W_DESKTOP, W_MOBILE);
+  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-hidrologica-v3", W_DESKTOP, W_MOBILE);
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
 
   const sorted = useMemo(() => {
@@ -221,7 +221,7 @@ const HidrologicaTable = forwardRef<
     <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
   );
   const larguraTotal =
-    w.estacao + w.redec + w.municipio + w.rio + w.nivel + w.situacao + JANELAS_CHUVA.length * w.janela + w.bacia + w.regiao + w.fonte + w.atualizado + W_HISTORICO;
+    w.estacao + w.redec + w.municipio + w.rio + w.nivel + w.situacao + w.situacao + JANELAS_CHUVA.length * w.janela + w.bacia + w.regiao + w.fonte + w.atualizado + W_HISTORICO;
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
@@ -235,6 +235,7 @@ const HidrologicaTable = forwardRef<
           <col style={{ width: w.municipio }} />
           <col style={{ width: w.rio }} />
           <col style={{ width: w.nivel }} />
+          <col style={{ width: w.situacao }} />
           <col style={{ width: w.situacao }} />
           {JANELAS_CHUVA.map((j) => (
             <col key={j.key} style={{ width: w.janela }} />
@@ -402,7 +403,7 @@ const HidrologicaTable = forwardRef<
                   <CampoClicavel id={s.id} valor={SOURCE_LABELS[s.source] ?? s.source} onOpenStation={onOpenStation} />
                 </td>
                 <td
-                  className={TD_TEXTO}
+                  className={`${TD_TEXTO} whitespace-nowrap`}
                   style={{ ...wStyle("atualizado"), backgroundColor: bgFundo, color: faixa1h ? faixa1h.text : atraso.color }}
                   title={atraso.label}
                 >

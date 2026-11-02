@@ -32,6 +32,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#1f3864",
+  // permite o gesto de pinça (aproximar e afastar) nas tabelas do celular/tablet
+  minimumScale: 0.5,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

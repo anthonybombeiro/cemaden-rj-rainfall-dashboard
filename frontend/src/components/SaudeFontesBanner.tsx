@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { fetchFontesSaude, FontesSaude } from "@/lib/api";
@@ -19,6 +20,10 @@ function idade(min: number | null): string {
 export default function SaudeFontesBanner() {
   const [saude, setSaude] = useState<FontesSaude | null>(null);
   const [aberto, setAberto] = useState(false);
+  // Fechar a faixa vale até o resumo mudar (mais estações paradas ou outra fonte atrasada) ou até fechar o navegador.
+  const [fechadaChave, setFechadaChave] = useState<string | null>(() => {
+    try { return sessionStorage.getItem("saude-faixa-fechada"); } catch { return null; }
+  });
 
   useEffect(() => {
     let cancelado = false;
@@ -38,15 +43,23 @@ export default function SaudeFontesBanner() {
 
   if (!saude || (saude.resumo.fontes_atrasadas === 0 && saude.resumo.estacoes_paradas === 0)) return null;
 
+  const chave = `${saude.resumo.fontes_atrasadas}-${saude.resumo.estacoes_paradas}`;
+  if (fechadaChave === chave) return null;
+  const fechar = () => {
+    setFechadaChave(chave);
+    try { sessionStorage.setItem("saude-faixa-fechada", chave); } catch { /* sem armazenamento: fecha só nesta tela */ }
+  };
+
   const atrasadas = saude.fontes.filter((f) => f.atrasada);
   const comParadas = saude.fontes.filter((f) => f.estacoes_paradas > 0).sort((a, b) => Number(b.sensivel) - Number(a.sensivel));
 
   return (
     <div className="border-b border-orange-300 bg-orange-100 text-orange-950">
+      <div className="flex items-center">
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
-        className="flex w-full items-center gap-x-3 px-3 py-0.5 text-left text-[11px] font-semibold sm:px-4 sm:py-1 sm:text-sm"
+        className="flex min-w-0 flex-1 items-center gap-x-3 px-3 py-0.5 text-left text-[11px] font-semibold sm:px-4 sm:py-1 sm:text-sm"
         aria-expanded={aberto}
       >
         {/* Uma linha só (truncada): no celular a faixa não pode crescer e empurrar a tela. */}
@@ -63,6 +76,8 @@ export default function SaudeFontesBanner() {
         </span>
         <span className="shrink-0 font-normal underline">{aberto ? "ocultar" : "detalhes"}</span>
       </button>
+      <button type="button" onClick={fechar} aria-label="Fechar aviso de fontes" title="Fechar (volta se o resumo mudar)" className="shrink-0 px-2 py-1 text-orange-900 hover:bg-orange-200"><X size={14} /></button>
+      </div>
       {aberto && (
         <div className="max-h-64 space-y-2 overflow-auto border-t border-orange-200 px-4 py-2 text-xs">
           {atrasadas.map((f) => (
