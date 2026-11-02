@@ -426,3 +426,8 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 - Tabela Hidrológica: faltava o `<col>` da coluna "Vazão m³/s" no `colgroup` (cabeçalho com 13 colunas, grupo com 12), o que deslocava todas as larguras e espremia "Atualizado em" (data quebrando letra a letra, linhas altas). Corrigido (`HidrologicaTable.tsx`), data em uma linha, larguras salvas migradas para `larguras-hidrologica-v3`.
 - Faixa "Fontes: estações paradas" ganhou botão X (fecha até o resumo mudar ou o navegador fechar; `sessionStorage`).
 - Viewport: `minimumScale 0.5`, `maximumScale 5`, `userScalable` explícitos (pinça).
+
+## 02/11/2026 — Wunderground pausado (chave limitada pela IBM)
+- Todas as estações do Wunderground paradas desde 29/10. Teste direto na API (2 estações) devolveu `401 "API key is throttled"`. O conector fazia ~12 mil chamadas/dia (127 estações × cron de 15 min, em rajada); limite documentado das chaves PWS gratuitas: ~1.500/dia e 30/min (não confirmado para a chave atual).
+- Pausa aplicada: `WUNDERGROUND_PAUSADO` (padrão ligado, `config/settings.py`) faz `fetch_readings` retornar vazio sem chamar a API. Retomar: `WUNDERGROUND_PAUSADO=0` no ambiente do servidor ou trocar o padrão. O cron continua rodando (só não chama a IBM).
+- Opções em estudo pelo usuário: aguardar o desbloqueio; reduzir chamadas (≈12 estações por rodada, rodízio) ; chave nova/paga no Weather Company.

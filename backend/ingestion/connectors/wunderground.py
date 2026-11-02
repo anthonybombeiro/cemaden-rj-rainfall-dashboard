@@ -229,6 +229,9 @@ class WundergroundConnector(BaseConnector):
         if not api_key:
             logger.info("WUNDERGROUND_API_KEY não configurado — pulando leituras do Wunderground.")
             return []
+        if getattr(settings, "WUNDERGROUND_PAUSADO", False):
+            logger.info("Wunderground pausado (chave limitada pela IBM) — sem chamadas à API.")
+            return []
 
         readings: list[dict] = []
         self._obs: dict[str, dict] = {}
