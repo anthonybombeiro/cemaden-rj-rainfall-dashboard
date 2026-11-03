@@ -464,3 +464,7 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 ## 03/11/2026 - Cadastro da previsao: uma area de rolagem so
 
 O cartao de Sistemas atuantes, o formulario da previsao e o Texto geral agora ficam dentro de um unico contêiner (largura maxima igual, rolagem unica, folga no fim para alcançar a caixa do texto geral em qualquer tela). Arquivos: `PrevisaoForm.tsx`, `SistemasAtuantesForm.tsx`. Front publicado por SFTP (108 arquivos, 0 falhas), sem a arte e sem o Suporte. Se a tela antiga persistir, é o service worker: Ctrl+F5 / limpar dados do site.
+
+## 03/11/2026 - Botao do Sistemas atuantes no padrao da previsao
+
+`SistemasAtuantesForm.tsx`: botao "Salvar sistema" com icone, cor sedec-600, a direita, igual ao "Salvar previsao". Front publicado por SFTP sem a arte/Suporte.

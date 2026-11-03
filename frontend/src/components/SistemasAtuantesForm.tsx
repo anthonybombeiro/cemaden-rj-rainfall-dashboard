@@ -1,5 +1,6 @@
 "use client";
 
+import { Save } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { fetchSistemasDia, salvarSistemasDia, SistemaCatalogo, SistemasDia } from "@/lib/api";
@@ -65,13 +66,16 @@ export default function SistemasAtuantesForm({ data }: { data: string }) {
       </div>
       <input type="text" value={outro} maxLength={80} onChange={(e) => setOutro(e.target.value)} placeholder="Outro sistema, em texto livre" className="mb-3 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={salvar} disabled={ocupado} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{ocupado ? "Salvando…" : "Salvar"}</button>
         {anterior && (anterior.sistemas.length > 0 || anterior.outro) && (
           <button type="button" onClick={() => { setSel(anterior.sistemas); setOutro(anterior.outro); }} className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50" title="Copia para o formulário; falta salvar">
             Repetir de {br(anterior.data)}: {[...anterior.sistemas.map(rotulo), anterior.outro].filter(Boolean).join(" + ")}
           </button>
         )}
         {msg && <span className={`text-xs ${msg.ok ? "text-emerald-700" : "text-red-700"}`}>{msg.texto}</span>}
+        <button type="button" onClick={salvar} disabled={ocupado} className="ml-auto flex items-center gap-1.5 rounded-md bg-sedec-600 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+          <Save size={15} />
+          {ocupado ? "Salvando…" : "Salvar sistema"}
+        </button>
       </div>
       {salvo && <p className="mt-2 text-xs text-gray-500">Último registro por {salvo.atualizado_por || "—"}.</p>}
     </div>
