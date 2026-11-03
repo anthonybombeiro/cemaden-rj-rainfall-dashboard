@@ -760,7 +760,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   cemaden_rj: "CEMADEN-RJ",
   cemaden_mctic: "CEMADEN/MCTIC",
   niteroi: "DC Niterói",
-  cemaden_rj_sirenes: "CEMADEN-RJ (sirenes)",
+  cemaden_rj_sirenes: "CEMADEN-RJ",
   inea: "INEA",
   ecowitt_paracambi: "DC Paracambi",
   macae_ufrj: "DC Macaé",
