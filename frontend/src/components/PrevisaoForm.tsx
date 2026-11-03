@@ -303,7 +303,7 @@ function TextoGeralCard({ data, doDia, onSalvo, caixaRef }: { data: string; doDi
   const faltam = REDECS.filter((r) => !doDia.some((p) => p.regiao === r));
   const alterado = texto.trim() !== salvo.trim();
   return (
-    <section id="texto-geral-card" className="mx-auto mt-4 max-w-4xl space-y-3 rounded-lg border-2 border-blue-300 bg-blue-50 p-4 shadow-sm" aria-label="Texto geral do estado">
+    <section id="texto-geral-card" className="w-full space-y-3 rounded-lg border-2 border-blue-300 bg-blue-50 p-4 shadow-sm" aria-label="Texto geral do estado">
       <div className="flex flex-wrap items-center gap-2">
         <FileText size={18} className="text-blue-800" />
         <h2 className="text-sm font-bold uppercase tracking-wide text-blue-900">Texto geral do estado</h2>
@@ -508,9 +508,10 @@ export default function PrevisaoForm({ dataInicial }: { dataInicial?: string }) 
   }
 
   return (
-    <div className="h-full w-full space-y-4 overflow-auto bg-gray-50 p-3 sm:p-4">
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden bg-gray-50 p-3 pb-20 sm:p-4 sm:pb-24">
+     <div className="mx-auto w-full max-w-4xl space-y-4">
       <SistemasAtuantesForm data={data} />
-      <form onSubmit={(e) => void enviar(e)} className="mx-auto max-w-4xl space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <form onSubmit={(e) => void enviar(e)} className="w-full space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className={labelCls} htmlFor="prev-data">
@@ -711,6 +712,7 @@ export default function PrevisaoForm({ dataInicial }: { dataInicial?: string }) 
           onConfirm={() => void gravar(pendente, true)}
         />
       )}
+     </div>
     </div>
   );
 }

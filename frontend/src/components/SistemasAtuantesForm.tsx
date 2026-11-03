@@ -49,7 +49,7 @@ export default function SistemasAtuantesForm({ data }: { data: string }) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <h3 className="mb-3 text-sm font-semibold">Sistemas atuantes de {br(data)}</h3>
       <p className="mb-1.5 text-xs text-gray-500">Escolha um ou mais. O primeiro marcado é o principal (cor do calendário mensal).</p>
       <div className="mb-3 flex flex-wrap gap-2">

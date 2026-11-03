@@ -460,3 +460,7 @@ Pedido: automatizar o que não depende de ação do técnico no NM, fazer o info
 - **Frontend:** `lib/producaoMet.ts`; `components/producao/*` (Plantão, Acumulados, Aviso, Livro, FaixaLimiares, ChuvaCalendario, MetProducao; arte e Suporte atrás de `NEXT_PUBLIC_MET_EXPERIMENTAL`); `ProducaoHub` passou a abrir "Meteorologia" com sub-abas; faixa de limiares e calendário no Resumo 24 h.
 - **Cuidados:** Weather Underground fora da arte pública; destinatários do e-mail do L.O. em Admin (não no código); artes só locais até aprovação do modelo (enviadas ao usuário); nada gravado em produção durante os testes (banco SQLite de teste).
 - Detalhes e decisões em aberto: `docs/meteorologia-producao.md`; proposta do Suporte: `docs/suporte-meteorologia-proposta.md`.
+
+## 03/11/2026 - Cadastro da previsao: uma area de rolagem so
+
+O cartao de Sistemas atuantes, o formulario da previsao e o Texto geral agora ficam dentro de um unico contêiner (largura maxima igual, rolagem unica, folga no fim para alcançar a caixa do texto geral em qualquer tela). Arquivos: `PrevisaoForm.tsx`, `SistemasAtuantesForm.tsx`. Front publicado por SFTP (108 arquivos, 0 falhas), sem a arte e sem o Suporte. Se a tela antiga persistir, é o service worker: Ctrl+F5 / limpar dados do site.
