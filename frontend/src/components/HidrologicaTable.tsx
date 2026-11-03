@@ -7,6 +7,7 @@ import ColumnResizer from "@/components/ColumnResizer";
 import { CampoClicavel, HistoricoIconLink, W_HISTORICO } from "@/components/EstacaoCellLinks";
 import { TableExportHandle } from "@/components/tableExportHandle";
 import {
+  COTA_DEFINICOES,
   COTA_ESTILOS,
   CotaClasse,
   getChuva1hFaixa,
@@ -443,7 +444,7 @@ const HidrologicaTable = forwardRef<
       <div className="sticky left-0 flex flex-wrap items-center gap-2 border-t border-gray-100 bg-white px-3 py-2 text-[10px] text-gray-500 sm:text-[11px]">
         <span>Cor da célula Nível Atual por cota do rio:</span>
         {(["normal", "atencao", "alerta", "transbordo", "extrema", "sem_cota"] as CotaClasse[]).map((k) => (
-          <span key={k} className="flex items-center gap-1">
+          <span key={k} className="flex items-center gap-1" title={COTA_DEFINICOES[k]}>
             <span
               className="inline-block h-3 w-3 rounded-sm border border-black/10"
               style={{ backgroundColor: COTA_ESTILOS[k].bg }}

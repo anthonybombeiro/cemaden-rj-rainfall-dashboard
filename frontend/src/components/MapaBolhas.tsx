@@ -7,6 +7,7 @@ import { Pane, GeoJSON, CircleMarker, Marker, Popup, useMapEvents } from "react-
 
 import {
   getChuva1hFaixa,
+  COTA_DEFINICOES,
   COTA_ESTILOS,
   CotaClasse,
   getChuva24hNivel,
@@ -617,13 +618,15 @@ export function ConteudoLegendaModo({ modo }: { modo: Exclude<ModoMapa, "redes">
       <div className="space-y-1.5">
         <p className="mb-1 font-semibold text-gray-700">Nível dos rios (m)</p>
         {(["normal", "atencao", "alerta", "transbordo", "extrema", "sem_cota"] as const).map((k) => (
-          <div key={k} className="flex items-center gap-2">
+          <div key={k} className="flex items-center gap-2" title={COTA_DEFINICOES[k]}>
             {bolinha(COTA_ESTILOS[k].bg)}
             <span className="text-gray-700">{COTA_ESTILOS[k].label}</span>
           </div>
         ))}
         <div className="flex items-center gap-2">{bolinha(FAIXA_ATRASADA.bg)}<span className="text-gray-700">Atrasada (&gt; {HORAS_ATRASO_NIVEL} h sem atualizar)</span></div>
-        <p className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400">Valor = nível atual em metros. Cotas da tabela Hidrológicos (editáveis no Admin).</p>
+        <p className="border-t border-gray-100 pt-1.5 text-[11px] text-gray-400">Valor = nível atual em metros. Cotas da tabela Hidrológicos (editáveis no Admin). Passe o mouse numa cota para ver o que ela significa.</p>
+        <div className="flex items-center gap-2"><span className="inline-block h-0 w-4 border-t-2 border-blue-600" /><span className="text-gray-700">Rios da bacia do Muriaé (SGB)</span></div>
+        <div className="flex items-center gap-2"><span className="inline-block h-3 w-4 rounded-sm border border-blue-400 bg-blue-100" /><span className="text-gray-700">Contorno da bacia do Muriaé (SGB)</span></div>
       </div>
     );
   }

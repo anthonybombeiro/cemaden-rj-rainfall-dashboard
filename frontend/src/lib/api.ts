@@ -497,6 +497,16 @@ export const COTA_ESTILOS: Record<CotaClasse, { bg: string; text: string; label:
   sem_cota: { bg: "#E5E7EB", text: "#6B7280", label: "Sem cota definida" },
 };
 
+/** O que cada cota significa (definições do SACE/SGB-CPRM, sace.sgb.gov.br) — texto dos balões e das legendas. */
+export const COTA_DEFINICOES: Record<CotaClasse, string> = {
+  normal: "Abaixo da cota de atenção.",
+  atencao: "Cota de Atenção: possibilidade moderada de ocorrência de inundação.",
+  alerta: "Cota de Alerta: possibilidade elevada de ocorrência de inundação.",
+  transbordo: "Cota de Transbordo (Inundação): cota em que o primeiro dano é observado no município.",
+  extrema: "Cota Extrema (Inundação Severa): cota em que a inundação provoca danos severos ao município (20% acima do transbordo, quando a fonte não informa).",
+  sem_cota: "Sem cotas de referência cadastradas para esta estação.",
+};
+
 export async function fetchHidrologicas(): Promise<HidrologicaStation[]> {
   const r = await getJson<HidrologicaStation[]>("/stations/hidrologicas/");
   return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
@@ -860,6 +870,8 @@ export const REDECS = [
   "NOROESTE",
 ] as const;
 
+const MUNICIPIOS_MG_NOROESTE = ["Patrocínio do Muriaé", "Carangola"];
+
 /** Município → REDEC, montado a partir do endpoint de risco geológico por
  * município (o único que sempre traz os 92 municípios — ver AlertsPanel).
  * Usado pra agregar/filtrar as tabelas de Precipitação e Dados
@@ -868,6 +880,8 @@ export async function fetchMunicipioRedecMap(): Promise<Record<string, string>> 
   const data = await fetchRiskAlerts("geologico", "municipio");
   const mapa: Record<string, string> = {};
   for (const a of data) mapa[normalizeMunicipioName(a.municipio)] = a.redec;
+  // Estações da bacia do Rio Muriaé em Minas Gerais (SGB/CPRM, incluídas a pedido): ficam na REDEC Noroeste.
+  for (const m of MUNICIPIOS_MG_NOROESTE) mapa[normalizeMunicipioName(m)] = "NOROESTE";
   return mapa;
 }
 

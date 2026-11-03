@@ -55,6 +55,18 @@ PARAMETRO_UF = "Unidade Federativa"
 # Quem opera a estação: estas redes já entram no painel pelas suas próprias fontes (CEMADEN, INEA e a empresa que o mantém, INMET);
 # a ANA só as republica. Ficam de fora por padrão (ANA_HIDRO_EXCLUIR_OPERADORAS troca a lista; vazio = entram todas).
 OPERADORAS_JA_NO_PAINEL = "CEMADEN,INEA-RJ,INFOPER,INMET"
+# Estações da bacia do Rio Muriaé monitoradas pelo SGB/CPRM (SACE) em Minas Gerais — fora do inventário "RJ", incluídas à mão (03/11/2026):
+# Patrocínio do Muriaé e Carangola. Aparecem na REDEC Noroeste (ver `fetchMunicipioRedecMap`).
+EXTRAS_PADRAO = "58920000,58930000"
+# Cotas de referência do SACE (SGB/CPRM, https://sace.sgb.gov.br, conferidas em 03/11/2026), em cm: código ANA -> (atenção, alerta, inundação, rio).
+# Só cria a cota quando a estação ainda não tem: o que já foi editado no Admin não é sobrescrito.
+COTAS_SACE = {
+    "58920000": (400.0, 450.0, 500.0, "Rio Muriaé"),  # Patrocínio do Muriaé (MG)
+    "58930000": (200.0, 300.0, 390.0, "Rio Carangola"),  # Carangola (MG)
+    "58940000": (290.0, 340.0, 400.0, "Rio Muriaé"),  # Itaperuna
+    "58960000": (300.0, 500.0, 750.0, "Rio Muriaé"),  # Cardoso Moreira
+    "58974000": (800.0, 900.0, 1040.0, "Rio Paraíba do Sul"),  # Campos dos Goytacazes
+}
 
 
 class AnaErro(RuntimeError):
@@ -286,7 +298,7 @@ class AnaHidroWebConnector(BaseConnector):
         self.excluir = {c.strip() for c in os.environ.get("ANA_HIDRO_EXCLUIR", "").split(",") if c.strip()}
         operadoras = os.environ.get("ANA_HIDRO_EXCLUIR_OPERADORAS", OPERADORAS_JA_NO_PAINEL)
         self.excluir_operadoras = {o.strip().upper() for o in operadoras.split(",") if o.strip()}
-        self.extras = [c.strip() for c in os.environ.get("ANA_HIDRO_INCLUIR", "").split(",") if c.strip()]
+        self.extras = [c.strip() for c in os.environ.get("ANA_HIDRO_INCLUIR", EXTRAS_PADRAO).split(",") if c.strip()]
 
     @property
     def cliente(self) -> ClienteAna:
@@ -298,9 +310,11 @@ class AnaHidroWebConnector(BaseConnector):
 
     def _inventario(self) -> list[dict]:
         cache = _ler_json("inventario.json")
-        if cache.get("uf") == self.uf and time.time() - float(cache.get("em", 0)) < INVENTARIO_VALIDADE_S:
+        itens_cache = cache.get("itens") or []
+        extras_no_cache = all(any(str(i.get("codigoestacao")) == c for i in itens_cache) for c in self.extras)
+        if cache.get("uf") == self.uf and extras_no_cache and time.time() - float(cache.get("em", 0)) < INVENTARIO_VALIDADE_S:
             return cache["itens"]
-        itens = self.cliente.inventario(self.uf)
+        itens = list(self.cliente.inventario(self.uf))
         for codigo in self.extras:  # estações de outros estados/UF a incluir à mão
             if not any(str(i.get("codigoestacao")) == codigo for i in itens):
                 itens += self.cliente.get("/HidroInventarioEstacoes/v1", {"Código da Estação": codigo})
@@ -312,6 +326,22 @@ class AnaHidroWebConnector(BaseConnector):
         estacoes = [e for e in estacoes if str(e["raw_metadata"].get("operadora") or "").upper() not in self.excluir_operadoras]
         estacoes = [e for e in consolidar_pares(estacoes) if e["external_id"] not in self.excluir]
         return sorted(estacoes, key=lambda e: e["external_id"])
+
+    def pos_ingestao(self, station_objs: dict, station_dicts: list[dict], leituras_criadas: list) -> None:
+        from core.models import CotaHidrologica
+
+        for codigo, (atencao, alerta, inundacao, rio) in COTAS_SACE.items():
+            estacao = station_objs.get(codigo)
+            if estacao is None:
+                continue
+            CotaHidrologica.objects.get_or_create(
+                station=estacao,
+                defaults={
+                    "atencao_cm": atencao, "alerta_cm": alerta, "inundacao_cm": inundacao, "rio": rio,
+                    "responsavel": "SGB-CPRM", "codigo_referencia": codigo,
+                    "observacao": "Cotas de referência do SACE/SGB-CPRM (conferidas em 03/11/2026).",
+                },
+            )
 
     def fetch_readings(self, stations: list[dict]) -> list[dict]:
         """Lê no máximo `max_por_execucao` estações por rodada, em rodízio (cursor em disco): com ~100 estações o ciclo completo

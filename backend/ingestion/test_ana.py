@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from django.test import TestCase
 
-from core.models import Reading, Station
+from core.models import CotaHidrologica, Reading, Station
 from ingestion.connectors import ana_hidroweb as ana
 
 INVENTARIO = [
@@ -29,6 +29,12 @@ INVENTARIO = [
 SERIE = [
     {"Chuva_Adotada": "0.00", "Chuva_Adotada_Status": "0", "Cota_Adotada": "781.00", "Cota_Adotada_Status": "0", "Data_Atualizacao": "2024-01-02 00:28:03.307", "Data_Hora_Medicao": "2024-01-01 23:00:00.0", "Vazao_Adotada": "13225.42", "Vazao_Adotada_Status": "0", "codigoestacao": "58880001"},
     {"Chuva_Adotada": "2.40", "Chuva_Adotada_Status": "1", "Cota_Adotada": "790.00", "Cota_Adotada_Status": "2", "Data_Atualizacao": "2024-01-02 00:28:03.317", "Data_Hora_Medicao": "2024-01-01 23:15:00.0", "Vazao_Adotada": None, "Vazao_Adotada_Status": "0", "codigoestacao": "58880001"},
+]
+
+
+EXTRAS_MG = [
+    {"codigoestacao": "58920000", "Estacao_Nome": "PATROCINIO DO MURIAE", "Latitude": "-21.15056", "Longitude": "-42.21444", "Altitude": "180", "Tipo_Estacao": "Fluviometrica", "Operando": "1", "Tipo_Estacao_Telemetrica": "1", "Municipio_Nome": "PATROCINIO DO MURIAE", "Bacia_Nome": "RIO PARAIBA DO SUL", "Operadora_Sigla": "SGB-CPRM", "Responsavel_Sigla": "ANA", "UF_Estacao": "MG", "Data_Periodo_Telemetrica_Inicio": "2012-01-01 00:00:00.0", "Data_Periodo_Telemetrica_Fim": None},
+    {"codigoestacao": "58930000", "Estacao_Nome": "CARANGOLA", "Latitude": "-20.73833", "Longitude": "-42.02389", "Altitude": "300", "Tipo_Estacao": "Fluviometrica", "Operando": "1", "Tipo_Estacao_Telemetrica": "1", "Municipio_Nome": "CARANGOLA", "Bacia_Nome": "RIO PARAIBA DO SUL", "Operadora_Sigla": "SGB-CPRM", "Responsavel_Sigla": "ANA", "UF_Estacao": "MG", "Data_Periodo_Telemetrica_Inicio": "2012-01-01 00:00:00.0", "Data_Periodo_Telemetrica_Fim": None},
 ]
 
 
@@ -58,6 +64,8 @@ class SessaoFalsa:
             self.token_recusado_uma_vez = False
             return Resposta(401, {})
         if url.endswith("/HidroInventarioEstacoes/v1"):
+            if "Código da Estação" in params:  # estações de fora do RJ pedidas pelo código
+                return Resposta(200, {"status": "OK", "code": 200, "items": [i for i in EXTRAS_MG if i["codigoestacao"] == params["Código da Estação"]]})
             assert params["Unidade Federativa"] == "RJ"
             return Resposta(200, {"status": "OK", "code": 200, "items": INVENTARIO})
         if url.endswith("/HidroinfoanaSerieTelemetricaAdotada/v1"):
@@ -77,6 +85,9 @@ class AnaTest(TestCase):
         s = mock.patch.object(ana.time, "sleep", lambda *_: None)
         s.start()
         self.addCleanup(s.stop)
+        e = mock.patch.dict("os.environ", {"ANA_HIDRO_INCLUIR": ""})  # sem as estações extras de MG, salvo nos testes que pedem
+        e.start()
+        self.addCleanup(e.stop)
 
     def test_inventario_vira_estacoes_e_descarta_o_que_nao_serve(self):
         con = ana.AnaHidroWebConnector(ana.ClienteAna("id", "senha", SessaoFalsa()))
@@ -140,3 +151,16 @@ class AnaTest(TestCase):
         res3 = con3.run()  # volta à primeira: mesmas leituras → duplicadas ignoradas
         self.assertEqual(res3.readings_created, 0)
         self.assertEqual(sessao.logins, 1)
+
+    def test_estacoes_do_muriae_em_mg_entram_e_ganham_cota_do_sace_sem_sobrescrever(self):
+        with mock.patch.dict("os.environ", {"ANA_HIDRO_INCLUIR": ana.EXTRAS_PADRAO}):
+            con = ana.AnaHidroWebConnector(ana.ClienteAna("id", "senha", SessaoFalsa()))
+            con.max_por_execucao = 1
+            con.run()
+            cota = CotaHidrologica.objects.get(station__external_id="58920000")
+            self.assertEqual((cota.atencao_cm, cota.alerta_cm, cota.inundacao_cm, cota.responsavel), (400.0, 450.0, 500.0, "SGB-CPRM"))
+            self.assertEqual(CotaHidrologica.objects.get(station__external_id="58930000").inundacao_cm, 390.0)
+            cota.inundacao_cm = 999.0  # ajuste manual no Admin
+            cota.save()
+            ana.AnaHidroWebConnector(ana.ClienteAna("id", "senha", SessaoFalsa())).run()
+            self.assertEqual(CotaHidrologica.objects.get(station__external_id="58920000").inundacao_cm, 999.0)

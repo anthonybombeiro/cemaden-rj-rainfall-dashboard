@@ -228,6 +228,8 @@ interface ConfigCamada {
   mostrarEstacoes: boolean;
   /** Desmarcado: esconde só as estações atrasadas (mesma regra de atraso das tabelas), em qualquer modo do mapa. */
   mostrarAtrasadas: boolean;
+  /** Modo "Rios e Cotas": contorno da bacia e rios do Muriaé (dados do SGB/CPRM, SACE). */
+  mostrarBacias: boolean;
   /** Opacidade da imagem de satélite/radar (0,1–1), escolhida pelo usuário e lembrada no navegador. */
   opacidade: number;
 }
@@ -912,6 +914,15 @@ function SeletorCamadaMeteorologica({
               />
               <span className="font-medium text-gray-600">Mostrar estações atrasadas</span>
             </label>
+            <label className="mt-1.5 flex items-center gap-2 cursor-pointer" title="Modo Rios e Cotas: contorno da bacia do Rio Muriaé e seus rios (SGB/CPRM)">
+              <input
+                type="checkbox"
+                checked={config.mostrarBacias}
+                onChange={(e) => onConfigChange({ ...config, mostrarBacias: e.target.checked })}
+                className="w-3 h-3"
+              />
+              <span className="font-medium text-gray-600">Mostrar bacia e rios (Muriaé)</span>
+            </label>
           </div>
         </div>
       )}
@@ -979,6 +990,7 @@ export default function MapView({
     animacao: true, // 25/10/2026: o histórico sempre é carregado; abre na última imagem e só anima ao apertar o play
     mostrarEstacoes: true,
     mostrarAtrasadas: true,
+    mostrarBacias: true,
     opacidade: 0.7,
   });
   // lembra a opacidade escolhida (por navegador); falha silenciosa se o armazenamento estiver bloqueado
@@ -1008,6 +1020,8 @@ export default function MapView({
     irParaFrame,
   } = useCamadaMeteorologica(config, animacaoPlaying);
 
+  const [baciaMuriae, setBaciaMuriae] = useState<GeoJsonFeatureCollection | null>(null);
+  const [riosMuriae, setRiosMuriae] = useState<GeoJsonFeatureCollection | null>(null);
   const [redecGeo, setRedecGeo] = useState<GeoJsonFeatureCollection | null>(null);
   const [municipioGeo, setMunicipioGeo] = useState<GeoJsonFeatureCollection | null>(null);
 
@@ -1029,6 +1043,17 @@ export default function MapView({
       cancelado = true;
     };
   }, []);
+
+  // Contorno da bacia e rios (SGB/CPRM): só baixa quando o modo "Rios e Cotas" é aberto pela primeira vez.
+  useEffect(() => {
+    if (modo !== "hidrologia" || baciaMuriae) return;
+    let cancelado = false;
+    fetch("/geo/muriae_bacia.geojson").then((r) => r.json()).then((d: GeoJsonFeatureCollection) => !cancelado && setBaciaMuriae(d)).catch(() => {});
+    fetch("/geo/muriae_hidrografia.geojson").then((r) => r.json()).then((d: GeoJsonFeatureCollection) => !cancelado && setRiosMuriae(d)).catch(() => {});
+    return () => {
+      cancelado = true;
+    };
+  }, [modo, baciaMuriae]);
 
   const sourcesPresentes = useMemo(
     () => Array.from(new Set(stations.map((s) => s.source))).sort(),
@@ -1066,6 +1091,14 @@ export default function MapView({
       {redecGeo && (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         <GeoJSON key="redecs" data={redecGeo as any} style={() => REDEC_LINE} />
+      )}
+      {modo === "hidrologia" && config.mostrarBacias && baciaMuriae && (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        <GeoJSON key="bacia-muriae" data={baciaMuriae as any} style={() => ({ color: "#3388ff", weight: 2, fillColor: "#3388ff", fillOpacity: 0.08, interactive: false })} />
+      )}
+      {modo === "hidrologia" && config.mostrarBacias && riosMuriae && (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        <GeoJSON key="rios-muriae" data={riosMuriae as any} style={() => ({ color: "#1d4ed8", weight: 1, fillOpacity: 0, interactive: false })} />
       )}
       <MapaFocusController
         redecGeo={redecGeo}
