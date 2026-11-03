@@ -120,7 +120,7 @@ type Config = {
 
 const CONFIG: Record<RedeSource, Config> = {
   cemaden_rj_sirenes: {
-    nome: "CEMADEN-RJ (pluviômetros das sirenes)",
+    nome: "CEMADEN-RJ",
     municipio: true,
     redec: true,
     chuva: [
@@ -143,7 +143,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "CEMADEN-RJ (85 pluviômetros instalados nas sirenes): 15 min, 1 h, 4 h, 12 h, 24 h, 48 h, 72 h, 96 h e 1 mês são os acumulados OFICIAIS da página pública do portal de sirenes (atualizada a cada ~3 min); “Calc” (cinza, itálico) é o nosso cálculo (soma dos baldes gravados), para conferir. Esta rede não mede temperatura, vento nem umidade.",
   },
   inea: {
-    nome: "INEA (Alerta de Cheias)",
+    nome: "INEA",
     municipio: true,
     redec: true,
     chuva: [
@@ -167,7 +167,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "INEA (Alerta de Cheias): 1h, 4h, 24h, 96h e 30d são os acumulados OFICIAIS do XML da rede; “Calc” (cinza, itálico) é o nosso cálculo, para conferir — em 06/10/2026 o nosso 96 h ficava em média 17,8 mm abaixo do oficial (a fonte inclui dados que chegam atrasados e que não vemos), por isso a tabela de Precipitação passou a exibir o valor oficial. Nível (m) existe só nas estações Plu/Flu.",
   },
   ecowitt_paracambi: {
-    nome: "Paracambi (Defesa Civil, Ecowitt)",
+    nome: "DC Paracambi",
     municipio: false,
     redec: false,
     chuva: [
@@ -204,7 +204,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "INMET (estações automáticas): publicam 1 observação por hora; a chuva é o total de cada hora e os acumulados são a soma das horas que gravamos (a fonte não entrega acumulados prontos). Tmáx/Tmín são extremos da hora, não do dia. Estações sem sensor mostram “—”.",
   },
   ana: {
-    nome: "ANA (Hidrotelemetria)",
+    nome: "ANA",
     municipio: true,
     redec: true,
     chuva: [
@@ -225,7 +225,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "ANA (Hidrotelemetria, API HidroWebService): estações pluviométricas e fluviométricas telemétricas do RJ operadas pela ANA/SGB-CPRM e por empresas (Light, Quanta, Axia…). Ficam de fora as redes que o painel já recebe pela fonte própria (CEMADEN, INEA/Infoper e INMET). Chuva de cada intervalo (15–60 min) somada em janelas; Nível = cota em metros; Vazão em m³/s. As leituras chegam em rodízio (cada estação ~1 vez por hora). Estação sem leitura recente = sem transmissão para a ANA.",
   },
   redemet: {
-    nome: "REDEMET (aeroportos)",
+    nome: "REDEMET",
     municipio: true,
     redec: true,
     chuva: [],
@@ -239,7 +239,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "REDEMET (METAR/SPECI dos aeroportos do RJ): observação horária de temperatura, ponto de orvalho, vento, direção e pressão (QNH). O METAR não informa chuva acumulada, então esta tabela não tem colunas de chuva nem cor de linha. Código = ICAO do aeroporto.",
   },
   niteroi: {
-    nome: "Niterói (Defesa Civil)",
+    nome: "DC Niterói",
     municipio: false,
     redec: false,
     chuva: [
@@ -273,7 +273,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "Niterói (Defesa Civil/Alerta Nit, Tecal): as colunas de chuva são os acumulados OFICIAIS da fonte; “Calc” (cinza, itálico) é o nosso cálculo, para conferir (gravamos o balde de 5 min a cada 5 min). “Fonte” mostra o indicador de atraso da própria rede.",
   },
   alerta_rio: {
-    nome: "Alerta Rio",
+    nome: "AlertaRio",
     municipio: false,
     redec: false,
     localizacao: (s) => String(s.extra.localizacao ?? "—"),
@@ -309,7 +309,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "Alerta Rio (Prefeitura do Rio/GeoRio): colunas iguais às do portal oficial (5 min a Mês e TX-15); “Localização” é a região informada pelo portal. “TX-15” = taxa de chuva em mm/h estimada pelos últimos 15 minutos (acumulado de 15 min × 4). “—” = o portal informa ND (sem dado). Temperatura, umidade, vento, direção e pressão existem só nas estações meteorológicas; o feed não traz rajada. “Calc” (cinza, itálico) é o nosso cálculo (balde de 5 min a cada 5 min). O feed publica com ~5-10 min de atraso; valores -99,99 (estação sem dado) são descartados.",
   },
   macae_ufrj: {
-    nome: "Macaé (UFRJ)",
+    nome: "DC Macaé",
     municipio: false,
     redec: false,
     chuva: [
@@ -331,7 +331,7 @@ const CONFIG: Record<RedeSource, Config> = {
       "Macaé (UFRJ/Defesa Civil): 1h, 24h e 96h são os acumulados OFICIAIS do portal da rede; as colunas “Calc” (cinza, itálico) são o nosso cálculo, para conferir. A chuva é gravada minuto a minuto a partir do histórico do portal (basculador de 0,34 mm). Estações offline mostram a última leitura que o portal tem.",
   },
   plugfield: {
-    nome: "Plugfield",
+    nome: "DCM/Plugfield",
     municipio: true,
     redec: true,
     chuva: [
@@ -357,10 +357,12 @@ const CONFIG: Record<RedeSource, Config> = {
       "Plugfield (Defesas Civis): 1h a 96h são calculadas somando o que gravamos a cada coleta; “Hoje”, “Mês” e “Ano” são os totais OFICIAIS da estação e “Calc Hoje” (cinza, itálico) é o nosso total do dia, para conferir. Estações atrasadas ficam sinalizadas em 🕒. Bat. = bateria da estação.",
   },
   wunderground: {
-    nome: "Wunderground",
+    nome: "DCM/Wunderground",
     municipio: true,
     redec: true,
     chuva: [
+      { key: "n15m", label: "15min", titulo: "Chuva da última coleta (a fonte é coletada a cada 15 min; sem coleta nos últimos 20 min = sem dado)", get: nosso("m15"), tipo: "mm" },
+      { key: "n30m", label: "30min", titulo: "Chuva das duas últimas coletas (≈ 30 min; sem coleta nos últimos 35 min = sem dado)", get: nosso("m30"), tipo: "mm" },
       ...nossasJanelas((j) => `Acumulado nas últimas ${j} h (soma dos baldes gravados)`),
       { key: "ohoje", label: "Hoje", titulo: "Chuva do dia OFICIAL da estação (precipTotal, desde 00h)", get: oficial("hoje"), tipo: "mm" },
       { key: "taxa", label: "mm/h", titulo: "Taxa de chuva instantânea informada pela estação (precipRate)", get: oficial("taxa"), tipo: "num" },
@@ -434,7 +436,7 @@ const RedeTable = forwardRef<
   }
 >(function RedeTable({ source, stations, municipioRedecMap = {}, onOpenStation }, ref) {
   const cfg = CONFIG[source];
-  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths(`larguras-rede-${source}-v2`, W_DESKTOP, W_MOBILE);
+  const { widths: w, setWidth, resetWidth, resetAll, colW } = useColumnWidths(`larguras-rede-${source}-v2`, W_DESKTOP, W_MOBILE);
   // Ordem: dados recebidos (chuva, meteorologia) → direção → situação → colunas Calc.
   const dados = useMemo(() => [...cfg.chuva, ...cfg.meteo], [cfg]);
   const todas = useMemo(() => [...dados, ...cfg.calc], [dados, cfg]);
@@ -479,9 +481,11 @@ const RedeTable = forwardRef<
     }
   };
   const arrow = (key: string) => (key === sortKey ? (sortAsc ? " ▲" : " ▼") : "");
-  const resizer = (k: string) => (
-    <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
-  );
+  // `coluna` (opcional): ajusta só aquela coluna do grupo `k` (ex.: uma janela de chuva), não o grupo inteiro.
+  const resizer = (k: string, coluna?: string) => {
+    const chave = coluna ? `${k}:${coluna}` : k;
+    return <ColumnResizer width={coluna ? colW(k, coluna) : w[k]} onChange={(px) => setWidth(chave, px)} onReset={() => resetWidth(chave)} />;
+  };
 
   const exportar = () => {
     const headers = [
@@ -519,7 +523,7 @@ const RedeTable = forwardRef<
   const totalW =
     w.estacao +
     (cfg.municipio ? w.municipio : 0) +
-    todas.length * w.num +
+    todas.reduce((soma, c) => soma + colW("num", c.key), 0) +
     (cfg.direcao ? w.dir : 0) +
     (cfg.situacao ? w.situacao : 0) +
     (cfg.redec ? w.redec : 0) +
@@ -537,12 +541,12 @@ const RedeTable = forwardRef<
           <col style={{ width: w.estacao }} />
           {cfg.municipio && <col style={{ width: w.municipio }} />}
           {dados.map((c) => (
-            <col key={c.key} style={{ width: w.num }} />
+            <col key={c.key} style={{ width: colW("num", c.key) }} />
           ))}
           {cfg.direcao && <col style={{ width: w.dir }} />}
           {cfg.situacao && <col style={{ width: w.situacao }} />}
           {cfg.calc.map((c) => (
-            <col key={c.key} style={{ width: w.num }} />
+            <col key={c.key} style={{ width: colW("num", c.key) }} />
           ))}
           {cfg.redec && <col style={{ width: w.redec }} />}
           {cfg.localizacao && <col style={{ width: w.localizacao }} />}
@@ -565,7 +569,7 @@ const RedeTable = forwardRef<
                 {resizer("municipio")}
               </th>
             )}
-            {dados.map((c, i) => (
+            {dados.map((c) => (
               <th
                 key={c.key}
                 className={`${thBase} px-1 text-right`}
@@ -574,7 +578,7 @@ const RedeTable = forwardRef<
               >
                 {c.label}
                 {arrow(c.key)}
-                {i === nDados - 1 && !cfg.direcao && !cfg.situacao && cfg.calc.length === 0 && resizer("num")}
+                {resizer("num", c.key)}
               </th>
             ))}
             {cfg.direcao && (
@@ -590,7 +594,7 @@ const RedeTable = forwardRef<
                 {resizer("situacao")}
               </th>
             )}
-            {cfg.calc.map((c, i) => (
+            {cfg.calc.map((c) => (
               <th
                 key={c.key}
                 className={`${thBase} px-1 text-right text-gray-400`}
@@ -599,7 +603,7 @@ const RedeTable = forwardRef<
               >
                 {c.label}
                 {arrow(c.key)}
-                {i === cfg.calc.length - 1 && resizer("num")}
+                {resizer("num", c.key)}
               </th>
             ))}
             {cfg.redec && (

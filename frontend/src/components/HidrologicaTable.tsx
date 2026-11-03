@@ -132,7 +132,7 @@ const HidrologicaTable = forwardRef<
   // operacional imediata numa tabela de monitoramento de cheias.
   const [sortKey, setSortKey] = useState<string>("nivel_atual_m");
   const [sortAsc, setSortAsc] = useState(false);
-  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-hidrologica-v3", W_DESKTOP, W_MOBILE);
+  const { widths: w, setWidth, resetWidth, resetAll, colW } = useColumnWidths("larguras-hidrologica-v3", W_DESKTOP, W_MOBILE);
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
 
   const sorted = useMemo(() => {
@@ -216,12 +216,17 @@ const HidrologicaTable = forwardRef<
   // 2026-09-23: economizar altura).
   useImperativeHandle(ref, () => ({ exportar }));
 
-  const wStyle = (k: string) => ({ width: w[k], maxWidth: w[k], minWidth: w[k] });
-  const resizer = (k: string) => (
-    <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
-  );
+  const wStyle = (k: string, coluna?: string) => {
+    const px = coluna ? colW(k, coluna) : w[k];
+    return { width: px, maxWidth: px, minWidth: px };
+  };
+  // `coluna` (opcional): ajusta só aquela coluna do grupo `k` (ex.: uma janela de chuva), não o grupo inteiro.
+  const resizer = (k: string, coluna?: string) => {
+    const chave = coluna ? `${k}:${coluna}` : k;
+    return <ColumnResizer width={coluna ? colW(k, coluna) : w[k]} onChange={(px) => setWidth(chave, px)} onReset={() => resetWidth(chave)} />;
+  };
   const larguraTotal =
-    w.estacao + w.redec + w.municipio + w.rio + w.nivel + w.situacao + w.situacao + JANELAS_CHUVA.length * w.janela + w.bacia + w.regiao + w.fonte + w.atualizado + W_HISTORICO;
+    w.estacao + w.redec + w.municipio + w.rio + w.nivel + w.situacao + w.situacao + JANELAS_CHUVA.reduce((soma, j) => soma + colW("janela", j.key), 0) + w.bacia + w.regiao + w.fonte + w.atualizado + W_HISTORICO;
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
@@ -238,7 +243,7 @@ const HidrologicaTable = forwardRef<
           <col style={{ width: w.situacao }} />
           <col style={{ width: w.situacao }} />
           {JANELAS_CHUVA.map((j) => (
-            <col key={j.key} style={{ width: w.janela }} />
+            <col key={j.key} style={{ width: colW("janela", j.key) }} />
           ))}
           <col style={{ width: w.bacia }} />
           <col style={{ width: w.regiao }} />
@@ -298,13 +303,13 @@ const HidrologicaTable = forwardRef<
               <th
                 key={j.key}
                 className={`${TH_BASE} px-1 text-right`}
-                style={wStyle("janela")}
+                style={wStyle("janela", j.key)}
                 onClick={() => toggleSort(j.key)}
                 title={j.titulo}
               >
                 {j.label}
                 {arrow(j.key)}
-                {resizer("janela")}
+                {resizer("janela", j.key)}
               </th>
             ))}
             <th className={TH_BASE} style={wStyle("bacia")} onClick={() => toggleSort("bacia")}>

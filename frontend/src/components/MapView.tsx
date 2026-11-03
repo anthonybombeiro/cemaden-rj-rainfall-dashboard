@@ -26,6 +26,7 @@ import {
   SireneStation,
   STATION_TYPE_LABELS,
   Station,
+  getDelayStatus,
   normalizeMunicipioName,
 } from "@/lib/api";
 import { computeBBox, GeoJsonFeatureCollection } from "@/lib/geo";
@@ -225,6 +226,8 @@ interface ConfigCamada {
   produtoRadar: string;
   animacao: boolean;
   mostrarEstacoes: boolean;
+  /** Desmarcado: esconde só as estações atrasadas (mesma regra de atraso das tabelas), em qualquer modo do mapa. */
+  mostrarAtrasadas: boolean;
   /** Opacidade da imagem de satélite/radar (0,1–1), escolhida pelo usuário e lembrada no navegador. */
   opacidade: number;
 }
@@ -899,6 +902,16 @@ function SeletorCamadaMeteorologica({
               />
               <span className="font-medium text-gray-600">Mostrar estações no mapa</span>
             </label>
+            <label className="mt-1.5 flex items-center gap-2 cursor-pointer" title="Desmarque para esconder do mapa só as estações atrasadas (as em dia continuam)">
+              <input
+                type="checkbox"
+                checked={config.mostrarAtrasadas}
+                onChange={(e) => onConfigChange({ ...config, mostrarAtrasadas: e.target.checked })}
+                disabled={!config.mostrarEstacoes}
+                className="w-3 h-3"
+              />
+              <span className="font-medium text-gray-600">Mostrar estações atrasadas</span>
+            </label>
           </div>
         </div>
       )}
@@ -965,6 +978,7 @@ export default function MapView({
     produtoRadar: "maxcappi",
     animacao: true, // 25/10/2026: o histórico sempre é carregado; abre na última imagem e só anima ao apertar o play
     mostrarEstacoes: true,
+    mostrarAtrasadas: true,
     opacidade: 0.7,
   });
   // lembra a opacidade escolhida (por navegador); falha silenciosa se o armazenamento estiver bloqueado
@@ -1021,6 +1035,18 @@ export default function MapView({
     [stations],
   );
 
+  // "Mostrar estações atrasadas" desmarcado: cada camada recebe só as estações em dia (regra de getDelayStatus, por fonte).
+  const { mostrarAtrasadas } = config;
+  const mantem = (iso: string | null | undefined, source?: string | null) => mostrarAtrasadas || !getDelayStatus(iso ?? null, source).atrasado;
+  const ultimaLeitura = (s: Station) => s.latest_readings.reduce<string | null>((m, r) => (m === null || r.timestamp > m ? r.timestamp : m), null);
+  const stationsVisiveis = useMemo(() => stations.filter((s) => mantem(ultimaLeitura(s), s.source)), [stations, mostrarAtrasadas]); // eslint-disable-line react-hooks/exhaustive-deps
+  const precipitacaoVisivel = useMemo(() => precipitacao?.filter((e) => mantem(e.updated_at, e.source)), [precipitacao, mostrarAtrasadas]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hidrologicasVisiveis = useMemo(
+    () => hidrologicas?.filter((e) => mantem([e.updated_at, e.nivel_atualizado_em].filter(Boolean).sort().pop() ?? null, e.source)),
+    [hidrologicas, mostrarAtrasadas], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const sirenesVisiveis = useMemo(() => sirenes?.filter((s) => mostrarAtrasadas || s.status_estacao !== "inativa"), [sirenes, mostrarAtrasadas]);
+
   return (
     <>
     <MapContainer center={RJ_CENTER} zoom={8} className="h-full w-full" scrollWheelZoom>
@@ -1047,17 +1073,17 @@ export default function MapView({
         redecFilter={redecFilter}
         municipalityFilter={municipalityFilter}
       />
-      {config.mostrarEstacoes && modo === "sirenes" && <CamadaSirenes sirenes={sirenes} onOpenStation={onOpenStation} />}
-      {config.mostrarEstacoes && modo === "chuva1h" && <CamadaChuva janela="1h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
-      {config.mostrarEstacoes && modo === "chuva24h" && <CamadaChuva janela="24h" estacoes={precipitacao} onOpenStation={onOpenStation} />}
-      {config.mostrarEstacoes && modo === "hidrologia" && <CamadaHidrologia estacoes={hidrologicas} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "sirenes" && <CamadaSirenes sirenes={sirenesVisiveis} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "chuva1h" && <CamadaChuva janela="1h" estacoes={precipitacaoVisivel} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "chuva24h" && <CamadaChuva janela="24h" estacoes={precipitacaoVisivel} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "hidrologia" && <CamadaHidrologia estacoes={hidrologicasVisiveis} onOpenStation={onOpenStation} />}
       {config.mostrarEstacoes && (modo === "temperatura" || modo === "tmax" || modo === "tmin" || modo === "umax" || modo === "umin") && (
-        <CamadaClima modo={modo} estacoes={stations} onOpenStation={onOpenStation} />
+        <CamadaClima modo={modo} estacoes={stationsVisiveis} onOpenStation={onOpenStation} />
       )}
-      {config.mostrarEstacoes && modo === "vento" && <CamadaVento estacoes={stations} onOpenStation={onOpenStation} />}
+      {config.mostrarEstacoes && modo === "vento" && <CamadaVento estacoes={stationsVisiveis} onOpenStation={onOpenStation} />}
       {modo === "floodhub" && floodhubEventos && <CamadaEventosFH eventos={floodhubEventos.no_rj as EventoFH[]} />}
       {config.mostrarEstacoes && modo === "floodhub" && <CamadaFloodHub postos={floodhub} onAbrirFicha={setFichaFH} />}
-      {config.mostrarEstacoes && modo === "redes" && stations.map((station) => {
+      {config.mostrarEstacoes && modo === "redes" && stationsVisiveis.map((station) => {
         const tocando = estacoesTocandoIds.has(station.id);
         const cor = SOURCE_COLORS[station.source] ?? "#6b7280";
         return (

@@ -50,9 +50,24 @@ export function useColumnWidths(
     [persistir],
   );
 
+  // Colunas "irmãs" (as janelas de chuva etc.) partem da largura-base (`base`), mas cada uma pode ser ajustada sozinha
+  // (chave "base:coluna"); sem ajuste própria, vale a largura-base.
+  const colW = useCallback((base: string, coluna: string) => widths[`${base}:${coluna}`] ?? widths[base], [widths]);
+
   const resetWidth = useCallback(
-    (key: string) => setWidth(key, defaults[key]),
-    [defaults, setWidth],
+    (key: string) => {
+      if (defaults[key] !== undefined) {
+        setWidth(key, defaults[key]);
+        return;
+      }
+      setWidths((atual) => {
+        const { [key]: _removida, ...resto } = atual;
+        void _removida;
+        persistir(resto);
+        return resto;
+      });
+    },
+    [defaults, setWidth, persistir],
   );
 
   const resetAll = useCallback(() => {
@@ -64,5 +79,5 @@ export function useColumnWidths(
     }
   }, [defaults, storageKey]);
 
-  return { widths, setWidth, resetWidth, resetAll };
+  return { widths, setWidth, resetWidth, resetAll, colW };
 }

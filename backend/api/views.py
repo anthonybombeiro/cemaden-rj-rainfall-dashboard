@@ -774,6 +774,13 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                 entry["acumulado_1mes_mm"] = soma_1mes_corrido_por_estacao.get(station.id)
                 entry["acumulado_mes_mm"] = soma_mes_calendario_por_estacao.get(station.id)
                 entry["pico_mm"] = pico_24h_por_estacao.get(station.id)
+                if slug == "wunderground":
+                    # Fonte coletada a cada 15 min (balde = chuva desde a coleta anterior): 15 e 30 min = última e duas últimas
+                    # coletas. Janela por relógio (agora-15 min) contaria ora 1 ora 2 baldes, conforme o instante do cron.
+                    # Estação sem coleta nos últimos 20 min (ou 35 min) fica sem dado, nunca 0,0.
+                    for campo, folga, n_baldes in (("acumulado_coleta1_mm", 20, 1), ("acumulado_coleta2_mm", 35, 2)):
+                        if latest is not None and now - latest["timestamp"] <= datetime.timedelta(minutes=folga):
+                            entry[campo] = sum(r["value"] for r in rows[-n_baldes:])
             elif kind == "running_daily":
                 entry["acumulado_hoje_mm"] = latest["value"] if latest else None
             entry["acumulados_oficiais"] = self._aplicar_oficiais(entry, station, now) if usar_oficiais else False
@@ -1079,6 +1086,8 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                     "ultima_leitura": ultima_leitura[st.id].isoformat() if ultima_leitura.get(st.id) else None,
                     "oficial": oficial,
                     "nosso": {
+                        "m15": n.get("acumulado_coleta1_mm"),
+                        "m30": n.get("acumulado_coleta2_mm"),
                         "1": n.get("acumulado_1h_mm"),
                         "3": n.get("acumulado_3h_mm"),
                         "6": n.get("acumulado_6h_mm"),

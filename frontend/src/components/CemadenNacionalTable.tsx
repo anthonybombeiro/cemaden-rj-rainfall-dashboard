@@ -50,7 +50,7 @@ const CemadenNacionalTable = forwardRef<
     onOpenStation: (id: number) => void;
   }
 >(function CemadenNacionalTable({ stations, municipioRedecMap = {}, onOpenStation }, ref) {
-  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-cemaden-nacional-v1", W_DESKTOP, W_MOBILE);
+  const { widths: w, setWidth, resetWidth, resetAll, colW } = useColumnWidths("larguras-cemaden-nacional-v1", W_DESKTOP, W_MOBILE);
   // Padrão pedido: chuva de 1 h, da maior para a menor.
   const [sortKey, setSortKey] = useState<string>("1");
   const [sortAsc, setSortAsc] = useState(false);
@@ -87,9 +87,11 @@ const CemadenNacionalTable = forwardRef<
     }
   };
   const arrow = (key: string) => (key === sortKey ? (sortAsc ? " ▲" : " ▼") : "");
-  const resizer = (k: string) => (
-    <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
-  );
+  // `coluna` (opcional): ajusta só aquela coluna do grupo `k` (ex.: uma janela de chuva), não o grupo inteiro.
+  const resizer = (k: string, coluna?: string) => {
+    const chave = coluna ? `${k}:${coluna}` : k;
+    return <ColumnResizer width={coluna ? colW(k, coluna) : w[k]} onChange={(px) => setWidth(chave, px)} onReset={() => resetWidth(chave)} />;
+  };
 
   const exportar = () => {
     const headers = [
@@ -120,7 +122,7 @@ const CemadenNacionalTable = forwardRef<
 
   const thBase =
     "sticky top-0 align-bottom z-20 cursor-pointer select-none whitespace-normal break-words leading-tight bg-gray-100 py-2";
-  const totalW = w.estacao + w.municipio + (JANELAS.length + 1) * w.janela + w.redec + w.atualizado + w.codigo;
+  const totalW = w.estacao + w.municipio + colW("janela", "ult") + JANELAS.reduce((soma, j) => soma + colW("janela", j), 0) + w.redec + w.atualizado + w.codigo;
 
   return (
     <div className="h-full w-full overflow-auto bg-white">
@@ -131,9 +133,9 @@ const CemadenNacionalTable = forwardRef<
         <colgroup>
           <col style={{ width: w.estacao }} />
           <col style={{ width: w.municipio }} />
-          <col style={{ width: w.janela }} />
+          <col style={{ width: colW("janela", "ult") }} />
           {JANELAS.map((j) => (
-            <col key={j} style={{ width: w.janela }} />
+            <col key={j} style={{ width: colW("janela", j) }} />
           ))}
           <col style={{ width: w.redec }} />
           <col style={{ width: w.atualizado }} />
@@ -159,6 +161,7 @@ const CemadenNacionalTable = forwardRef<
               title="Última leitura (10 min) informada pela estação"
             >
               Últ.{arrow("ultimo")}
+              {resizer("janela", "ult")}
             </th>
             {JANELAS.map((j) => (
               <th
@@ -168,7 +171,7 @@ const CemadenNacionalTable = forwardRef<
                 title={`Acumulado oficial nas últimas ${j} h (valor da própria fonte)`}
               >
                 {j}h{arrow(j)}
-                {j === "96" && resizer("janela")}
+                {resizer("janela", j)}
               </th>
             ))}
             <th className={`${thBase} px-2`} onClick={() => toggleSort("redec")}>

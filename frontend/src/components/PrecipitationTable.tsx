@@ -103,7 +103,7 @@ const PrecipitationTable = forwardRef<
   // Pedido do usuário: por padrão, ordenar pelos MAIORES valores de 15min
   // (é o que mais importa pra decisão operacional imediata) — o usuário
   // troca depois clicando em qualquer outro cabeçalho.
-  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-precipitacao-v1", W_DESKTOP, W_MOBILE);
+  const { widths: w, setWidth, resetWidth, resetAll, colW } = useColumnWidths("larguras-precipitacao-v1", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>("acumulado_15min_mm");
   const [sortAsc, setSortAsc] = useState(false);
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
@@ -144,9 +144,11 @@ const PrecipitationTable = forwardRef<
   };
 
   const arrow = (key: string) => (key === sortKey ? (sortAsc ? " ▲" : " ▼") : "");
-  const resizer = (k: string) => (
-    <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
-  );
+  // `coluna` (opcional): ajusta só aquela coluna do grupo `k` (ex.: uma janela de chuva), não o grupo inteiro.
+  const resizer = (k: string, coluna?: string) => {
+    const chave = coluna ? `${k}:${coluna}` : k;
+    return <ColumnResizer width={coluna ? colW(k, coluna) : w[k]} onChange={(px) => setWidth(chave, px)} onReset={() => resetWidth(chave)} />;
+  };
 
   const exportar = () => {
     const headers = [
@@ -185,7 +187,7 @@ const PrecipitationTable = forwardRef<
         className="border-collapse text-xs sm:text-sm [&_td]:border [&_td]:border-gray-200 [&_th]:border [&_th]:border-gray-300"
         style={{
           tableLayout: "fixed",
-          width: w.estacao + w.redec + w.municipio + JANELAS.length * w.janela + w.fonte + 84 + w.atualizado + W_HISTORICO,
+          width: w.estacao + w.redec + w.municipio + JANELAS.reduce((soma, j) => soma + colW("janela", j.key), 0) + w.fonte + 84 + w.atualizado + W_HISTORICO,
         }}
       >
         <colgroup>
@@ -193,7 +195,7 @@ const PrecipitationTable = forwardRef<
           <col style={{ width: w.redec }} />
           <col style={{ width: w.municipio }} />
           {JANELAS.map((j) => (
-            <col key={j.key} style={{ width: w.janela }} />
+            <col key={j.key} style={{ width: colW("janela", j.key) }} />
           ))}
           <col style={{ width: w.fonte }} />
           <col style={{ width: 84 }} />
@@ -230,13 +232,13 @@ const PrecipitationTable = forwardRef<
               <th
                 key={j.key}
                 className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words bg-gray-100 px-1 py-2 text-right"
-                style={{ width: w.janela, maxWidth: w.janela, minWidth: w.janela }}
+                style={{ width: colW("janela", j.key), maxWidth: colW("janela", j.key), minWidth: colW("janela", j.key) }}
                 onClick={() => toggleSort(j.key)}
                 title={j.titulo}
               >
                 {j.label}
                 {arrow(j.key)}
-              {resizer("janela")}
+              {resizer("janela", j.key)}
             </th>
             ))}
             <th

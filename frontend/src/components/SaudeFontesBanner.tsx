@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { fetchFontesSaude, FontesSaude } from "@/lib/api";
+import { fetchFontesSaude, FontesSaude, nomeFonte } from "@/lib/api";
 import { intervaloVisivel } from "@/lib/intervaloVisivel";
 
 // Faixa de "saúde das fontes" (06/10/2026): o cron do servidor não avisa quando uma
@@ -66,7 +66,7 @@ export default function SaudeFontesBanner() {
         <span className="min-w-0 flex-1 truncate">
           ⚠ Fontes:
           {saude.resumo.fontes_atrasadas > 0 && (
-            <> {saude.resumo.fontes_atrasadas} atrasada(s) ({atrasadas.map((f) => f.nome.split(" — ")[0]).join(", ")})</>
+            <> {saude.resumo.fontes_atrasadas} atrasada(s) ({atrasadas.map((f) => nomeFonte(f.slug, f.nome)).join(", ")})</>
           )}
           {saude.resumo.estacoes_paradas > 0 && (
             <>
@@ -82,13 +82,13 @@ export default function SaudeFontesBanner() {
         <div className="max-h-64 space-y-2 overflow-auto border-t border-orange-200 px-4 py-2 text-xs">
           {atrasadas.map((f) => (
             <div key={f.slug}>
-              <strong>{f.nome}</strong>: última coleta {idade(f.idade_min)} (limite {f.limite_min} min).
+              <strong>{nomeFonte(f.slug, f.nome)}</strong>: última coleta {idade(f.idade_min)} (limite {f.limite_min} min).
               {f.erro ? <span className="text-red-700"> Erro: {f.erro}</span> : null}
             </div>
           ))}
           {comParadas.map((f) => (
             <div key={`p-${f.slug}`}>
-              <strong>{f.nome}</strong>{f.sensivel ? "" : " (não dispara alerta)"}: {f.estacoes_paradas} parada(s) de {f.estacoes_total} ({f.estacoes_ativas} ativas) —{" "}
+              <strong>{nomeFonte(f.slug, f.nome)}</strong>{f.sensivel ? "" : " (não dispara alerta)"}: {f.estacoes_paradas} parada(s) de {f.estacoes_total} ({f.estacoes_ativas} ativas) —{" "}
               {f.paradas
                 .slice(0, 8)
                 .map((p) => `${p.nome} (${p.idade_h} h)`)

@@ -743,20 +743,23 @@ export const STATION_TYPE_LABELS: Record<string, string> = {
 export const SOURCE_LABELS: Record<string, string> = {
   inmet: "INMET",
   cemaden_nacional: "CEMADEN Nacional",
-  alerta_rio: "Alerta Rio/GeoRio",
-  wunderground: "Wunderground",
-  plugfield: "Plugfield",
+  alerta_rio: "AlertaRio",
+  wunderground: "DCM/Wunderground",
+  plugfield: "DCM/Plugfield",
   rio_chuva_bairro: "Chuva por Bairro (Rio)",
-  cemaden_rj: "CEMADEN-RJ (rede própria)",
-  cemaden_mctic: "CEMADEN Nacional/MCTIC",
-  niteroi: "Niterói (Defesa Civil)",
-  cemaden_rj_sirenes: "CEMADEN-RJ — Sirenes/Alarme",
-  inea: "INEA — Alerta de Cheias",
-  ecowitt_paracambi: "Paracambi (Defesa Civil)",
-  macae_ufrj: "Macaé (Defesa Civil/UFRJ)",
-  redemet: "REDEMET (Aeronáutica)",
-  ana: "ANA — Hidrotelemetria",
+  cemaden_rj: "CEMADEN-RJ",
+  cemaden_mctic: "CEMADEN/MCTIC",
+  niteroi: "DC Niterói",
+  cemaden_rj_sirenes: "CEMADEN-RJ (sirenes)",
+  inea: "INEA",
+  ecowitt_paracambi: "DC Paracambi",
+  macae_ufrj: "DC Macaé",
+  redemet: "REDEMET",
+  ana: "ANA",
 };
+
+/** Nome curto da fonte para as telas (os nomes completos continuam no /admin). */
+export const nomeFonte = (slug: string, completo?: string) => SOURCE_LABELS[slug] ?? completo ?? slug;
 
 /** Uma cor fixa por fonte, pra dar pra distinguir de relance numa tabela
  * cheia de linhas (mesma ideia da coluna "Rede" colorida da Rede Salvar do

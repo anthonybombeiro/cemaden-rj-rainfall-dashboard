@@ -120,7 +120,7 @@ const DataTable = forwardRef<
   }
 >(function DataTable({ stations, readingTypes, defaultSortKey = "municipality", municipioRedecMap = {}, onOpenStation }, ref) {
   const redecOf = (municipality: string) => municipioRedecMap[normalizeMunicipioName(municipality)] ?? "";
-  const { widths: w, setWidth, resetWidth, resetAll } = useColumnWidths("larguras-meteorologico-v1", W_DESKTOP, W_MOBILE);
+  const { widths: w, setWidth, resetWidth, resetAll, colW } = useColumnWidths("larguras-meteorologico-v1", W_DESKTOP, W_MOBILE);
   const [sortKey, setSortKey] = useState<string>(defaultSortKey);
   const [sortAsc, setSortAsc] = useState(!FIXED_SORT_KEYS.has(defaultSortKey) ? false : true);
 
@@ -180,9 +180,11 @@ const DataTable = forwardRef<
   };
 
   const arrow = (key: string) => (key === sortKey ? (sortAsc ? " ▲" : " ▼") : "");
-  const resizer = (k: string) => (
-    <ColumnResizer width={w[k]} onChange={(px) => setWidth(k, px)} onReset={() => resetWidth(k)} />
-  );
+  // `coluna` (opcional): ajusta só aquela coluna do grupo `k` (ex.: uma janela de chuva), não o grupo inteiro.
+  const resizer = (k: string, coluna?: string) => {
+    const chave = coluna ? `${k}:${coluna}` : k;
+    return <ColumnResizer width={coluna ? colW(k, coluna) : w[k]} onChange={(px) => setWidth(chave, px)} onReset={() => resetWidth(chave)} />;
+  };
 
   const exportar = () => {
     const headers = [
@@ -223,7 +225,7 @@ const DataTable = forwardRef<
         className="border-collapse text-xs sm:text-sm [&_td]:border [&_td]:border-gray-200 [&_th]:border [&_th]:border-gray-300"
         style={{
           tableLayout: "fixed",
-          width: w.estacao + w.municipio + w.redec + w.fonte + w.tipo + columns.length * w.coluna + w.atualizado + W_HISTORICO,
+          width: w.estacao + w.municipio + w.redec + w.fonte + w.tipo + columns.reduce((soma, c) => soma + colW("coluna", c), 0) + w.atualizado + W_HISTORICO,
         }}
       >
         <colgroup>
@@ -233,7 +235,7 @@ const DataTable = forwardRef<
           <col style={{ width: w.fonte }} />
           <col style={{ width: w.tipo }} />
           {columns.map((c) => (
-            <col key={c} style={{ width: w.coluna }} />
+            <col key={c} style={{ width: colW("coluna", c) }} />
           ))}
           <col style={{ width: w.atualizado }} />
           <col style={{ width: W_HISTORICO }} />
@@ -282,13 +284,13 @@ const DataTable = forwardRef<
               <th
                 key={c}
                 className="sticky top-0 align-bottom leading-tight z-20 cursor-pointer select-none whitespace-normal break-words leading-tight align-middle bg-gray-100 px-1 py-2 text-right"
-                style={{ width: w.coluna, maxWidth: w.coluna, minWidth: w.coluna }}
+                style={{ width: colW("coluna", c), maxWidth: colW("coluna", c), minWidth: colW("coluna", c) }}
                 onClick={() => toggleSort(c)}
                 title={READING_TYPE_LABELS[c] ?? c}
               >
                 {READING_TYPE_LABELS[c] ?? c}
                 {arrow(c)}
-              {resizer("coluna")}
+              {resizer("coluna", c)}
             </th>
             ))}
             <th
@@ -358,7 +360,7 @@ const DataTable = forwardRef<
                   <td
                     key={c}
                     className="whitespace-nowrap px-1.5 py-1 text-right text-gray-800"
-                    style={{ width: w.coluna, maxWidth: w.coluna, minWidth: w.coluna }}
+                    style={{ width: colW("coluna", c), maxWidth: colW("coluna", c), minWidth: colW("coluna", c) }}
                   >
                     {(() => {
                       const v = valorColuna(s, c);
