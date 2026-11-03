@@ -30,6 +30,16 @@ from .floodhub_views import FloodHubEventosView, FloodHubValidacaoView, FloodHub
 from .previsao_publica_views import PublicoPrevisaoView
 from .informativo_views import (InformativoAcaoView, InformativoAcompanhamentoView, InformativoDetalheView, InformativoEnvioItemView, InformativoEnviosView, InformativoEstatisticasView, InformativoExportarView, InformativoPreviaView, InformativosView, PublicoInformativoView)
 from .resumo_views import Resumo24hView
+from .meteorologia_views import (
+    AcumuladosView,
+    AvisoMeteorologicoAcaoView,
+    AvisoMeteorologicoDetalheView,
+    AvisosMeteorologicosView,
+    ChuvaCalendarioView,
+    LimiaresView,
+    PlantaoChecklistView,
+    PlantaoLivroView,
+)
 from .sistemas_atuantes_views import SistemasAtuantesView
 from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
@@ -91,6 +101,14 @@ urlpatterns = [
     path("sirenes/status/", SirenesStatusView.as_view(), name="sirenes-status"),
     path("fontes/saude/", FontesSaudeView.as_view(), name="fontes-saude"),
     path("resumo/", Resumo24hView.as_view(), name="resumo-24h"),
+    path("resumo/chuva-calendario/", ChuvaCalendarioView.as_view(), name="resumo-chuva-calendario"),
+    path("meteorologia/acumulados/", AcumuladosView.as_view(), name="meteorologia-acumulados"),
+    path("meteorologia/limiares/", LimiaresView.as_view(), name="meteorologia-limiares"),
+    path("avisos-meteorologicos/", AvisosMeteorologicosView.as_view(), name="avisos-meteorologicos"),
+    path("avisos-meteorologicos/<int:pk>/", AvisoMeteorologicoDetalheView.as_view(), name="avisos-meteorologicos-detalhe"),
+    path("avisos-meteorologicos/<int:pk>/<str:acao>/", AvisoMeteorologicoAcaoView.as_view(), name="avisos-meteorologicos-acao"),
+    path("plantao/checklist/", PlantaoChecklistView.as_view(), name="plantao-checklist"),
+    path("plantao/livro/", PlantaoLivroView.as_view(), name="plantao-livro"),
     path("sondagem/numerica/", SondagemNumericaView.as_view(), name="sondagem-numerica"),
     path("floodhub/", FloodHubView.as_view(), name="floodhub"),
     path("floodhub/eventos/", FloodHubEventosView.as_view(), name="floodhub-eventos"),

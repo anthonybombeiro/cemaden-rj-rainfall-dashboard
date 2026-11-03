@@ -1068,3 +1068,116 @@ class ConfiguracaoInformativo(models.Model):
     def __str__(self):
         return "Configuração do informativo"
 
+
+
+class AvisoMeteorologico(models.Model):
+    """Aviso meteorológico do CEMADEN-RJ (nº/AAAA), emitido pelas meteorologistas e arte para as redes: vigência, região (vazio = todo o estado),
+    sistemas atuantes, texto (trechos entre ** viram negrito) e o SMS/TV do Idap (146 e 62 caracteres). O painel NÃO envia nada: registra o aviso e
+    o que a equipe enviou. Fluxo: rascunho → emitido (ou cancelado, nunca apagado). Numeração reinicia a cada ano; o número é reservado ao criar."""
+
+    class Estado(models.TextChoices):
+        RASCUNHO = "rascunho", "Rascunho"
+        EMITIDO = "emitido", "Emitido"
+        CANCELADO = "cancelado", "Cancelado"
+
+    numero = models.PositiveIntegerField()
+    ano = models.PositiveIntegerField(db_index=True)
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.RASCUNHO, db_index=True)
+    vigencia_inicio = models.DateTimeField(db_index=True)
+    vigencia_fim = models.DateTimeField(db_index=True)
+    regioes = models.JSONField(default=list, blank=True, help_text="REDECs do aviso; vazio = todo o estado.")
+    sistemas = models.JSONField(default=list, blank=True, help_text="Códigos do catálogo de sistemas atuantes.")
+    icones = models.JSONField(default=list, blank=True, help_text='"chuva" e/ou "vento".')
+    texto = TextFieldSeguro(blank=True, help_text="Texto do aviso; trechos entre ** ficam em negrito na arte.")
+    sms_texto = models.CharField(max_length=146, blank=True, help_text="Mensagem do SMS do Idap (até 146 caracteres).")
+    tv_texto = models.CharField(max_length=62, blank=True, help_text="Mensagem da TV por assinatura do Idap (até 62 caracteres).")
+    idap_enviado = models.BooleanField(default=False)
+    idap_municipios = models.JSONField(default=list, blank=True)
+    idap_protocolo = models.CharField(max_length=80, blank=True)
+    idap_enviado_em = models.DateTimeField(null=True, blank=True)
+    motivo_cancelamento = models.CharField(max_length=300, blank=True)
+    criado_por = models.CharField(max_length=150, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    emitido_por = models.CharField(max_length=150, blank=True)
+    emitido_em = models.DateTimeField(null=True, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    historico = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-ano", "-numero"]
+        constraints = [models.UniqueConstraint(fields=["ano", "numero"], name="unique_aviso_met_numero_por_ano")]
+        verbose_name = "aviso meteorológico"
+        verbose_name_plural = "avisos meteorológicos"
+
+    def __str__(self):
+        return f"Aviso nº {self.numero:02d}/{self.ano} · {self.get_estado_display()}"
+
+
+class OcorrenciaPlantao(models.Model):
+    """Livro de ocorrências (L.O.) do plantão da meteorologia: um registro por turno (07 h → 07 h), identificado pela data em que o turno COMEÇOU.
+    Guarda os campos do procedimento 03 e o texto final que a equipe copia para o e-mail e para o arquivo "Livro de ocorrências"."""
+
+    data = models.DateField(unique=True, help_text="Data em que o turno começou (07 h).")
+    plantao = models.CharField(max_length=60, blank=True)
+    operador = models.CharField(max_length=120, blank=True)
+    tecnico_encerra = models.CharField(max_length=120, blank=True)
+    hora_encerra = models.CharField(max_length=5, blank=True)
+    tecnico_inicia = models.CharField(max_length=120, blank=True)
+    hora_inicia = models.CharField(max_length=5, blank=True)
+    ocorrencias = models.JSONField(default=list, blank=True, help_text="Linhas livres: [{tipo, texto}].")
+    texto = TextFieldSeguro(blank=True, help_text="Texto final do e-mail (gerado e/ou ajustado à mão).")
+    criado_por = models.CharField(max_length=150, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_por = models.CharField(max_length=150, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data"]
+        verbose_name = "ocorrência do plantão (L.O.)"
+        verbose_name_plural = "livro de ocorrências do plantão"
+
+    def __str__(self):
+        return f"L.O. {self.data}"
+
+
+class ItemPlantao(models.Model):
+    """Marca "feito" de um item do checklist do plantão (`core/plantao.py`), compartilhada entre os técnicos. `data` = dia em que o turno
+    (07 h → 07 h) começou; a lista de itens e horários fica no código, não no banco."""
+
+    data = models.DateField(db_index=True)
+    codigo = models.CharField(max_length=40)
+    feito_por = models.CharField(max_length=150, blank=True)
+    feito_em = models.DateTimeField(default=timezone.now)
+    observacao = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["data", "feito_em"]
+        constraints = [models.UniqueConstraint(fields=["data", "codigo"], name="unique_item_plantao_por_turno")]
+        verbose_name = "item do checklist do plantão"
+        verbose_name_plural = "checklist do plantão"
+
+    def __str__(self):
+        return f"{self.data} · {self.codigo}"
+
+
+class ConfiguracaoPlantao(models.Model):
+    """Configuração do plantão da meteorologia (uma linha só, pk=1; Admin): destinatários do e-mail do L.O. (um por linha). Ficam aqui
+    e não no código para não expor e-mails pessoais."""
+
+    destinatarios_lo = models.TextField(blank=True, help_text="E-mails do L.O., um por linha.")
+
+    class Meta:
+        verbose_name = "configuração do plantão"
+        verbose_name_plural = "configuração do plantão"
+
+    @classmethod
+    def obter(cls) -> "ConfiguracaoPlantao":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return "Configuração do plantão"

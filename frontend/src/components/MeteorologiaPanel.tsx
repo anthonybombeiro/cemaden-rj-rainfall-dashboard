@@ -461,7 +461,7 @@ const SUBABAS = [
   { key: "cadastro", label: "Cadastro", Icone: ClipboardList },
 ] as const;
 
-/** `abrirCadastro`: data (AAAA-MM-DD) para abrir direto o Cadastro da previsão naquele dia (aviso das 15 h 30 de "amanhã sem previsão"). */
+/** `abrirCadastro`: data (AAAA-MM-DD) para abrir direto o Cadastro da previsão naquele dia (aviso das 16 h de "amanhã sem previsão"). */
 export default function MeteorologiaPanel({ abrirCadastro = null }: { abrirCadastro?: string | null }) {
   const [sub, setSub] = useState<(typeof SUBABAS)[number]["key"]>(abrirCadastro ? "cadastro" : "previsao");
   return (

@@ -4,6 +4,8 @@ import { Clipboard, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { fetchResumo24h, Resumo24h, ResumoItem, ResumoMunicipio, ResumoRegiao } from "@/lib/api";
+import FaixaLimiares from "@/components/producao/FaixaLimiares";
+import ChuvaCalendario from "@/components/producao/ChuvaCalendario";
 import SistemasAtuantesResumo, { SistemasAtuantesMensal } from "@/components/SistemasAtuantesResumo";
 import { BlocoAlertasFH, BlocoEventosFH } from "@/components/FloodHubPanel";
 import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
@@ -251,6 +253,10 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
         ))}
       </div>
 
+      <div className="mb-3 empty:hidden">
+        <FaixaLimiares compacta />
+      </div>
+
       {erro && <p className="text-sm text-red-600">{erro}</p>}
       {!dados && carregando && <p className="text-sm text-gray-500">Carregando…</p>}
 
@@ -333,7 +339,12 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
         </div>
       )}
 
-      {sub === "mensal" && <SistemasAtuantesMensal dia={dia || new Date().toLocaleDateString("sv-SE")} />}
+      {sub === "mensal" && (
+        <div className="flex flex-wrap items-start gap-3">
+          <ChuvaCalendario dia={dia || new Date().toLocaleDateString("sv-SE")} />
+          <SistemasAtuantesMensal dia={dia || new Date().toLocaleDateString("sv-SE")} />
+        </div>
+      )}
 
       {dados && sub === "top10" && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

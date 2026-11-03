@@ -225,7 +225,7 @@ export default function Dashboard({
     setSelecaoNmVersao((v) => v + 1);
     setViewMode("producao");
   };
-  // Previsão de amanhã incompleta (aviso a partir das 15 h 30): o botão abre Meteorologia > Cadastro já no dia seguinte
+  // Previsão de amanhã incompleta (aviso a partir das 16 h): o botão abre Meteorologia > Cadastro já no dia seguinte
   const [cadastroPrevisao, setCadastroPrevisao] = useState<{ data: string; versao: number } | null>(null);
   const [previsaoAmanhaPendente, setPrevisaoAmanhaPendente] = useState(false);
   const abrirCadastroPrevisao = (data: string) => {

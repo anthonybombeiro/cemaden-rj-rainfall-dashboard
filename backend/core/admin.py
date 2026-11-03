@@ -212,3 +212,32 @@ class ConfiguracaoInformativoAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+
+from core.models import AvisoMeteorologico, ConfiguracaoPlantao, ItemPlantao, OcorrenciaPlantao  # noqa: E402
+
+
+@admin.register(AvisoMeteorologico)
+class AvisoMeteorologicoAdmin(admin.ModelAdmin):
+    list_display = ("numero", "ano", "estado", "vigencia_inicio", "vigencia_fim", "idap_enviado", "emitido_por")
+    list_filter = ("ano", "estado", "idap_enviado")
+    readonly_fields = ("historico",)
+
+
+@admin.register(OcorrenciaPlantao)
+class OcorrenciaPlantaoAdmin(admin.ModelAdmin):
+    list_display = ("data", "operador", "tecnico_encerra", "tecnico_inicia", "atualizado_por", "atualizado_em")
+
+
+@admin.register(ItemPlantao)
+class ItemPlantaoAdmin(admin.ModelAdmin):
+    list_display = ("data", "codigo", "feito_por", "feito_em")
+    list_filter = ("data",)
+
+
+@admin.register(ConfiguracaoPlantao)
+class ConfiguracaoPlantaoAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return not ConfiguracaoPlantao.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

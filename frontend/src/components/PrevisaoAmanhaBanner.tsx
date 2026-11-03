@@ -5,12 +5,12 @@ import { useEffect, useState } from "react";
 import { CoberturaPrevisao, fetchCoberturaPrevisao } from "@/lib/api";
 import { intervaloVisivel } from "@/lib/intervaloVisivel";
 
-// Aviso diário (28/10/2026): a partir das 15 h 30 (Brasília), enquanto a previsão de AMANHÃ não estiver completa — as 11 REDECs e o texto
+// Aviso diário (28/10/2026): a partir das 16 h (Brasília), enquanto a previsão de AMANHÃ não estiver completa — as 11 REDECs e o texto
 // geral do estado — aparece esta faixa com o que falta e um botão para abrir o cadastro já no dia seguinte. Some quando fica completo;
 // "Lembrar em 30 min" esconde a faixa por meia hora (guardado só neste navegador).
 
 const TZ = "America/Sao_Paulo";
-const HORA_AVISO = 15 * 60 + 30;
+const HORA_AVISO = 16 * 60;
 const ADIAR_MS = 30 * 60_000;
 const CHAVE_ADIAR = "previsao-amanha-adiado-ate";
 const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -56,7 +56,7 @@ export default function PrevisaoAmanhaBanner({ onCadastrar, onPendente }: { onCa
       if (!cancelado) setAdiado(Date.now() < lerAdiado()); // reavalia a cada consulta: o adiamento de 30 min termina sozinho
       const { minutos, hoje } = agoraSP();
       if (minutos < HORA_AVISO) {
-        if (!cancelado) setCob(null); // antes das 15 h 30 não avisa
+        if (!cancelado) setCob(null); // antes das 16 h não avisa
         return;
       }
       fetchCoberturaPrevisao([somaDias(hoje, 1)])
