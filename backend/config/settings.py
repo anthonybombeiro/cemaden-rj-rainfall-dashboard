@@ -183,9 +183,9 @@ PLUGFIELD_PASSWORD = os.environ.get("PLUGFIELD_PASSWORD", "")
 # conhecido (passado pelas Defesas Civis municipais) — nunca para
 # descobrir/enumerar a rede. Ver docs/fontes-de-dados.md.
 WUNDERGROUND_API_KEY = os.environ.get("WUNDERGROUND_API_KEY", "")
-# Pausa das consultas (02/11/2026): a IBM respondeu "API key is throttled" (401) desde 29/10. Enquanto pausado, o conector
-# não chama a API (evita manter o bloqueio). Para retomar: WUNDERGROUND_PAUSADO=0 no ambiente ou trocar o padrão abaixo.
-WUNDERGROUND_PAUSADO = os.environ.get("WUNDERGROUND_PAUSADO", "1") not in ("0", "false", "False", "")
+# Pausa das consultas: a IBM respondeu "API key is throttled" (401) de 29/10 a 03/11, até os novos termos de uso serem aceitos
+# e a chave trocada. Retomado em 03/11/2026. Para pausar de novo: WUNDERGROUND_PAUSADO=1 no ambiente ou trocar o padrão abaixo.
+WUNDERGROUND_PAUSADO = os.environ.get("WUNDERGROUND_PAUSADO", "0") not in ("0", "false", "False", "")
 
 # Conta institucional (Defesa Civil de Niterói) na API Alerta Nit/Tecal —
 # fornecida pelo diretor do CEMADEN-RJ. Ver ingestion/connectors/niteroi.py.

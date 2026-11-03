@@ -381,7 +381,7 @@ const CONFIG: Record<RedeSource, Config> = {
     coluna1h: nosso("1"),
     coluna24h: nosso("24"),
     nota:
-      "Wunderground (estações pessoais, sem calibração): 1h a 96h são calculadas somando o que gravamos; “Hoje” é o total oficial da estação (precipTotal) e “Calc Hoje” (cinza, itálico) é o nosso, para conferir. QC = controle de qualidade do Weather Company (✓ aprovado, — não avaliado). Redes pessoais não são calibradas: use com cautela.",
+      "Wunderground (estações pessoais, sem calibração): 1h a 96h são calculadas somando o que gravamos; “Hoje” é o total oficial da estação (precipTotal) e “Calc Hoje” (cinza, itálico) é o nosso, para conferir. QC = controle de qualidade do Weather Company (✓ aprovado, — não avaliado). Redes pessoais não são calibradas: use com cautela. Data provided by Weather Underground.",
   },
 };
 

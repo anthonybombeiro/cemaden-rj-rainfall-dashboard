@@ -271,7 +271,7 @@ const VentosTable = forwardRef<
         ...FAIXAS_RAJADA.map(({ faixa }, i) => ({ cor: faixa.bg, rotulo: rotuloComFaixa(i) })).reverse(),
         { cor: FAIXA_ATRASADA.bg, rotulo: `${FAIXA_ATRASADA.label} (> ${HORAS_ATRASO_VENTO}h sem atualizar)` },
       ],
-      fonteTexto: "Fonte: INMET, REDEMET, Wunderground, Plugfield — CEMADEN-RJ/SEDEC",
+      fonteTexto: "Fonte: INMET, REDEMET, Plugfield, CEMADEN-RJ, Data provided by Weather Underground",
       nomeArquivo: `cemaden-rj-ventos-${new Date().toISOString().slice(0, 10)}`,
       agruparPor: { chave: "_faixaChave", grupos },
       colunasTexto: [

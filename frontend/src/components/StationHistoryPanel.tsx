@@ -132,7 +132,8 @@ function identificacao(
 }
 
 const fmtMm = (v: number | null | undefined) => (v == null ? "—" : `${(Math.round(v * 10) / 10).toFixed(1)} mm`);
-const fonteDe = (station: Station) => `Fonte: ${station.source} · CEMADEN-RJ / SEDEC`;
+const fonteDe = (station: Station) =>
+  station.source === "wunderground" ? "Fonte: Data provided by Weather Underground · CEMADEN-RJ / SEDEC" : `Fonte: ${station.source} · CEMADEN-RJ / SEDEC`;
 
 const JANELAS_CHUVA: { key: "4h" | "24h" | "7d"; label: string }[] = [
   { key: "4h", label: "4 horas" },
