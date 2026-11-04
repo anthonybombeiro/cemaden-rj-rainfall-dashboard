@@ -19,7 +19,7 @@ class SistemasAtuantesTests(APITestCase):
         d = self.client.get(URL, {"data": "2026-10-23"}).json()
         self.assertEqual(d["sistemas"], [])
         self.assertEqual(d["anterior"]["sistemas"], ["zcas"])
-        self.assertEqual(len(d["catalogo"]), 9)
+        self.assertEqual(len(d["catalogo"]), 10)
 
     def test_ordem_e_duplicados(self):
         self.client.put(URL, {"data": "2026-10-23", "sistemas": ["zcas", "alta_pressao", "zcas"]}, format="json")
@@ -41,3 +41,20 @@ class SistemasAtuantesTests(APITestCase):
         self.assertEqual([x["data"] for x in m["dias"]], ["2026-10-23"])
         self.assertEqual(PrevisaoDia.objects.get().texto_geral, "Texto")
         self.assertEqual(self.client.get(URL, {"mes": "2026-13"}).status_code, 400)
+
+    def test_relatorio_regras(self):
+        for d, s in [("2026-03-01", ["zcas", "instabilidade"]), ("2026-03-02", ["zcas"]), ("2026-03-04", ["zcas"]), ("2026-03-05", ["frente_fria"])]:
+            self.client.put(URL, {"data": d, "sistemas": s}, format="json")
+        self.client.put(URL, {"data": "2026-03-06", "sistemas": [], "outro": "Aproximação"}, format="json")
+        r = self.client.get(URL + "relatorio/", {"ano": 2026, "mes": 3}).json()
+        zc = next(x for x in r["sistemas"] if x["id"] == "zcas")
+        self.assertEqual((zc["dias"], zc["como_principal"]), (3, 3))
+        self.assertEqual(zc["maior_sequencia"]["dias"], 2)  # o dia 03 em branco interrompe
+        self.assertEqual(next(x for x in r["sistemas"] if x["id"] == "instabilidade")["dias"], 1)
+        self.assertEqual(r["dias_com_registro"], 5)
+        self.assertIn("2026-03-03", r["dias_em_branco"])
+        self.assertEqual(r["dias_com_mais_de_um_sistema"], 1)
+        self.assertEqual(r["outros_texto_livre"], [{"texto": "Aproximação", "dias": 1}])
+        anual = self.client.get(URL + "relatorio/", {"ano": 2026}).json()
+        self.assertEqual(anual["meses"][2]["contagens"]["zcas"], 3)
+        self.assertEqual(self.client.get(URL + "relatorio/", {"ano": "x"}).status_code, 400)

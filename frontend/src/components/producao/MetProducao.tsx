@@ -7,6 +7,8 @@ import Acumulados from "@/components/producao/Acumulados";
 import Aviso from "@/components/producao/Aviso";
 import Livro from "@/components/producao/Livro";
 import Plantao, { SubMet } from "@/components/producao/Plantao";
+import SistemasRelatorio from "@/components/producao/SistemasRelatorio";
+import Verificacao from "@/components/producao/Verificacao";
 
 /** Produção → Meteorologia: balcão do plantão da meteorologia. O Suporte (IDAP, Cell Broadcast, severidade) só aparece com
  * `NEXT_PUBLIC_MET_EXPERIMENTAL=1` (feito localmente, ainda não publicado). */
@@ -19,6 +21,8 @@ const SUBS: { key: SubMet; rotulo: string }[] = [
   { key: "acumulados", rotulo: "Acumulados" },
   { key: "aviso", rotulo: "Aviso" },
   { key: "livro", rotulo: "Livro de ocorrências" },
+  { key: "verificacao", rotulo: "Verificação" },
+  { key: "sistemas", rotulo: "Sistemas atuantes" },
   ...(EXPERIMENTAL ? [{ key: "suporte" as SubMet, rotulo: "Suporte" }] : []),
 ];
 
@@ -39,6 +43,8 @@ export default function MetProducao() {
         {sub === "acumulados" && <Acumulados />}
         {sub === "aviso" && <Aviso />}
         {sub === "livro" && <Livro />}
+        {sub === "verificacao" && <Verificacao />}
+        {sub === "sistemas" && <SistemasRelatorio />}
         {sub === "suporte" && SuporteMeteorologia && (
           <Suspense fallback={<p className="text-xs text-gray-500">Carregando…</p>}>
             <SuporteMeteorologia />

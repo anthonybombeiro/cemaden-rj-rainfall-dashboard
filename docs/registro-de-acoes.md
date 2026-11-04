@@ -472,3 +472,15 @@ O cartao de Sistemas atuantes, o formulario da previsao e o Texto geral agora fi
 ## 04/11/2026 - Carga dos sistemas atuantes de 2026 (planilha da equipe)
 
 Importados 277 dias (01/01 a 30/10/2026) da planilha "Sistemas meteorologicos atuantes - 2026" pelo endpoint `PUT /api/sistemas-atuantes/` (sessao logada, sem tocar em registros existentes). Dias em branco na planilha nao foram criados. Textos mapeados ao catalogo (ordem do texto = principal); "Aproximacao de frente fria" (09/08 e 04/09) e "Cavado" (29/10) foram para o texto livre. Ja existiam e foram mantidos: 31/10 (painel: Areas de instabilidade; planilha: Baixa pressao + Transporte de umidade) e 01 a 04/11. Mapeamento: `scratchpad/sistemas_2026.py` (nao versionado).
+
+## 04/11/2026 - Base de conhecimento do Livro de ocorrencias
+
+Lidos os 27 e-mails "Ocorrencias Gerais" (05/10 a 03/11) da caixa do usuario (somente leitura). Gerado `docs/livro-ocorrencias-base-conhecimento.md` (formato real, catalogo de linhas, horarios reais x checklist, erros, plano de automacao, tabela por turno). Nada foi implementado; sem enderecos de e-mail no documento. Arquivo apenas local, sem commit/push (aguarda decisao do usuario).
+
+## 04/11/2026 - Verificacao, relatorio de sistemas atuantes e Cavado
+
+* Cavado no catalogo de sistemas atuantes (cor #C4A484); registro de 29/10 convertido de texto livre para "Cavado" em producao.
+* Relatorio de sistemas atuantes (`/api/sistemas-atuantes/relatorio/`, Producao > Meteorologia > Sistemas atuantes; mensal/anual, sintetico/analitico, copiar, MD, XLSX, PNG). Artefato com a analise de 2026 publicado.
+* Verificacao Previsto x Observado (migracao 0036, `core/verificacao.py`, carona no cron, tela em Producao > Meteorologia > Verificacao). Historico gravado de 01/01 a 03/11 pelo endpoint admin; so setembro em diante tem dados do painel. Detalhes em `docs/verificacao.md`.
+* Lista de tarefas (L.O. x e-mails reais; e-mail da recomendacao) em `docs/lista-de-tarefas.md`.
+* Backend por SFTP + migrate; front publicado (109 arquivos, 0 falhas) sem arte/Suporte.

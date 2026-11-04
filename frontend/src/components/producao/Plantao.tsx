@@ -7,7 +7,7 @@ import FaixaLimiares from "@/components/producao/FaixaLimiares";
 import { intervaloVisivel } from "@/lib/intervaloVisivel";
 import { Checklist, dataCurta, fetchChecklist, hhmm, marcarItem } from "@/lib/producaoMet";
 
-export type SubMet = "plantao" | "informativo" | "acumulados" | "aviso" | "livro" | "suporte";
+export type SubMet = "plantao" | "informativo" | "acumulados" | "aviso" | "livro" | "verificacao" | "sistemas" | "suporte";
 
 /** Checklist do plantão (07 h → 07 h) do Protocolo de Meteorologia: horários, item atual em destaque, "feito" com quem e quando (compartilhado entre
  * os técnicos) e as pendências que o turno anterior deixou. Os alertas de limiar ficam no topo. */

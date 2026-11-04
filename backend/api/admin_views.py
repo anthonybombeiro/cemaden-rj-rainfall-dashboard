@@ -154,6 +154,16 @@ class AdminOpsView(APIView):
                     nm = nm_automatico.sincronizar_se_vencido(10)
                     if nm is not None:
                         saida.write(f"\n  nm automático: {nm}")
+                if source == "redemet":  # carona (cron de 15 min): grava a verificação Previsto × Observado de ontem (depois das 00h20 e de novo depois das 06h)
+                    try:
+                        from core import verificacao
+
+                        vv = verificacao.gravar_ontem_se_pendente()
+                        if vv is not None:
+                            saida.write(f"\n  {vv}")
+                    except Exception as exc:  # noqa: BLE001 - a carona nunca derruba a ingestão da REDEMET
+                        logger.exception("Falha na carona da verificação")
+                        saida.write(f"\n  verificação (carona): falhou ({exc.__class__.__name__})")
                 if source == "inea":  # carona (cron de 15 min): atualiza o Google Flood Hub a cada 30 min
                     from ingestion import floodhub as floodhub_mod
 

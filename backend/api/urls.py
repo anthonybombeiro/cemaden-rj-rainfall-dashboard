@@ -40,7 +40,8 @@ from .meteorologia_views import (
     PlantaoChecklistView,
     PlantaoLivroView,
 )
-from .sistemas_atuantes_views import SistemasAtuantesView
+from .verificacao_views import DiferencasView, GravarVerificacaoView, ImportarVerificacaoView, VerificacaoView
+from .sistemas_atuantes_views import SistemasAtuantesView, SistemasRelatorioView
 from .sondagem_views import SondagemNumericaView
 from .saude_views import FontesSaudeView
 from .publico_sirenes_views import PublicoSirenesView
@@ -69,6 +70,11 @@ router.register("avisos-mau-tempo", AvisoMauTempoViewSet, basename="aviso-mau-te
 
 urlpatterns = [
     path("sistemas-atuantes/", SistemasAtuantesView.as_view(), name="sistemas-atuantes"),
+    path("verificacao/", VerificacaoView.as_view(), name="verificacao"),
+    path("verificacao/diferencas/", DiferencasView.as_view(), name="verificacao-diferencas"),
+    path("admin/verificacao/gravar/", GravarVerificacaoView.as_view(), name="admin-verificacao-gravar"),
+    path("admin/verificacao/importar/", ImportarVerificacaoView.as_view(), name="admin-verificacao-importar"),
+    path("sistemas-atuantes/relatorio/", SistemasRelatorioView.as_view(), name="sistemas-atuantes-relatorio"),
     path("ingest/status/", IngestStatusView.as_view(), name="ingest-status"),
     path("ingest/readings/", RemoteReadingsIngestView.as_view(), name="ingest-readings"),
     path("admin/env-check/", EnvCheckView.as_view(), name="admin-env-check"),

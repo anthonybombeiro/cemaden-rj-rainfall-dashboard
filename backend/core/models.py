@@ -1181,3 +1181,60 @@ class ConfiguracaoPlantao(models.Model):
 
     def __str__(self):
         return "Configuração do plantão"
+
+
+class VerificacaoDia(models.Model):
+    """Verificação diária Previsto × Observado por REDEC (04/11/2026), no lugar das planilhas "Verificação_precipitação" e "Max&Min".
+
+    Chuva observada = alguma estação da REDEC com chuva > 1 mm em 1 h (hora cheia) ou > 10 mm no dia civil. Temperaturas = extremos entre as
+    estações da REDEC (faixa -5…48 °C, sem leituras inválidas/suspeitas). Os campos `*_painel` guardam sempre o que o painel calculou; os campos
+    finais usam o valor da planilha quando ele existe (lista `planilha`) e o do painel nos demais (inclusive nos dias em branco da planilha)."""
+
+    data = models.DateField(db_index=True)
+    regiao = models.CharField(max_length=30)
+    chuva_prev = models.BooleanField(null=True, blank=True)
+    chuva_obs = models.BooleanField(null=True, blank=True)
+    chuva_prev_painel = models.BooleanField(null=True, blank=True)
+    chuva_obs_painel = models.BooleanField(null=True, blank=True)
+    chuva_max_24h_mm = models.FloatField(null=True, blank=True)
+    chuva_max_1h_mm = models.FloatField(null=True, blank=True)
+    chuva_estacao = models.CharField(max_length=200, blank=True)
+    tmax_prev = models.SmallIntegerField(null=True, blank=True)
+    tmin_prev = models.SmallIntegerField(null=True, blank=True)
+    tmax_obs = models.FloatField(null=True, blank=True)
+    tmin_obs = models.FloatField(null=True, blank=True)
+    tmax_obs_painel = models.FloatField(null=True, blank=True)
+    tmin_obs_painel = models.FloatField(null=True, blank=True)
+    tmax_estacao = models.CharField(max_length=200, blank=True)
+    tmin_estacao = models.CharField(max_length=200, blank=True)
+    alertas = models.JSONField(default=list, blank=True, help_text="Possíveis erros de dado nesta REDEC/dia, para o técnico avaliar.")
+    planilha = models.JSONField(default=list, blank=True, help_text="Campos finais que vieram da planilha.")
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["data", "regiao"], name="unique_verificacao_data_regiao")]
+        ordering = ["-data", "regiao"]
+        verbose_name = "verificação diária"
+        verbose_name_plural = "verificações diárias"
+
+    def __str__(self):
+        return f"{self.data} · {self.regiao}"
+
+
+class TemperaturaEstacaoDia(models.Model):
+    """Tmax/Tmin do dia civil de cada estação (base dos extremos por REDEC e dos extremos mensais por estação). `alerta_*` marca possível erro de dado."""
+
+    data = models.DateField(db_index=True)
+    station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name="temperaturas_dia")
+    regiao = models.CharField(max_length=30, blank=True)
+    tmax = models.FloatField(null=True, blank=True)
+    tmin = models.FloatField(null=True, blank=True)
+    n_leituras = models.PositiveSmallIntegerField(default=0)
+    alerta_max = models.CharField(max_length=160, blank=True)
+    alerta_min = models.CharField(max_length=160, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["data", "station"], name="unique_temp_dia_estacao")]
+        ordering = ["-data"]
+        verbose_name = "temperatura diária da estação"
+        verbose_name_plural = "temperaturas diárias das estações"

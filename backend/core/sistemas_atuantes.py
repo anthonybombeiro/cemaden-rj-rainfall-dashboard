@@ -10,5 +10,6 @@ CATALOGO = [
     {"id": "zcas", "rotulo": "ZCAS", "cor": "#ED93B1"},
     {"id": "transporte_umidade", "rotulo": "Transporte de umidade", "cor": "#97C459"},
     {"id": "convergencia_umidade", "rotulo": "Convergência de umidade", "cor": "#B4B2A9"},
+    {"id": "cavado", "rotulo": "Cavado", "cor": "#C4A484"},
 ]
 IDS = {c["id"] for c in CATALOGO}

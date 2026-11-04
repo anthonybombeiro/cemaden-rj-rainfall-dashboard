@@ -11,6 +11,25 @@ def _item(o):
     return {"data": o.data.isoformat(), "sistemas": o.sistemas, "outro": o.outro, "atualizado_por": o.atualizado_por, "atualizado_em": o.atualizado_em}
 
 
+class SistemasRelatorioView(APIView):
+    """GET `?ano=AAAA` (anual) ou `?ano=AAAA&mes=M` (mensal): contagens, percentuais, maior sequência, dias em branco e o dia a dia
+    (regras em `core/sistemas_relatorio.py`)."""
+
+    def get(self, request):
+        from django.utils import timezone
+
+        from core.sistemas_relatorio import relatorio
+
+        try:
+            ano = int(request.query_params.get("ano") or timezone.localdate().year)
+            mes = int(request.query_params["mes"]) if request.query_params.get("mes") else None
+            if not (2000 <= ano <= 2100) or (mes is not None and not 1 <= mes <= 12):
+                raise ValueError
+        except ValueError:
+            return Response({"detail": "ano (AAAA) e mes (1-12) inválidos."}, status=400)
+        return Response(relatorio(ano, mes, timezone.localdate()))
+
+
 class SistemasAtuantesView(APIView):
     """GET `?data=AAAA-MM-DD` (padrão: hoje) → registro do dia + o último registro anterior (para repetir); GET `?mes=AAAA-MM` → os dias do mês;
     PUT/POST `{data, sistemas:[códigos], outro}` grava (lista e texto vazios apagam o registro do dia)."""
