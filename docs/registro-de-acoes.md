@@ -468,3 +468,7 @@ O cartao de Sistemas atuantes, o formulario da previsao e o Texto geral agora fi
 ## 03/11/2026 - Botao do Sistemas atuantes no padrao da previsao
 
 `SistemasAtuantesForm.tsx`: botao "Salvar sistema" com icone, cor sedec-600, a direita, igual ao "Salvar previsao". Front publicado por SFTP sem a arte/Suporte.
+
+## 04/11/2026 - Carga dos sistemas atuantes de 2026 (planilha da equipe)
+
+Importados 277 dias (01/01 a 30/10/2026) da planilha "Sistemas meteorologicos atuantes - 2026" pelo endpoint `PUT /api/sistemas-atuantes/` (sessao logada, sem tocar em registros existentes). Dias em branco na planilha nao foram criados. Textos mapeados ao catalogo (ordem do texto = principal); "Aproximacao de frente fria" (09/08 e 04/09) e "Cavado" (29/10) foram para o texto livre. Ja existiam e foram mantidos: 31/10 (painel: Areas de instabilidade; planilha: Baixa pressao + Transporte de umidade) e 01 a 04/11. Mapeamento: `scratchpad/sistemas_2026.py` (nao versionado).
