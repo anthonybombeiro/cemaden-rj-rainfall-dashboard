@@ -44,7 +44,101 @@ function TabelaIndices({ linhas }: { linhas: { nome: string; ix: Indices }[] }) 
   );
 }
 
-/** Produção → Meteorologia → Verificação: Previsto × Observado por REDEC (chuva e temperatura), com índices de Wilks e extremos. Critério de chuva:
+
+/** Escala de cor da magnitude (0 → 1): vermelho → laranja → amarelo → verde-oliva → verde, como no heatmap sugerido pela meteorologia. */
+const PARADAS: [number, [number, number, number]][] = [
+  [0, [196, 68, 68]], [0.33, [226, 154, 105]], [0.5, [242, 210, 124]], [0.67, [186, 186, 122]], [1, [66, 149, 112]],
+];
+function corMagnitude(v: number | null): string {
+  if (v === null || Number.isNaN(v)) return "#f3f4f6";
+  const x = Math.max(0, Math.min(1, v));
+  for (let i = 1; i < PARADAS.length; i++) {
+    const [p1, c1] = PARADAS[i];
+    if (x <= p1) {
+      const [p0, c0] = PARADAS[i - 1];
+      const t = (x - p0) / (p1 - p0 || 1);
+      return `rgb(${c0.map((c, k) => Math.round(c + (c1[k] - c) * t)).join(",")})`;
+    }
+  }
+  return "#429570";
+}
+
+/** Heatmap de Acurácia, CSI (threat score), FAR e POD por REDEC + gráfico de barras da razão acertos/erros (a+d)/(b+c). */
+function IndicesVisual({ linhas, titulo }: { linhas: { nome: string; ix: Indices }[]; titulo: string }) {
+  const [qualidade, setQualidade] = useState(false); // false = cor por magnitude (FAR baixo = vermelho); true = FAR invertido (baixo = verde)
+  const cols: { k: "acuracia" | "threat_score" | "far" | "pod"; rot: string; dica: string }[] = [
+    { k: "acuracia", rot: "Acurácia", dica: "(a+d)/n: fração de previsões corretas" },
+    { k: "threat_score", rot: "CSI", dica: "a/(a+b+c): índice de sucesso crítico (threat score)" },
+    { k: "far", rot: "FAR", dica: "b/(a+b): taxa de falsos alarmes — QUANTO MENOR, MELHOR" },
+    { k: "pod", rot: "POD", dica: "a/(a+c): probabilidade de detecção" },
+  ];
+  const razoes = linhas.map(({ nome, ix }) => ({ nome, v: ix.razao_acertos_erros, n: ix.n, b: ix.b, c: ix.c }));
+  const finitos = razoes.map((r) => r.v).filter((v): v is number => v !== null);
+  const maxR = Math.max(2, ...finitos);
+  const pos = (v: number) => `${Math.min(100, (v / maxR) * 100)}%`;
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold">Mapa de calor — {titulo}</h3>
+          <label className="ml-auto flex cursor-pointer items-center gap-1 text-[11px] text-gray-600">
+            <input type="checkbox" checked={qualidade} onChange={(e) => setQualidade(e.target.checked)} /> inverter o FAR (verde = bom)
+          </label>
+        </div>
+        <table className="w-full border-separate text-center text-xs" style={{ borderSpacing: 3 }}>
+          <thead><tr className="text-gray-600"><th className="py-1 text-left">REDEC</th>{cols.map((c) => <th key={c.k} title={c.dica} className="py-1">{c.rot}{c.k === "far" ? " ↓" : ""}</th>)}</tr></thead>
+          <tbody>
+            {linhas.map(({ nome, ix }) => (
+              <tr key={nome} className={nome === "Total" ? "font-semibold" : ""}>
+                <td className="py-1 text-left">{nome}</td>
+                {cols.map((c) => {
+                  const v = ix[c.k];
+                  const cor = corMagnitude(v === null ? null : c.k === "far" && qualidade ? 1 - v : v);
+                  return <td key={c.k} title={`${nome} — ${c.dica}`} className="rounded py-1.5 text-gray-900" style={{ background: cor }}>{fmt(v)}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500">
+          <span>0 — Baixo</span>
+          <span className="h-2 flex-1 rounded-full" style={{ background: `linear-gradient(to right, ${[0, 0.33, 0.5, 0.67, 1].map((x) => corMagnitude(x)).join(",")})` }} />
+          <span>1 — Alto</span>
+        </div>
+        <p className="mt-1 text-[11px] text-gray-500">
+          {qualidade ? "FAR invertido: verde = poucos falsos alarmes (bom). " : "Cores indicam magnitude, não qualidade. "}
+          <b>FAR é um índice em que quanto menor, melhor</b>; nos demais (acurácia, CSI, POD) quanto maior, melhor. Células em cinza = sem casos para calcular.
+        </p>
+      </div>
+      <div>
+        <h3 className="mb-1 text-sm font-semibold">Razão entre acertos e erros por REDEC — (a+d)/(b+c)</h3>
+        <div className="space-y-1">
+          {razoes.map((r) => {
+            const semErros = r.v === null && r.n > 0 && r.b + r.c === 0;
+            const valor = semErros ? maxR : r.v;
+            const cor = valor === null ? "#d1d5db" : valor > 1 ? "#429570" : valor === 1 ? "#e0b84a" : "#c44444";
+            return (
+              <div key={r.nome} className="flex items-center gap-2 text-xs">
+                <span className="w-28 shrink-0 truncate text-right" title={r.nome}>{r.nome}</span>
+                <div className="relative h-5 flex-1 rounded bg-gray-100">
+                  {valor !== null && <div className="h-5 rounded" style={{ width: pos(valor), background: cor }} />}
+                  <div className="absolute inset-y-0 border-l-2 border-dashed border-gray-500" style={{ left: pos(1) }} title="R = 1: acertos = erros" />
+                </div>
+                <span className="w-24 shrink-0 font-semibold">{semErros ? "∞ (sem erros)" : fmt(r.v, 2)}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-1 text-[11px] text-gray-500">
+          R &lt; 1: mais erros que acertos · R = 1: acertos e erros em igual número (linha tracejada) · R &gt; 1: mais acertos que erros. Quanto maior, melhor.
+          Sem erros no período a razão é indefinida (barra cheia).
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Resumo 24 h → Verificação: Previsto × Observado por REDEC (chuva e temperatura), com índices de Wilks e extremos. Critério de chuva:
  * > 1 mm em 1 h ou > 10 mm no dia. Tudo calculado pelo painel (comando diário) e corrigido pela planilha da equipe onde ela existe. */
 export default function Verificacao() {
   const [mes, setMes] = useState(mesAtual());
@@ -133,8 +227,10 @@ export default function Verificacao() {
 
           {aba === "indices" && (
             <div className="space-y-4">
+              <IndicesVisual titulo={`mês selecionado (${mes.split("-").reverse().join("/")})`} linhas={[...regs.map((r) => ({ nome: nomeRegiao(r), ix: d.contingencia[r] })), { nome: "Total", ix: d.total }]} />
+              {ano && <IndicesVisual titulo={`ano ${mes.slice(0, 4)}`} linhas={[...regs.map((r) => ({ nome: nomeRegiao(r), ix: ano.contingencia[r] })), { nome: "Total", ix: ano.total }]} />}
               <div>
-                <h3 className="mb-1 text-sm font-semibold">Mês selecionado ({mes.split("-").reverse().join("/")})</h3>
+                <h3 className="mb-1 text-sm font-semibold">Tabelas (mês selecionado)</h3>
                 <TabelaIndices linhas={[...regs.map((r) => ({ nome: nomeRegiao(r), ix: d.contingencia[r] })), { nome: "Total", ix: d.total }]} />
               </div>
               {ano ? (

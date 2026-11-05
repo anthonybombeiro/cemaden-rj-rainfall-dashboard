@@ -7,6 +7,8 @@ import { fetchResumo24h, Resumo24h, ResumoItem, ResumoMunicipio, ResumoRegiao } 
 import FaixaLimiares from "@/components/producao/FaixaLimiares";
 import ChuvaCalendario from "@/components/producao/ChuvaCalendario";
 import SistemasAtuantesResumo, { SistemasAtuantesMensal } from "@/components/SistemasAtuantesResumo";
+import SistemasRelatorio from "@/components/producao/SistemasRelatorio";
+import Verificacao from "@/components/producao/Verificacao";
 import { BlocoAlertasFH, BlocoEventosFH } from "@/components/FloodHubPanel";
 import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
 import { FAIXAS_RAJADA } from "@/lib/ventoFaixas";
@@ -14,13 +16,15 @@ import { FAIXAS_RAJADA } from "@/lib/ventoFaixas";
 /** Aba "Resumo 24 h" (07/10/2026): acontecimentos do dia, Top 10, previsão × observado por região e
  * cidades com chuva/rajada. Dados de `GET /api/resumo/` (regras em docs/resumo-24h.md). */
 
-type Sub = "resumo" | "mensal" | "top10" | "previsao" | "cidades";
+type Sub = "resumo" | "mensal" | "top10" | "previsao" | "cidades" | "verificacao" | "sistemas";
 const SUBS: { key: Sub; label: string }[] = [
   { key: "resumo", label: "Resumo" },
   { key: "mensal", label: "Mensal" },
   { key: "top10", label: "Top 10" },
   { key: "previsao", label: "Previsão × Observado" },
   { key: "cidades", label: "Cidades" },
+  { key: "verificacao", label: "Verificação" },
+  { key: "sistemas", label: "Sistemas atuantes" },
 ];
 
 const COR_CHUVA: Record<string, { bg: string; text: string }> = {
@@ -345,6 +349,9 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
           <SistemasAtuantesMensal dia={dia || new Date().toLocaleDateString("sv-SE")} />
         </div>
       )}
+
+      {sub === "verificacao" && <Verificacao />}
+      {sub === "sistemas" && <SistemasRelatorio />}
 
       {dados && sub === "top10" && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
