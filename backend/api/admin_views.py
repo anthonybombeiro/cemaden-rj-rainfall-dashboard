@@ -91,6 +91,7 @@ ACOES_PERMITIDAS = {
     "floodhub_proximas",
     "auditoria_precip",
     "floodhub_validacao",
+    "macae_portal",
 }
 
 
@@ -343,6 +344,24 @@ class AdminOpsView(APIView):
                         travadas.append((sid, ant, run + 1))
                 rel["sequencias_iguais_ge_6"] = {"quantidade": len(travadas), "amostra(id,valor,tamanho)": travadas[:10]}
                 saida.write(json_module.dumps(rel, ensure_ascii=False, default=str))
+            elif action == "macae_portal":
+                # SOMENTE LEITURA (05/11): lista TODAS as estações do portal de Macaé (internas e
+                # weather.com) com tipo, online e hora da última leitura, p/ comparar com a nossa tabela.
+                import json as json_module
+
+                from ingestion.connectors import macae_ufrj as mu
+
+                sessao = mu._login()
+                feats = mu._buscar_geojson(sessao) if sessao else []
+                linhas = []
+                for f in feats:
+                    pr = f.get("properties") or {}
+                    inf = pr.get("estacao") or {}
+                    ul = pr.get("ultimaLeitura") or {}
+                    linhas.append({"id": inf.get("id"), "nome": inf.get("descricao"), "tipo": inf.get("tipo"),
+                                   "online": inf.get("online"), "ativa": inf.get("ativa"),
+                                   "pws": inf.get("weathercom_station_id"), "ultima": ul.get("datahora")})
+                saida.write(json_module.dumps(linhas, ensure_ascii=False, default=str))
             elif action == "snapshot_precip":
                 # SOMENTE LEITURA: nossos acumulados (os mesmos da tabela de
                 # Precipitação) por estação de uma fonte, p/ comparar com o oficial.

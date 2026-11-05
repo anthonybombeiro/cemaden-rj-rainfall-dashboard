@@ -65,6 +65,7 @@ import requests
 from django.conf import settings
 
 from core.models import Reading, Station
+from core.municipios import municipio_por_coordenada
 
 from .base import BaseConnector
 
@@ -144,15 +145,30 @@ class MacaeUfrjConnector(BaseConnector):
             logger.exception("Falha ao buscar estações de Macaé (UFRJ)")
             return []
 
+        self._migrar_do_wunderground(features)
+        anteriores = {
+            st.external_id: (st.raw_metadata or {}).get("historico_minuto_ate")
+            for st in Station.objects.filter(source__slug=self.slug)
+        }
         estacoes = []
+        pws_vistos: set[str] = set()
         for feature in features:
             props = feature.get("properties") or {}
             info = props.get("estacao") or {}
             # Só "interna" (sensor próprio da rede) — "weather.com" é PWS
             # pessoal já coberto (ou cobrível) pelo conector Wunderground,
             # evita duplicar a mesma estação física por duas fontes.
-            if info.get("tipo") != "interna":
+            # 05/11/2026: as "weather.com" (PWS do Wunderground repassadas pelo portal, com histórico
+            # de 1 min) agora são coletadas AQUI e saíram do conector Wunderground (a chave da TWC
+            # estava sendo recusada e elas são a maioria das estações online de Macaé).
+            tipo = info.get("tipo")
+            if tipo not in ("interna", "weather.com"):
                 continue
+            if tipo == "weather.com":
+                pws = str(info.get("weathercom_station_id") or "")
+                if not pws or pws in pws_vistos:
+                    continue  # o portal repete a mesma PWS com nomes diferentes
+                pws_vistos.add(pws)
             geometry = feature.get("geometry") or {}
             coords = geometry.get("coordinates")
             if not coords or len(coords) < 2:
@@ -171,7 +187,7 @@ class MacaeUfrjConnector(BaseConnector):
                 {
                     "external_id": external_id,
                     "name": info.get("descricao") or f"Macaé {external_id}",
-                    "municipality": "Macaé",
+                    "municipality": (municipio_por_coordenada(float(lat), float(lon)) or "Macaé") if tipo == "weather.com" else "Macaé",
                     "station_type": Station.StationType.METEOROLOGICA,
                     "status": Station.Status.ATIVA if info.get("online") else Station.Status.INATIVA,
                     "latitude": float(lat),
@@ -179,14 +195,47 @@ class MacaeUfrjConnector(BaseConnector):
                     "altitude_m": None,
                     # guarda ultimaLeitura pra fetch_readings reaproveitar
                     "raw_metadata": {
-                        **props,
+                        **_sem_segredos(props),
                         "acumulados_oficiais": oficiais,
-                        "codigo": info.get("identificador"),
+                        "codigo": info.get("weathercom_station_id") or info.get("identificador"),
+                        "tipo_portal": tipo,
                         "historico_minuto_ate": anteriores.get(external_id),
                     },
                 }
             )
         return estacoes
+
+    def _migrar_do_wunderground(self, features: list[dict]) -> None:
+        """Move (idempotente) as estações PWS de Macaé do conector Wunderground para este,
+        preservando o histórico: troca `source` e `external_id` (id do portal). O histórico por
+        minuto só continua de onde a coleta anterior parou, p/ não contar a chuva duas vezes."""
+        from core.models import Reading, Source
+
+        destino = Source.objects.filter(slug=self.slug).first()
+        if destino is None:
+            return
+        por_pws = {}
+        for f in features:
+            info = (f.get("properties") or {}).get("estacao") or {}
+            pws = str(info.get("weathercom_station_id") or "")
+            if info.get("tipo") == "weather.com" and pws and pws not in por_pws:
+                por_pws[pws] = str(info.get("id"))
+        for st in Station.objects.filter(source__slug="wunderground", external_id__in=list(por_pws)):
+            novo_id = por_pws[st.external_id]
+            if Station.objects.filter(source=destino, external_id=novo_id).exists():
+                continue
+            ultima = (
+                Reading.objects.filter(station=st, reading_type=Reading.ReadingType.CHUVA_MM)
+                .order_by("-timestamp").values_list("timestamp", flat=True).first()
+            )
+            meta = dict(st.raw_metadata or {})
+            meta.pop("observacao_oficial", None)
+            if ultima is not None:
+                meta["historico_minuto_ate"] = (ultima + dt.timedelta(minutes=10)).isoformat()
+            st.source = destino
+            st.external_id = novo_id
+            st.raw_metadata = meta
+            st.save(update_fields=["source", "external_id", "raw_metadata"])
 
     def fetch_readings(self, stations: list[dict]) -> list[dict]:
         readings: list[dict] = []
@@ -236,6 +285,14 @@ class MacaeUfrjConnector(BaseConnector):
                 try:
                     bruto = json.loads(payload_bruto)
                 except (TypeError, ValueError):
+                    bruto = {}
+                metric = bruto.get("metric") if isinstance(bruto.get("metric"), dict) else None
+                if metric is not None:  # payload no formato Weather Company (estação "weather.com")
+                    if metric.get("windGust") is not None:
+                        add(Reading.ReadingType.VENTO_RAJADA_MS, float(metric["windGust"]) / 3.6)
+                    p_nm = metric.get("pressure")
+                    if p_nm is not None and 950 <= float(p_nm) <= 1060:
+                        add(Reading.ReadingType.PRESSAO_NM_HPA, p_nm)
                     bruto = {}
                 rajada_ms = bruto.get("rajada_vento")
                 if rajada_ms is not None:
@@ -330,6 +387,17 @@ class MacaeUfrjConnector(BaseConnector):
                     LeituraQualidade.objects.get_or_create(reading=r, defaults={"qualidade": q[0], "motivo": q[1][:120]})
             estacao.raw_metadata = {**(estacao.raw_metadata or {}), "historico_minuto_ate": ultimo_minuto.isoformat()}
             estacao.save(update_fields=["raw_metadata"])
+
+
+def _sem_segredos(props: dict) -> dict:
+    """Cópia de `props` sem as chaves de API que o portal embute no cadastro da estação."""
+    out = dict(props)
+    info = dict(out.get("estacao") or {})
+    for k in list(info):
+        if "api_key" in k or "api_id" in k:
+            info[k] = None
+    out["estacao"] = info
+    return out
 
 
 def _num(valor) -> float | None:

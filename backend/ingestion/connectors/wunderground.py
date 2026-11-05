@@ -50,7 +50,14 @@ MAX_LACUNAS_POR_RODADA = 12  # limita as chamadas extras por rodada (cota da cha
 
 # Passadas pelas Defesas Civis municipais (setembro/2026). Nome/município
 # confirmados consultando cada código nesta mesma API.
-STATIONS_RJ = [
+# 05/11/2026: estações de Macaé que o portal de telemetria de Macaé (UFRJ/DC) já repassa com
+# histórico — passam a ser coletadas por lá (conector macae_ufrj), poupando chamadas à API da TWC.
+MIGRADAS_PARA_MACAE = {
+    "IMACA6", "IMACA7", "IMACA13", "IMACA15", "IMACA26", "IMACA28", "IMACA30", "IMACA31", "IMACA32",
+    "IMACA36", "IMACA41", "IMACA42", "IMACA46", "IMACA52", "IMACA53", "IMACA56", "IMACA58", "IMACA60",
+}
+
+STATIONS_RJ_COMPLETA = [
     {"external_id": "IRIODA6", "name": "Rio das Ostras", "municipality": "Rio das Ostras", "latitude": -22.527074, "longitude": -41.957646},
     {"external_id": "IRIODA15", "name": "REBIO União", "municipality": "Rio das Ostras", "latitude": -22.426845, "longitude": -42.020862},
     {"external_id": "IRIODA5", "name": "Rio das Ostras", "municipality": "Rio das Ostras", "latitude": -22.43, "longitude": -41.95},
@@ -178,6 +185,7 @@ STATIONS_RJ = [
     {"external_id": "IVALEN530", "name": "Valença", "municipality": "Barra do Piraí", "latitude": -22.28074, "longitude": -43.74289},
     {"external_id": "IVOLTA15", "name": "Volta Redonda", "municipality": "Barra do Piraí", "latitude": -22.49598, "longitude": -44.07209},
 ]
+STATIONS_RJ = [e for e in STATIONS_RJ_COMPLETA if e["external_id"] not in MIGRADAS_PARA_MACAE]
 
 
 class WundergroundConnector(BaseConnector):
@@ -236,6 +244,8 @@ class WundergroundConnector(BaseConnector):
         readings: list[dict] = []
         self._obs: dict[str, dict] = {}
         self._lacunas_buscadas = 0
+        status_http_msg: dict[str, str] = {}
+        status_http: dict[str, int] = {}  # 05/11: diagnóstico (antes as falhas só iam para o log, que ninguém lê)
         for st in stations:
             codigo = st["external_id"]
             try:
@@ -250,12 +260,17 @@ class WundergroundConnector(BaseConnector):
                     },
                     timeout=15,
                 )
+                status_http[str(resp.status_code)] = status_http.get(str(resp.status_code), 0) + 1
+                if resp.status_code >= 400 and "corpo" not in status_http_msg:
+                    status_http_msg["corpo"] = (resp.text or "")[:160].replace(chr(10), " ")
                 if resp.status_code == 204:
                     continue  # estação sem leitura recente (comum, não é erro)
                 resp.raise_for_status()
                 payload = resp.json()
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 logger.exception("Falha ao buscar leitura Wunderground de %s", codigo)
+                if not str(exc).startswith(("401", "403", "429")) and "HTTP" not in str(type(exc)):
+                    status_http["erro:" + type(exc).__name__] = status_http.get("erro:" + type(exc).__name__, 0) + 1
                 continue
 
             observacoes = payload.get("observations") or []
@@ -360,6 +375,10 @@ class WundergroundConnector(BaseConnector):
             if rajada_kmh is not None:
                 add(Reading.ReadingType.VENTO_RAJADA_MS, rajada_kmh / 3.6)
 
+        # Sem nenhuma leitura gravável e com respostas de erro/204: mostra o motivo em
+        # Source.last_ingest_error (aparece na faixa de saúde das fontes).
+        if not readings and status_http and set(status_http) != {"200"}:
+            raise RuntimeError(f"Wunderground sem leituras; respostas HTTP: {status_http} {status_http_msg.get('corpo', '')}")
         return readings
 
     def _preencher_lacuna(self, api_key: str, codigo: str, ts_atual: dt.datetime) -> int:

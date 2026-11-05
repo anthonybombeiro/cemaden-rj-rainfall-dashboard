@@ -488,3 +488,15 @@ Lidos os 27 e-mails "Ocorrencias Gerais" (05/10 a 03/11) da caixa do usuario (so
 ## 05/11/2026 - Alerta falso "Chuva forte em Capital"
 
 Causa: estacao do Wunderground ("Rio de Janeiro") com 25,1 mm em 1 h, reprovada no controle de qualidade da fonte (qcStatus 0, leitura marcada suspeita), entrou em `chuva_atual_por_redec` e disparou "Emitir informativo agora". Correcao: `core/informativo_apoio.py` ignora estacoes com leitura suspeita/invalida nas ultimas 24 h; teste novo. Publicado por SFTP (sem migracao).
+
+## 05/11/2026 — Wunderground "parado" (diagnóstico)
+* Sintoma: faixa "110 estações paradas > 4 h". Consulta a `/api/fontes/saude/`: a coleta roda (última há ~3 min), mas as 100 estações com dado pararam de gravar leituras ~01h04 local (5,5 h); 21 sem dado em 48 h.
+* O conector engolia falhas HTTP (só log, que o cron descarta). Alteração em `ingestion/connectors/wunderground.py`: conta os códigos HTTP da rodada e, se não houver leitura alguma, grava o resumo em `Source.last_ingest_error` (aparece na saúde das fontes). Publicado por SFTP, sem migração.
+* Resultado do diagnóstico (09h49 UTC): **401 em todas as 121 chamadas** (`observations/current`). A coleta roda, mas a chave é recusada desde ~01h04 local de 05/11. Conector passou a gravar também o início do corpo da resposta no erro, para distinguir "throttled" de "chave inválida/termos".
+
+## 05/11/2026 — Macaé: 26 estações no painel × 43 no portal
+* Consulta somente leitura ao portal (login de serviço, rodada local): 43 estações listadas; 24 "internas" (6 online) e 19 "weather.com" = estações pessoais do Wunderground repassadas pelo portal (15 online). O "21 online" do usuário = 6 + 15.
+* O conector Macaé ignora de propósito as "weather.com" (cobertas pelo conector Wunderground), e o Wunderground está com 401 desde ~01h04 de 05/11. Por isso só 7 estações de Macaé aparecem ativas.
+* Nova ação somente leitura `macae_portal` em `/api/admin/run/` (publicada; exige o segredo, não usada em produção).
+* **Feito (pedido do usuário):** as 18 estações PWS que o portal de Macaé repassa passam a ser coletadas pelo conector `macae_ufrj` (leitura atual + histórico por minuto + acumulados oficiais; chaves de API do cadastro removidas do que é gravado). As 12 que já existiam no Wunderground foram MOVIDAS (histórico preservado; chuva por minuto só continua de onde parou) e saíram de `STATIONS_RJ` (`MIGRADAS_PARA_MACAE`): Wunderground faz 109 chamadas por rodada em vez de 121. Duplicatas do portal (mesma PWS com dois nomes) são ignoradas.
+* Confirmação em produção (10h35 UTC): Macaé 44 estações, 21 ativas (= 21 online no portal). Wunderground: erro "API key is throttled" (chave limitada por volume).
