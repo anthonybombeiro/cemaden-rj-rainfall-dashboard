@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 
 from core import importacao_informativos as imp
 from core import informativo_apoio as apoio
-from core.models import InformativoMeteorologico, InformativoRegiao, Previsao, Reading, Source, Station
+from core.models import InformativoMeteorologico, InformativoRegiao, LeituraQualidade, Previsao, Reading, Source, Station
 
 
 def estacao(nome="Est. Petrópolis", municipio="Petrópolis", slug="alerta_rio"):
@@ -91,6 +91,15 @@ class ChuvaDasEstacoesTest(APITestCase):
         self.assertEqual(set(r), {"SERRANA I"})
         self.assertEqual((r["SERRANA I"]["classe"], r["SERRANA I"]["estacao"], r["SERRANA I"]["intensidade_sugerida"]), ("forte", "Forte", "moderada_forte"))
         self.assertEqual(r["SERRANA I"]["estacoes_com_chuva"], 2)
+
+    def test_estacao_com_leitura_suspeita_nao_gera_chuva_atual(self):
+        wu = estacao("Rio de Janeiro", "Rio de Janeiro", slug="wunderground")
+        leitura = chuva(wu, 25.1, self.agora - dt.timedelta(minutes=10))
+        LeituraQualidade.objects.create(reading=leitura, qualidade="suspeito", motivo="reprovado no controle de qualidade do Wunderground (qcStatus 0)")
+        ok = estacao("Capital OK", "Rio de Janeiro")
+        chuva(ok, 3.0, self.agora - dt.timedelta(minutes=5))
+        r = apoio.chuva_atual_por_redec(self.agora)
+        self.assertEqual((r["CAPITAL"]["estacao"], r["CAPITAL"]["classe"]), ("Capital OK", "fraca"))  # a suspeita (forte) ficou de fora
 
     def test_leitura_velha_nao_conta_como_chuva_agora(self):
         chuva(estacao("Velha", "Petrópolis"), 30.0, self.agora - dt.timedelta(hours=2))

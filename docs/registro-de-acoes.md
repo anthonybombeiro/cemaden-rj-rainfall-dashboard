@@ -484,3 +484,7 @@ Lidos os 27 e-mails "Ocorrencias Gerais" (05/10 a 03/11) da caixa do usuario (so
 * Verificacao Previsto x Observado (migracao 0036, `core/verificacao.py`, carona no cron, tela em Producao > Meteorologia > Verificacao). Historico gravado de 01/01 a 03/11 pelo endpoint admin; so setembro em diante tem dados do painel. Detalhes em `docs/verificacao.md`.
 * Lista de tarefas (L.O. x e-mails reais; e-mail da recomendacao) em `docs/lista-de-tarefas.md`.
 * Backend por SFTP + migrate; front publicado (109 arquivos, 0 falhas) sem arte/Suporte.
+
+## 05/11/2026 - Alerta falso "Chuva forte em Capital"
+
+Causa: estacao do Wunderground ("Rio de Janeiro") com 25,1 mm em 1 h, reprovada no controle de qualidade da fonte (qcStatus 0, leitura marcada suspeita), entrou em `chuva_atual_por_redec` e disparou "Emitir informativo agora". Correcao: `core/informativo_apoio.py` ignora estacoes com leitura suspeita/invalida nas ultimas 24 h; teste novo. Publicado por SFTP (sem migracao).

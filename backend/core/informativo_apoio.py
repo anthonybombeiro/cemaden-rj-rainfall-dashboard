@@ -48,7 +48,7 @@ def _redec_do_municipio() -> dict[str, str]:
 
 def chuva_atual_por_redec(agora: dt.datetime | None = None) -> dict[str, dict]:
     """REDEC → {max_1h_mm, classe, rotulo, estacao, municipio, atualizado_em, estacoes_com_chuva, intensidade_sugerida}. Só REDECs com alguma chuva (≥ 0,2 mm/h)
-    em estação com leitura dos últimos 90 min."""
+    em estação com leitura dos últimos 90 min. Estações com leitura suspeita ou inválida nas últimas 24 h (`LeituraQualidade`) não contam."""
     from api.views import StationViewSet  # import tardio: evita ciclo no carregamento
 
     agora = agora or timezone.now()
@@ -59,6 +59,8 @@ def chuva_atual_por_redec(agora: dt.datetime | None = None) -> dict[str, dict]:
     por_regiao: dict[str, list[dict]] = defaultdict(list)
     for e in StationViewSet()._calcular_precipitacao(recentes):
         mm, atualizado = e.get("acumulado_1h_mm"), e.get("updated_at")
+        if e.get("qualidade") in ("suspeito", "invalido"):  # 05/11: uma estação do Wunderground reprovada no controle de qualidade (25,1 mm numa hora) gerou "Chuva forte em Capital"
+            continue
         if mm is None or atualizado is None or (agora - atualizado) > dt.timedelta(minutes=IDADE_MAX_LEITURA_MIN):
             continue
         regiao = redec_de.get(canonico_ou_original(e.get("municipality") or "") or "")
