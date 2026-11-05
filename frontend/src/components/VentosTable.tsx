@@ -445,6 +445,9 @@ const VentosTable = forwardRef<
           {FAIXA_ATRASADA.label} (&gt; {HORAS_ATRASO_VENTO}h sem atualizar)
         </span>
       </div>
+      <div className="border-t border-gray-100 p-2 text-xs text-amber-700">
+        ⏱ <b>Estações do Wunderground</b> (fonte “DCM/Wunderground”): atualização limitada a uma vez a cada <b>2 horas</b> (cota diária da API); a hora da leitura aparece na própria linha.
+      </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
         {FAIXAS_RAJADA.map((_, i) => rotuloComFaixa(i)).reverse().join(" · ")}. Estação sem
         leitura há mais de {HORAS_ATRASO_VENTO}h aparece cinza ("Atrasada") em vez da cor da rajada — dado velho

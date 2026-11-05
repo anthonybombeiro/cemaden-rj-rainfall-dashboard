@@ -386,6 +386,9 @@ const DataTable = forwardRef<
       {sorted.length === 0 && (
         <div className="p-6 text-center text-sm text-gray-400">Nenhuma estação encontrada com os filtros atuais.</div>
       )}
+      <div className="border-t border-gray-100 p-2 text-xs text-amber-700">
+        ⏱ <b>Estações do Wunderground</b> (fonte “DCM/Wunderground”): atualização limitada a uma vez a cada <b>2 horas</b> (cota diária da API); a hora da leitura aparece na própria linha.
+      </div>
       <div className="sticky left-0 border-t border-gray-100 p-2 text-xs text-gray-400">
         Arraste a borda direita de um cabeçalho para ajustar a largura da coluna (duplo clique restaura).{" "}
         <button type="button" onClick={resetAll} className="underline hover:text-gray-600">

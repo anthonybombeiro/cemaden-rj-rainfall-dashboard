@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import time
 
 import requests
 from django.conf import settings
@@ -46,7 +47,10 @@ CURRENT_URL = "https://api.weather.com/v2/pws/observations/current"
 # recuperar lacunas de coleta (06/10/2026).
 ALL_1DAY_URL = "https://api.weather.com/v2/pws/observations/all/1day"
 LACUNA_MIN = dt.timedelta(minutes=45)  # intervalo sem leitura nossa que dispara a recuperação
-MAX_LACUNAS_POR_RODADA = 12  # limita as chamadas extras por rodada (cota da chave)
+MAX_LACUNAS_POR_RODADA = 0  # 05/11/2026: sem chamadas extras (a chave tem cota diária de ~1,5 mil chamadas)
+# 05/11/2026: a TWC limitou a chave a ~1,5 mil chamadas/dia. Cada estação é consultada 1 vez a cada
+# RODADAS_POR_CICLO rodadas de 15 min (= 2 h): ~109 estações x 12/dia ≈ 1,3 mil chamadas.
+RODADAS_POR_CICLO = 8
 
 # Passadas pelas Defesas Civis municipais (setembro/2026). Nome/município
 # confirmados consultando cada código nesta mesma API.
@@ -246,7 +250,12 @@ class WundergroundConnector(BaseConnector):
         self._lacunas_buscadas = 0
         status_http_msg: dict[str, str] = {}
         status_http: dict[str, int] = {}  # 05/11: diagnóstico (antes as falhas só iam para o log, que ninguém lê)
-        for st in stations:
+        # rodízio: o "slot" muda a cada 15 min; a estação i é lida quando i % ciclo == slot
+        slot = int(time.time() // 900) % RODADAS_POR_CICLO
+        ordenadas = sorted(stations, key=lambda x: x["external_id"])
+        for i, st in enumerate(ordenadas):
+            if i % RODADAS_POR_CICLO != slot:
+                continue
             codigo = st["external_id"]
             try:
                 resp = requests.get(

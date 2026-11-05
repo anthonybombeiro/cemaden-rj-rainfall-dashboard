@@ -500,3 +500,9 @@ Causa: estacao do Wunderground ("Rio de Janeiro") com 25,1 mm em 1 h, reprovada 
 * Nova ação somente leitura `macae_portal` em `/api/admin/run/` (publicada; exige o segredo, não usada em produção).
 * **Feito (pedido do usuário):** as 18 estações PWS que o portal de Macaé repassa passam a ser coletadas pelo conector `macae_ufrj` (leitura atual + histórico por minuto + acumulados oficiais; chaves de API do cadastro removidas do que é gravado). As 12 que já existiam no Wunderground foram MOVIDAS (histórico preservado; chuva por minuto só continua de onde parou) e saíram de `STATIONS_RJ` (`MIGRADAS_PARA_MACAE`): Wunderground faz 109 chamadas por rodada em vez de 121. Duplicatas do portal (mesma PWS com dois nomes) são ignoradas.
 * Confirmação em produção (10h35 UTC): Macaé 44 estações, 21 ativas (= 21 online no portal). Wunderground: erro "API key is throttled" (chave limitada por volume).
+
+## 05/11/2026 — Wunderground a cada 2 h (cota da chave) e janelas curtas em Macaé
+* Gráfico de uso da chave (TWC): ~1,5 mil chamadas bem-sucedidas/dia; o resto, falhas (chave "throttled"). Antes de 29/10 a mesma chave aguentava ~12 mil/dia.
+* **Wunderground:** rodízio — cada estação é lida 1 vez a cada 8 rodadas de 15 min (2 h) → ~109 × 12 ≈ 1,3 mil chamadas/dia; sem chamadas extras de recuperação (`MAX_LACUNAS_POR_RODADA = 0`). Tolerância de "atrasada" 3 h (`TOLERANCIA_ATRASO_H` e `LIMITE_ATRASO_H_POR_FONTE`), estação "parada" só após 6 h (`PARADA_APOS_H_POR_FONTE`); colunas 15/30 min saíram da aba Wunderground; legenda "atualização a cada 2 h" nas tabelas Precipitação, Meteorologia, Ventos e Wunderground e no banner de saúde.
+* **Macaé:** colunas 5/10/15/30 min (nossas), somando a chuva por minuto já gravada, até o último minuto gravado; sem minuto nos últimos 25 min = sem dado. Front e backend publicados.
+* Possível próximo passo (não feito, proposta 2/3): coleta a cada 15 min onde estiver chovendo + teto diário de 1,4 mil.

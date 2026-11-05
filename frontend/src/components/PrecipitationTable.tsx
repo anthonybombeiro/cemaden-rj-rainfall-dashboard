@@ -421,6 +421,9 @@ const PrecipitationTable = forwardRef<
           </span>
         ))}
       </div>
+      <div className="border-t border-gray-100 p-2 text-xs text-amber-700">
+        ⏱ <b>Estações do Wunderground</b> (fonte “DCM/Wunderground”): atualização limitada a uma vez a cada <b>2 horas</b> (cota diária da API); a hora da leitura aparece na própria linha.
+      </div>
       <div className="border-t border-gray-100 p-2 text-xs text-gray-400">
         &ldquo;1 Mês&rdquo; é janela CORRIDA de 30 dias; &ldquo;Hoje&rdquo; e &ldquo;No Mês&rdquo; (lado a lado) são
         acumulado CALENDÁRIO — desde 00h de hoje e desde o dia 1 do mês corrente, respectivamente — coisas

@@ -42,6 +42,8 @@ IGNORAR = {"cemaden_rj_sirenes", "cemaden_rj", "cemaden_nacional", "rio_chuva_ba
 SENSIVEIS = {"plugfield", "macae_ufrj", "wunderground", "niteroi", "alerta_rio", "inea", "ecowitt_paracambi"}
 
 PARADA_APOS_H = 4
+# Fontes com coleta mais espaçada por motivo de cota: Wunderground = 1 chamada por estação a cada 2 h (05/11/2026).
+PARADA_APOS_H_POR_FONTE = {"wunderground": 6}
 JANELA_PARADA_H = 48
 TIPOS_ATIVIDADE = ("chuva_mm", "temperatura_c", "nivel_m")
 
@@ -76,7 +78,7 @@ class FontesSaudeView(APIView):
                 f["sem_dado"] += 1
             else:
                 idade_h = (agora - m).total_seconds() / 3600
-                if idade_h <= PARADA_APOS_H:
+                if idade_h <= PARADA_APOS_H_POR_FONTE.get(slug_por_id[e.source_id], PARADA_APOS_H):
                     f["ativas"] += 1
                 else:
                     f["paradas"].append(

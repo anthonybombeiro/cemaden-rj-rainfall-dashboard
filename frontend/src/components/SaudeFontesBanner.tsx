@@ -98,7 +98,7 @@ export default function SaudeFontesBanner() {
           ))}
           <div className="text-[11px] text-orange-800">
             “Parada” = tinha leitura nas últimas 48 h e nenhuma há mais de {saude.parada_apos_h} h. Estações sem nenhum dado
-            em 48 h não entram aqui (ver o inventário em docs).
+            em 48 h não entram aqui (ver o inventário em docs). Wunderground é coletado a cada 2 h por estação (cota da API): conta como parada só após 6 h.
           </div>
         </div>
       )}

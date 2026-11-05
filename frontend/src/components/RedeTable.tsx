@@ -313,6 +313,10 @@ const CONFIG: Record<RedeSource, Config> = {
     municipio: false,
     redec: false,
     chuva: [
+      { key: "n05m", label: "5min", titulo: "Chuva dos últimos 5 min até o último minuto gravado (histórico por minuto do portal; coleta de 15 em 15 min). Sem minuto nos últimos 25 min = sem dado", get: nosso("m05"), tipo: "mm" },
+      { key: "n10m", label: "10min", titulo: "Chuva dos últimos 10 min até o último minuto gravado", get: nosso("m10"), tipo: "mm" },
+      { key: "n15m", label: "15min", titulo: "Chuva dos últimos 15 min até o último minuto gravado", get: nosso("m15"), tipo: "mm" },
+      { key: "n30m", label: "30min", titulo: "Chuva dos últimos 30 min até o último minuto gravado", get: nosso("m30"), tipo: "mm" },
       { key: "o1", label: "1h", titulo: "Acumulado OFICIAL do portal da rede — última 1 h", get: oficial("1"), tipo: "mm" },
       { key: "o24", label: "24h", titulo: "Acumulado OFICIAL do portal — últimas 24 h", get: oficial("24"), tipo: "mm" },
       { key: "o96", label: "96h", titulo: "Acumulado OFICIAL do portal — últimas 96 h", get: oficial("96"), tipo: "mm" },
@@ -328,7 +332,7 @@ const CONFIG: Record<RedeSource, Config> = {
     coluna1h: oficial("1"),
     coluna24h: oficial("24"),
     nota:
-      "Macaé (UFRJ/Defesa Civil): 1h, 24h e 96h são os acumulados OFICIAIS do portal da rede; as colunas “Calc” (cinza, itálico) são o nosso cálculo, para conferir. A chuva é gravada minuto a minuto a partir do histórico do portal (basculador de 0,34 mm). Estações offline mostram a última leitura que o portal tem.",
+      "Macaé (UFRJ/Defesa Civil): 1h, 24h e 96h são os acumulados OFICIAIS do portal da rede; as colunas “Calc” (cinza, itálico) são o nosso cálculo, para conferir. A chuva é gravada minuto a minuto a partir do histórico do portal (basculador de 0,34 mm); 5, 10, 15 e 30 min são nossos, somados desse histórico até o último minuto gravado (coleta de 15 em 15 min, então podem ter até ~15 min de defasagem). Inclui as estações pessoais (Wunderground) que o portal repassa — por isso o Wunderground em si não as consulta mais. Estações offline mostram a última leitura que o portal tem.",
   },
   plugfield: {
     nome: "DCM/Plugfield",
@@ -361,8 +365,6 @@ const CONFIG: Record<RedeSource, Config> = {
     municipio: true,
     redec: true,
     chuva: [
-      { key: "n15m", label: "15min", titulo: "Chuva da última coleta (a fonte é coletada a cada 15 min; sem coleta nos últimos 20 min = sem dado)", get: nosso("m15"), tipo: "mm" },
-      { key: "n30m", label: "30min", titulo: "Chuva das duas últimas coletas (≈ 30 min; sem coleta nos últimos 35 min = sem dado)", get: nosso("m30"), tipo: "mm" },
       ...nossasJanelas((j) => `Acumulado nas últimas ${j} h (soma dos baldes gravados)`),
       { key: "ohoje", label: "Hoje", titulo: "Chuva do dia OFICIAL da estação (precipTotal, desde 00h)", get: oficial("hoje"), tipo: "mm" },
       { key: "taxa", label: "mm/h", titulo: "Taxa de chuva instantânea informada pela estação (precipRate)", get: oficial("taxa"), tipo: "num" },
@@ -383,7 +385,7 @@ const CONFIG: Record<RedeSource, Config> = {
     coluna1h: nosso("1"),
     coluna24h: nosso("24"),
     nota:
-      "Wunderground (estações pessoais, sem calibração): 1h a 96h são calculadas somando o que gravamos; “Hoje” é o total oficial da estação (precipTotal) e “Calc Hoje” (cinza, itálico) é o nosso, para conferir. QC = controle de qualidade do Weather Company (✓ aprovado, — não avaliado). Redes pessoais não são calibradas: use com cautela. Data provided by Weather Underground.",
+      "⏱ Atualização limitada a UMA VEZ A CADA 2 HORAS por estação (cota diária da API do Weather Company, desde 05/11/2026): a janela de 1 h mostra a chuva da última leitura e “Atualizado em” traz a hora dela; leituras com menos de 3 h não são tratadas como atrasadas. As estações de Macaé deixaram esta aba (ver DC Macaé). Wunderground (estações pessoais, sem calibração): 1h a 96h são calculadas somando o que gravamos; “Hoje” é o total oficial da estação (precipTotal) e “Calc Hoje” (cinza, itálico) é o nosso, para conferir. QC = controle de qualidade do Weather Company (✓ aprovado, — não avaliado). Redes pessoais não são calibradas: use com cautela. Data provided by Weather Underground.",
   },
 };
 

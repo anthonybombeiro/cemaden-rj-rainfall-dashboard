@@ -85,7 +85,7 @@ OFICIAL_VALIDADE_H = 2
 # Tolerância (h) de atraso por fonte: estações HORÁRIAS recebem o dado com atraso (INMET: a leitura de cada hora chega depois). Dentro da
 # tolerância a estação NÃO é tratada como atrasada e as janelas (1 h, 3 h…) são contadas a partir da última leitura, não de "agora".
 # Mantenha em sincronia com `LIMITE_ATRASO_H_POR_FONTE` em frontend/src/lib/api.ts.
-TOLERANCIA_ATRASO_H = {"inmet": 3.0, "redemet": 3.0, "ana": 2.0}  # ANA: lemos em rodízio (ciclo de ~1 h)
+TOLERANCIA_ATRASO_H = {"inmet": 3.0, "redemet": 3.0, "ana": 2.0, "wunderground": 3.0}  # ANA: rodízio (~1 h); Wunderground: rodízio de 2 h (05/11/2026, cota da chave)
 MAPA_ACUMULADOS_OFICIAIS = {
     "alerta_rio": {
         "acumulado_5min_mm": "m05", "acumulado_10min_mm": "m10", "acumulado_15min_mm": "m15",
@@ -1001,6 +1001,25 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
             for r in Reading.objects.filter(station_id__in=ids).values("station_id").annotate(m=Max("timestamp"))
         }
 
+        # Macaé (05/11/2026): janelas abaixo de 1 h a partir da chuva por MINUTO gravada do portal.
+        # Terminam no último minuto gravado (a coleta é de 15 em 15 min); sem minuto nos últimos 25 min = sem dado.
+        macae_min: dict = {}
+        if slug == "macae_ufrj":
+            por_est: dict = {}
+            for sid, ts, v in Reading.objects.filter(
+                station_id__in=ids, reading_type=Reading.ReadingType.CHUVA_MM,
+                timestamp__gte=agora - datetime.timedelta(minutes=70),
+            ).values_list("station_id", "timestamp", "value"):
+                por_est.setdefault(sid, []).append((ts, v))
+            for sid, lst in por_est.items():
+                fim_est = max(t for t, _ in lst)
+                if agora - fim_est > datetime.timedelta(minutes=25):
+                    continue
+                macae_min[sid] = {
+                    f"m{m:02d}": round(sum(v for t, v in lst if t > fim_est - datetime.timedelta(minutes=m)), 2)
+                    for m in (5, 10, 15, 30)
+                }
+
         qualidade: dict = {}
         for q in (
             LeituraQualidade.objects.filter(
@@ -1088,6 +1107,7 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
                     "nosso": {
                         "m15": n.get("acumulado_coleta1_mm"),
                         "m30": n.get("acumulado_coleta2_mm"),
+                        **(macae_min.get(st.id) or ({k: None for k in ("m05", "m10", "m15", "m30")} if slug == "macae_ufrj" else {})),
                         "1": n.get("acumulado_1h_mm"),
                         "3": n.get("acumulado_3h_mm"),
                         "6": n.get("acumulado_6h_mm"),
