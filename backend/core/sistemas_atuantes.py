@@ -10,6 +10,7 @@ CATALOGO = [
     {"id": "zcas", "rotulo": "ZCAS", "cor": "#ED93B1"},
     {"id": "transporte_umidade", "rotulo": "Transporte de umidade", "cor": "#97C459"},
     {"id": "convergencia_umidade", "rotulo": "Convergência de umidade", "cor": "#B4B2A9"},
+    {"id": "canal_umidade", "rotulo": "Canal de umidade", "cor": "#4FB8C9"},  # incluído em 07/11/2026 a pedido da equipe de meteorologia
     {"id": "cavado", "rotulo": "Cavado", "cor": "#C4A484"},
 ]
 IDS = {c["id"] for c in CATALOGO}

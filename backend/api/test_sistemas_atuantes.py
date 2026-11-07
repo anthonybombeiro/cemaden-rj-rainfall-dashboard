@@ -19,7 +19,8 @@ class SistemasAtuantesTests(APITestCase):
         d = self.client.get(URL, {"data": "2026-10-23"}).json()
         self.assertEqual(d["sistemas"], [])
         self.assertEqual(d["anterior"]["sistemas"], ["zcas"])
-        self.assertEqual(len(d["catalogo"]), 10)
+        self.assertEqual(len(d["catalogo"]), 11)
+        self.assertIn("canal_umidade", [c["id"] for c in d["catalogo"]])
 
     def test_ordem_e_duplicados(self):
         self.client.put(URL, {"data": "2026-10-23", "sistemas": ["zcas", "alta_pressao", "zcas"]}, format="json")

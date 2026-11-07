@@ -31,7 +31,7 @@ def _d(dia: int, mes: int, hora: int) -> dt.datetime:
 # Texto = corpo do aviso (negrito entre **). A linha "Sistemas atuantes" sai de `sistemas`; o título "VENDAVAL" do nº 04 fica no início do texto.
 AVISOS = [
     {
-        "numero": 1, "inicio": _d(17, 1, 10), "fim": _d(21, 1, 0), "sistemas": ["frente_fria", "transporte_umidade"], "icones": ["chuva", "vento"],
+        "numero": 1, "inicio": _d(17, 1, 10), "fim": _d(21, 1, 0), "sistemas": ["frente_fria", "canal_umidade"], "icones": ["chuva", "vento"],
         "texto": (
             "No final de semana (17/01 e 18/01), áreas de instabilidade influenciarão o estado. São esperadas pancadas isoladas de chuva moderadas a fortes em todo o estado.\n\n"
             "Entre a tarde de segunda-feira (19/01) e manhã de terça-feira (20/01), a aproximação e passagem de uma Frente Fria e a formação de um Canal de Umidade em baixos níveis da atmosfera "
@@ -77,7 +77,21 @@ AVISOS = [
         ),
     },
     {
-        "numero": 8, "inicio": _d(14, 9, 9), "fim": _d(15, 9, 9), "sistemas": ["baixa_pressao"], "icones": ["chuva"],
+        "numero": 6, "inicio": _d(21, 8, 9), "fim": _d(22, 8, 6), "sistemas": ["frente_fria"], "icones": ["vento", "chuva"],
+        "texto": (
+            "A aproximação e passagem de uma frente fria causará rajadas de vento **moderado a forte** em todo o estado, sendo **pontualmente muito forte** nas regiões próximas do litoral "
+            "entre a manhã de sexta-feira (21/08) e madrugada de sábado (22/08). É esperada chuva de intensidade **fraca a moderada** durante o período, de forma isolada."
+        ),
+    },
+    {
+        "numero": 7, "inicio": _d(1, 9, 12), "fim": _d(2, 9, 9), "sistemas": ["frente_fria", "baixa_pressao"], "icones": ["vento", "chuva"],
+        "texto": (
+            "A passagem de uma frente fria juntamente a atuação de um sistema de baixa pressão ocasionarão **pancadas de chuva moderada a forte e rajadas de vento moderado a forte** em todo o estado, "
+            "**sendo pontualmente muito forte nas regiões próximas do litoral** entre o final da manhã de terça-feira (01/09) e manhã da quarta-feira (02/09)."
+        ),
+    },
+    {
+        "numero": 8,"inicio": _d(14, 9, 9), "fim": _d(15, 9, 9), "sistemas": ["baixa_pressao"], "icones": ["chuva"],
         "texto": (
             "Entre o final da manhã de segunda-feira (14/09) e a manhã da terça-feira (15/09), a atuação um sistema de baixa pressão ocasionará "
             "**pancadas de chuva moderada a ocasionalmente forte, resultando em altos acumulados em 24h em todo o estado.**"
@@ -101,6 +115,11 @@ def importar(avisos=None, dry_run: bool = False, ano: int = ANO) -> dict:
             if existente:
                 if existente.estado == "emitido" and existente.vigencia_inicio == item["inicio"]:
                     out["ja_existiam"].append(item["numero"])
+                    if existente.criado_por == USUARIO and existente.sistemas != item["sistemas"]:  # correção de catálogo em aviso que nós importamos
+                        existente.sistemas = item["sistemas"]
+                        existente.historico = [*existente.historico, {"em": timezone.now().isoformat(), "por": USUARIO, "acao": "sistemas atualizados"}]
+                        existente.save()
+                        out.setdefault("atualizados", []).append(item["numero"])
                     continue
                 if existente.estado == "emitido" or existente.emitido_em:
                     out["erros"].append(f"nº {item['numero']}/{ano}: já existe um aviso emitido diferente; não foi sobrescrito.")

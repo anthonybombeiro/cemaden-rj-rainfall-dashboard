@@ -518,3 +518,8 @@ Causa: estacao do Wunderground ("Rio de Janeiro") com 25,1 mm em 1 h, reprovada 
 * **Importação:** `core/importacao_avisos.py` + `POST /api/admin/importar-avisos-meteorologicos/` (superusuário logado; `{"dry_run": true}` simula). Repetível; nunca sobrescreve aviso emitido diferente. O rascunho que ocupava o nº 2 foi renumerado para o **nº 9** (conteúdo preservado); o cancelado de 04/11 ficou com número 0 (nunca apagado). Executado em produção (simulação antes) — resultado: 6 emitidos + rascunho nº 9 + cancelado nº 0.
 * **Lacunas:** **06 e 07** não estão nas pastas do Drive (e nada após o 08, de 14/09) — não foram inventados; o próximo número livre depois do rascunho é o 10. Para incluir os que faltam, basta acrescentar em `AVISOS` e repetir a importação.
 * Testes: `ImportacaoAvisosTest` (5) em `api/test_meteorologia.py`; suíte de meteorologia 24 OK. Sem migração.
+
+## 07/11/2026 (complemento) — Canal de umidade no catálogo; avisos 06 e 07 incluídos
+* **Catálogo de sistemas atuantes:** novo item **Canal de umidade** (`canal_umidade`, cor #4FB8C9), pedido da equipe de meteorologia (`core/sistemas_atuantes.py`). Vale para o formulário, o calendário e o relatório de Sistemas atuantes. O aviso nº 01/2026, antes ligado a "Transporte de umidade", passou a usar o Canal de umidade (a importação corrige os sistemas dos avisos que ela mesma importou).
+* **Avisos que faltavam:** nº **06** (21/08 09h → 22/08 06h, frente fria) e nº **07** (01/09 12h → 02/09 09h, frente fria + baixa pressão), enviados pelo usuário em texto e arte. Sem lacunas na numeração de 2026: 01 a 08 emitidos, **nº 9 = rascunho de hoje**, próximo livre = 10.
+* Testes: 30 OK (meteorologia + sistemas atuantes; o teste do catálogo passou de 10 para 11 itens). Sem migração.

@@ -262,13 +262,13 @@ class ImportacaoAvisosTest(Base):
         from core.importacao_avisos import importar
 
         r = importar()
-        self.assertEqual(r["criados"], [1, 2, 3, 4, 5, 8])
-        self.assertEqual(r["lacunas"], [6, 7])
+        self.assertEqual(r["criados"], [1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(r["lacunas"], [])
         self.rascunho.refresh_from_db()
         self.cancelado.refresh_from_db()
         self.assertEqual((self.rascunho.numero, self.rascunho.estado, self.rascunho.texto), (9, "rascunho", "meu texto"))  # conteúdo preservado, número = max + 1
         self.assertEqual((self.cancelado.numero, self.cancelado.estado), (0, "cancelado"))  # nunca apagado
-        self.assertEqual(self.AM.objects.filter(ano=2026, estado="emitido").count(), 6)
+        self.assertEqual(self.AM.objects.filter(ano=2026, estado="emitido").count(), 8)
         self.assertEqual(self.AM.objects.get(ano=2026, numero=1).estado, "emitido")
 
     def test_repetir_nao_duplica(self):
@@ -277,14 +277,23 @@ class ImportacaoAvisosTest(Base):
         importar()
         r = importar()
         self.assertEqual(r["criados"], [])
-        self.assertEqual(r["ja_existiam"], [1, 2, 3, 4, 5, 8])
-        self.assertEqual(self.AM.objects.filter(ano=2026).count(), 8)
+        self.assertEqual(r["ja_existiam"], [1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(self.AM.objects.filter(ano=2026).count(), 10)
+
+    def test_corrige_sistemas_de_aviso_ja_importado(self):
+        from core.importacao_avisos import importar
+
+        importar()
+        self.AM.objects.filter(ano=2026, numero=1).update(sistemas=["frente_fria", "transporte_umidade"])
+        r = importar()
+        self.assertEqual(r["atualizados"], [1])
+        self.assertEqual(self.AM.objects.get(ano=2026, numero=1).sistemas, ["frente_fria", "canal_umidade"])
 
     def test_dry_run_nao_grava(self):
         from core.importacao_avisos import importar
 
         r = importar(dry_run=True)
-        self.assertEqual(r["criados"], [1, 2, 3, 4, 5, 8])
+        self.assertEqual(r["criados"], [1, 2, 3, 4, 5, 6, 7, 8])
         self.assertEqual(self.AM.objects.filter(ano=2026).count(), 2)
         self.rascunho.refresh_from_db()
         self.assertEqual(self.rascunho.numero, 2)
