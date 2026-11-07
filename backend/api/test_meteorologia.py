@@ -315,3 +315,49 @@ class ImportacaoAvisosTest(Base):
         resp = self.client.post("/api/avisos-meteorologicos/", {}, format="json")
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.json()["numero"], 10)  # 9 é o rascunho de hoje
+
+
+class ImportacaoHistoricoAvisosTest(Base):
+    def test_importa_2024_e_2025_com_lacunas_e_e_repetivel(self):
+        from core.importacao_avisos_historico import importar_historico
+        from core.models import AvisoMeteorologico
+
+        a = importar_historico(2024)
+        self.assertEqual(len(a["criados"]), 20)
+        self.assertEqual(a["lacunas"], [15, 16])
+        b = importar_historico(2025)
+        self.assertEqual(len(b["criados"]), 16)
+        self.assertEqual(b["lacunas"], [1, 6, 17])
+        self.assertEqual(importar_historico(2025)["criados"], [])  # repetir não duplica
+        a3 = AvisoMeteorologico.objects.get(ano=2024, numero=3)
+        self.assertIn("COSTA VERDE", a3.regioes)
+        a19 = AvisoMeteorologico.objects.get(ano=2025, numero=19)
+        self.assertEqual(a19.vigencia_fim.year, 2026)
+        self.assertTrue(all(x.vigencia_fim > x.vigencia_inicio for x in AvisoMeteorologico.objects.all()))
+
+    def test_dry_run_nao_grava(self):
+        from core.importacao_avisos_historico import importar_historico
+        from core.models import AvisoMeteorologico
+
+        importar_historico(2024, dry_run=True)
+        self.assertEqual(AvisoMeteorologico.objects.count(), 0)
+
+
+class PublicoAvisosTest(Base):
+    def test_publico_so_mostra_emitido_vigente_sem_login(self):
+        from core.models import AvisoMeteorologico
+
+        agora = timezone.now()
+        base = dict(ano=agora.year, vigencia_inicio=agora - dt.timedelta(hours=1), vigencia_fim=agora + dt.timedelta(hours=5), texto="Texto **forte**", sistemas=["frente_fria"], icones=["chuva"])
+        AvisoMeteorologico.objects.create(numero=1, estado="emitido", emitido_em=agora, **base)
+        AvisoMeteorologico.objects.create(numero=2, estado="rascunho", **base)
+        AvisoMeteorologico.objects.create(numero=3, estado="cancelado", **base)
+        AvisoMeteorologico.objects.create(numero=4, estado="emitido", emitido_em=agora, **{**base, "vigencia_inicio": agora - dt.timedelta(days=3), "vigencia_fim": agora - dt.timedelta(days=2)})
+        self.client.logout()
+        r = self.client.get("/api/publico/avisos/")
+        self.assertEqual(r.status_code, 200)
+        av = r.json()["avisos"]
+        self.assertEqual([a["numero"] for a in av], [1])
+        self.assertEqual(av[0]["sistemas"], ["Frente fria"])
+        self.assertNotIn("historico", av[0])
+        self.assertNotIn("idap_protocolo", av[0])

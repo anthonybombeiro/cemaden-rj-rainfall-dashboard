@@ -38,6 +38,7 @@ from .meteorologia_views import (
     AvisosMeteorologicosView,
     ChuvaCalendarioView,
     LimiaresView,
+    PublicoAvisosView,
     PlantaoChecklistView,
     PlantaoLivroView,
 )
@@ -131,6 +132,7 @@ urlpatterns = [
     path("monitoramento/automatico/", AutomacaoNmView.as_view(), name="monitoramento-automatico"),
     path("publico/monitoramento/", PublicoMonitoramentoView.as_view(), name="publico-monitoramento"),
     path("publico/previsao/", PublicoPrevisaoView.as_view(), name="publico-previsao"),
+    path("publico/avisos/", PublicoAvisosView.as_view(), name="publico-avisos"),
     path("informativos/", InformativosView.as_view(), name="informativos"),
     path("informativos/previa/", InformativoPreviaView.as_view(), name="informativos-previa"),
     path("informativos/acompanhamento/", InformativoAcompanhamentoView.as_view(), name="informativos-acompanhamento"),

@@ -558,3 +558,27 @@ class PlantaoLivroView(APIView):
         o.atualizado_por = usuario
         o.save()
         return Response({"registro": _registro_dict(o), "criado": criado})
+
+
+class PublicoAvisosView(APIView):
+    """`GET /api/publico/avisos/` — sem login, só leitura: avisos meteorológicos emitidos e dentro da vigência agora (página pública e Modo TV).
+    Não expõe rascunho, cancelado, dados do Idap nem histórico."""
+
+    from rest_framework.permissions import AllowAny as _AllowAny
+
+    permission_classes = [_AllowAny]
+    authentication_classes: list = []
+
+    def get(self, request):
+        from core.sistemas_atuantes import CATALOGO
+
+        rotulo = {c["id"]: c["rotulo"] for c in CATALOGO}
+        agora = timezone.now()
+        qs = AvisoMeteorologico.objects.filter(estado="emitido", vigencia_inicio__lte=agora, vigencia_fim__gte=agora).order_by("-vigencia_inicio", "-numero")
+        return Response({"avisos": [
+            {
+                "numero": a.numero, "ano": a.ano, "vigencia_inicio": _local(a.vigencia_inicio), "vigencia_fim": _local(a.vigencia_fim), "regioes": a.regioes,
+                "sistemas": [rotulo.get(x, x) for x in a.sistemas], "icones": a.icones, "texto": a.texto, "emitido_em": _local(a.emitido_em),
+            }
+            for a in qs[:10]
+        ]})

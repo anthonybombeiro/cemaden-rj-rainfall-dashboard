@@ -736,9 +736,15 @@ class ImportarAvisosMeteorologicosSuperuserView(APIView):
     def post(self, request):
         if not request.user.is_superuser:
             return Response({"detail": "Apenas administradores."}, status=403)
+        dry = bool(request.data.get("dry_run"))
+        ano = request.data.get("ano")
+        if ano in (2024, 2025, "2024", "2025"):  # histórico de anos anteriores (artes do Drive)
+            from core.importacao_avisos_historico import importar_historico
+
+            return Response({"ok": True, **importar_historico(int(ano), dry_run=dry)})
         from core.importacao_avisos import importar
 
-        return Response({"ok": True, **importar(dry_run=bool(request.data.get("dry_run")))})
+        return Response({"ok": True, **importar(dry_run=dry)})
 
 
 class AnaDiagnosticoSuperuserView(APIView):
