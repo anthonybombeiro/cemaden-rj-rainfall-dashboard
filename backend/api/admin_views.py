@@ -728,6 +728,19 @@ class ImportarInformativosSuperuserView(APIView):
         return Response({"ok": True, **importar_do_arquivo(dry_run=bool(request.data.get("dry_run")))})
 
 
+class ImportarAvisosMeteorologicosSuperuserView(APIView):
+    """POST /api/admin/importar-avisos-meteorologicos/ — grava os avisos meteorológicos de 2026 já emitidos (artes do Drive) nos números
+    reais e corrige a numeração (rascunho/cancelado que ocupa número importado). Superusuário logado, sessão + CSRF.
+    Corpo opcional `{"dry_run": true}` só simula (desfaz no fim). Repetível: aviso já importado não é tocado."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        from core.importacao_avisos import importar
+
+        return Response({"ok": True, **importar(dry_run=bool(request.data.get("dry_run")))})
+
+
 class AnaDiagnosticoSuperuserView(APIView):
     """POST /api/admin/ana/ — diagnóstico da API HidroWebService da ANA (superusuário logado, sessão + CSRF).
     Corpo: {"acao": "inventario"} lista as estações do RJ que entrariam (e as descartadas, por motivo);

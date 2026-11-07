@@ -6,6 +6,7 @@ from .admin_views import (
     AnaDiagnosticoSuperuserView,
     EnvCheckView,
     FixSirenesChuvaSobrepostaSuperuserView,
+    ImportarAvisosMeteorologicosSuperuserView,
     ImportarInformativosSuperuserView,
     ImportarRecomendacoesSuperuserView,
     MigrateSuperuserView,
@@ -82,6 +83,7 @@ urlpatterns = [
     path("admin/ana/", AnaDiagnosticoSuperuserView.as_view(), name="admin-ana"),
     path("admin/importar-recomendacoes/", ImportarRecomendacoesSuperuserView.as_view(), name="admin-importar-recomendacoes"),
     path("admin/importar-informativos/", ImportarInformativosSuperuserView.as_view(), name="admin-importar-informativos"),
+    path("admin/importar-avisos-meteorologicos/", ImportarAvisosMeteorologicosSuperuserView.as_view(), name="admin-importar-avisos-meteorologicos"),
     path("admin/populate-sirene-ref/", PopulateSireneRefSuperuserView.as_view(), name="admin-populate-sirene-ref"),
     path("admin/set-risco-sirene/", SetRiscoSireneSuperuserView.as_view(), name="admin-set-risco-sirene"),
     path(

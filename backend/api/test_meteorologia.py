@@ -245,3 +245,64 @@ class LivroTest(Base):
         InformativoMeteorologico.objects.create(numero=8, ano=2026, estado="enviado", emitido_em=local(2026, 11, 2, 12), enviado_em=local(2026, 11, 2, 12))  # turno anterior
         g = self.client.get("/api/plantao/livro/", {"data": "2026-11-03"})
         self.assertEqual([(i["numero"], i["regioes"]) for i in g.data["automatico"]["informativos"]], [(7, ["SUL II"])])
+
+
+class ImportacaoAvisosTest(Base):
+    """O módulo de avisos entrou sem o histórico: o nº 1 foi reservado e cancelado, o nº 2 virou rascunho. A importação devolve os números reais."""
+
+    def setUp(self):
+        super().setUp()
+        from core.models import AvisoMeteorologico
+
+        self.AM = AvisoMeteorologico
+        self.cancelado = AvisoMeteorologico.objects.create(numero=1, ano=2026, estado="cancelado", vigencia_inicio=local(2026, 11, 4, 16), vigencia_fim=local(2026, 11, 5, 16), motivo_cancelamento="gerado errado")
+        self.rascunho = AvisoMeteorologico.objects.create(numero=2, ano=2026, vigencia_inicio=local(2026, 11, 7, 9), vigencia_fim=local(2026, 11, 8, 9), texto="meu texto")
+
+    def test_importa_numeros_reais_e_renumera_o_rascunho(self):
+        from core.importacao_avisos import importar
+
+        r = importar()
+        self.assertEqual(r["criados"], [1, 2, 3, 4, 5, 8])
+        self.assertEqual(r["lacunas"], [6, 7])
+        self.rascunho.refresh_from_db()
+        self.cancelado.refresh_from_db()
+        self.assertEqual((self.rascunho.numero, self.rascunho.estado, self.rascunho.texto), (9, "rascunho", "meu texto"))  # conteúdo preservado, número = max + 1
+        self.assertEqual((self.cancelado.numero, self.cancelado.estado), (0, "cancelado"))  # nunca apagado
+        self.assertEqual(self.AM.objects.filter(ano=2026, estado="emitido").count(), 6)
+        self.assertEqual(self.AM.objects.get(ano=2026, numero=1).estado, "emitido")
+
+    def test_repetir_nao_duplica(self):
+        from core.importacao_avisos import importar
+
+        importar()
+        r = importar()
+        self.assertEqual(r["criados"], [])
+        self.assertEqual(r["ja_existiam"], [1, 2, 3, 4, 5, 8])
+        self.assertEqual(self.AM.objects.filter(ano=2026).count(), 8)
+
+    def test_dry_run_nao_grava(self):
+        from core.importacao_avisos import importar
+
+        r = importar(dry_run=True)
+        self.assertEqual(r["criados"], [1, 2, 3, 4, 5, 8])
+        self.assertEqual(self.AM.objects.filter(ano=2026).count(), 2)
+        self.rascunho.refresh_from_db()
+        self.assertEqual(self.rascunho.numero, 2)
+
+    def test_nao_sobrescreve_aviso_emitido_diferente(self):
+        from core.importacao_avisos import importar
+
+        self.rascunho.estado, self.rascunho.emitido_em = "emitido", timezone.now()
+        self.rascunho.save()
+        r = importar()
+        self.assertTrue(any("nº 2/2026" in e for e in r["erros"]))
+        self.rascunho.refresh_from_db()
+        self.assertEqual((self.rascunho.numero, self.rascunho.texto), (2, "meu texto"))
+
+    def test_proximo_aviso_depois_da_importacao(self):
+        from core.importacao_avisos import importar
+
+        importar()
+        resp = self.client.post("/api/avisos-meteorologicos/", {}, format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.json()["numero"], 10)  # 9 é o rascunho de hoje
