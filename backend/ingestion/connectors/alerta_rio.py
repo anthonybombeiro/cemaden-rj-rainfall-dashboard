@@ -98,9 +98,18 @@ class AlertaRioConnector(BaseConnector):
             st.external_id: (st.raw_metadata or {}).get("acumulados_oficiais")
             for st in Station.objects.filter(source__slug=self.slug)
         }
-        resp = requests.get(GEOJSON_URL, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = requests.get(GEOJSON_URL, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:  # noqa: BLE001
+            # 08/11/2026: o data.rio ficou fora do ar (timeout) e, como esta lista abortava a rodada inteira, o Alerta Rio parou
+            # 14 h sem leituras. A localização das 33 estações quase nunca muda: usa as que já estão gravadas.
+            logger.warning("GeoJSON das estações do Alerta Rio indisponível; usando as estações já gravadas", exc_info=True)
+            gravadas = self._estacoes_gravadas()
+            if not gravadas:
+                raise
+            return gravadas
 
         stations = []
         for feature in data.get("features", []):
@@ -127,6 +136,28 @@ class AlertaRioConnector(BaseConnector):
                 }
             )
         return stations
+
+    def _estacoes_gravadas(self) -> list[dict]:
+        """Estações pluviométricas já gravadas desta fonte, no mesmo formato de `fetch_stations` (plano B quando o GeoJSON cai)."""
+        saida = []
+        for st in Station.objects.filter(source__slug=self.slug, station_type=Station.StationType.PLUVIOMETRICA):
+            meta = st.raw_metadata or {}
+            if meta.get("cod") is None or st.latitude is None or st.longitude is None:
+                continue
+            saida.append(
+                {
+                    "external_id": st.external_id,
+                    "name": st.name,
+                    "municipality": st.municipality or "Rio de Janeiro",
+                    "station_type": Station.StationType.PLUVIOMETRICA,
+                    "status": Station.Status.DESCONHECIDO,
+                    "latitude": st.latitude,
+                    "longitude": st.longitude,
+                    "altitude_m": st.altitude_m,
+                    "raw_metadata": meta,
+                }
+            )
+        return saida
 
     def fetch_readings(self, stations: list[dict]) -> list[dict]:
         readings: list[dict] = []

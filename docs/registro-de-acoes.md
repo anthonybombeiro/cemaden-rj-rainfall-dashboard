@@ -538,3 +538,10 @@ Aprovado pelo usuario apos ver o modelo local (cards lado a lado, aviso sempre e
 - Resumo 24 h: nova aba **Acompanhamento** (primeira e padrao), titulo "Acompanhamento do Nowcasting": mapa (contorno laranja tracejado nas REDECs do aviso; municipios com recomendacao contornados pela probabilidade) + grade "Vigente agora" com aviso(s) em primeiro, informativo vigente e uma recomendacao de alarme por card (ultimas 24 h). A barra Dia/Atualizar/Copiar resumo fica escondida nesta aba. O "Acompanhamento" saiu de Producao > Informativo.
 - Producao > Informativo > Historico: botao **Cancelar** ao lado de Abrir e Duplicar (pede o motivo; nao apaga).
 - Teste local: backend Django com sqlite de teste e dados inventados (`scratchpad/seed_resumo.py`), nada de producao.
+
+## 08/11/2026 - Alerta Rio parado por 14 h: GeoJSON de estacoes (data.rio) fora do ar
+
+- **Sintoma:** faixa "1 fonte atrasada (AlertaRio)" e as 33 estacoes paradas; ultima coleta 07/11 23:02 (horario local).
+- **Causa:** `AlertaRioConnector.fetch_stations` baixava a lista de estacoes do `www.data.rio` (GeoJSON) em toda rodada; o servidor deu timeout (30 s) e o `run()` do conector aborta a rodada inteira se essa lista falha, entao nenhuma leitura entrava. O feed de chuva em si (websempre.rio.rj.gov.br) nao era o problema.
+- **Correcao (publicada por SFTP, sem migracao):** timeout de 15 s e, se o GeoJSON falhar, usa as estacoes ja gravadas (`_estacoes_gravadas`); so falha de verdade se nao houver nenhuma gravada. Teste `api/test_alerta_rio_conector.py` (2). Conferido em producao: proxima rodada do cron (16:47 UTC) coletou, 33 estacoes ativas, sem erro.
+- **Lacuna de dados:** nao ha leituras de chuva do Alerta Rio entre ~23:02 de 07/11 e ~13:47 de 08/11 (nossas colunas Calc 24 h/96 h ficam abaixo ate a janela passar; as colunas oficiais vem do feed e estao corretas).
