@@ -36,7 +36,7 @@ export function CardRecomendacao({ r }: { r: Recomendacao }) {
   const c = COR_PROBABILIDADE[r.probabilidade] ?? COR_PROBABILIDADE.Baixa;
   const dia = r.data.split("-").reverse().slice(0, 2).join("/");
   return (
-    <div className="flex flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm" style={{ borderTop: `4px solid ${c.barra}` }}>
+    <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm" style={{ borderTop: `4px solid ${c.barra}` }}>
       <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">Recomendação de alarme nº {r.numero}</h3>
       <div className="mt-1 flex flex-wrap gap-1">
         <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: c.fundo, color: c.texto }}>Probabilidade {r.probabilidade.toLowerCase()}</span>

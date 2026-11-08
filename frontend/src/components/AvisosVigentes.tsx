@@ -28,7 +28,7 @@ const regiao = (a: AvisoPublico) => (a.regioes.length ? a.regioes.map(nomeRegiao
  * `tv` aumenta a tipografia para a tela da TV; na página pública fica compacto e ocupa toda a largura. */
 export function CardAviso({ a, tv = false }: { a: AvisoPublico; tv?: boolean }) {
   return (
-    <article className="overflow-hidden rounded-xl border-2 border-orange-500 bg-white shadow-md" aria-label={`Aviso meteorológico nº ${numero(a)}`}>
+    <article className="flex h-full flex-col overflow-hidden rounded-xl border-2 border-orange-500 bg-white shadow-md" aria-label={`Aviso meteorológico nº ${numero(a)}`}>
       <header className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-orange-600 px-4 py-2.5 text-white">
         <div className="flex items-center gap-2">
           {a.icones.includes("chuva") && <CloudRain size={tv ? 36 : 22} aria-hidden="true" />}

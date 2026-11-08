@@ -24,7 +24,7 @@ export default function CardInformativo({ i, destaque, rodape, acoes: acoesReceb
   const idap = i.envios.filter((e) => e.tipo === "idap");
   const pendentes = idap.filter((e) => !e.validado_em).length;
   return (
-    <div className="flex flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm" style={{ borderTop: `4px solid ${corGravidade(maior)}` }}>
+    <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm" style={{ borderTop: `4px solid ${corGravidade(maior)}` }}>
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">Informativo nº {i.numero}/{i.ano}</h3>
         <div className="-mr-1.5 -mt-1 flex shrink-0 gap-0.5">

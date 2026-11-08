@@ -140,7 +140,7 @@ export function Acompanhar({ onNovo, onAbrir, cardsAntes, cardsDepois, avisosMap
       {temCards && (
         <>
           <h3 className="text-sm font-bold text-gray-700">Vigente agora</h3>
-          <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3 lg:[grid-auto-rows:1fr]">
             {cardsAntes}
             {v && <CardInformativo i={v} destaque acoes={acoes} rodape={
               <div className="mt-2 space-y-1 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-950">
