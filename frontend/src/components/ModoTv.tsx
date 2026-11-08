@@ -2,21 +2,24 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { CardAviso } from "@/components/AvisosVigentes";
 import MapaNiveis from "@/components/monitoramento/MapaNiveis";
 import PrevisaoMapa from "@/components/PrevisaoMapa";
 import RiskChoroplethMap from "@/components/RiskChoroplethMap";
 import { API_BASE_URL, normalizeMunicipioName, RISK_ALERT_TIPO_LABELS, RISK_LEVEL_COLORS, RISK_LEVEL_LABELS, RiskAlert, RiskAlertTipo, RiskLevel } from "@/lib/api";
+import { AvisoPublico, fetchAvisosPublicos } from "@/lib/avisosPublicos";
 import { corTextoSobre, ESCALA_NM, fetchPublico, fmtDataHora, NIVEIS_NM, PublicoResposta, SIGNIFICADO_NM } from "@/lib/nivelMonitoramento";
 
-type TelaId = "nm" | "previsao" | "riscos" | "informativo" | "sirenes";
+type TelaId = "avisos" | "nm" | "previsao" | "riscos" | "informativo" | "sirenes";
 const TITULOS: Record<TelaId, string> = {
+  avisos: "Aviso meteorológico vigente",
   nm: "Nível de Monitoramento",
   previsao: "Previsão do tempo por regional",
   riscos: "Mapas de risco",
   informativo: "Informativo meteorológico vigente",
   sirenes: "Sirenes",
 };
-const ORDEM: TelaId[] = ["nm", "previsao", "riscos", "informativo", "sirenes"];
+const ORDEM: TelaId[] = ["avisos", "nm", "previsao", "riscos", "informativo", "sirenes"]; // "avisos" só entra enquanto houver aviso vigente, e vem sempre primeiro
 const TIPOS: RiskAlertTipo[] = ["hidrologico", "geologico", "meteorologico", "incendio"];
 const NIVEIS_RISCO: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
 const SEG_PADRAO = 12;
@@ -89,8 +92,12 @@ export default function ModoTv() {
   const nm = usePolling<PublicoResposta>(buscarNm, 60_000);
   const inf = usePolling<InformativoVigente | null>(buscarInformativo, 60_000);
   const sir = usePolling<Sirenes>(buscarSirenes, 30_000);
+  const av = usePolling<AvisoPublico[]>(fetchAvisosPublicos, 60_000);
 
-  const telas = useMemo(() => (pedidas ?? ORDEM).filter((t) => t !== "informativo" || inf.dado), [pedidas, inf.dado]);
+  const telas = useMemo(
+    () => (pedidas ?? ORDEM).filter((t) => (t !== "informativo" || inf.dado) && (t !== "avisos" || (av.dado?.length ?? 0) > 0)),
+    [pedidas, inf.dado, av.dado],
+  );
   const atual: TelaId = telas[indice % Math.max(1, telas.length)] ?? "nm";
 
   const avancar = useCallback((d: number) => { setIndice((i) => (i + d + telas.length) % Math.max(1, telas.length)); setProgresso(0); }, [telas.length]);
@@ -174,6 +181,12 @@ export default function ModoTv() {
           <div className="flex h-full items-center justify-center text-2xl text-gray-500">Carregando…</div>
         ) : (
           <RolagemAutomatica key={atual} progresso={progresso}>
+            {atual === "avisos" && av.dado && (
+              <div className="mx-auto max-w-[100rem] space-y-4">
+                {av.dado.map((a) => <CardAviso key={`${a.ano}-${a.numero}`} a={a} tv />)}
+              </div>
+            )}
+
             {atual === "nm" && (
               <div className="grid gap-4 grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
                 <div>

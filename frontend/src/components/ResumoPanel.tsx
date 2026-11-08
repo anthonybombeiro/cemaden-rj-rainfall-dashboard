@@ -3,6 +3,7 @@
 import { Clipboard, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import AcompanhamentoGeral from "@/components/AcompanhamentoGeral";
 import { fetchResumo24h, Resumo24h, ResumoItem, ResumoMunicipio, ResumoRegiao } from "@/lib/api";
 import FaixaLimiares from "@/components/producao/FaixaLimiares";
 import ChuvaCalendario from "@/components/producao/ChuvaCalendario";
@@ -16,8 +17,9 @@ import { FAIXAS_RAJADA } from "@/lib/ventoFaixas";
 /** Aba "Resumo 24 h" (07/10/2026): acontecimentos do dia, Top 10, previsão × observado por região e
  * cidades com chuva/rajada. Dados de `GET /api/resumo/` (regras em docs/resumo-24h.md). */
 
-type Sub = "resumo" | "mensal" | "top10" | "previsao" | "cidades" | "verificacao" | "sistemas";
+type Sub = "acompanhamento" | "resumo" | "mensal" | "top10" | "previsao" | "cidades" | "verificacao" | "sistemas";
 const SUBS: { key: Sub; label: string }[] = [
+  { key: "acompanhamento", label: "Acompanhamento" },
   { key: "resumo", label: "Resumo" },
   { key: "mensal", label: "Mensal" },
   { key: "top10", label: "Top 10" },
@@ -134,7 +136,7 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
   const [dados, setDados] = useState<Resumo24h | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-  const [sub, setSub] = useState<Sub>("resumo");
+  const [sub, setSub] = useState<Sub>("acompanhamento");
   const [copiado, setCopiado] = useState(false);
   const [alertasFH, setAlertasFH] = useState<PostoFH[]>([]);
   const [eventosFH, setEventosFH] = useState<EventosFHResposta | null>(null);
@@ -215,7 +217,7 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
 
   return (
     <div className="h-full w-full overflow-y-auto overflow-x-hidden bg-gray-50 p-3 pb-6 md:p-4">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      {sub !== "acompanhamento" && <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 className="min-w-0 text-base font-bold">Resumo — {rotuloPeriodo || "…"}</h2>
         <div className="flex w-full flex-wrap items-center gap-2 text-xs md:ml-auto md:w-auto">
           <button
@@ -242,7 +244,7 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
             <Clipboard size={12} /> {copiado ? "Copiado!" : "Copiar resumo"}
           </button>
         </div>
-      </div>
+      </div>}
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         {SUBS.map((x) => (
@@ -261,8 +263,10 @@ export default function ResumoPanel({ onOpenStation }: { onOpenStation?: (id: nu
         <FaixaLimiares compacta />
       </div>
 
-      {erro && <p className="text-sm text-red-600">{erro}</p>}
-      {!dados && carregando && <p className="text-sm text-gray-500">Carregando…</p>}
+      {sub === "acompanhamento" && <AcompanhamentoGeral />}
+
+      {sub !== "acompanhamento" && erro && <p className="text-sm text-red-600">{erro}</p>}
+      {sub !== "acompanhamento" && !dados && carregando && <p className="text-sm text-gray-500">Carregando…</p>}
 
       {dados && s && sub === "resumo" && (
         <div className="space-y-3">

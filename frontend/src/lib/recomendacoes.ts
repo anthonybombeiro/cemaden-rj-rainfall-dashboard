@@ -43,6 +43,7 @@ export type RecomendacaoInput = Omit<Recomendacao, "id" | "origem" | "validada" 
 
 export type FiltroRecomendacao = {
   ano?: string;
+  data_inicio?: string; // AAAA-MM-DD (o servidor também aceita data_fim)
   municipio?: string;
   probabilidade?: string;
   acionaram?: "" | "true" | "false";

@@ -5,20 +5,38 @@ import { useEffect, useState } from "react";
 import { GeoJSON, MapContainer, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
+import { normalizeMunicipioName } from "@/lib/api";
 import { COR_GRAVIDADE, corGravidade, INTENSIDADES, ItemRegiao, nomeRegiao } from "@/lib/informativo";
+import { COR_PROBABILIDADE } from "@/lib/recomendacoes";
 
 /** Mapa das REDECs coloridas pela chuva prevista do informativo vigente (mesmo padrão do mapa dos avisos de mau tempo).
  * Sem SSR (Leaflet precisa de `window`) — importar com `next/dynamic`. */
 
 const BOUNDS: LatLngBoundsExpression = [[-23.5, -45.1], [-20.7, -40.9]];
 
-export default function MapaVigente({ itens }: { itens: ItemRegiao[] }) {
+/** Aviso meteorológico vigente no mapa: contorno laranja tracejado nas REDECs do aviso (sem região = todo o estado). */
+export type AvisoNoMapa = { numero: number; ano: number; regioes: string[] };
+/** Recomendação de alarme ativa no mapa: contorno do município na cor da probabilidade. */
+export type RecomendacaoNoMapa = { municipio: string; numero: string; probabilidade: string; estagio: string };
+
+export default function MapaVigente({ itens, avisos = [], recomendacoes = [] }: { itens: ItemRegiao[]; avisos?: AvisoNoMapa[]; recomendacoes?: RecomendacaoNoMapa[] }) {
   const [redecs, setRedecs] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [municipios, setMunicipios] = useState<GeoJSON.FeatureCollection | null>(null);
   useEffect(() => {
     let cancelado = false;
     fetch("/redecs.geojson").then((r) => r.json()).then((g) => { if (!cancelado) setRedecs(g); }).catch(() => undefined);
     return () => { cancelado = true; };
   }, []);
+  useEffect(() => {
+    if (!recomendacoes.length || municipios) return;
+    let cancelado = false;
+    fetch("/rj_municipios.geojson").then((r) => r.json()).then((g) => { if (!cancelado) setMunicipios(g); }).catch(() => undefined);
+    return () => { cancelado = true; };
+  }, [recomendacoes.length, municipios]);
+  const avisoPorRegiao = new Map<string, string[]>(); // REDEC → números dos avisos
+  const todoEstado = avisos.some((a) => a.regioes.length === 0);
+  for (const a of avisos) for (const r of a.regioes) avisoPorRegiao.set(r, [...(avisoPorRegiao.get(r) ?? []), `${String(a.numero).padStart(2, "0")}/${a.ano}`]);
+  const recPorMunicipio = new Map(recomendacoes.map((r) => [normalizeMunicipioName(r.municipio), r]));
   const por = new Map(itens.map((i) => [i.regiao, i]));
   return (
     <div className="relative">
@@ -40,12 +58,38 @@ export default function MapaVigente({ itens }: { itens: ItemRegiao[] }) {
             }}
           />
         )}
+        {redecs && avisos.length > 0 && (
+          <GeoJSON
+            key={`aviso-${avisos.map((a) => a.numero).join(",")}`}
+            data={redecs}
+            filter={(f) => todoEstado || avisoPorRegiao.has(String(f.properties?.redec))}
+            style={() => ({ color: "#ea580c", weight: 4, dashArray: "9 6", fill: false } as PathOptions)}
+            onEachFeature={(f, layer) => {
+              const nums = avisoPorRegiao.get(String(f.properties?.redec)) ?? avisos.filter((a) => a.regioes.length === 0).map((a) => `${String(a.numero).padStart(2, "0")}/${a.ano}`);
+              layer.bindTooltip(`Aviso meteorológico nº ${nums.join(", ")} · ${nomeRegiao(String(f.properties?.redec))}`, { sticky: true });
+            }}
+          />
+        )}
+        {municipios && recomendacoes.length > 0 && (
+          <GeoJSON
+            key={`rec-${recomendacoes.map((r) => r.numero).join(",")}`}
+            data={municipios}
+            filter={(f) => recPorMunicipio.has(String(f.properties?.nomeNormalizado))}
+            style={(f) => { const r = recPorMunicipio.get(String(f?.properties?.nomeNormalizado)); return { color: COR_PROBABILIDADE[r?.probabilidade ?? ""]?.barra ?? "#7c3aed", weight: 4, fillColor: COR_PROBABILIDADE[r?.probabilidade ?? ""]?.barra ?? "#7c3aed", fillOpacity: 0.25 } as PathOptions; }}
+            onEachFeature={(f, layer) => {
+              const r = recPorMunicipio.get(String(f.properties?.nomeNormalizado));
+              if (r) layer.bindTooltip(`Recomendação nº ${r.numero} · ${String(f.properties?.nome)} · probabilidade ${r.probabilidade.toLowerCase()}${r.estagio ? ` · ${r.estagio.toLowerCase()}` : ""}`, { sticky: true });
+            }}
+          />
+        )}
       </MapContainer>
       <div className="pointer-events-none absolute bottom-2 left-2 z-[500] rounded bg-white/90 px-2 py-1 text-[11px] shadow">
         {[["fraca", "Fraca"], ["moderada", "Moderada"], ["moderada_forte", "Forte"], ["moderada_muito_forte", "Muito forte"]].map(([k, r]) => (
           <span key={k} className="mr-3 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: corGravidade(k) }} />{r}</span>
         ))}
-        <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: COR_GRAVIDADE[0] }} />Sem informação</span>
+        <span className="mr-3 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: COR_GRAVIDADE[0] }} />Sem informação</span>
+        {avisos.length > 0 && <span className="mr-3 inline-flex items-center gap-1"><span className="inline-block h-0 w-4" style={{ borderTop: "3px dashed #ea580c" }} />Aviso meteorológico</span>}
+        {recomendacoes.length > 0 && <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ border: "2px solid #dc2626", background: "#fee2e2" }} />Recomendação de alarme</span>}
       </div>
     </div>
   );

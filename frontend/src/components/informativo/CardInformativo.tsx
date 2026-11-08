@@ -14,7 +14,8 @@ type Acoes = { onAbrir: (id: number) => void; onMensagem: (i: Detalhe) => void; 
 
 /** Card de um informativo enviado, no desenho dos cards de avisos do INMET e do mau tempo: faixa superior pela gravidade, título, etiquetas, a mensagem enviada e
  * os dados. Os controles vêm depois da mensagem: ícones de gerar a arte, radar, editar e lixeira (cancelar: nunca apaga), validação da Idap, notificações e sugestões. */
-export default function CardInformativo({ i, destaque, rodape, acoes }: { i: Detalhe; destaque?: boolean; rodape?: React.ReactNode; acoes: Acoes }) {
+export default function CardInformativo({ i, destaque, rodape, acoes: acoesRecebidas }: { i: Detalhe; destaque?: boolean; rodape?: React.ReactNode; acoes: Partial<Acoes> }) {
+  const acoes = acoesRecebidas; // cada botão só aparece se a ação correspondente foi passada (no Resumo, "Editar" não existe)
   const [mais, setMais] = useState(false);
   const comInfo = i.itens.filter((x) => x.chuva_atual || x.chuva_prevista);
   const maior = comInfo.map((x) => x.chuva_prevista || x.chuva_atual).sort((a, b) => gravidade(b) - gravidade(a))[0] ?? "";
@@ -27,10 +28,10 @@ export default function CardInformativo({ i, destaque, rodape, acoes }: { i: Det
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">Informativo nº {i.numero}/{i.ano}</h3>
         <div className="-mr-1.5 -mt-1 flex shrink-0 gap-0.5">
-          <button type="button" onClick={() => acoes.onMensagem(i)} aria-label="Gerar mensagem" title="Gerar a arte do informativo (imagem e texto)" className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50"><Send size={15} /></button>
-          <button type="button" onClick={() => acoes.onRadar(i)} aria-label="Gerar imagem do radar" title="Gerar a imagem do radar para enviar" className="rounded p-1.5 text-sky-600 hover:bg-sky-50"><Radar size={15} /></button>
-          <button type="button" onClick={() => acoes.onAbrir(i.id)} aria-label="Editar" title="Abrir no compositor" className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><Pencil size={15} /></button>
-          <button type="button" onClick={() => acoes.onCancelar(i)} aria-label="Cancelar informativo" title="Cancelar o informativo (não apaga; fica no histórico)" className="rounded p-1.5 text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+          {acoes.onMensagem && <button type="button" onClick={() => acoes.onMensagem?.(i)} aria-label="Gerar mensagem" title="Gerar a arte do informativo (imagem e texto)" className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50"><Send size={15} /></button>}
+          {acoes.onRadar && <button type="button" onClick={() => acoes.onRadar?.(i)} aria-label="Gerar imagem do radar" title="Gerar a imagem do radar para enviar" className="rounded p-1.5 text-sky-600 hover:bg-sky-50"><Radar size={15} /></button>}
+          {acoes.onAbrir && <button type="button" onClick={() => acoes.onAbrir?.(i.id)} aria-label="Editar" title="Abrir no compositor" className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><Pencil size={15} /></button>}
+          {acoes.onCancelar && <button type="button" onClick={() => acoes.onCancelar?.(i)} aria-label="Cancelar informativo" title="Cancelar o informativo (não apaga; fica no histórico)" className="rounded p-1.5 text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>}
         </div>
       </div>
       <div className="mt-1 flex flex-wrap gap-1">
@@ -50,7 +51,7 @@ export default function CardInformativo({ i, destaque, rodape, acoes }: { i: Det
 
       {rodape}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => acoes.onValidar(i)} className="rounded bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600">Validar envio Idap</button>
+        {acoes.onValidar && <button type="button" onClick={() => acoes.onValidar?.(i)} className="rounded bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600">Validar envio Idap</button>}
         <button type="button" onClick={() => setMais((v) => !v)} className="text-xs font-medium text-blue-600 hover:underline">{mais ? "Ocultar notificações e sugestões" : "Ver notificações e sugestões"}</button>
       </div>
       {mais && (

@@ -29,6 +29,7 @@ import {
 import { fmtDataHora } from "@/lib/nivelMonitoramento";
 
 import ApoioChuva from "./ApoioChuva";
+import type { AvisoNoMapa, RecomendacaoNoMapa } from "./MapaVigente";
 import CardInformativo from "./CardInformativo";
 import PublicarInformativo from "./PublicarInformativo";
 import RadarCompartilhar from "./RadarCompartilhar";
@@ -51,7 +52,7 @@ function comFrases(texto: string, frases: string[]): string {
 /** Chave da matriz usada para saber se algo mudou desde que o informativo foi aberto. */
 function chaveDe (its: ItemRegiao[], ap: { regioes: string[]; intensidade: string; por: string }, fr: string[]) { return JSON.stringify({ i: its.filter((x) => x.chuva_atual || x.chuva_prevista), a: ap.regioes.length ? ap : null, f: fr }) }
 
-type Sub = "compor" | "acompanhar" | "historico" | "verificacao";
+type Sub = "compor" | "historico" | "verificacao";
 
 const ESTADO: Record<Resumo["estado"], { rotulo: string; cor: string }> = {
   rascunho: { rotulo: "Rascunho", cor: "bg-gray-100 text-gray-700" },
@@ -63,7 +64,7 @@ const ESTADO: Record<Resumo["estado"], { rotulo: string; cor: string }> = {
 /** Aba Produção → Meteorologia: compõe o informativo (texto no modelo do grupo de operadores), acompanha a vigência de 6 h e o relógio do radar, e guarda o
  * histórico. O painel NÃO envia nada (SMS/WhatsApp/Telegram): registra o que a equipe enviou. */
 export default function InformativoPanel() {
-  const [sub, setSub] = useState<Sub>("acompanhar");
+  const [sub, setSub] = useState<Sub>("compor");
   const [abertoId, setAbertoId] = useState<number | null>(null);
   const [publicar, setPublicar] = useState<Detalhe | null>(null);
 
@@ -79,13 +80,12 @@ export default function InformativoPanel() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5 text-xs">
-        {(["acompanhar", "compor", "historico", "verificacao"] as Sub[]).map((s) => (
+        {(["compor", "historico", "verificacao"] as Sub[]).map((s) => (
           <button key={s} type="button" onClick={() => vaiPara(s)} className={`rounded-full px-3 py-1.5 font-medium ${sub === s ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
-            {s === "acompanhar" ? "Acompanhamento" : s === "compor" ? "Compor informativo" : s === "historico" ? "Histórico" : "Verificação"}
+            {s === "compor" ? "Compor informativo" : s === "historico" ? "Histórico" : "Verificação"}
           </button>
         ))}
       </div>
-      {sub === "acompanhar" && <Acompanhar onNovo={() => { setPublicar(null); setAbertoId(null); setSub("compor"); }} onAbrir={abrir} />}
       {sub === "compor" && <Compor key={abertoId ?? "novo"} id={abertoId} onSalvo={setAbertoId} onFechar={() => setAbertoId(null)} onPublicar={setPublicar} />}
       {sub === "compor" && publicar && publicar.id === abertoId && <PublicarInformativo i={publicar} onClose={() => setPublicar(null)} />}
       {sub === "historico" && <Historico onAbrir={abrir} />}
@@ -95,7 +95,18 @@ export default function InformativoPanel() {
 }
 
 // ------------------------------------------------------------------------------------------ acompanhamento
-function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: number) => void }) {
+/** Acompanhamento do informativo vigente (mapa, vigência de 6 h, radar, Idap, episódio e envios de hoje). Mora no Resumo 24 h (visível a todos);
+ * sem `onNovo`/`onAbrir` ficam escondidos os botões de criar e de abrir no compositor, que só existem em Produção → Meteorologia → Informativo. */
+export function Acompanhar({ onNovo, onAbrir, cardsAntes, cardsDepois, avisosMapa = [], recsMapa = [] }: {
+  onNovo?: () => void;
+  onAbrir?: (id: number) => void;
+  /** Cards que vêm antes do informativo vigente (avisos meteorológicos: o aviso vigente é sempre o primeiro). */
+  cardsAntes?: React.ReactNode;
+  /** Cards depois do informativo vigente (recomendações de alarme ativas). */
+  cardsDepois?: React.ReactNode;
+  avisosMapa?: AvisoNoMapa[];
+  recsMapa?: RecomendacaoNoMapa[];
+}) {
   const [a, setA] = useState<Acompanhamento | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<Detalhe | null>(null);
@@ -112,44 +123,49 @@ function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: num
     const t = setInterval(carregar, 60_000);
     return () => clearInterval(t);
   }, [carregar]);
-  if (erro) return <p className="text-sm text-red-700">{erro}</p>;
-  if (!a) return <p className="text-sm text-gray-500">Carregando…</p>;
-  const v = a.vigente;
+  const v = a?.vigente ?? null;
+  const temMapa = !!v || avisosMapa.length > 0 || recsMapa.length > 0;
+  const temCards = !!v || !!cardsAntes || !!cardsDepois;
   return (
     <div className="space-y-3 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-gray-600">Próximo número: <b>{a.proximo_numero.numero}/{a.proximo_numero.ano}</b>{a.rascunhos > 0 && ` · ${a.rascunhos} rascunho(s) em aberto`}</span>
-        <button type="button" onClick={onNovo} className="rounded bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Novo informativo</button>
-      </div>
-      {v ? (
+      {erro && <p className="text-sm text-red-700">{erro}</p>}
+      {a && onNovo && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-gray-600">Próximo número: <b>{a.proximo_numero.numero}/{a.proximo_numero.ano}</b>{a.rascunhos > 0 && ` · ${a.rascunhos} rascunho(s) em aberto`}</span>
+          <button type="button" onClick={onNovo} className="rounded bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Novo informativo</button>
+        </div>
+      )}
+      {!a && !erro && <p className="text-sm text-gray-500">Carregando…</p>}
+      {temMapa && <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-2 shadow-sm"><MapaVigente itens={v?.itens ?? []} avisos={avisosMapa} recomendacoes={recsMapa} /></div>}
+      {temCards && (
         <>
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-2 shadow-sm"><MapaVigente itens={v.itens} /></div>
-          <h3 className="text-sm font-bold text-gray-700">Vigente</h3>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            <CardInformativo i={v} destaque acoes={acoes} rodape={
+          <h3 className="text-sm font-bold text-gray-700">Vigente agora</h3>
+          <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {cardsAntes}
+            {v && <CardInformativo i={v} destaque acoes={acoes} rodape={
               <div className="mt-2 space-y-1 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-950">
                 <p>Vale por mais <b>{Math.floor(v.minutos_restantes / 60)} h {v.minutos_restantes % 60} min</b>.</p>
                 <p className={v.radar_atrasado ? "font-semibold text-red-700" : ""}>Radar: reenviar a cada {v.radar_intervalo_min} min ({v.radar_faixa.replace("_", " ")}) — próximo até {fmtDataHora(v.radar_proximo_em)}{v.radar_atrasado ? " (ATRASADO)" : ""}.</p>
                 {v.sms_pendentes.length > 0 && <p className="text-amber-800">SMS (IDAP) ainda não marcado como enviado: {v.sms_pendentes.map(nomeRegiao).join(", ")}.</p>}
                 {v.regioes_sem_informacao.length > 0 && <p className="text-gray-600">Sem informação: {v.regioes_sem_informacao.map(nomeRegiao).join(", ")}.</p>}
               </div>
-            } />
+            } />}
+            {cardsDepois}
           </div>
         </>
-      ) : (
-        <p className="rounded-md border border-gray-200 bg-gray-50 p-3 text-gray-700">Nenhum informativo vigente (valem 6 h a partir do envio).</p>
       )}
-      {a.emitir?.motivo && (
+      {a && !v && <p className="rounded-md border border-gray-200 bg-gray-50 p-3 text-gray-700">Nenhum informativo vigente (valem 6 h a partir do envio).</p>}
+      {a?.emitir?.motivo && (
         <p className={`rounded-md border p-2.5 font-semibold ${a.emitir.urgencia === "alta" ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
           {a.emitir.emitir ? (a.emitir.urgencia === "alta" ? "Emitir agora: " : "Considere emitir: ") : ""}{a.emitir.motivo}
         </p>
       )}
-      {Object.keys(a.chuva_atual).length > 0 && (
+      {a && Object.keys(a.chuva_atual).length > 0 && (
         <p className="text-xs text-gray-700">
           Chuva nas estações (última hora): {Object.entries(a.chuva_atual).sort((x, y) => y[1].max_1h_mm - x[1].max_1h_mm).map(([r, c]) => `${nomeRegiao(r)} ${c.rotulo.toLowerCase()} (${c.max_1h_mm} mm/h)`).join(" · ")}
         </p>
       )}
-      {a.episodio.length > 0 && (
+      {a && a.episodio.length > 0 && (
         <>
           <h3 className="text-sm font-bold text-gray-700">Anteriores deste episódio de mau tempo ({a.episodio.length})</h3>
           <p className="-mt-2 text-xs text-gray-500">Sequência de envios sem pausa maior que 12 h.</p>
@@ -158,7 +174,7 @@ function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: num
           </div>
         </>
       )}
-      <div>
+      {a && <div>
         <p className="mb-1 text-xs font-semibold text-gray-700">Informativos de hoje ({a.hoje.length})</p>
         {a.hoje.length === 0 ? <p className="text-xs text-gray-500">Nenhum informativo hoje.</p> : (
           <ul className="space-y-1 text-xs">
@@ -168,16 +184,16 @@ function Acompanhar({ onNovo, onAbrir }: { onNovo: () => void; onAbrir: (id: num
                 <span>{i.emitido_em ? fmtDataHora(i.emitido_em) : "—"}</span>
                 <span className={`rounded px-1.5 py-0.5 ${ESTADO[i.estado].cor}`}>{ESTADO[i.estado].rotulo}</span>
                 <span className="min-w-0 flex-1 truncate text-gray-600">{i.regioes.map(nomeRegiao).join(", ") || "—"}</span>
-                <button type="button" onClick={() => onAbrir(i.id)} className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50">Abrir</button>
+                {onAbrir && <button type="button" onClick={() => onAbrir(i.id)} className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50">Abrir</button>}
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </div>}
       {mensagem && <PublicarInformativo i={mensagem} onClose={() => setMensagem(null)} />}
       {radar && <RadarCompartilhar det={radar} onAtualiza={(d) => { setRadar(d); carregar(); }} onClose={() => setRadar(null)} />}
       {validar && <ValidarIdap det={validar} onAtualiza={(d) => { setValidar(d); carregar(); }} onClose={() => setValidar(null)} />}
-      {a.lacunas.length > 0 && (
+      {a && a.lacunas.length > 0 && (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-amber-900">
           Há números faltando na sequência de {a.ano}: <b>{a.lacunas.slice(0, 20).join(", ")}{a.lacunas.length > 20 ? "…" : ""}</b>. Pode ser informativo emitido fora do painel — confira antes de preencher.
         </p>
@@ -405,13 +421,18 @@ function Historico({ onAbrir }: { onAbrir: (id: number) => void }) {
   const [lista, setLista] = useState<Resumo[] | null>(null);
   const [est, setEst] = useState<Estatisticas | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [recarga, setRecarga] = useState(0);
   useEffect(() => {
     const q: Record<string, string> = { ano: String(ano), limite: "300" };
     if (estado) q.estado = estado;
     if (regiao) q.regiao = regiao;
     fetchInformativos(q).then((r) => setLista(r.informativos)).catch((e) => setErro(e.message));
     fetchEstatisticas(ano).then(setEst).catch(() => setEst(null));
-  }, [ano, estado, regiao]);
+  }, [ano, estado, regiao, recarga]);
+  const cancelar = (i: Resumo) => {
+    const motivo = window.prompt(`Motivo do cancelamento do informativo nº ${i.numero}/${i.ano} (ele não é apagado):`);
+    if (motivo) acaoInformativo(i.id, "cancelar", { motivo }).then(() => setRecarga((n) => n + 1)).catch((e) => setErro(e instanceof Error ? e.message : "Falha ao cancelar."));
+  };
   const duplicar = async (id: number) => {
     try {
       const d = await criarInformativo({ duplicar_de: id });
@@ -451,7 +472,8 @@ function Historico({ onAbrir }: { onAbrir: (id: number) => void }) {
                   <td className="pr-2">{i.sms_regioes.length ? i.sms_regioes.map(nomeRegiao).join(", ") : "—"}</td>
                   <td className="whitespace-nowrap text-right">
                     <button type="button" onClick={() => onAbrir(i.id)} className="mr-1 rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Abrir</button>
-                    <button type="button" onClick={() => duplicar(i.id)} className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Duplicar</button>
+                    <button type="button" onClick={() => duplicar(i.id)} className="mr-1 rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Duplicar</button>
+                    {i.estado !== "cancelado" && <button type="button" onClick={() => cancelar(i)} title="Cancelar o informativo (não apaga; fica no histórico)" className="rounded border border-red-200 px-2 py-1 text-red-700 hover:bg-red-50">Cancelar</button>}
                   </td>
                 </tr>
               ))}

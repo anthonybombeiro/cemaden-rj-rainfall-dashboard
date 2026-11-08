@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import AvisosVigentes from "@/components/AvisosVigentes";
 import MapaNiveis from "@/components/monitoramento/MapaNiveis";
 import InformativoPublico from "@/components/InformativoPublico";
 import PrevisaoMapa from "@/components/PrevisaoMapa";
@@ -48,6 +49,7 @@ export default function PublicoMonitoramento() {
       </header>
 
       <main className="mx-auto w-full max-w-[120rem] space-y-5 px-4 py-4 sm:px-6 xl:space-y-6 xl:px-8">
+        <AvisosVigentes />
         {erro && !d && <p className="rounded bg-red-50 p-3 text-sm text-red-700">Não foi possível carregar os dados agora. Tente novamente em instantes.</p>}
         {d && (
           <>
