@@ -860,7 +860,46 @@ export default function Dashboard({
     [filteredStations],
   );
 
-  const filterStatusText =
+  // ---- Aba Dados: atualização automática (5 min) e "hora do dado" (12/11/2026) ----
+  // Antes, cada tabela de Dados carregava só na 1ª vez que a sub-aba abria e ficava parada (só "Atualizar agora" recarregava), então duas telas
+  // da mesma estação podiam mostrar valores de horas diferentes. Agora recarregam a cada 5 min enquanto a aba está aberta e mostram a hora do dado.
+  const [cargaEm, setCargaEm] = useState<Record<string, number>>({});
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+  const refrescarRef = useRef<() => void>(() => {});
+  const chaveCarga = redeSourceAtual ?? (dadosSub === "meteorologico" || dadosSub === "ventos" ? "stations" : dadosSub);
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { if (precipitacao.length) setCargaEm((p) => ({ ...p, precipitacao: Date.now() })); }, [precipitacao]);
+  useEffect(() => { if (cemadenNac.length) setCargaEm((p) => ({ ...p, cemaden: Date.now() })); }, [cemadenNac]);
+  useEffect(() => { if (hidrologicas.length) setCargaEm((p) => ({ ...p, hidrologico: Date.now() })); }, [hidrologicas]);
+  useEffect(() => { if (stations.length) setCargaEm((p) => ({ ...p, stations: Date.now() })); }, [stations]);
+  useEffect(() => { if (redeSourceAtual && rede[redeSourceAtual]) setCargaEm((p) => ({ ...p, [redeSourceAtual]: Date.now() })); }, [rede, redeSourceAtual]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (viewMode !== "dados" || dadosSub === "floodhub") return;
+    const recarrega = setInterval(() => { if (document.visibilityState === "visible") refrescarRef.current(); }, 5 * 60_000);
+    const relogio = setInterval(() => setAgoraMs(Date.now()), 30_000);
+    return () => { clearInterval(recarrega); clearInterval(relogio); };
+  }, [viewMode, dadosSub]);
+  // maisNovo ignora hora no futuro (relógio errado na fonte: 9 estações do CEMADEN/MCTIC chegaram a +53 min em 12/11/2026)
+  const rotuloIdadeDados = (() => {
+    if (viewMode !== "dados" || dadosSub === "floodhub") return "";
+    const maisNovo = (xs: (string | null | undefined)[]) => xs.reduce<number>((m, v) => { const t = v ? Date.parse(v) : NaN; return Number.isFinite(t) && t > m && t <= agoraMs + 10 * 60_000 ? t : m; }, 0);
+    const ts =
+      dadosSub === "precipitacao" ? maisNovo(precipitacao.map((x) => x.updated_at))
+      : dadosSub === "cemaden" ? maisNovo(cemadenNac.map((x) => x.referencia))
+      : dadosSub === "hidrologico" ? maisNovo(hidrologicas.map((x) => x.updated_at))
+      : redeSourceAtual ? maisNovo((rede[redeSourceAtual] ?? []).map((x) => x.referencia ?? x.ultima_leitura))
+      : maisNovo(stations.flatMap((x) => x.latest_readings.map((r) => r.timestamp)));
+    const carga = cargaEm[chaveCarga];
+    const hora = (ms: number) => new Date(ms).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+    const min = (ms: number) => Math.max(0, Math.round((agoraMs - ms) / 60_000));
+    const partes: string[] = [];
+    if (ts) partes.push(`dados de ${hora(ts)} · há ${min(ts)} min`);
+    if (carga) partes.push(`tabela atualizada às ${hora(carga)}${min(carga) > 7 ? ` ⚠ há ${min(carga)} min` : ""}`);
+    return partes.length ? ` · ${partes.join(" · ")}` : "";
+  })();
+
+  const filterStatusBase =
     viewMode !== "dados"
       ? loading
         ? "Carregando estações…"
@@ -890,6 +929,7 @@ export default function Dashboard({
             : loading
               ? "Carregando estações…"
               : `${ventosStationsCount} estações com dado de vento`;
+  const filterStatusText = filterStatusBase + rotuloIdadeDados;
 
   // "Atualizar agora" (item 10, pedido do usuário) — depois que o backend
   // termina de rodar TODAS as fontes, recarrega os dados da aba/sub-aba
@@ -907,6 +947,8 @@ export default function Dashboard({
       else if (dadosSub === "hidrologico") fetchHidrologicas().then(setHidrologicas).catch(() => {});
     } else if (sirenesAtivo) fetchSirenes().then(setSirenes).catch(() => {});
   };
+
+  useEffect(() => { refrescarRef.current = handleRefreshDone; }); // o intervalo de 5 min sempre chama a versão mais recente
 
   if (showProfile) {
     return (
