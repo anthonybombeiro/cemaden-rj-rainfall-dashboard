@@ -566,3 +566,7 @@ Pedido do usuario. **Publicado** (migracao 0037 aplicada, backend por SFTP, fron
 - **Pedido do usuario:** "nao consigo habilitar o usuario guijarro, ela esta como nao membro" e poder fazer isso no admin do Django.
 - **Conferido em producao (so leitura, pelo /admin/ logado):** guijarro = **ativo**, operador (nao superusuario), **nao membro da equipe** (is_staff = nao), ultimo login 22/10/2026, senha com hash valido. "Membro da equipe" so serve para entrar no /admin/; operador nao precisa e ja entra no painel. Nada foi alterado na conta dele.
 - **Publicado (`core/admin.py`, sem migracao):** `UsuarioAdmin` com colunas Papel no painel (Administrador/Operador), Ativo (editavel direto na lista), Membro da equipe, Superusuario e Ultimo login; filtros; acoes em massa "Ativar", "Desativar", "Tornar administrador" (superusuario + equipe + ativo) e "Tornar operador". A propria conta fica de fora de desativar/rebaixar. Testes `api/test_admin_usuarios.py` (4).
+
+## 13/11/2026 - Login do painel tolera maiuscula/minuscula e espaco no usuario
+
+guijarro (operador ativo, senha com hash valido) nao conseguia entrar com a senha. Sem como saber a senha dele, o caminho e redefinir em /admin/auth/user/3/password/. Alem disso o login (`api/auth_views.py`) agora tira espacos do usuario e aceita grafia diferente em maiuscula/minuscula quando so existe um usuario assim (o Django diferencia "Guijarro" de "guijarro"). Senha errada e usuario inativo continuam barrados. Testes `api/test_login_usuario.py` (4). Publicado por SFTP, sem migracao.

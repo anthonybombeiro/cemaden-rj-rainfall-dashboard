@@ -63,7 +63,15 @@ class LoginView(APIView):
     def post(self, request):
         username = (request.data or {}).get("username", "")
         password = (request.data or {}).get("password", "")
+        username = str(username).strip()  # espaço sobrando no começo/fim (copiar e colar, teclado do celular) não pode barrar o login
         user = authenticate(request, username=username, password=password)
+        if user is None and username:
+            # O login do Django diferencia maiúscula de minúscula ("Guijarro" ≠ "guijarro"): aceita a grafia diferente quando só existe UM usuário assim.
+            from django.contrib.auth import get_user_model
+
+            candidatos = list(get_user_model().objects.filter(username__iexact=username)[:2])
+            if len(candidatos) == 1:
+                user = authenticate(request, username=candidatos[0].get_username(), password=password)
         if user is None or not user.is_active:
             return Response({"detail": "Usuário ou senha inválidos."}, status=401)
         login(request, user)
