@@ -312,6 +312,7 @@ class AutomacaoNmView(APIView):
                     "renovar_quando_restam_h": nm_automatico.RENOVAR_QUANDO_RESTAM_H,
                     "histerese_baixar_h": nm_automatico.HISTERESE_BAIXAR_H,
                     "bloqueio_humano_nm01_h": nm_automatico.BLOQUEIO_HUMANO_NM01_H,
+                    "humano_expira_h": nm_automatico.HUMANO_EXPIRA_H,
                 },
             }
         )

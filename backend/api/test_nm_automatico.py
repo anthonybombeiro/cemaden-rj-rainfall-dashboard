@@ -41,7 +41,17 @@ class NmAutomaticoTest(APITestCase):
         self.assertEqual((reg.nivel_anterior, reg.nivel, reg.registrado_por, reg.origem, reg.equipe), (1, 2, nm_automatico.SISTEMA, "automatico", "geo"))
         self.assertTrue(reg.sinais and reg.sinais[0]["risco"] == "moderado")
 
-    def test_teto_padrao_nm2_alto_vira_nm2_e_vira_sugestao_de_nm3(self):
+    def test_teto_padrao_nm3_alto_vira_nm3_automatico(self):
+        self.assertEqual(ConfiguracaoNm.obter().nivel_maximo_auto, 3)
+        risco("hidrologico", "alto")
+        nm_automatico.sincronizar(self.agora)
+        n = self.nm()
+        self.assertEqual((n.nivel, n.origem), (3, "automatico"))
+
+    def test_teto_2_configurado_alto_vira_nm2_e_sugestao_de_nm3(self):
+        cfg = ConfiguracaoNm.obter()
+        cfg.nivel_maximo_auto = 2
+        cfg.save()
         risco("hidrologico", "alto")
         nm_automatico.sincronizar(self.agora)
         self.assertEqual(self.nm().nivel, 2)
@@ -67,35 +77,53 @@ class NmAutomaticoTest(APITestCase):
         self.assertLessEqual(self.nm().nivel, 3)
 
     def test_nao_sobrescreve_nivel_humano_ativo(self):
-        NivelMonitoramento.objects.create(municipio=M, nivel=4, vigencia_ate=self.agora + dt.timedelta(hours=5), origem="humano")
+        NivelMonitoramento.objects.create(municipio=M, nivel=4, vigencia_ate=self.agora + dt.timedelta(hours=5), origem="humano")  # recém-lançado
         risco("geologico", "baixo")
         r = nm_automatico.sincronizar(self.agora)
         self.assertEqual((self.nm().nivel, self.nm().origem), (4, "humano"))
         self.assertEqual(r["bloqueados_por_humano"], 1)
 
-    def test_nm1_humano_recente_protege_e_antigo_libera(self):
+    def test_humano_protege_ate_3h_e_depois_entra_o_do_sistema_qualquer_nm(self):
         n = NivelMonitoramento.objects.create(municipio=M, nivel=1, origem="humano")
         risco("geologico", "moderado")
+        NivelMonitoramento.objects.filter(pk=n.pk).update(atualizado_em=self.agora - dt.timedelta(hours=2))
         nm_automatico.sincronizar(self.agora)
-        self.assertEqual(self.nm().origem, "humano")
-        NivelMonitoramento.objects.filter(pk=n.pk).update(atualizado_em=self.agora - dt.timedelta(hours=7))
-        nm_automatico.sincronizar(self.agora)
-        self.assertEqual((self.nm().nivel, self.nm().origem), (2, "automatico"))
-
-    def test_humano_vencido_e_assumido_pelo_sistema(self):
-        NivelMonitoramento.objects.create(municipio=M, nivel=3, vigencia_ate=self.agora - dt.timedelta(hours=1), origem="humano")
-        risco("geologico", "moderado")
+        self.assertEqual((self.nm().nivel, self.nm().origem), (1, "humano"))  # 2 h: ainda protegido
+        NivelMonitoramento.objects.filter(pk=n.pk).update(atualizado_em=self.agora - dt.timedelta(hours=3, minutes=1))
         nm_automatico.sincronizar(self.agora)
         self.assertEqual((self.nm().nivel, self.nm().origem), (2, "automatico"))
 
-    def test_histerese_so_desce_depois_de_3h(self):
-        risco("geologico", "moderado")
+    def test_humano_acima_do_risco_abaixa_depois_de_3h_sem_atualizar(self):
+        n = NivelMonitoramento.objects.create(municipio=M, nivel=3, vigencia_ate=self.agora + dt.timedelta(hours=20), origem="humano")
+        risco("geologico", "moderado")  # todos os riscos abaixo do que o humano definiu
+        NivelMonitoramento.objects.filter(pk=n.pk).update(atualizado_em=self.agora - dt.timedelta(hours=2, minutes=59))
         nm_automatico.sincronizar(self.agora)
+        self.assertEqual((self.nm().nivel, self.nm().origem), (3, "humano"))
+        nm_automatico.sincronizar(self.agora + dt.timedelta(minutes=5))  # passaram 3 h
+        self.assertEqual((self.nm().nivel, self.nm().origem), (2, "automatico"))
+        reg = NivelMonitoramentoRegistro.objects.filter(municipio=M, origem="automatico").first()
+        self.assertEqual((reg.nivel_anterior, reg.nivel), (3, 2))
+
+    def test_humano_que_atualiza_renova_a_protecao(self):
+        n = NivelMonitoramento.objects.create(municipio=M, nivel=3, origem="humano")
+        risco("geologico", "baixo")
+        NivelMonitoramento.objects.filter(pk=n.pk).update(atualizado_em=self.agora - dt.timedelta(hours=5))
+        NivelMonitoramento.objects.get(pk=n.pk).save()  # o humano lança de novo: atualizado_em = agora
+        nm_automatico.sincronizar(self.agora)
+        self.assertEqual((self.nm().nivel, self.nm().origem), (3, "humano"))
+
+    def test_desce_na_hora_sem_esperar(self):
+        risco("geologico", "alto")
+        nm_automatico.sincronizar(self.agora)
+        self.assertEqual(self.nm().nivel, 3)
+        risco("geologico", "moderado")
+        nm_automatico.sincronizar(self.agora + dt.timedelta(minutes=1))  # sem esperar 3 h
+        self.assertEqual(self.nm().nivel, 2)
+        risco("geologico", "baixo")
+        nm_automatico.sincronizar(self.agora + dt.timedelta(minutes=2))
+        self.assertEqual(self.nm().nivel, 1)
         risco("geologico", "muito_baixo")
-        nm_automatico.sincronizar(self.agora + dt.timedelta(hours=1))
-        self.assertEqual(self.nm().nivel, 2)  # ainda segura
-        NivelMonitoramento.objects.filter(municipio=M).update(atualizado_em=self.agora - dt.timedelta(hours=4))
-        nm_automatico.sincronizar(self.agora + dt.timedelta(hours=4))
+        nm_automatico.sincronizar(self.agora + dt.timedelta(minutes=3))
         n = self.nm()
         self.assertEqual((n.nivel, n.origem), (0, "automatico"))
         self.assertTrue(NivelMonitoramentoRegistro.objects.filter(municipio=M, nivel=0, encerramento=True).exists())
@@ -135,7 +163,7 @@ class NmAutomaticoTest(APITestCase):
         self.client.force_authenticate(get_user_model().objects.create_user("p", password="x"))
         self.client.post("/api/monitoramento/automatico/")
         e = self.client.get("/api/monitoramento/automatico/").data
-        self.assertTrue(e["ativo"] and e["nivel_maximo_auto"] == 2 and e["vigentes_automaticos"]["2"] >= 1 and e["ultima_execucao"])
+        self.assertTrue(e["ativo"] and e["nivel_maximo_auto"] == 3 and e["vigentes_automaticos"]["2"] >= 1 and e["ultima_execucao"])
         self.client.force_authenticate(None)
         pub = self.client.get("/api/publico/monitoramento/").data["niveis"]
         self.assertEqual([n["origem"] for n in pub if n["municipio"] == M], ["automatico"])

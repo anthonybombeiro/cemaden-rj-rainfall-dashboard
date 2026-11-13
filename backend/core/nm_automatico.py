@@ -1,14 +1,15 @@
 """Automação do Nível de Monitoramento (NM) a partir dos mapas de risco e de outros produtos tabulares.
 
 Ideia: os mapas de risco (hidrológico, geológico e severidade meteorológica) já são automáticos e cada nível de risco tem um **piso** de NM na matriz do PLANCON
-(muito baixo → NM 0, baixo → NM 1, moderado → NM 2, alto e muito alto → NM 3). O sistema gera sozinho o NM até `ConfiguracaoNm.nivel_maximo_auto` (padrão NM 2);
-o que passa disso vira **sugestão** para o plantonista (aba Produção → Pendências). NM 4 e NM 5 dependem de gatilho atingido, impacto em até 2 h, área delimitada,
+(muito baixo → NM 0, baixo → NM 1, moderado → NM 2, alto e muito alto → NM 3). O sistema gera sozinho o NM até `ConfiguracaoNm.nivel_maximo_auto` (padrão NM 3,
+desde 12/11/2026); o que passa disso vira **sugestão** para o plantonista (aba Produção → Pendências). NM 4 e NM 5 dependem de gatilho atingido, impacto em até 2 h, área delimitada,
 aprovação e aviso à COMDEC/REDEC e **nunca** são gerados pelo sistema.
 
 Regras de convivência com o trabalho humano (documentadas em docs/nivel-monitoramento-plancon.md):
-- um nível lançado por plantonista, ainda ativo, nunca é alterado pelo sistema (NM 2+ ativo = vigência não vencida; NM 0–1 = lançado há menos de 6 h);
-- o sistema só mexe em município sem linha, com linha automática, ou com linha humana vencida;
-- subir é imediato; descer só depois de 3 h no nível anterior (histerese), para não oscilar a cada leitura;
+- um nível lançado por plantonista fica protegido por 3 h desde a última atualização HUMANA (qualquer NM); passadas as 3 h sem o humano atualizar, o nível "vence" e
+  entra o que o sistema calcula dos mapas de risco, para cima ou para baixo (12/11/2026);
+- o sistema só mexe em município sem linha, com linha automática, ou com linha humana que passou de 3 h;
+- subir e descer são imediatos: a cada atualização o NM automático acompanha o risco (sem espera), ex.: sem nenhum risco alto o NM 3 volta para NM 2;
 - NM 2+ automático tem vigência de 24 h e é renovado (novo registro) quando restam menos de 6 h e o risco continua;
 - tudo fica no histórico (`NivelMonitoramentoRegistro`) com `origem="automatico"`, os sinais que sustentaram o nível e o responsável "Sistema (automático)".
 """
@@ -34,8 +35,9 @@ TIPOS_CHUVA = [RiskAlert.Tipo.HIDROLOGICO, RiskAlert.Tipo.GEOLOGICO, RiskAlert.T
 EQUIPE_DO_TIPO = {RiskAlert.Tipo.HIDROLOGICO: "hid", RiskAlert.Tipo.GEOLOGICO: "geo", RiskAlert.Tipo.METEOROLOGICO: "met"}
 
 RENOVAR_QUANDO_RESTAM_H = 6
-HISTERESE_BAIXAR_H = 3
-BLOQUEIO_HUMANO_NM01_H = 6
+HISTERESE_BAIXAR_H = 0  # sem espera para descer (12/11/2026); a constante fica só para a API/tela
+HUMANO_EXPIRA_H = 3  # nível lançado por humano vale 3 h desde a última atualização humana; depois entra o do sistema
+BLOQUEIO_HUMANO_NM01_H = HUMANO_EXPIRA_H  # nome antigo (API)
 IDADE_MAX_COTA_H = 3
 
 # Tabela de níveis dos produtos tabulares → NM (piso). Só o risco técnico é automático; as demais fontes viram sugestão.
@@ -96,11 +98,10 @@ def _texto_sinais(fontes: list[dict]) -> str:
 
 
 def _humano_ativo(n: NivelMonitoramento, agora: dt.datetime) -> bool:
+    """Nível humano ainda protegido: lançado/atualizado por um plantonista há menos de `HUMANO_EXPIRA_H` (3 h), seja qual for o NM."""
     if n.origem != "humano":
         return False
-    if n.nivel >= 2:
-        return n.vigencia_ate is None or n.vigencia_ate >= agora
-    return agora - n.atualizado_em < dt.timedelta(hours=BLOQUEIO_HUMANO_NM01_H)
+    return agora - n.atualizado_em < dt.timedelta(hours=HUMANO_EXPIRA_H)
 
 
 def sincronizar(agora: dt.datetime | None = None, forcar: bool = False) -> dict:
@@ -132,8 +133,7 @@ def sincronizar(agora: dt.datetime | None = None, forcar: bool = False) -> dict:
             if alvo > nivel_atual:
                 acao = "criado"
             elif alvo < nivel_atual:
-                recente = atual is not None and atual.origem == "automatico" and agora - atual.atualizado_em < dt.timedelta(hours=HISTERESE_BAIXAR_H)
-                acao = None if recente else "rebaixado"
+                acao = "rebaixado"  # desce na hora (sem histerese); nível humano só chega aqui depois de vencer (3 h)
             elif alvo >= 2 and atual is not None and atual.origem == "automatico" and atual.vigencia_ate and atual.vigencia_ate - agora < dt.timedelta(hours=RENOVAR_QUANDO_RESTAM_H):
                 acao = "renovado"
             elif atual is not None and atual.origem == "humano" and alvo >= 2 and alvo == nivel_atual:

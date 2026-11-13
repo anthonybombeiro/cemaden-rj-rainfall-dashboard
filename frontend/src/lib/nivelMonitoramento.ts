@@ -123,7 +123,7 @@ export type AutomacaoNm = {
   ultima_execucao: string | null;
   ultimo_resumo: { criados?: number; renovados?: number; rebaixados?: number; mantidos?: number; bloqueados_por_humano?: number; sem_dado?: number };
   vigentes_automaticos: Record<string, number>;
-  regras: { renovar_quando_restam_h: number; histerese_baixar_h: number; bloqueio_humano_nm01_h: number };
+  regras: { renovar_quando_restam_h: number; histerese_baixar_h: number; bloqueio_humano_nm01_h: number; humano_expira_h?: number };
 };
 export const fetchAutomacaoNm = () => getJson<AutomacaoNm>("/monitoramento/automatico/");
 

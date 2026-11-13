@@ -192,7 +192,7 @@ export default function ProducaoPanel({ selecaoInicial = [] }: { selecaoInicial?
                   </button>
                 </div>
                 <p className="mt-1">
-                  A partir dos mapas de risco (hidrológico, geológico e severidade meteorológica): baixo → NM 1, moderado → NM 2. Níveis lançados por você não são mexidos enquanto estiverem ativos; o sistema só desce depois de {auto.regras.histerese_baixar_h} h e renova o NM 2 a cada 24 h
+                  A partir dos mapas de risco (hidrológico, geológico e severidade meteorológica): baixo → NM 1, moderado → NM 2, alto → NM 3; sobe e desce na hora, acompanhando o risco. Níveis lançados por você ficam protegidos por {auto.regras.humano_expira_h ?? 3} h sem atualização sua; depois disso entra o nível calculado pelo sistema. Os NM 2 e 3 automáticos são renovados a cada 24 h
                   enquanto o risco continua. Agora: {auto.vigentes_automaticos["1"] ?? 0} município(s) em NM 1, {auto.vigentes_automaticos["2"] ?? 0} em NM 2{(auto.vigentes_automaticos["3"] ?? 0) > 0 ? `, ${auto.vigentes_automaticos["3"]} em NM 3` : ""}, gerados automaticamente. Última execução: {auto.ultima_execucao ? fmtDataHora(auto.ultima_execucao) : "ainda não rodou"}.
                 </p>
               </div>

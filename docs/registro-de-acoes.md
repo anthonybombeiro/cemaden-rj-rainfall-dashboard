@@ -545,3 +545,12 @@ Aprovado pelo usuario apos ver o modelo local (cards lado a lado, aviso sempre e
 - **Causa:** `AlertaRioConnector.fetch_stations` baixava a lista de estacoes do `www.data.rio` (GeoJSON) em toda rodada; o servidor deu timeout (30 s) e o `run()` do conector aborta a rodada inteira se essa lista falha, entao nenhuma leitura entrava. O feed de chuva em si (websempre.rio.rj.gov.br) nao era o problema.
 - **Correcao (publicada por SFTP, sem migracao):** timeout de 15 s e, se o GeoJSON falhar, usa as estacoes ja gravadas (`_estacoes_gravadas`); so falha de verdade se nao houver nenhuma gravada. Teste `api/test_alerta_rio_conector.py` (2). Conferido em producao: proxima rodada do cron (16:47 UTC) coletou, 33 estacoes ativas, sem erro.
 - **Lacuna de dados:** nao ha leituras de chuva do Alerta Rio entre ~23:02 de 07/11 e ~13:47 de 08/11 (nossas colunas Calc 24 h/96 h ficam abaixo ate a janela passar; as colunas oficiais vem do feed e estao corretas).
+
+## 12/11/2026 - NM automatico: teto NM 3, desce na hora e humano vale 3 h (migracao 0037)
+
+Pedido do usuario. **Publicado** (migracao 0037 aplicada, backend por SFTP, front com o texto novo, 110 arquivos).
+- **Teto NM 3:** `ConfiguracaoNm.nivel_maximo_auto` agora padrao 3 e a migracao 0037 ajustou a linha existente (era 2). Risco alto/muito alto em algum mapa = NM 3 automatico. NM 4/5 continuam nunca automaticos.
+- **Sem histerese:** o NM automatico acompanha o risco na hora, para cima e para baixo (sem nenhum risco alto o NM 3 volta a NM 2; moderado = 2, baixo = 1, muito baixo = 0).
+- **Humano vale 3 h:** nivel lancado por plantonista fica protegido por 3 h desde a ultima atualizacao humana (qualquer NM; antes dependia da vigencia de 24 h / 6 h no NM 0-1). Passadas as 3 h sem atualizar, vence e entra o nivel calculado dos mapas de risco, mesmo que rebaixe. Lancar de novo recomeca as 3 h. **Atencao:** vale tambem para NM 4 e 5 lancados por humano.
+- Ao aplicar em producao: 15 municipios com risco alto subiram de NM 2 para NM 3 (antes: 36 NM 2 / 10 NM 1; depois: 21 NM 2 / 15 NM 3 / 10 NM 1). Testes: `api/test_nm_automatico.py` (16) + `test_monitoramento` = 24 OK.
+- Tela Produção > Pendências: texto das regras atualizado; API `GET /api/monitoramento/automatico/` ganhou `regras.humano_expira_h` (e `histerese_baixar_h` = 0).

@@ -885,10 +885,10 @@ class ConfiguracaoNm(models.Model):
     """Configuração e estado da automação do Nível de Monitoramento (uma linha só, pk=1; editável no Admin).
 
     O sistema gera sozinho, a partir dos mapas de risco (hidrológico, geológico e severidade meteorológica), os níveis que não dependem de validação
-    humana, até `nivel_maximo_auto` (padrão NM 2). Acima disso só sugere (aba Produção → Pendências). NM 4 e NM 5 são sempre decisão humana."""
+    humana, até `nivel_maximo_auto` (padrão NM 3). Acima disso só sugere (aba Produção → Pendências). NM 4 e NM 5 são sempre decisão humana."""
 
     ativo = models.BooleanField(default=True, help_text="Desligue para o sistema parar de gerar níveis sozinho.")
-    nivel_maximo_auto = models.PositiveSmallIntegerField(default=2, help_text="Maior NM que o sistema pode gerar sem validação (0 a 3; NM 4 e 5 nunca).")
+    nivel_maximo_auto = models.PositiveSmallIntegerField(default=3, help_text="Maior NM que o sistema pode gerar sem validação (0 a 3; NM 4 e 5 nunca).")
     ultima_execucao = models.DateTimeField(null=True, blank=True)
     ultimo_resumo = models.JSONField(default=dict, blank=True)
 
