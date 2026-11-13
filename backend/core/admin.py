@@ -241,3 +241,58 @@ class ConfiguracaoPlantaoAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# ---------------------------------------------------------------------------------------------------------------------------
+# Usuários (13/11/2026): ativar/desativar e trocar o papel direto na lista do Django admin.
+# No painel só existem dois papéis: Administrador (is_superuser, que também precisa de is_staff para entrar no /admin/) e Operador (conta comum).
+# "Ativo" é quem consegue entrar no painel; "Membro da equipe" (is_staff) só vale para entrar no /admin/ — operador não precisa dele.
+# ---------------------------------------------------------------------------------------------------------------------------
+from django.contrib.auth import get_user_model  # noqa: E402
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin  # noqa: E402
+
+_User = get_user_model()
+try:
+    admin.site.unregister(_User)
+except admin.sites.NotRegistered:  # pragma: no cover
+    pass
+
+
+@admin.register(_User)
+class UsuarioAdmin(BaseUserAdmin):
+    list_display = ("username", "first_name", "email", "papel_no_painel", "is_active", "is_staff", "is_superuser", "last_login")
+    list_display_links = ("username",)
+    list_filter = ("is_active", "is_superuser", "is_staff")
+    list_editable = ("is_active",)  # liga/desliga direto na lista (marque e use "Salvar" no fim da página)
+    actions = ["ativar_usuarios", "desativar_usuarios", "tornar_administradores", "tornar_operadores"]
+
+    @admin.display(description="Papel no painel", ordering="is_superuser")
+    def papel_no_painel(self, obj):
+        return "Administrador" if obj.is_superuser else "Operador"
+
+    def _sem_voce(self, request, queryset, acao):
+        """Ninguém tira o próprio acesso sem querer: o próprio usuário fica de fora de desativar/rebaixar."""
+        proprio = queryset.filter(pk=request.user.pk)
+        if proprio.exists():
+            self.message_user(request, f"Sua própria conta foi ignorada em “{acao}” (para você não perder o acesso).", level="warning")
+        return queryset.exclude(pk=request.user.pk)
+
+    @admin.action(description="Ativar usuários selecionados (podem entrar no painel)")
+    def ativar_usuarios(self, request, queryset):
+        n = queryset.update(is_active=True)
+        self.message_user(request, f"{n} usuário(s) ativado(s).")
+
+    @admin.action(description="Desativar usuários selecionados (não entram mais; nada é apagado)")
+    def desativar_usuarios(self, request, queryset):
+        n = self._sem_voce(request, queryset, "desativar").update(is_active=False)
+        self.message_user(request, f"{n} usuário(s) desativado(s).")
+
+    @admin.action(description="Tornar administrador (superusuário + membro da equipe: entra no painel e no /admin/)")
+    def tornar_administradores(self, request, queryset):
+        n = queryset.update(is_superuser=True, is_staff=True, is_active=True)
+        self.message_user(request, f"{n} usuário(s) agora são administradores.")
+
+    @admin.action(description="Tornar operador (só entra no painel; sem /admin/)")
+    def tornar_operadores(self, request, queryset):
+        n = self._sem_voce(request, queryset, "tornar operador").update(is_superuser=False, is_staff=False)
+        self.message_user(request, f"{n} usuário(s) agora são operadores.")
