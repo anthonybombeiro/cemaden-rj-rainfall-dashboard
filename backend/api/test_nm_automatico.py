@@ -167,3 +167,19 @@ class NmAutomaticoTest(APITestCase):
         self.client.force_authenticate(None)
         pub = self.client.get("/api/publico/monitoramento/").data["niveis"]
         self.assertEqual([n["origem"] for n in pub if n["municipio"] == M], ["automatico"])
+
+    def test_nm_lancado_por_humano_sobre_nivel_automatico_nao_e_sobrescrito(self):
+        """Regressão (13/11/2026): lançar NM 4 num município que estava com NM 2 automático voltava para 2 três minutos depois."""
+        risco("geologico", "moderado")
+        nm_automatico.sincronizar(self.agora)
+        self.assertEqual((self.nm().nivel, self.nm().origem), (2, "automatico"))
+        self.client.force_authenticate(get_user_model().objects.create_user("plantao", password="x", first_name="Plantonista"))
+        corpo = {"municipios": [M], "nivel": 4, "equipe": "geo", "motivo": "Gatilho atingido; impacto em até 2 h", "antecedencia": "ate_2h", "area_delimitada": "Bairro X",
+                 "populacao_exposta": "500", "aprovado_por": "Diretor", "comdec_avisada_em": self.agora.isoformat(), "redec_avisada_em": self.agora.isoformat(), "ferramentas": ["SMS"]}
+        r = self.client.post("/api/monitoramento/registrar/", corpo, format="json")
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual((self.nm().nivel, self.nm().origem), (4, "humano"))
+        nm_automatico.sincronizar(self.agora + dt.timedelta(minutes=3))
+        self.assertEqual((self.nm().nivel, self.nm().origem), (4, "humano"))  # protegido por 3 h
+        nm_automatico.sincronizar(self.agora + dt.timedelta(hours=3, minutes=1))
+        self.assertEqual((self.nm().nivel, self.nm().origem), (2, "automatico"))  # depois de 3 h sem atualizar, entra o do sistema

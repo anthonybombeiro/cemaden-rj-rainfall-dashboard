@@ -570,3 +570,9 @@ Pedido do usuario. **Publicado** (migracao 0037 aplicada, backend por SFTP, fron
 ## 13/11/2026 - Login do painel tolera maiuscula/minuscula e espaco no usuario
 
 guijarro (operador ativo, senha com hash valido) nao conseguia entrar com a senha. Sem como saber a senha dele, o caminho e redefinir em /admin/auth/user/3/password/. Alem disso o login (`api/auth_views.py`) agora tira espacos do usuario e aceita grafia diferente em maiuscula/minuscula quando so existe um usuario assim (o Django diferencia "Guijarro" de "guijarro"). Senha errada e usuario inativo continuam barrados. Testes `api/test_login_usuario.py` (4). Publicado por SFTP, sem migracao.
+
+## 13/11/2026 - Corrigido: NM lancado por humano era sobrescrito pela automacao (Rio das Ostras, NM 4)
+
+- **Ocorrencia:** NM 4 (Severo) lancado por anthony em Rio das Ostras as 15:08 (BRT), vigencia 2 h, voltou para NM 2 as 15:11 por "Sistema (automatico)".
+- **Causa:** `registrar` (api/monitoramento_views.py) gravava o `NivelMonitoramento` com `update_or_create(defaults={nivel, vigencia_ate, registro})` SEM `origem`; num municipio que ja estava com NM automatico a linha continuava `origem="automatico"`, entao a automacao nao a via como nivel humano. Desde 29/10 isso ficava escondido porque a automacao so descia apos 3 h do ultimo update; ao tirar a espera (12/11, pedido do usuario) o defeito apareceu. Os testes antigos criavam a linha ja com origem humana, por isso nao pegaram.
+- **Correcao (publicada por SFTP, sem migracao):** o lancamento humano passa a gravar `origem="humano"`. Teste de regressao em `api/test_nm_automatico.py` (lanca NM 4 sobre NM 2 automatico; 3 min depois continua 4 humano; so depois de 3 h entra o do sistema). Conferido no historico: foi o unico lancamento humano afetado desde 12/11. O NM 4 de Rio das Ostras precisa ser lancado de novo pelo plantonista.

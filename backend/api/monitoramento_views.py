@@ -182,7 +182,8 @@ class RegistrarNivelView(APIView):
                     lote=lote,
                     registrado_por=usuario,
                 )
-                NivelMonitoramento.objects.update_or_create(municipio=m, defaults={"nivel": nivel, "vigencia_ate": vigencia, "registro": reg})
+                # origem="humano" é obrigatório: sem ele, um município que estava com NM automático continuava "automático" e a automação sobrescrevia o nível lançado (Rio das Ostras, NM 4, 13/11/2026)
+                NivelMonitoramento.objects.update_or_create(municipio=m, defaults={"nivel": nivel, "vigencia_ate": vigencia, "registro": reg, "origem": "humano"})
         return Response({"registrados": len(municipios), "lote": lote, "nivel": nivel, "municipios": municipios}, status=201)
 
 
