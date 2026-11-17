@@ -296,3 +296,14 @@ class UsuarioAdmin(BaseUserAdmin):
     def tornar_operadores(self, request, queryset):
         n = self._sem_voce(request, queryset, "tornar operador").update(is_superuser=False, is_staff=False)
         self.message_user(request, f"{n} usuário(s) agora são operadores.")
+
+
+from core.models import BaldeCorrigido  # noqa: E402
+
+
+@admin.register(BaldeCorrigido)
+class BaldeCorrigidoAdmin(admin.ModelAdmin):
+    list_display = ("corrigido_em", "estacao_nome", "fonte", "timestamp", "valor_mm", "soma_anterior_mm", "total_corrido_mm", "modo")
+    list_filter = ("fonte", "modo")
+    search_fields = ("estacao_nome",)
+    readonly_fields = [f.name for f in BaldeCorrigido._meta.fields]

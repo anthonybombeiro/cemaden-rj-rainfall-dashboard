@@ -149,6 +149,12 @@ class AdminOpsView(APIView):
                     except Exception as exc:  # noqa: BLE001 - a carona nunca derruba a ingestão da REDEMET
                         logger.exception("Falha na carona da ANA")
                         saida.write(f"\n  ana (carona): falhou ({exc.__class__.__name__})")
+                if source == "plugfield":  # carona (cron de 15 min): reconcilia baldes duplicados dos últimos 2 dias (no máximo 1x/30 min)
+                    from core import limpeza_baldes
+
+                    rec = limpeza_baldes.reconciliar_se_for_hora()
+                    if rec is not None:
+                        saida.write(f"\n  reconciliação de baldes: {rec}")
                 if source in ("inea", "redemet"):  # carona (cron de 15 min): mantém o NM automático em dia (a cada 10 min no máximo)
                     from core import nm_automatico
 

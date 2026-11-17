@@ -1238,3 +1238,27 @@ class TemperaturaEstacaoDia(models.Model):
         ordering = ["-data"]
         verbose_name = "temperatura diária da estação"
         verbose_name_plural = "temperaturas diárias das estações"
+
+
+class BaldeCorrigido(models.Model):
+    """Trilha de auditoria dos baldes de chuva duplicados que a reconciliação apagou sozinha (17/11/2026). Guarda tudo para desfazer/conferir."""
+
+    station = models.ForeignKey(Station, on_delete=models.SET_NULL, null=True, related_name="baldes_corrigidos")
+    estacao_nome = models.CharField(max_length=160, blank=True)
+    fonte = models.CharField(max_length=40)
+    leitura_id = models.BigIntegerField(null=True, blank=True)
+    timestamp = models.DateTimeField()
+    valor_mm = models.FloatField()
+    soma_anterior_mm = models.FloatField(null=True, blank=True)
+    total_corrido_mm = models.FloatField(null=True, blank=True)
+    modo = models.CharField(max_length=20)
+    raw_payload = models.JSONField(default=dict, blank=True)
+    corrigido_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-corrigido_em"]
+        verbose_name = "balde corrigido"
+        verbose_name_plural = "baldes corrigidos"
+
+    def __str__(self):
+        return f"{self.estacao_nome} · {self.valor_mm} mm @ {self.timestamp:%Y-%m-%d %H:%M} ({self.modo})"

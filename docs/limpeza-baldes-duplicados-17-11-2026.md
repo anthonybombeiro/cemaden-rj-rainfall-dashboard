@@ -33,3 +33,14 @@ Wunderground: 1 caso duvidoso (Nova Friburgo, 11/11 23:32, 0,8 mm) NÃO foi apag
 - **Correção:** nova variante da ferramenta, `modo: "total_corrido"` (qualquer hora; confere o `rainDay` do raw_payload; aceita `external_id`). Simulação só da 1999 = 1 registro; apagado 1 (id 6935472); nova simulação = 0.
 - **Resultado:** mês nosso 272,5 → **243,2** mm (oficial 249,0). Faltam ~5,8 mm, **não** por defeito nosso: no mesmo dia 07/11 o contador ao vivo da Plugfield (`rainDay` = 29,3 às 22:59) ficou 6,7 mm abaixo do total que a própria Plugfield mostra em `/data/daily` (35,97), diferença que a documentação já registrava como não esclarecida entre `rainDay` e `/data/hourly`.
 - **Outros casos da mesma variante, NÃO apagados (fora do pedido):** a simulação em todas as estações do Plugfield desde 20/10 achou mais 16: 25/10 (1), 26/10 (2), 27/10 (2), 29/10 (9), 30/10 (1; Pátio da Câmara, 40,5 mm) e 07/11 (1; Escola Castro Alves, 17,4 mm às 19:07). Todos anteriores a 01/11 ou de outra estação.
+
+## Método permanente contra baldes duplicados (17/11/2026)
+
+Camadas (a causa raiz — dia da leitura — já estava corrigida em `ingestion/connectors/base.py`; esta é a rede de proteção):
+1. **Prevenção na ingestão**: o balde = total corrido da fonte − soma do dia *da própria leitura* (não do momento da coleta).
+2. **Invariante verificada automaticamente** (`core/limpeza_baldes.reconciliar`): a soma dos baldes do dia nunca pode passar do total corrido (`rainDay`) informado pela própria fonte. A cada 30 min (minutos 6 e 36 do cron do Plugfield, carona em `ingest plugfield`), olha os últimos 2 dias e apaga sozinha só o que a fonte comprova: balde ≈ `rainDay` da leitura **e** soma anterior do dia ≈ `rainDay` (o balde certo seria ~0).
+3. **Auditoria**: cada apagamento grava `BaldeCorrigido` (visível no Django admin, só leitura) com valor, soma anterior, total corrido, payload bruto e a leitura apagada — dá para conferir e recriar.
+4. **Wunderground/Ecowitt**: só relatório (`suspeitos_sem_correcao`), sem apagar, pois a heurística sozinha pode errar.
+5. A ferramenta manual (`/api/admin/limpar-baldes-duplicados/`) continua e também passa a gravar a auditoria.
+
+Migração `0038_balde_corrigido` aplicada em produção; testes em `api/test_bucket_diario.py` (11).

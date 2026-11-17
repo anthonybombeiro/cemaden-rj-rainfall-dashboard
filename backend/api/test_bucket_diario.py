@@ -107,3 +107,29 @@ class LimpezaTotalCorridoTest(TestCase):
         self.assertEqual((r.status_code, r.json()["apagados_registros"]), (200, 1))
         self.assertFalse(Reading.objects.filter(pk=self.dup.pk).exists())
         self.assertTrue(Reading.objects.filter(pk=self.legit.pk).exists())
+
+    def test_reconciliacao_corrige_sozinha_e_deixa_auditoria(self):
+        from core import limpeza_baldes
+        from core.models import BaldeCorrigido
+
+        seco = limpeza_baldes.reconciliar(dias=30, aplicar=False)
+        self.assertEqual((seco["corrigidos"], seco["encontrados"]), (0, 1))
+        self.assertTrue(Reading.objects.filter(pk=self.dup.pk).exists())  # simulação não apaga
+        r = limpeza_baldes.reconciliar(dias=30)
+        self.assertEqual(r["corrigidos"], 1)
+        self.assertFalse(Reading.objects.filter(pk=self.dup.pk).exists())
+        a = BaldeCorrigido.objects.get()
+        self.assertEqual((a.leitura_id, a.valor_mm, a.total_corrido_mm, a.fonte, a.estacao_nome), (self.dup.id, 29.3, 29.3, "plugfield", "DC GUAPI"))
+        self.assertEqual(a.raw_payload, {"rainDay": 29.3})
+        self.assertEqual(limpeza_baldes.reconciliar(dias=30)["corrigidos"], 0)  # idempotente
+
+    def test_carona_nunca_levanta_erro_e_respeita_a_janela(self):
+        from unittest import mock
+
+        from core import limpeza_baldes
+
+        with mock.patch("core.limpeza_baldes.reconciliar", side_effect=RuntimeError("x")), mock.patch("django.utils.timezone.localtime") as lt:
+            lt.return_value.minute = 2
+            self.assertIsNone(limpeza_baldes.reconciliar_se_for_hora())  # erro engolido
+            lt.return_value.minute = 17
+            self.assertIsNone(limpeza_baldes.reconciliar_se_for_hora())  # fora da janela: nem chama
