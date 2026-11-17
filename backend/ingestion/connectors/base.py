@@ -57,13 +57,13 @@ logger = logging.getLogger("ingestion")
 TETO_PLAUSIVEL_BALDE_MM = 150.0
 
 
-def bucket_from_running_daily(source_slug: str, external_id: str, valor_atual_hoje: float) -> float | None:
+def bucket_from_running_daily(source_slug: str, external_id: str, valor_atual_hoje: float, referencia=None) -> float | None:
     """Versão simples de `bucket_from_running_daily_detalhe` (só o balde)."""
-    return bucket_from_running_daily_detalhe(source_slug, external_id, valor_atual_hoje)[0]
+    return bucket_from_running_daily_detalhe(source_slug, external_id, valor_atual_hoje, referencia)[0]
 
 
 def bucket_from_running_daily_detalhe(
-    source_slug: str, external_id: str, valor_atual_hoje: float
+    source_slug: str, external_id: str, valor_atual_hoje: float, referencia=None
 ) -> tuple[float | None, float | None]:
     """Deriva um valor tipo "balde" (chuva NESSE intervalo) a partir de um
     total corrido desde a meia-noite local (ex: Wunderground `precipTotal`,
@@ -92,17 +92,25 @@ def bucket_from_running_daily_detalhe(
         desde a meia-noite até agora", mesmo significado que a exibição
         antiga de "Hoje" já tinha pra essa fonte, não é uma invenção.
     """
+    import datetime as _dt
+
     from django.db.models import Sum
     from django.utils import timezone
 
     from core.models import Reading
 
-    inicio_hoje_local = timezone.localtime(timezone.now()).replace(hour=0, minute=0, second=0, microsecond=0)
+    # O "dia" é o da PRÓPRIA LEITURA (`referencia`), não o do momento da coleta. Até 17/11/2026 usava-se `timezone.now()`: quando a última atualização do
+    # aparelho antes da meia-noite (ex.: 23:58) só era coletada depois das 00h, o "hoje" já era outro dia, a soma do dia vinha zerada e o total corrido do
+    # dia anterior (ainda exibido pela fonte) virava um balde novo — a chuva do dia inteiro era contada de novo (Guapimirim: 101,6 mm duplicados em 16/11).
+    ref_local = timezone.localtime(referencia if referencia is not None else timezone.now())
+    inicio_hoje_local = ref_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    fim_hoje_local = inicio_hoje_local + _dt.timedelta(days=1)
     leituras_hoje = Reading.objects.filter(
         station__source__slug=source_slug,
         station__external_id=external_id,
         reading_type=Reading.ReadingType.CHUVA_MM,
         timestamp__gte=inicio_hoje_local,
+        timestamp__lt=fim_hoje_local,
     )
     ja_registrado_hoje = None
     if not leituras_hoje.exists():

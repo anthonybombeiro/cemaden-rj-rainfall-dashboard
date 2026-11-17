@@ -346,7 +346,7 @@ class WundergroundConnector(BaseConnector):
                 # intermediários do histórico de 5 min da própria fonte ANTES de calcular
                 # o balde atual (assim a chuva não é "jogada" toda no horário da volta).
                 self._preencher_lacuna(api_key, codigo, timestamp)
-                balde, ja_registrado = bucket_from_running_daily_detalhe("wunderground", codigo, float(precip_total))
+                balde, ja_registrado = bucket_from_running_daily_detalhe("wunderground", codigo, float(precip_total), timestamp)
                 hint = None
                 if ja_registrado is None:
                     hint = ("ok", "1a leitura do dia: o balde é o total desde 00h")

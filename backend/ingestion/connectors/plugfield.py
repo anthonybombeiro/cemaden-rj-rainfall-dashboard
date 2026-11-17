@@ -217,7 +217,7 @@ class PlugfieldConnector(BaseConnector):
         # wunderground.py — pedido do usuário, 2026-09-23).
         rain_day = dashboard.get("rainDay")
         if rain_day is not None:
-            balde, ja_registrado = bucket_from_running_daily_detalhe("plugfield", external_id, float(rain_day))
+            balde, ja_registrado = bucket_from_running_daily_detalhe("plugfield", external_id, float(rain_day), timestamp)
             hint = None
             if ja_registrado is None:
                 hint = ("ok", "1a leitura do dia: o balde é o total desde 00h")

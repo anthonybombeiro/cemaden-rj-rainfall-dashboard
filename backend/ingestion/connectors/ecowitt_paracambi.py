@@ -202,7 +202,7 @@ class EcowittParacambiConnector(BaseConnector):
                 try:
                     total = float(daily["value"])
                     timestamp = dt.datetime.fromtimestamp(int(daily["time"]), tz=dt.timezone.utc)
-                    balde, ja_registrado = bucket_from_running_daily_detalhe("ecowitt_paracambi", mac, total)
+                    balde, ja_registrado = bucket_from_running_daily_detalhe("ecowitt_paracambi", mac, total, timestamp)
                     if ja_registrado is None:
                         hint = ("ok", "1a leitura do dia: o balde é o total desde 00h")
                     elif total < ja_registrado - 0.5:
