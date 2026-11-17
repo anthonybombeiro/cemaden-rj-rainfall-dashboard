@@ -7,6 +7,7 @@ from .admin_views import (
     EnvCheckView,
     FixSirenesChuvaSobrepostaSuperuserView,
     ImportarAvisosMeteorologicosSuperuserView,
+    LimparBaldesDuplicadosSuperuserView,
     ImportarInformativosSuperuserView,
     ImportarRecomendacoesSuperuserView,
     MigrateSuperuserView,
@@ -85,6 +86,7 @@ urlpatterns = [
     path("admin/importar-recomendacoes/", ImportarRecomendacoesSuperuserView.as_view(), name="admin-importar-recomendacoes"),
     path("admin/importar-informativos/", ImportarInformativosSuperuserView.as_view(), name="admin-importar-informativos"),
     path("admin/importar-avisos-meteorologicos/", ImportarAvisosMeteorologicosSuperuserView.as_view(), name="admin-importar-avisos-meteorologicos"),
+    path("admin/limpar-baldes-duplicados/", LimparBaldesDuplicadosSuperuserView.as_view(), name="admin-limpar-baldes-duplicados"),
     path("admin/populate-sirene-ref/", PopulateSireneRefSuperuserView.as_view(), name="admin-populate-sirene-ref"),
     path("admin/set-risco-sirene/", SetRiscoSireneSuperuserView.as_view(), name="admin-set-risco-sirene"),
     path(

@@ -747,6 +747,25 @@ class ImportarAvisosMeteorologicosSuperuserView(APIView):
         return Response({"ok": True, **importar(dry_run=dry)})
 
 
+class LimparBaldesDuplicadosSuperuserView(APIView):
+    """POST /api/admin/limpar-baldes-duplicados/ `{"fonte": "plugfield", "dry_run": true, "desde": "2026-11-01"}` — apaga os baldes de chuva duplicados na
+    virada do dia (ver `core/limpeza_baldes.py`). Superusuário logado (sessão + CSRF). `dry_run` (padrão: true) só lista o que seria apagado."""
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"detail": "Apenas administradores."}, status=403)
+        import datetime as dt
+
+        from core import limpeza_baldes
+
+        dados = request.data or {}
+        try:
+            desde = dt.date.fromisoformat(dados["desde"]) if dados.get("desde") else None
+            return Response({"ok": True, **limpeza_baldes.limpar(str(dados.get("fonte", "")), dry_run=dados.get("dry_run", True) is not False, desde=desde)})
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+
 class AnaDiagnosticoSuperuserView(APIView):
     """POST /api/admin/ana/ — diagnóstico da API HidroWebService da ANA (superusuário logado, sessão + CSRF).
     Corpo: {"acao": "inventario"} lista as estações do RJ que entrariam (e as descartadas, por motivo);

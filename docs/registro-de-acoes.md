@@ -584,3 +584,7 @@ guijarro (operador ativo, senha com hash valido) nao conseguia entrar com a senh
 - **Alcance (varredura de 01 a 17/11 por API):** 13 baldes duplicados no Plugfield (Guapimirim 9, Engenheiro Paulo de Frontin 3, Rio Claro 1), de 1,2 a 101,6 mm; no Wunderground 1 caso duvidoso (Nova Friburgo, 0,8 mm, 11/11 23:32). Nao existia na fonte, so na nossa soma.
 - **Correcao publicada (SFTP, sem migracao):** o dia passa a ser o da leitura (`referencia`) e a soma do dia fica entre 00h e 24h daquele dia. Os 3 conectores passam o horario da leitura. Teste `api/test_bucket_diario.py` (4).
 - **Pendente (decisao do usuario):** remover os baldes duplicados ja gravados (lista na conversa) para corrigir acumulados de 24 h/mes.
+
+## 17/11/2026 - Limpeza dos baldes duplicados do Plugfield (autorizada)
+
+13 leituras de chuva duplicadas na virada do dia apagadas (Guapimirim 9, Eng. Paulo de Frontin 3, Rio Claro 1; 1,2 a 101,6 mm), pela ferramenta `POST /api/admin/limpar-baldes-duplicados/` (`core/limpeza_baldes.py`, superusuario, `dry_run` por padrao; simulacao antes = 13, depois = 0). Lista completa e antes/depois em `docs/limpeza-baldes-duplicados-17-11-2026.md`. Acumulado do mes das estacoes de Guapimirim voltou a bater com o oficial, exceto a 1999 (Defesa Civil Guapimirim), que ainda tem ~23,5 mm a mais (outra causa, a investigar).
