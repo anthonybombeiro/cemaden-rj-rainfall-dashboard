@@ -588,3 +588,7 @@ guijarro (operador ativo, senha com hash valido) nao conseguia entrar com a senh
 ## 17/11/2026 - Limpeza dos baldes duplicados do Plugfield (autorizada)
 
 13 leituras de chuva duplicadas na virada do dia apagadas (Guapimirim 9, Eng. Paulo de Frontin 3, Rio Claro 1; 1,2 a 101,6 mm), pela ferramenta `POST /api/admin/limpar-baldes-duplicados/` (`core/limpeza_baldes.py`, superusuario, `dry_run` por padrao; simulacao antes = 13, depois = 0). Lista completa e antes/depois em `docs/limpeza-baldes-duplicados-17-11-2026.md`. Acumulado do mes das estacoes de Guapimirim voltou a bater com o oficial, exceto a 1999 (Defesa Civil Guapimirim), que ainda tem ~23,5 mm a mais (outra causa, a investigar).
+
+## 17/11/2026 - Estacao 1999 (Defesa Civil Guapimirim): avaliada e corrigida
+
+Excesso de 23,5 mm no mes era 1 balde duplicado (07/11 22:59, 29,3 mm = total do dia de novo; mesmo defeito da virada do dia, fora da janela 23:30-24:00). Ferramenta de limpeza ganhou `modo: "total_corrido"` (confere `rainDay` do raw_payload, qualquer hora, `external_id`); apagado 1 registro (id 6935472). Mes 272,5 -> 243,2 mm (oficial 249,0; o resto, ~5,8 mm, e diferenca interna da Plugfield entre `rainDay` e `/data/daily` em 07/11). Detalhes e os 16 outros casos nao apagados (25-30/10 e 07/11) em `docs/limpeza-baldes-duplicados-17-11-2026.md`.

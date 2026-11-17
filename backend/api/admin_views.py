@@ -761,7 +761,7 @@ class LimparBaldesDuplicadosSuperuserView(APIView):
         dados = request.data or {}
         try:
             desde = dt.date.fromisoformat(dados["desde"]) if dados.get("desde") else None
-            return Response({"ok": True, **limpeza_baldes.limpar(str(dados.get("fonte", "")), dry_run=dados.get("dry_run", True) is not False, desde=desde)})
+            return Response({"ok": True, **limpeza_baldes.limpar(str(dados.get("fonte", "")), dry_run=dados.get("dry_run", True) is not False, desde=desde, modo=str(dados.get("modo", "virada")), external_id=(str(dados["external_id"]) if dados.get("external_id") else None))})
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
 

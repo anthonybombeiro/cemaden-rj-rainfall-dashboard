@@ -42,12 +42,49 @@ def duplicados(slug: str, desde: dt.date | None = None) -> list[dict]:
     return sorted(achados, key=lambda a: (a["dia"], a["estacao"]))
 
 
-def limpar(slug: str, dry_run: bool = True, desde: dt.date | None = None) -> dict:
+def duplicados_por_total_corrido(slug: str, desde: dt.date | None = None, external_id: str | None = None) -> list[dict]:
+    """Variante em qualquer hora do dia (17/11/2026, estação 1999): o aparelho ficou parado/atrasado e a última atualização (ex.: 22:59) só foi coletada depois da
+    meia-noite, então o balde saiu igual ao total corrido. Marca, lida do próprio `raw_payload` (Plugfield `rainDay`): valor do balde ≈ total corrido do dia na
+    leitura E soma das leituras anteriores do mesmo dia ≈ esse total (ou seja, o balde correto seria ~0)."""
+    from django.db.models import Sum
+
+    if slug != "plugfield":
+        raise ValueError("esta variante só existe para o plugfield (usa `rainDay` do raw_payload)")
+    hoje = timezone.localdate()
+    dia = desde or (hoje - dt.timedelta(days=60))
+    achados = []
+    while dia <= hoje:
+        inicio_dia = timezone.make_aware(dt.datetime.combine(dia, dt.time.min))
+        fim_dia = inicio_dia + dt.timedelta(days=1)
+        base = Reading.objects.filter(station__source__slug=slug, reading_type=Reading.ReadingType.CHUVA_MM, value__gte=0)
+        if external_id:
+            base = base.filter(station__external_id=external_id)
+        for cand in base.filter(timestamp__gte=inicio_dia, timestamp__lt=fim_dia, value__gt=0.5).select_related("station"):
+            total = (cand.raw_payload or {}).get("rainDay")
+            try:
+                total = float(total)
+            except (TypeError, ValueError):
+                continue
+            if abs(cand.value - total) > 0.35:
+                continue
+            antes = base.filter(station_id=cand.station_id, timestamp__gte=inicio_dia, timestamp__lt=cand.timestamp).aggregate(t=Sum("value"))["t"] or 0.0
+            if antes > 0.5 and abs(antes - total) <= 0.35:
+                hora = timezone.localtime(cand.timestamp)
+                achados.append({"id": cand.id, "estacao": cand.station.name, "municipio": cand.station.municipality, "dia": dia.isoformat(), "hora": hora.strftime("%H:%M:%S"),
+                                "balde_mm": round(cand.value, 2), "soma_anterior_mm": round(antes, 2), "rain_day_mm": round(total, 2)})
+        dia += dt.timedelta(days=1)
+    return sorted(achados, key=lambda a: (a["dia"], a["estacao"]))
+
+
+def limpar(slug: str, dry_run: bool = True, desde: dt.date | None = None, modo: str = "virada", external_id: str | None = None) -> dict:
+    """`modo`: "virada" (última leitura do dia a partir das 23:30) ou "total_corrido" (qualquer hora, confere o `rainDay` do raw_payload; aceita `external_id`)."""
     if slug not in FONTES_PERMITIDAS:
         raise ValueError(f"fonte deve ser uma de {FONTES_PERMITIDAS}")
-    achados = duplicados(slug, desde)
+    if modo not in ("virada", "total_corrido"):
+        raise ValueError("modo deve ser 'virada' ou 'total_corrido'")
+    achados = duplicados_por_total_corrido(slug, desde, external_id) if modo == "total_corrido" else duplicados(slug, desde)
     apagados = 0
     if not dry_run and achados:
         with transaction.atomic():
             apagados = Reading.objects.filter(id__in=[a["id"] for a in achados]).delete()[0]
-    return {"fonte": slug, "dry_run": dry_run, "encontrados": len(achados), "apagados_registros": apagados, "baldes": achados}
+    return {"fonte": slug, "modo": modo, "dry_run": dry_run, "encontrados": len(achados), "apagados_registros": apagados, "baldes": achados}

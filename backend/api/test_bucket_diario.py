@@ -78,3 +78,32 @@ class LimpezaBaldesDuplicadosTest(TestCase):
         self.assertEqual(self.client.post("/api/admin/limpar-baldes-duplicados/", {"fonte": "plugfield"}, content_type="application/json").status_code, 403)
         self.client.force_login(self.adm)
         self.assertEqual(self.client.post("/api/admin/limpar-baldes-duplicados/", {"fonte": "inmet"}, content_type="application/json").status_code, 400)
+
+
+class LimpezaTotalCorridoTest(TestCase):
+    """Estação 1999 (07/11/2026): leitura das 22:59 coletada depois da meia-noite saiu igual ao total corrido (29,3 mm) e não era a última a partir das 23:30."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+
+        src = Source.objects.create(slug="plugfield", name="Plugfield")
+        self.st = Station.objects.create(source=src, external_id="10899", name="DC GUAPI", municipality="Guapimirim", station_type="meteorologica", latitude=-22.5, longitude=-43.0)
+        for h, v in ((16, 22.9), (17, 3.1), (19, 3.3)):  # 29,3 mm reais até as 19h
+            Reading.objects.create(station=self.st, reading_type="chuva_mm", value=v, timestamp=dt.datetime(2026, 11, 7, h, 0, tzinfo=BRT), raw_payload={"rainDay": 0})
+        self.dup = Reading.objects.create(station=self.st, reading_type="chuva_mm", value=29.3, timestamp=dt.datetime(2026, 11, 7, 22, 59, 14, tzinfo=BRT), raw_payload={"rainDay": 29.3})
+        # leitura legítima parecida: balde grande, mas o total corrido é maior que o valor (sobra chuva nova no dia)
+        self.legit = Reading.objects.create(station=self.st, reading_type="chuva_mm", value=7.0, timestamp=dt.datetime(2026, 11, 8, 10, 0, tzinfo=BRT), raw_payload={"rainDay": 7.0})
+        self.adm = get_user_model().objects.create_superuser("adm2", "a@x.org", "x")
+
+    def test_acha_o_duplicado_das_2259_e_nao_a_chuva_legitima(self):
+        from core import limpeza_baldes
+
+        r = limpeza_baldes.limpar("plugfield", dry_run=True, modo="total_corrido", external_id="10899")
+        self.assertEqual([b["id"] for b in r["baldes"]], [self.dup.id])  # o balde de 7,0 do dia 08 não tem soma anterior: é a 1ª chuva do dia
+
+    def test_apaga_via_api_so_o_duplicado(self):
+        self.client.force_login(self.adm)
+        r = self.client.post("/api/admin/limpar-baldes-duplicados/", {"fonte": "plugfield", "dry_run": False, "modo": "total_corrido", "external_id": "10899"}, content_type="application/json")
+        self.assertEqual((r.status_code, r.json()["apagados_registros"]), (200, 1))
+        self.assertFalse(Reading.objects.filter(pk=self.dup.pk).exists())
+        self.assertTrue(Reading.objects.filter(pk=self.legit.pk).exists())
