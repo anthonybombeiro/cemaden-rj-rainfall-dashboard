@@ -598,3 +598,7 @@ Excesso de 23,5 mm no mes era 1 balde duplicado (07/11 22:59, 29,3 mm = total do
 
 ## 19/11/2026 — Gatilhos de sirene: "acionado" só no gatilho atingido
 - `core/gatilhos.aplicar_estado_real` marcava os 4 gatilhos como "acionado" quando a sirene tocava, e o botão Recomendar saía com I+II+III+IV. Agora só o gatilho já em "obrigatório" (≥110 %) vira "acionado"; os demais mantêm o status calculado; sirene tocando sem gatilho atingido não gera gatilho. Teste `api/test_gatilhos_acionado.py`. Subido por SFTP (só `core/gatilhos.py`, sem migração). Verificado: Barroso 1, Catarcione 1 e Granja Spinelli 1 (tocando, chuva 1h de 0,8 a 2,2 mm) passaram a ter os 4 gatilhos vazios.
+
+## 19/11/2026 — Faixas do topo fechaveis e sub-abas da Meteorologia compactas
+- Novo `FaixaFechavel` (frontend): botão X, fechamento só no navegador (sessionStorage); volta se o conteúdo mudar ou, nos avisos de segurança, depois do tempo indicado. Aplicado em: sirenes desatualizadas (volta em 15 min), sirenes tocando (muda o conjunto ou 30 min), informativo vigente (muda o número) e "emitir informativo" (alta urgência volta em 30 min; "considere" volta se o motivo mudar). A faixa de fontes paradas e o aviso das 16 h já tinham fechar/adiar.
+- Sub-abas da Meteorologia: linha única, só a aba ativa mostra o nome abaixo de 1280 px (as outras ficam com ícone + dica). Build com stubs da arte (check "SIGA NOSSAS REDES" = 0), front publicado por SFTP (110 arquivos, 0 falhas), espelho restaurado.

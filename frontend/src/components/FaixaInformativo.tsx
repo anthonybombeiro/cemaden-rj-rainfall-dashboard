@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import FaixaFechavel from "@/components/FaixaFechavel";
 import { Acompanhamento, fetchAcompanhamento, nomeRegiao } from "@/lib/informativo";
 import { intervaloVisivel } from "@/lib/intervaloVisivel";
 import { fmtDataHora } from "@/lib/nivelMonitoramento";
@@ -27,18 +28,26 @@ export default function FaixaInformativo() {
   return (
     <div className="space-y-1 text-xs">
       {v && (
-        <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded border px-3 py-1.5 ${COR[g]}`}>
-          <b>Informativo nº {v.numero}/{v.ano}</b>
-          <span>enviado {v.enviado_em ? fmtDataHora(v.enviado_em) : ""}</span>
-          <span>válido até {v.vigente_ate ? fmtDataHora(v.vigente_ate) : "—"}</span>
-          <span className="min-w-0 truncate">{v.regioes.map(nomeRegiao).join(", ") || "sem regiões"}</span>
-          {v.radar_atrasado && <b className="text-red-700">radar atrasado</b>}
-        </div>
+        <FaixaFechavel id="informativo-vigente" chave={`${v.numero}/${v.ano}`} className={`rounded border px-3 py-1.5 ${COR[g]}`}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+            <b>Informativo nº {v.numero}/{v.ano}</b>
+            <span>enviado {v.enviado_em ? fmtDataHora(v.enviado_em) : ""}</span>
+            <span>válido até {v.vigente_ate ? fmtDataHora(v.vigente_ate) : "—"}</span>
+            <span className="min-w-0 truncate">{v.regioes.map(nomeRegiao).join(", ") || "sem regiões"}</span>
+            {v.radar_atrasado && <b className="text-red-700">radar atrasado</b>}
+          </div>
+        </FaixaFechavel>
       )}
       {aviso && (
-        <div className={`rounded border px-3 py-1.5 font-semibold ${aviso.urgencia === "alta" ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+        // Urgência alta volta em 30 min se ainda valer; o "considere emitir" volta só se o motivo mudar.
+        <FaixaFechavel
+          id="informativo-emitir"
+          chave={`${aviso.urgencia}|${aviso.motivo}`}
+          voltaEmMin={aviso.urgencia === "alta" ? 30 : undefined}
+          className={`rounded border px-3 py-1.5 font-semibold ${aviso.urgencia === "alta" ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}
+        >
           {aviso.urgencia === "alta" ? "Emitir informativo agora: " : "Considere emitir informativo: "}{aviso.motivo}
-        </div>
+        </FaixaFechavel>
       )}
     </div>
   );

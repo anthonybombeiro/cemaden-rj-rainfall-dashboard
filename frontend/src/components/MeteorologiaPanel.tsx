@@ -474,12 +474,13 @@ export default function MeteorologiaPanel({ abrirCadastro = null }: { abrirCadas
             onClick={() => setSub(key)}
             title={label}
             aria-label={label}
-            className={`flex items-center justify-center gap-1.5 rounded-full px-1.5 py-1.5 text-sm font-medium max-sm:flex-1 sm:px-3 ${
+            className={`flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-1.5 py-1 text-sm font-medium max-sm:flex-1 sm:shrink-0 sm:px-2.5 ${
               sub === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
             <Icone size={18} className="shrink-0" />
-            <span className="hidden sm:inline">{label}</span>
+            {/* Linha única (19/11/2026): a aba ativa mostra o nome desde sm; as demais só mostram o nome em telas largas (xl), com ícone + dica (title) nas menores. */}
+            <span className={sub === key ? "hidden sm:inline" : "hidden xl:inline"}>{label}</span>
           </button>
         ))}
       </div>

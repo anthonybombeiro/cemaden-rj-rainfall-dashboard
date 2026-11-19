@@ -25,6 +25,7 @@ import ResumoPanel from "@/components/ResumoPanel";
 import { EventosFHResposta, PostoFH, fetchFloodHub, fetchFloodHubEventos } from "@/lib/floodhub";
 import PrevisaoAmanhaBanner from "@/components/PrevisaoAmanhaBanner";
 import FaixaInformativo from "@/components/FaixaInformativo";
+import FaixaFechavel from "@/components/FaixaFechavel";
 import SaudeFontesBanner from "@/components/SaudeFontesBanner";
 import { lerModoSalvo, ModoMapa, salvarModo } from "@/lib/mapaModos";
 import { PreRecomendacao, preDeSirene } from "@/lib/recomendacoes";
@@ -1020,7 +1021,8 @@ export default function Dashboard({
           </div>
         </div>
         {(sirenesStatusErro || sirenesStatus?.obsoleto) && (
-          <div className="bg-amber-500 px-3 py-1 text-[11px] font-bold leading-tight text-black sm:px-4 sm:py-1.5 sm:text-sm">
+          // Aviso de segurança: pode ser fechado, mas volta em 15 min se o problema continuar.
+          <FaixaFechavel id="sirenes-desatualizadas" chave="desatualizado" voltaEmMin={15} className="bg-amber-500 px-3 py-1 text-[11px] font-bold leading-tight text-black sm:px-4 sm:py-1.5 sm:text-sm">
             ⚠ ATENÇÃO: o status das sirenes está DESATUALIZADO
             {sirenesStatus?.idade_s != null
               ? ` há ${Math.round(sirenesStatus.idade_s / 60)} min`
@@ -1028,16 +1030,17 @@ export default function Dashboard({
                 ? " (sem resposta do servidor)"
                 : ""}
             . O painel pode NÃO estar mostrando toques de sirene — confirme pelo portal do CBMERJ.
-          </div>
+          </FaixaFechavel>
         )}
         <SaudeFontesBanner />
         <FaixaInformativo />
         <PrevisaoAmanhaBanner onCadastrar={abrirCadastroPrevisao} onPendente={setPrevisaoAmanhaPendente} />
         {activeAlertEvents.length > 0 && (
-          <div className="animate-pulse bg-red-600 px-4 py-1.5 text-sm font-bold text-white">
+          // Fechar vale enquanto o conjunto de sirenes tocando for o mesmo; se mudar (ou em 30 min), a faixa volta.
+          <FaixaFechavel id="sirenes-tocando" chave={activeAlertEvents.map((e) => e.station_name).sort().join("|")} voltaEmMin={30} className="bg-red-600 px-4 py-1.5 text-sm font-bold text-white">
             🔊 {activeAlertEvents.length === 1 ? "1 sirene tocando agora" : `${activeAlertEvents.length} sirenes tocando agora`}
             : {activeAlertEvents.map((e) => e.station_name).join(", ")}
-          </div>
+          </FaixaFechavel>
         )}
         {/* Menu horizontal — só desktop/tablet largo (pedido do usuário,
             2026-09-29: no celular/tablet estreito vira barra inferior fixa,
