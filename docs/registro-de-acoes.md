@@ -595,3 +595,6 @@ Excesso de 23,5 mm no mes era 1 balde duplicado (07/11 22:59, 29,3 mm = total do
 
 ## 17/11/2026 — Reconciliação automática de baldes duplicados
 - Criada a tabela `BaldeCorrigido` (migração 0038, aplicada via /api/admin/migrate/) e `limpeza_baldes.reconciliar`/`reconciliar_se_for_hora`; carona no cron `ingest plugfield` (1x/30 min). Código subido por SFTP (models, admin, limpeza_baldes, admin_views). Verificado em produção: simulação retornou 0 achados, site ok.
+
+## 19/11/2026 — Gatilhos de sirene: "acionado" só no gatilho atingido
+- `core/gatilhos.aplicar_estado_real` marcava os 4 gatilhos como "acionado" quando a sirene tocava, e o botão Recomendar saía com I+II+III+IV. Agora só o gatilho já em "obrigatório" (≥110 %) vira "acionado"; os demais mantêm o status calculado; sirene tocando sem gatilho atingido não gera gatilho. Teste `api/test_gatilhos_acionado.py`. Subido por SFTP (só `core/gatilhos.py`, sem migração). Verificado: Barroso 1, Catarcione 1 e Granja Spinelli 1 (tocando, chuva 1h de 0,8 a 2,2 mm) passaram a ter os 4 gatilhos vazios.

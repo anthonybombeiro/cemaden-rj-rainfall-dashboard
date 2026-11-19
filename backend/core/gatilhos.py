@@ -10,9 +10,9 @@ Bandas (confirmado pelo usuário):
 - "condicionado" (amarelo): valor entre 95% e 110% do gatilho (ou seja,
   "5% abaixo até estar prestes a virar obrigatório").
 - "obrigatorio" (laranja): valor >= 110% do gatilho.
-- "acionado" (vermelho): NÃO é calculado aqui — é sobreposto depois pelo
-  estado REAL de "tocando" (a sirene já disparou de verdade, segundo o
-  portal GridLab). Ver `aplicar_estado_real` abaixo.
+- "acionado" (vermelho): sobreposto depois, pelo estado REAL de "tocando" (a
+  sirene já disparou, segundo o portal GridLab), só nos gatilhos que o cálculo
+  já considera atingidos (obrigatório). Ver `aplicar_estado_real` abaixo.
 
 Município sem `GatilhoPluviometrico` cadastrado (só fazemos a gestão de
 13 municípios) → todos os 4 gatilhos ficam `None` (a tabela mostra "--",
@@ -62,10 +62,12 @@ def avaliar_gatilhos(gatilho_config, chuva_1h, chuva_24h, chuva_96h, chuva_30d) 
 
 
 def aplicar_estado_real(status_calculado: dict[str, str | None], tocando: bool, gatilho_definido: bool) -> dict[str, str | None]:
-    """Sobrepõe "acionado" (realidade — sirene já tocando) por cima do status
-    calculado. Se o município não tem gatilho definido, mantém "--" (None)
+    """Sobrepõe "acionado" (realidade — sirene já tocando) nos gatilhos já atingidos
+    pelo cálculo (obrigatório); os demais mantêm o status calculado. Se o município não tem gatilho definido, mantém "--" (None)
     mesmo tocando — não dá pra dizer QUAL gatilho, mas o resto da tela
     (coluna Status/Toque) já mostra que está tocando de qualquer forma."""
     if not tocando or not gatilho_definido:
         return status_calculado
-    return {k: "acionado" for k in status_calculado}
+    # 19/11/2026: só os gatilhos que o cálculo da chuva já considera atingidos (obrigatório, ≥ 110 %) viram "acionado". Antes todos os 4 viravam, e a
+    # recomendação saía com I+II+III+IV mesmo sem o protocolo ter atingido os quatro. Sirene tocando sem gatilho atingido: colunas ficam como calculadas.
+    return {k: ("acionado" if v == "obrigatorio" else v) for k, v in status_calculado.items()}
