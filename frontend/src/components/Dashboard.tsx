@@ -16,6 +16,7 @@ import RecomendacaoForm from "@/components/RecomendacaoForm";
 import RecomendacoesPanel from "@/components/RecomendacoesPanel";
 import Footer from "@/components/Footer";
 import HidrologicaTable from "@/components/HidrologicaTable";
+import MonitoramentoRios from "@/components/MonitoramentoRios";
 import MeteorologiaPanel from "@/components/MeteorologiaPanel";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import CemadenNacionalTable from "@/components/CemadenNacionalTable";
@@ -240,6 +241,7 @@ export default function Dashboard({
   // (filtros, carga, atualização a cada 5 min, exportação), por isso nessa aba a sub-aba efetiva é sempre "hidrologico".
   const dadosSub: DadosSub = viewMode === "hidrologia" ? "hidrologico" : dadosSubEscolhida;
   const emDados = viewMode === "dados" || viewMode === "hidrologia";
+  const [hidroSub, setHidroSub] = useState<"rios" | "estacoes">("rios");
   // Painel de filtros flutuante sobre o mapa — pedido do usuário: no mapa o
   // filtro precisa ficar sobre o mapa (não empurrando layout), escondível
   // por um botão que funcione em mouse (desktop) e touch (celular/tablet).
@@ -1100,7 +1102,7 @@ export default function Dashboard({
             em "Filtros"). Não aparece no Mapa (tem o próprio painel
             flutuante) nem em Alertas Ativos (não filtra por essas
             dimensões — tem os próprios filtros de REDEC/município). */}
-        {emDados && (
+        {emDados && !(viewMode === "hidrologia" && hidroSub === "rios") && (
           <FilterToggleBar
             filterControls={filterControls}
             statusText={filterStatusText}
@@ -1369,12 +1371,23 @@ export default function Dashboard({
           {viewMode === "hidrologia" && (
             <div className="flex h-full w-full flex-col">
               <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 bg-white px-3 py-1.5">
-                <button type="button" className="shrink-0 rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white">
-                  Estações hidrológicas
-                </button>
+                {([["rios", "Monitoramento dos rios"], ["estacoes", "Estações hidrológicas"]] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setHidroSub(key)}
+                    className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${hidroSub === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
               <div className="min-h-0 flex-1">
-                <HidrologicaTable ref={hidrologicoTableRef} stations={filteredHidrologicas} municipioRedecMap={municipioRedecMap} onOpenStation={setPainelEstacaoId} />
+                {hidroSub === "rios" ? (
+                  <MonitoramentoRios />
+                ) : (
+                  <HidrologicaTable ref={hidrologicoTableRef} stations={filteredHidrologicas} municipioRedecMap={municipioRedecMap} onOpenStation={setPainelEstacaoId} />
+                )}
               </div>
             </div>
           )}

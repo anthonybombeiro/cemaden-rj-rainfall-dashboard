@@ -1144,6 +1144,17 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         )
         return Response(self._calcular_precipitacao(stations))
 
+    @action(detail=False, methods=["get"], url_path="rios-monitoramento")
+    def rios_monitoramento(self, request):
+        """Aba Hidrologia > Monitoramento dos rios: nível horário (12/24/48 h) das estações automáticas por REDEC e rio, ver core/rios_monitoramento.py."""
+        from core import rios_monitoramento
+
+        try:
+            horas = int(request.query_params.get("horas", 12))
+            return Response(rios_monitoramento.montar(horas))
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
     @action(detail=False, methods=["get"])
     def hidrologicas(self, request):
         """Estações HIDROLÓGICAS (nível de rio) — pedido do usuário

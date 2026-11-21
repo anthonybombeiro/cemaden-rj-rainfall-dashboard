@@ -512,6 +512,27 @@ export async function fetchHidrologicas(): Promise<HidrologicaStation[]> {
   return r.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) }));
 }
 
+/** Monitoramento dos rios (aba Hidrologia): nível horário das estações automáticas por REDEC e rio (backend/core/rios_monitoramento.py). */
+export type RioEstacao = {
+  id: number;
+  name: string;
+  municipality: string;
+  redec: number | null;
+  regiao: string;
+  rio: string;
+  fonte: string;
+  transbordo_m: number | null;
+  atual_m: number | null;
+  atual_em: string | null;
+  atual_classe: CotaClasse | null;
+  serie: { v: number | null; c: CotaClasse | null }[];
+};
+export type RiosMonitoramento = { gerado_em: string; horas: string[]; estacoes: RioEstacao[] };
+export async function fetchRiosMonitoramento(horas: 12 | 24 | 48): Promise<RiosMonitoramento> {
+  const r = await getJson<RiosMonitoramento>(`/stations/rios-monitoramento/?horas=${horas}`);
+  return { ...r, estacoes: r.estacoes.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) })) };
+}
+
 /** Camada de satélite/radar da REDEMET (ver backend/api/redemet_imagery_views.py
  * e docs/fontes-de-dados.md) — `bounds` já vem pronto no formato que o
  * Leaflet `ImageOverlay` espera: [[lat_min, lon_min], [lat_max, lon_max]]. */
