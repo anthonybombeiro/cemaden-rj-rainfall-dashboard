@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Bell, BellOff, BookOpen, ClipboardCheck, ClipboardList, CloudSun, Database, Filter, LogOut, Map, Mountain, User, X } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, BookOpen, ClipboardCheck, ClipboardList, CloudSun, Database, Droplets, Filter, LogOut, Map, Mountain, User, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -81,7 +81,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 // "Dados" (mesmo padrão de sub-aba que "Mapa" já tinha com
 // Estações/Contatos) — 5 itens principais cabem bem tanto no menu
 // horizontal do desktop quanto numa barra inferior fixa no celular/tablet.
-type ViewMode = "mapa" | "meteorologia" | "dados" | "geologia" | "alertas" | "producao" | "resumo";
+type ViewMode = "mapa" | "meteorologia" | "dados" | "geologia" | "hidrologia" | "alertas" | "producao" | "resumo";
 // Aba Geologia (22/10/2026): Sirenes (a antiga aba) + recomendações de alarme (consulta e cadastro).
 type GeologiaSub = "sirenes" | "recomendacoes" | "cadastro" | "acionamentos";
 type DadosSub =
@@ -106,6 +106,7 @@ const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "meteorologia", label: "Meteorologia", Icone: CloudSun },
   { key: "dados", label: "Dados", Icone: Database },
   { key: "geologia", label: "Geologia", Icone: Mountain },
+  { key: "hidrologia", label: "Hidrologia", Icone: Droplets },
   { key: "alertas", label: "Alertas", Icone: AlertTriangle },
   { key: "producao", label: "Produção", Icone: ClipboardCheck },
   { key: "resumo", label: "Resumo 24h", Icone: ClipboardList },
@@ -154,7 +155,6 @@ const DADOS_SUBS: { key: DadosSub; label: string }[] = [
   { key: "ecowitt", label: "DC Paracambi" },
   { key: "redemet", label: "REDEMET" },
   { key: "meteorologico", label: "Meteorológicos" },
-  { key: "hidrologico", label: "Hidrológicos" },
   { key: "floodhub", label: "Flood Hub" },
   { key: "ventos", label: "Ventos" },
 ];
@@ -235,7 +235,11 @@ export default function Dashboard({
   };
   // a antiga aba "Sirenes" agora é a sub-aba Sirenes de Geologia
   const sirenesAtivo = viewMode === "geologia" && geoSub === "sirenes";
-  const [dadosSub, setDadosSub] = useState<DadosSub>("precipitacao");
+  const [dadosSubEscolhida, setDadosSub] = useState<DadosSub>("precipitacao");
+  // Aba Hidrologia (21/11/2026): a tabela de estações hidrológicas saiu de "Dados" e vive na aba própria. Ela reaproveita toda a lógica de Dados
+  // (filtros, carga, atualização a cada 5 min, exportação), por isso nessa aba a sub-aba efetiva é sempre "hidrologico".
+  const dadosSub: DadosSub = viewMode === "hidrologia" ? "hidrologico" : dadosSubEscolhida;
+  const emDados = viewMode === "dados" || viewMode === "hidrologia";
   // Painel de filtros flutuante sobre o mapa — pedido do usuário: no mapa o
   // filtro precisa ficar sobre o mapa (não empurrando layout), escondível
   // por um botão que funcione em mouse (desktop) e touch (celular/tablet).
@@ -458,7 +462,7 @@ export default function Dashboard({
   // acumulados no backend varre até 96h de leituras, então evita fazer isso
   // toda vez que o painel carrega se o operador nunca abrir essa aba.
   useEffect(() => {
-    if (viewMode !== "dados" || dadosSub !== "precipitacao" || precipitacaoLoaded) return;
+    if (!emDados || dadosSub !== "precipitacao" || precipitacaoLoaded) return;
     let cancelled = false;
     setPrecipitacaoLoading(true);
     fetchPrecipitacao()
@@ -477,10 +481,10 @@ export default function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [viewMode, dadosSub, precipitacaoLoaded]);
+  }, [emDados, dadosSub, precipitacaoLoaded]);
 
   useEffect(() => {
-    if (viewMode !== "dados" || dadosSub !== "cemaden" || cemadenNacLoaded) return;
+    if (!emDados || dadosSub !== "cemaden" || cemadenNacLoaded) return;
     let cancelled = false;
     setCemadenNacLoading(true);
     fetchCemadenNacional()
@@ -499,11 +503,11 @@ export default function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [viewMode, dadosSub, cemadenNacLoaded]);
+  }, [emDados, dadosSub, cemadenNacLoaded]);
 
   const redeAtualCarregada = redeSourceAtual ? rede[redeSourceAtual] !== undefined : false;
   useEffect(() => {
-    if (viewMode !== "dados" || !redeSourceAtual || redeAtualCarregada) return;
+    if (!emDados || !redeSourceAtual || redeAtualCarregada) return;
     let cancelled = false;
     setRedeLoading(true);
     setRedeError(null);
@@ -520,10 +524,10 @@ export default function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [viewMode, redeSourceAtual, redeAtualCarregada]);
+  }, [emDados, redeSourceAtual, redeAtualCarregada]);
 
   useEffect(() => {
-    if (viewMode !== "dados" || dadosSub !== "hidrologico" || hidrologicasLoaded) return;
+    if (!emDados || dadosSub !== "hidrologico" || hidrologicasLoaded) return;
     let cancelled = false;
     setHidrologicasLoading(true);
     fetchHidrologicas()
@@ -542,7 +546,7 @@ export default function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [viewMode, dadosSub, hidrologicasLoaded]);
+  }, [emDados, dadosSub, hidrologicasLoaded]);
 
   // Igual à Precipitação: busca sob demanda na 1ª vez que a aba é aberta.
   // Diferente dela, também refaz a cada 1min ENQUANTO a aba estiver aberta
@@ -876,14 +880,14 @@ export default function Dashboard({
   useEffect(() => { if (redeSourceAtual && rede[redeSourceAtual]) setCargaEm((p) => ({ ...p, [redeSourceAtual]: Date.now() })); }, [rede, redeSourceAtual]);
   /* eslint-enable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (viewMode !== "dados" || dadosSub === "floodhub") return;
+    if (!emDados || dadosSub === "floodhub") return;
     const recarrega = setInterval(() => { if (document.visibilityState === "visible") refrescarRef.current(); }, 5 * 60_000);
     const relogio = setInterval(() => setAgoraMs(Date.now()), 30_000);
     return () => { clearInterval(recarrega); clearInterval(relogio); };
-  }, [viewMode, dadosSub]);
+  }, [emDados, dadosSub]);
   // maisNovo ignora hora no futuro (relógio errado na fonte: 9 estações do CEMADEN/MCTIC chegaram a +53 min em 12/11/2026)
   const rotuloIdadeDados = (() => {
-    if (viewMode !== "dados" || dadosSub === "floodhub") return "";
+    if (!emDados || dadosSub === "floodhub") return "";
     const maisNovo = (xs: (string | null | undefined)[]) => xs.reduce<number>((m, v) => { const t = v ? Date.parse(v) : NaN; return Number.isFinite(t) && t > m && t <= agoraMs + 10 * 60_000 ? t : m; }, 0);
     const ts =
       dadosSub === "precipitacao" ? maisNovo(precipitacao.map((x) => x.updated_at))
@@ -901,7 +905,7 @@ export default function Dashboard({
   })();
 
   const filterStatusBase =
-    viewMode !== "dados"
+    !emDados
       ? loading
         ? "Carregando estações…"
         : `${filteredStations.length} de ${stations.length} estações`
@@ -937,7 +941,7 @@ export default function Dashboard({
   // atual (as outras recarregam sozinhas na próxima vez que forem abertas,
   // igual ao comportamento normal de "buscar sob demanda").
   const handleRefreshDone = () => {
-    if (viewMode === "dados") {
+    if (emDados) {
       if (dadosSub === "precipitacao") fetchPrecipitacao().then(setPrecipitacao).catch(() => {});
       else if (dadosSub === "cemaden") fetchCemadenNacional().then(setCemadenNac).catch(() => {});
       else if (redeSourceAtual)
@@ -1073,7 +1077,7 @@ export default function Dashboard({
             key={key}
             type="button"
             onClick={() => setViewMode(key)}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
+            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium ${
               viewMode === key ? "text-white" : "text-gray-400"
             }`}
           >
@@ -1096,7 +1100,7 @@ export default function Dashboard({
             em "Filtros"). Não aparece no Mapa (tem o próprio painel
             flutuante) nem em Alertas Ativos (não filtra por essas
             dimensões — tem os próprios filtros de REDEC/município). */}
-        {viewMode === "dados" && (
+        {emDados && (
           <FilterToggleBar
             filterControls={filterControls}
             statusText={filterStatusText}
@@ -1331,14 +1335,6 @@ export default function Dashboard({
                     onOpenStation={setPainelEstacaoId}
                   />
                 )}
-                {dadosSub === "hidrologico" && (
-                  <HidrologicaTable
-                    ref={hidrologicoTableRef}
-                    stations={filteredHidrologicas}
-                    municipioRedecMap={municipioRedecMap}
-                    onOpenStation={setPainelEstacaoId}
-                  />
-                )}
                 {dadosSub === "floodhub" && (
                   <FloodHubPanel
                     onOpenStation={setPainelEstacaoId}
@@ -1369,6 +1365,18 @@ export default function Dashboard({
               onShare={setShareData}
               onRecomendar={(s) => abrirRecomendacao(preDeSirene(s, sirenes))}
             />
+          )}
+          {viewMode === "hidrologia" && (
+            <div className="flex h-full w-full flex-col">
+              <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 bg-white px-3 py-1.5">
+                <button type="button" className="shrink-0 rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white">
+                  Estações hidrológicas
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <HidrologicaTable ref={hidrologicoTableRef} stations={filteredHidrologicas} municipioRedecMap={municipioRedecMap} onOpenStation={setPainelEstacaoId} />
+              </div>
+            </div>
           )}
           {viewMode === "geologia" && geoSub === "recomendacoes" && <RecomendacoesPanel admin={user.role === "admin"} responsavelPadrao={user.first_name || user.username} recarregar={recargaRec} />}
           {viewMode === "geologia" && geoSub === "acionamentos" && <AcionamentosMunicipioPanel admin={user.role === "admin"} />}

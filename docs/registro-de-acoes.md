@@ -602,3 +602,7 @@ Excesso de 23,5 mm no mes era 1 balde duplicado (07/11 22:59, 29,3 mm = total do
 ## 19/11/2026 — Faixas do topo fechaveis e sub-abas da Meteorologia compactas
 - Novo `FaixaFechavel` (frontend): botão X, fechamento só no navegador (sessionStorage); volta se o conteúdo mudar ou, nos avisos de segurança, depois do tempo indicado. Aplicado em: sirenes desatualizadas (volta em 15 min), sirenes tocando (muda o conjunto ou 30 min), informativo vigente (muda o número) e "emitir informativo" (alta urgência volta em 30 min; "considere" volta se o motivo mudar). A faixa de fontes paradas e o aviso das 16 h já tinham fechar/adiar.
 - Sub-abas da Meteorologia: linha única, só a aba ativa mostra o nome abaixo de 1280 px (as outras ficam com ícone + dica). Build com stubs da arte (check "SIGA NOSSAS REDES" = 0), front publicado por SFTP (110 arquivos, 0 falhas), espelho restaurado.
+
+## 21/11/2026 — Nova aba "Hidrologia"
+- Aba própria entre Geologia e Alertas; a tabela de estações hidrológicas saiu de Dados (sub-aba "Hidrológicos" removida) e vive em Hidrologia > "Estações hidrológicas", reaproveitando filtros, carga, atualização de 5 min e exportação (`emDados`/`dadosSub` derivado em `Dashboard.tsx`). O modo "Rios (nível e cotas)" do Mapa não mudou. Barra inferior do celular com 8 abas (rótulo 10 px). Front publicado por SFTP; só frontend, sem migração.
+- Próximos passos combinados: novas sub-abas de hidrologia (tabela "Monitoramento dos rios" por REDEC, que gera a imagem para envio, e o informe operacional por município).
