@@ -1155,6 +1155,13 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
 
+    @action(detail=False, methods=["get"], url_path="nowcasting-hidrologia")
+    def nowcasting_hidrologia(self, request):
+        """Aba Hidrologia > Nowcasting: informe operacional sugerido por município (estações em alerta ou acima), ver core/nowcasting_hidrologia.py."""
+        from core import nowcasting_hidrologia
+
+        return Response(nowcasting_hidrologia.gerar(incluir_atencao=request.query_params.get("atencao") in ("1", "true")))
+
     @action(detail=False, methods=["get"])
     def hidrologicas(self, request):
         """Estações HIDROLÓGICAS (nível de rio) — pedido do usuário

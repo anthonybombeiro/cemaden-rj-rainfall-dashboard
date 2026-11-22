@@ -538,6 +538,20 @@ export async function fetchRiosMonitoramento(horas: 12 | 24 | 48): Promise<RiosM
   return { ...r, estacoes: r.estacoes.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) })) };
 }
 
+export type InformeHidrologia = {
+  redec: number | null;
+  regiao: string;
+  municipio: string;
+  classe: CotaClasse;
+  evento: string;
+  estacoes: { id: number; name: string; rio: string; classe: CotaClasse; entrou: boolean }[];
+  texto: string;
+};
+export type NowcastingHidrologia = { gerado_em: string; informes: InformeHidrologia[] };
+export async function fetchNowcastingHidrologia(atencao: boolean): Promise<NowcastingHidrologia> {
+  return getJson<NowcastingHidrologia>(`/stations/nowcasting-hidrologia/${atencao ? "?atencao=1" : ""}`);
+}
+
 /** Camada de satélite/radar da REDEMET (ver backend/api/redemet_imagery_views.py
  * e docs/fontes-de-dados.md) — `bounds` já vem pronto no formato que o
  * Leaflet `ImageOverlay` espera: [[lat_min, lon_min], [lat_max, lon_max]]. */
