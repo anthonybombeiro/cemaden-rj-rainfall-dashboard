@@ -110,7 +110,7 @@ const VIEW_MODES: { key: ViewMode; label: string; Icone: typeof Map }[] = [
   { key: "hidrologia", label: "Hidrologia", Icone: Droplets },
   { key: "alertas", label: "Alertas", Icone: AlertTriangle },
   { key: "producao", label: "Produção", Icone: ClipboardCheck },
-  { key: "resumo", label: "Resumo 24h", Icone: ClipboardList },
+  { key: "resumo", label: "Resumo", Icone: ClipboardList },
 ];
 
 // Abas de rede com tabela individual (03/10/2026) -> fonte no backend.
@@ -1079,7 +1079,7 @@ export default function Dashboard({
             key={key}
             type="button"
             onClick={() => setViewMode(key)}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium ${
+            className={`flex flex-1 flex-col items-center gap-0.5 whitespace-nowrap py-2 text-[10px] font-medium ${
               viewMode === key ? "text-white" : "text-gray-400"
             }`}
           >
@@ -1092,7 +1092,7 @@ export default function Dashboard({
         ))}
       </nav>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:!pb-0">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:!pb-0">
         {/* Barra de filtro flutuante (pedido do usuário, 2026-09-23: a barra
             antiga com os 4 filtros sempre abertos + Exportar CSV numa linha
             separada tomava quase metade da tela no celular — escolhida a

@@ -614,3 +614,8 @@ Excesso de 23,5 mm no mes era 1 balde duplicado (07/11 22:59, 29,3 mm = total do
 
 ## 21/11/2026 — Monitoramento dos rios legível no celular
 - `MonitoramentoRios.tsx`: fonte menor (10 px), no celular a coluna "Rio" vira linha de título e só a coluna da estação fica fixa à esquerda (nome sem o município), barra de controles e legenda passam a rolar junto com a tabela (antes ocupavam a tela e as duas colunas fixas escondiam as horas). Publicado por SFTP; conferido a 420 px de largura.
+
+## 22/11/2026 — Última linha cortada no celular, coluna "Atual" e aba "Resumo"
+- Causa da linha cortada: o rótulo "Resumo 24h" quebrava em duas linhas na barra inferior do celular, deixando-a mais alta que a folga reservada (3,5 rem), e a barra cobria o fim das tabelas. Corrigido: aba renomeada para "Resumo", rótulos da barra sem quebra de linha (`whitespace-nowrap`) e folga inferior aumentada para 4 rem (vale para todas as abas); no Monitoramento dos rios há ainda um espaçador no fim da tabela.
+- `MonitoramentoRios.tsx`: a coluna "Atual" passou a ser a primeira depois do "Transb." (antes das horas); "Fonte" continua no fim.
+- Front publicado por SFTP; sem migração.

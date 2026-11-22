@@ -132,13 +132,13 @@ export default function MonitoramentoRios() {
               <th className="sticky left-0 z-30 hidden min-w-24 border border-gray-300 bg-blue-200 px-2 py-1 sm:table-cell">Rio</th>
               <th className="sticky left-0 z-30 min-w-28 max-w-32 border border-gray-300 bg-blue-200 px-1.5 py-1 text-left sm:left-24 sm:min-w-44 sm:max-w-none sm:px-2">Estação</th>
               <th className="border border-gray-300 bg-yellow-100 px-1 py-1 text-red-700 sm:px-2">Transb.</th>
+              <th className="border border-gray-300 px-1 py-1 sm:px-2">Atual</th>
               {marcas.map((m, i) => (
                 <th key={m} className="whitespace-nowrap border border-gray-300 px-1 py-1 sm:px-1.5" title={`${diaDe(m)} ${horaDe(m)}`}>
                   {horaDe(m)}
                   {(i === 0 || diaDe(m) !== diaDe(marcas[i - 1])) && horas > 12 ? <div className="text-[8px] font-normal normal-case text-gray-600 sm:text-[9px]">{diaDe(m)}</div> : null}
                 </th>
               ))}
-              <th className="border border-gray-300 px-1 py-1 sm:px-2">Atual</th>
               <th className="border border-gray-300 px-1 py-1 sm:px-2">Fonte</th>
             </tr>
           </thead>
@@ -170,8 +170,8 @@ export default function MonitoramentoRios() {
                           <span className="sm:font-normal sm:text-gray-500">{e.name}</span>
                         </td>
                         <td className="border border-gray-200 bg-yellow-50 px-1 py-0.5 text-center font-bold tabular-nums text-red-700 sm:px-1.5 sm:py-1">{e.transbordo_m != null ? fmtM(e.transbordo_m) : "—"}</td>
-                        {e.serie.map((s, j) => <Celula key={j} v={s.v} c={s.c} />)}
                         <Celula v={e.atual_m} c={e.atual_classe} forte />
+                        {e.serie.map((s, j) => <Celula key={j} v={s.v} c={s.c} />)}
                         <td className="border border-gray-200 px-1 py-0.5 text-center font-bold text-gray-700 sm:px-2 sm:py-1">{e.fonte}</td>
                       </tr>
                     ))}
@@ -182,6 +182,7 @@ export default function MonitoramentoRios() {
           </tbody>
         </table>
       )}
+      <div className="h-6 sm:h-2" aria-hidden />{/* folga no fim: a última linha nunca fica sob a barra inferior do celular */}
     </div>
   );
 }
