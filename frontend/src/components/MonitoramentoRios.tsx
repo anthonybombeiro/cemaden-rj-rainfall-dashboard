@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { ArrowDown, ArrowUp, Minus, RefreshCw } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { COTA_ESTILOS, CotaClasse, fetchRiosMonitoramento, REDECS, RioEstacao, RiosMonitoramento } from "@/lib/api";
@@ -8,18 +8,20 @@ import { intervaloVisivel } from "@/lib/intervaloVisivel";
 
 // Aba Hidrologia > "Monitoramento dos rios" (21/11/2026): nível horário das estações automáticas (INEA e ANA) agrupado por REDEC e, dentro dela, por rio.
 // Um rio que corta várias REDECs (ex.: Paraíba do Sul) aparece em cada uma só com as estações daquela REDEC. As cores são as das cotas do painel (COTA_ESTILOS).
+// Colunas relativas a AGORA (22/11): Transb. | Tendência (seta) | Atual | 1h | 2h | 3h… (leitura de k horas atrás); o cursor sobre um valor mostra a hora real da leitura.
 // Celular: fonte menor, a coluna "Rio" vira linha de título e a barra de controles rola junto com a tabela (sobra tela para os números).
 // Lançamento manual (COMDEC/DBM) fica para uma segunda etapa.
 
 const JANELAS = [12, 24, 48] as const;
 const TZ = "America/Sao_Paulo";
 const fmtM = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2).replace(".", ","));
-const horaDe = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).replace(":00", "H");
+const hmDe = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
 const diaDe = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit" });
+const leituraEm = (iso: string | null | undefined) => (iso ? `leitura de ${diaDe(iso)} ${hmDe(iso)}` : "sem leitura");
 const rotuloRedec = (n: number | null, regiao: string) => (n == null ? "Sem REDEC" : `REDEC ${n} — ${regiao.charAt(0) + regiao.slice(1).toLowerCase()}`);
 const ACIMA_DO_ALERTA = ["alerta", "transbordo", "extrema"];
 
-function Celula({ v, c, forte = false }: { v: number | null; c: CotaClasse | null; forte?: boolean }) {
+function Celula({ v, c, t, forte = false }: { v: number | null; c: CotaClasse | null; t?: string | null; forte?: boolean }) {
   // Só colore o que passou da cota de atenção (normal e sem cota ficam neutros, como na tabela impressa).
   const destaque = c && c !== "normal" && c !== "sem_cota";
   const e = destaque ? COTA_ESTILOS[c] : null;
@@ -27,9 +29,35 @@ function Celula({ v, c, forte = false }: { v: number | null; c: CotaClasse | nul
     <td
       className={`min-w-9 whitespace-nowrap border border-gray-200 px-1 py-0.5 text-center tabular-nums sm:min-w-11 sm:px-1.5 sm:py-1 ${forte ? "font-bold" : ""} ${v == null ? "text-gray-300" : "text-gray-900"}`}
       style={e ? { backgroundColor: e.bg, color: e.text } : undefined}
-      title={c ? COTA_ESTILOS[c].label : undefined}
+      title={v == null ? "sem leitura" : `${fmtM(v)} m · ${c ? COTA_ESTILOS[c].label : "sem cota"} · ${leituraEm(t)}`}
     >
       {fmtM(v)}
+    </td>
+  );
+}
+
+const TENDENCIA = {
+  subindo: { Icone: ArrowUp, cor: "text-red-600", rotulo: "Subindo" },
+  descendo: { Icone: ArrowDown, cor: "text-emerald-600", rotulo: "Descendo" },
+  estavel: { Icone: Minus, cor: "text-gray-500", rotulo: "Estável" },
+} as const;
+
+function CelulaTendencia({ e }: { e: RioEstacao }) {
+  const t = e.tendencia ? TENDENCIA[e.tendencia] : null;
+  const d = e.variacao_cm;
+  return (
+    <td
+      className="whitespace-nowrap border border-gray-200 px-1 py-0.5 text-center sm:px-1.5 sm:py-1"
+      title={t ? `${t.rotulo}: ${d != null && d > 0 ? "+" : ""}${d} cm em ${e.tendencia_h} h (atual × ${e.tendencia_h} h atrás)` : "sem leitura recente para comparar"}
+    >
+      {t ? (
+        <span className={`inline-flex items-center gap-0.5 font-bold ${t.cor}`}>
+          <t.Icone size={13} strokeWidth={3} />
+          <span className="hidden text-[9px] tabular-nums sm:inline">{d != null && d > 0 ? "+" : ""}{d}</span>
+        </span>
+      ) : (
+        <span className="text-gray-300">—</span>
+      )}
     </td>
   );
 }
@@ -114,7 +142,8 @@ export default function MonitoramentoRios() {
             {COTA_ESTILOS[c].label.replace("Cota de ", "").replace("Cota ", "")}
           </span>
         ))}
-        <span>— sem leitura · cada hora = última leitura até ela (máx. 60 min antes)</span>
+        <span>— sem leitura · colunas 1h, 2h… = última leitura de N horas atrás (máx. 60 min antes) · passe o cursor para ver a hora</span>
+        <span className="flex items-center gap-1"><ArrowUp size={11} strokeWidth={3} className="text-red-600" /> sobe <ArrowDown size={11} strokeWidth={3} className="text-emerald-600" /> desce <Minus size={11} strokeWidth={3} className="text-gray-500" /> estável (atual × 3 h antes, ≥ 1 cm/h)</span>
       </div>
     </div>
   );
@@ -132,11 +161,11 @@ export default function MonitoramentoRios() {
               <th className="sticky left-0 z-30 hidden min-w-24 border border-gray-300 bg-blue-200 px-2 py-1 sm:table-cell">Rio</th>
               <th className="sticky left-0 z-30 min-w-28 max-w-32 border border-gray-300 bg-blue-200 px-1.5 py-1 text-left sm:left-24 sm:min-w-44 sm:max-w-none sm:px-2">Estação</th>
               <th className="border border-gray-300 bg-yellow-100 px-1 py-1 text-red-700 sm:px-2">Transb.</th>
+              <th className="border border-gray-300 px-1 py-1 sm:px-2" title="Tendência: atual × 3 h antes">Tend.</th>
               <th className="border border-gray-300 px-1 py-1 sm:px-2">Atual</th>
               {marcas.map((m, i) => (
-                <th key={m} className="whitespace-nowrap border border-gray-300 px-1 py-1 sm:px-1.5" title={`${diaDe(m)} ${horaDe(m)}`}>
-                  {horaDe(m)}
-                  {(i === 0 || diaDe(m) !== diaDe(marcas[i - 1])) && horas > 12 ? <div className="text-[8px] font-normal normal-case text-gray-600 sm:text-[9px]">{diaDe(m)}</div> : null}
+                <th key={m} className="whitespace-nowrap border border-gray-300 px-1 py-1 sm:px-1.5" title={`${i + 1} h atrás (≈ ${hmDe(m)} de ${diaDe(m)})`}>
+                  {i + 1}h
                 </th>
               ))}
               <th className="border border-gray-300 px-1 py-1 sm:px-2">Fonte</th>
@@ -146,7 +175,7 @@ export default function MonitoramentoRios() {
             {grupos.map((g) => (
               <Fragment key={g.titulo}>
                 <tr>
-                  <td colSpan={marcas.length + 5} className="border border-gray-300 bg-slate-700 p-0 text-left font-bold uppercase tracking-wide text-white">
+                  <td colSpan={marcas.length + 6} className="border border-gray-300 bg-slate-700 p-0 text-left font-bold uppercase tracking-wide text-white">
                     <div className="sticky left-0 w-fit px-2 py-0.5 sm:py-1">{g.titulo}</div>
                   </td>
                 </tr>
@@ -154,7 +183,7 @@ export default function MonitoramentoRios() {
                   <Fragment key={rio}>
                     {/* Celular: o rio vira uma linha de título (a coluna "Rio" some para sobrar largura para os números) */}
                     <tr className="sm:hidden">
-                      <td colSpan={marcas.length + 4} className="border border-gray-200 bg-indigo-50 p-0 text-left font-bold text-gray-800">
+                      <td colSpan={marcas.length + 5} className="border border-gray-200 bg-indigo-50 p-0 text-left font-bold text-gray-800">
                         <div className="sticky left-0 w-fit px-1.5 py-0.5">{rio}</div>
                       </td>
                     </tr>
@@ -170,8 +199,9 @@ export default function MonitoramentoRios() {
                           <span className="sm:font-normal sm:text-gray-500">{e.name}</span>
                         </td>
                         <td className="border border-gray-200 bg-yellow-50 px-1 py-0.5 text-center font-bold tabular-nums text-red-700 sm:px-1.5 sm:py-1">{e.transbordo_m != null ? fmtM(e.transbordo_m) : "—"}</td>
-                        <Celula v={e.atual_m} c={e.atual_classe} forte />
-                        {e.serie.map((s, j) => <Celula key={j} v={s.v} c={s.c} />)}
+                        <CelulaTendencia e={e} />
+                        <Celula v={e.atual_m} c={e.atual_classe} t={e.atual_em} forte />
+                        {e.serie.map((s, j) => <Celula key={j} v={s.v} c={s.c} t={s.t} />)}
                         <td className="border border-gray-200 px-1 py-0.5 text-center font-bold text-gray-700 sm:px-2 sm:py-1">{e.fonte}</td>
                       </tr>
                     ))}

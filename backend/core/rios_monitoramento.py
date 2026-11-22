@@ -5,7 +5,9 @@ Base da aba Hidrologia > "Monitoramento dos rios" (equivalente à tabela que a R
 - Rio: `Station.rio_monitorado` (inventário do INEA; editável no Admin) → senão a tabela `RIO_POR_ESTACAO` abaixo (estações da ANA, que vêm sem rio no inventário).
   Quem ficar sem rio aparece como "Rio a definir": basta preencher `rio_monitorado` no Admin da estação.
 - Fora da tabela: usinas e barramentos (Cgh/Pch/Uel/Uhe/Ugh), que não são monitoramento de rio.
-- Hora cheia (horário de Brasília): vale a última leitura até aquela hora, no máximo 60 min antes (INEA lê a cada 15 min; ANA, de 15 a 60)."""
+- Colunas relativas a AGORA (22/11/2026): "Atual", 1 h atrás, 2 h atrás… (não são horas do relógio). Cada coluna vale a última leitura até aquele
+  instante, no máximo 60 min antes (INEA lê a cada 15 min; ANA, de 15 a 60); `t` traz o horário real da leitura (tooltip no front).
+- Tendência (seta): atual × leitura de 3 h antes (2 h / 1 h se faltar); estável se a variação for menor que ≈1 cm/h (mínimo 2 cm)."""
 
 from __future__ import annotations
 
@@ -75,22 +77,40 @@ def redec_da_estacao(station: Station) -> tuple[int | None, str]:
 
 
 def marcas_horarias(horas: int, agora: dt.datetime | None = None) -> list[dt.datetime]:
-    """Horas cheias (horário local) das últimas `horas` horas, da mais antiga à mais nova (a mais nova é a hora cheia atual)."""
+    """Marcas relativas ao momento atual: 1 h atrás, 2 h atrás… `horas` h atrás (da mais recente para a mais antiga)."""
     agora = timezone.localtime(agora or timezone.now())
-    ultima = agora.replace(minute=0, second=0, microsecond=0)
-    return [ultima - dt.timedelta(hours=i) for i in range(horas - 1, -1, -1)]
+    return [agora - dt.timedelta(hours=k) for k in range(1, horas + 1)]
 
 
-def _valor_na_hora(leituras: list[tuple[dt.datetime, float]], marca: dt.datetime) -> float | None:
-    """Última leitura em (marca - 60 min, marca]. `leituras` ordenada por horário."""
+def _valor_na_hora(leituras: list[tuple[dt.datetime, float]], marca: dt.datetime) -> tuple[dt.datetime, float] | None:
+    """Última leitura (horário, valor) em (marca - 60 min, marca]. `leituras` ordenada por horário."""
     ini = marca - dt.timedelta(minutes=60)
     escolhido = None
     for ts, v in leituras:
         if ts > marca:
             break
         if ts > ini:
-            escolhido = v
+            escolhido = (ts, v)
     return escolhido
+
+
+# Tendência: compara a leitura atual com a de 3 h antes (ou 2 h / 1 h, se faltar); muda de estável se passar de ≈1 cm por hora.
+TENDENCIA_REFS_H = (3, 2, 1)
+TENDENCIA_MAX_IDADE_H = 3  # leitura atual mais velha que isso: sem tendência
+
+
+def calcular_tendencia(atual_m: float | None, atual_em: dt.datetime | None, serie: list[dict], agora: dt.datetime) -> dict:
+    """`serie[k-1]` é a leitura de k horas atrás. Retorna {tendencia: subindo|descendo|estavel|None, variacao_cm, tendencia_h}."""
+    vazio = {"tendencia": None, "variacao_cm": None, "tendencia_h": None}
+    if atual_m is None or atual_em is None or (agora - atual_em) > dt.timedelta(hours=TENDENCIA_MAX_IDADE_H):
+        return vazio
+    for k in TENDENCIA_REFS_H:
+        if k <= len(serie) and serie[k - 1]["v"] is not None:
+            delta = round((atual_m - serie[k - 1]["v"]) * 100)
+            limite = max(2, k)
+            tend = "subindo" if delta >= limite else "descendo" if delta <= -limite else "estavel"
+            return {"tendencia": tend, "variacao_cm": delta, "tendencia_h": k}
+    return vazio
 
 
 def montar(horas: int = 12, agora: dt.datetime | None = None) -> dict:
@@ -98,7 +118,7 @@ def montar(horas: int = 12, agora: dt.datetime | None = None) -> dict:
         raise ValueError(f"horas deve ser uma de {JANELAS_H}")
     agora = agora or timezone.now()
     marcas = marcas_horarias(horas, agora)
-    desde = marcas[0] - dt.timedelta(minutes=60)
+    desde = marcas[-1] - dt.timedelta(minutes=60)  # a marca mais antiga é a última da lista
     estacoes = [
         s
         for s in Station.objects.filter(readings__reading_type=Reading.ReadingType.NIVEL_M).select_related("source", "cota").distinct()
@@ -123,10 +143,12 @@ def montar(horas: int = 12, agora: dt.datetime | None = None) -> dict:
 
         serie = []
         for m in marcas:
-            v = _valor_na_hora(por_estacao[s.id], m)
-            serie.append({"v": v, "c": classe(v)})
+            achado = _valor_na_hora(por_estacao[s.id], m)
+            v = achado[1] if achado else None
+            serie.append({"v": v, "c": classe(v), "t": achado[0].isoformat() if achado else None})
         ult = ultimas.get(s.id)
         atual_m = ult["value"] if ult else None
+        tend = calcular_tendencia(atual_m, ult["timestamp"] if ult else None, serie, agora)
         saida.append(
             {
                 "id": s.id,
@@ -140,6 +162,7 @@ def montar(horas: int = 12, agora: dt.datetime | None = None) -> dict:
                 "atual_m": atual_m,
                 "atual_em": ult["timestamp"].isoformat() if ult else None,
                 "atual_classe": classe(atual_m),
+                **tend,
                 "serie": serie,
             }
         )

@@ -29,20 +29,37 @@ class RiosMonitoramentoTest(APITestCase):
         for st in (self.cardoso, self.carangola, self.usina, self.livre):
             Reading.objects.create(station=st, reading_type="nivel_m", value=1.0, timestamp=dt.datetime(2026, 11, 21, 14, 0, tzinfo=BRT))
 
-    def test_marcas_sao_horas_cheias_ate_a_atual(self):
+    def test_marcas_sao_relativas_a_agora(self):
         m = rm.marcas_horarias(12, self.agora)
-        self.assertEqual((len(m), m[0].hour, m[-1].hour, m[-1].minute), (12, 3, 14, 0))
+        # da mais recente (1 h atrás = 13:20) para a mais antiga (12 h atrás = 02:20)
+        self.assertEqual((len(m), (m[0].hour, m[0].minute), (m[-1].hour, m[-1].minute)), (12, (13, 20), (2, 20)))
 
-    def test_serie_horaria_classes_e_transbordo(self):
+    def test_serie_relativa_classes_horario_e_transbordo(self):
         d = rm.montar(12, self.agora)
         b = next(e for e in d["estacoes"] if e["name"] == "Bingen")
         v = [x["v"] for x in b["serie"]]
-        # cada hora cheia usa a última leitura até ela (no máx. 60 min antes): 14h → 13:05; 13h → 12:05; 12h → 11:05
-        self.assertEqual(v[-3:], [1.00, 2.50, 3.10])
-        self.assertIsNone(v[0])  # sem leitura às 03h
-        self.assertEqual([x["c"] for x in b["serie"][-3:]], ["normal", "atencao", "alerta"])
+        # 1 h atrás (13:20) → leitura de 13:05; 2 h (12:20) → 12:05; 3 h (11:20) → 11:05
+        self.assertEqual(v[:3], [3.10, 2.50, 1.00])
+        self.assertIsNone(v[-1])  # sem leitura 12 h atrás
+        self.assertEqual([x["c"] for x in b["serie"][:3]], ["alerta", "atencao", "normal"])
+        # o horário real da leitura acompanha o valor (tooltip)
+        self.assertEqual(dt.datetime.fromisoformat(b["serie"][0]["t"]), dt.datetime(2026, 11, 21, 13, 5, tzinfo=BRT))
         # "atual" é a leitura mais recente (14:05), já acima do transbordo (3,35 m)
         self.assertEqual((b["transbordo_m"], b["atual_m"], b["atual_classe"], b["fonte"], b["rio"]), (3.35, 3.40, "transbordo", "INEA", "Rio Piabanha"))
+
+    def test_tendencia(self):
+        d = rm.montar(12, self.agora)
+        b = next(e for e in d["estacoes"] if e["name"] == "Bingen")
+        # atual 3,40 × 3 h antes (1,00) → +240 cm
+        self.assertEqual((b["tendencia"], b["variacao_cm"], b["tendencia_h"]), ("subindo", 240, 3))
+        c = next(e for e in d["estacoes"] if e["name"] == "Carangola")
+        self.assertIsNone(c["tendencia"])  # sem leitura de 1/2/3 h atrás para comparar
+        serie = [{"v": 1.00}, {"v": 1.01}, {"v": 1.02}]
+        ag = self.agora
+        self.assertEqual(rm.calcular_tendencia(1.01, ag, serie, ag)["tendencia"], "estavel")
+        self.assertEqual(rm.calcular_tendencia(0.90, ag, serie, ag)["tendencia"], "descendo")
+        # leitura atual velha demais: sem tendência
+        self.assertIsNone(rm.calcular_tendencia(1.0, ag - dt.timedelta(hours=5), serie, ag)["tendencia"])
 
     def test_redec_rio_e_exclusao_de_usina(self):
         d = rm.montar(12, self.agora)

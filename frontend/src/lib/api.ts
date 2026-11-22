@@ -525,7 +525,12 @@ export type RioEstacao = {
   atual_m: number | null;
   atual_em: string | null;
   atual_classe: CotaClasse | null;
-  serie: { v: number | null; c: CotaClasse | null }[];
+  /** Tendência do nível (atual × 3 h antes; 2 h / 1 h se faltar). null = sem leitura recente para comparar. */
+  tendencia: "subindo" | "descendo" | "estavel" | null;
+  variacao_cm: number | null;
+  tendencia_h: number | null;
+  /** serie[k-1] = leitura de k horas atrás; `t` = horário real da leitura. */
+  serie: { v: number | null; c: CotaClasse | null; t: string | null }[];
 };
 export type RiosMonitoramento = { gerado_em: string; horas: string[]; estacoes: RioEstacao[] };
 export async function fetchRiosMonitoramento(horas: 12 | 24 | 48): Promise<RiosMonitoramento> {

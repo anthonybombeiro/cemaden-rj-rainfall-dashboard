@@ -619,3 +619,8 @@ Excesso de 23,5 mm no mes era 1 balde duplicado (07/11 22:59, 29,3 mm = total do
 - Causa da linha cortada: o rótulo "Resumo 24h" quebrava em duas linhas na barra inferior do celular, deixando-a mais alta que a folga reservada (3,5 rem), e a barra cobria o fim das tabelas. Corrigido: aba renomeada para "Resumo", rótulos da barra sem quebra de linha (`whitespace-nowrap`) e folga inferior aumentada para 4 rem (vale para todas as abas); no Monitoramento dos rios há ainda um espaçador no fim da tabela.
 - `MonitoramentoRios.tsx`: a coluna "Atual" passou a ser a primeira depois do "Transb." (antes das horas); "Fonte" continua no fim.
 - Front publicado por SFTP; sem migração.
+
+## 22/11/2026 — Monitoramento dos rios: colunas relativas a agora, tendência e hora da leitura
+- Correção de entendimento: as colunas não são horas do relógio e sim a leitura de N horas atrás (Atual, 1h, 2h, 3h… até 12/24/48 h), para acompanhar a evolução do rio. `core/rios_monitoramento.py`: `marcas_horarias` agora é relativa ao instante atual (1 h atrás, 2 h atrás…); cada ponto da série traz `t` (horário real da leitura) e a estação traz `tendencia` (subindo/descendo/estavel/null), `variacao_cm` e `tendencia_h`.
+- Tendência: nível atual × leitura de 3 h antes (2 h ou 1 h se faltar); estável quando a variação é menor que ≈1 cm/h (mínimo 2 cm); sem tendência se a leitura atual tem mais de 3 h.
+- `MonitoramentoRios.tsx`: ordem Transb. | Tend. (seta vermelha ▲ sobe, verde ▼ desce, cinza = estável, com cm no computador) | Atual | 1h, 2h, 3h… | Fonte; o cursor sobre qualquer valor mostra "valor · cota · leitura de dd/mm hh:mm". Testes em `api/test_rios_monitoramento.py` (5). Backend e front publicados por SFTP; sem migração.
