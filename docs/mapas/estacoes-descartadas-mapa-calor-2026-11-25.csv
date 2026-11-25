@@ -1,0 +1,118 @@
+﻿Estação;Município;Rede;Acumulado 30 dias (mm);Critério;Detalhe
+Uhe Ilha Dos Pombos Barramento;Carmo;ANA;5231,6;Valor fisicamente impossível;dia com 1265 mm (limite 350 mm)
+Alerta Rio - Barra/Itanhangá;Rio de Janeiro;Alerta Rio;682,2;Valor fisicamente impossível;leitura única de 351 mm (limite 100 mm)
+Banqueta;Angra dos Reis;CEMADEN Nacional;2,0;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (131 mm, 39 est.), sem estação de outra rede que confirme
+Mombaça;Angra dos Reis;CEMADEN Nacional;15,1;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (131 mm, 39 est.), sem estação de outra rede que confirme
+Boa sorte;Cantagalo;CEMADEN Nacional;18,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (119 mm, 13 est.), sem estação de outra rede que confirme
+RJ 158 km10;Carmo;CEMADEN Nacional;3,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (171 mm, 6 est.), sem estação de outra rede que confirme
+Jardim Anhanga;Duque de Caxias;CEMADEN Nacional;17,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (93 mm, 71 est.), sem estação de outra rede que confirme
+Rio Capivari e Rio Joao Pinto;Duque de Caxias;CEMADEN Nacional;1,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (93 mm, 71 est.), sem estação de outra rede que confirme
+Xerem2;Duque de Caxias;CEMADEN Nacional;0,2;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (93 mm, 71 est.), sem estação de outra rede que confirme
+Barragem da CEDAE;Guapimirim;INEA;12,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (138 mm, 42 est.), sem estação de outra rede que confirme
+Sana II;Macaé;Macaé/UFRJ;281,8;Isolada vs. vizinhos;acima da mediana dos vizinhos (74 mm, 18 est.), sem estação de outra rede que confirme
+Guaratiba;Maricá;CEMADEN Nacional;3,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (104 mm, 31 est.), sem estação de outra rede que confirme
+Centro;Natividade;CEMADEN Nacional;0,4;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (100 mm, 11 est.), sem estação de outra rede que confirme
+Charitas;Niterói;CEMADEN Nacional;27,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (134 mm, 77 est.), sem estação de outra rede que confirme
+Fonseca;Niterói;CEMADEN Nacional;9,0;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (134 mm, 77 est.), sem estação de outra rede que confirme
+Piratininga 1;Niterói;CEMADEN Nacional;15,0;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (134 mm, 77 est.), sem estação de outra rede que confirme
+Praia João Caetano;Niterói;CEMADEN Nacional;23,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (134 mm, 77 est.), sem estação de outra rede que confirme
+Visconde de Itaboraí;Niterói;CEMADEN Nacional;31,1;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (134 mm, 77 est.), sem estação de outra rede que confirme
+São Geraldo;Nova Friburgo;CEMADEN Nacional;6,0;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (111 mm, 51 est.), sem estação de outra rede que confirme
+Higienópolis;Rio de Janeiro;CEMADEN Nacional;1,0;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (98 mm, 65 est.), sem estação de outra rede que confirme
+Arranchadouro;Santa Maria Madalena;CEMADEN Nacional;17,4;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (106 mm, 11 est.), sem estação de outra rede que confirme
+Pch Tudelândia Jusante;Santa Maria Madalena;ANA;439,6;Isolada vs. vizinhos;acima da mediana dos vizinhos (118 mm, 8 est.), sem estação de outra rede que confirme
+BR116-km14;Sapucaia;CEMADEN Nacional;2,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (103 mm, 10 est.), sem estação de outra rede que confirme
+Pita;São Gonçalo;CEMADEN Nacional;4,6;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (122 mm, 82 est.), sem estação de outra rede que confirme
+Morro dos Pinheiros;Teresópolis;CEMADEN Nacional;0,8;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (128 mm, 36 est.), sem estação de outra rede que confirme
+Pch Poço Fundo Montante;Teresópolis;ANA;494,2;Isolada vs. vizinhos;acima da mediana dos vizinhos (95 mm, 37 est.), sem estação de outra rede que confirme
+Posse - São Sebastião;Teresópolis;INEA;10,0;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (133 mm, 79 est.), sem estação de outra rede que confirme
+Mirante Sul;Três Rios;CEMADEN Nacional;28,4;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (156 mm, 22 est.), sem estação de outra rede que confirme
+Vila Isabel;Três Rios;CEMADEN Nacional;11,3;Isolada vs. vizinhos;abaixo da mediana dos vizinhos (156 mm, 22 est.), sem estação de outra rede que confirme
+Uhe Rosal Montante 1;Varre-Saí;ANA;238,6;Isolada vs. vizinhos;acima da mediana dos vizinhos (88 mm, 6 est.), sem estação de outra rede que confirme
+Pch Pirapetinga Jusante;Bom Jesus do Itabapoana;ANA;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 126 mm"
+Pch Santa Rosa Ii Jusante;Cordeiro;ANA;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 115 mm"
+Retiro Poético;Cordeiro;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 115 mm"
+Cgh Comendador Venâncio Jusante;Itaperuna;ANA;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 125 mm"
+Andorinhas;Magé;INEA;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 165 mm"
+Itaipuaçu;Maricá;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 104 mm"
+Rio Santana ou Corrego Sacra Familia;Mendes;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 159 mm"
+Araras;Petrópolis;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 160 mm"
+Capim Roxo;Petrópolis;INEA;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 160 mm"
+Mosela;Petrópolis;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 160 mm"
+Pedro do Rio;Petrópolis;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 160 mm"
+Uhe Funil Resende Aeroporto;Resende;ANA;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 152 mm"
+Pch Jambo Barramento;Santa Maria Madalena;ANA;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 110 mm"
+Santa Sofia;Seropédica;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 126 mm"
+Rio Paquequer;Sumidouro;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 173 mm"
+Moura Brasil;Três Rios;CEMADEN Nacional;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 156 mm"
+Santa Rita Do Prata;Varre-Saí;ANA;0,0;Zerada com vizinhos chuvosos;"0 mm; mediana dos vizinhos 98 mm"
+Colégio Naval (U);Angra dos Reis;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 3% dos 30 dias (mín. 80%)
+Praia Sítio Forte;Angra dos Reis;CEMADEN Nacional;6,9;Cobertura baixa;leituras em apenas 40% dos 30 dias (mín. 80%)
+Praia de Bananal;Angra dos Reis;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 13% dos 30 dias (mín. 80%)
+Mataruna;Araruama;CEMADEN Nacional;121,4;Cobertura baixa;leituras em apenas 33% dos 30 dias (mín. 80%)
+Centro;Areal;CEMADEN Nacional;0,2;Cobertura baixa;leituras em apenas 20% dos 30 dias (mín. 80%)
+Quizanga;Cachoeira de Macacu;INEA;67,0;Cobertura baixa;leituras em apenas 43% dos 30 dias (mín. 80%)
+Jardim Carioca;Campos dos Goytacazes;CEMADEN Nacional;22,4;Cobertura baixa;leituras em apenas 60% dos 30 dias (mín. 80%)
+Yacht Club Lagoa de Cima;Campos dos Goytacazes;INEA;71,0;Cobertura baixa;leituras em apenas 73% dos 30 dias (mín. 80%)
+Cgh Euclidelândia Barramento;Cantagalo;ANA;88,6;Cobertura baixa;leituras em apenas 57% dos 30 dias (mín. 80%)
+Felipe João;Cantagalo;CEMADEN Nacional;58,9;Cobertura baixa;leituras em apenas 33% dos 30 dias (mín. 80%)
+Carangola;Carangola;ANA;156,4;Cobertura baixa;leituras em apenas 77% dos 30 dias (mín. 80%)
+Catarino;Cardoso Moreira;CEMADEN Nacional;0,4;Cobertura baixa;leituras em apenas 60% dos 30 dias (mín. 80%)
+Reta;Carmo;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 3% dos 30 dias (mín. 80%)
+ESTAÇÃO com DEFEITO EPF;Engenheiro Paulo de Frontin;Plugfield;3,8;Cobertura baixa;leituras em apenas 13% dos 30 dias (mín. 80%)
+Rio Soberbo;Guapimirim;CEMADEN Nacional;24,2;Cobertura baixa;leituras em apenas 63% dos 30 dias (mín. 80%)
+Sambaetiba;Itaboraí;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 23% dos 30 dias (mín. 80%)
+São José;Itaboraí;CEMADEN Nacional;1,0;Cobertura baixa;leituras em apenas 37% dos 30 dias (mín. 80%)
+Santa Candida;Itaguaí;CEMADEN Nacional;0,2;Cobertura baixa;leituras em apenas 3% dos 30 dias (mín. 80%)
+Itaocara;Itaocara;ANA;176,8;Cobertura baixa;leituras em apenas 67% dos 30 dias (mín. 80%)
+Maromba;Itatiaia;CEMADEN Nacional;76,0;Cobertura baixa;leituras em apenas 53% dos 30 dias (mín. 80%)
+Parque Gandu;Japeri;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 37% dos 30 dias (mín. 80%)
+Barra;Macaé;Macaé/UFRJ;80,9;Cobertura baixa;leituras em apenas 60% dos 30 dias (mín. 80%)
+Bicuda Grande;Macaé;Macaé/UFRJ;0,0;Cobertura baixa;leituras em apenas 7% dos 30 dias (mín. 80%)
+CAJUEIROS;Macaé;Macaé/UFRJ;0,0;Cobertura baixa;leituras em apenas 70% dos 30 dias (mín. 80%)
+CTR MACAÉ;Macaé;Macaé/UFRJ;14,3;Cobertura baixa;leituras em apenas 50% dos 30 dias (mín. 80%)
+Cabiúnas;Macaé;Macaé/UFRJ;1,4;Cobertura baixa;leituras em apenas 17% dos 30 dias (mín. 80%)
+Costa do Sol;Macaé;Macaé/UFRJ;12,6;Cobertura baixa;leituras em apenas 33% dos 30 dias (mín. 80%)
+Glicério;Macaé;INEA;86,6;Cobertura baixa;leituras em apenas 63% dos 30 dias (mín. 80%)
+São José do Barreto II;Macaé;Macaé/UFRJ;72,1;Cobertura baixa;leituras em apenas 73% dos 30 dias (mín. 80%)
+UFRJ - Macaé;Macaé;Macaé/UFRJ;0,5;Cobertura baixa;leituras em apenas 47% dos 30 dias (mín. 80%)
+Visconde de Araujo;Macaé;Macaé/UFRJ;117,2;Cobertura baixa;leituras em apenas 70% dos 30 dias (mín. 80%)
+Fragoso;Magé;CEMADEN Nacional;7,6;Cobertura baixa;leituras em apenas 37% dos 30 dias (mín. 80%)
+Ponta Negra;Maricá;CEMADEN Nacional;0,2;Cobertura baixa;leituras em apenas 27% dos 30 dias (mín. 80%)
+Cgh Santana Jusante;Miguel Pereira;ANA;84,0;Cobertura baixa;leituras em apenas 63% dos 30 dias (mín. 80%)
+Badu;Niterói;CEMADEN Nacional;3,0;Cobertura baixa;leituras em apenas 53% dos 30 dias (mín. 80%)
+Itaipu;Niterói;CEMADEN Nacional;81,6;Cobertura baixa;leituras em apenas 63% dos 30 dias (mín. 80%)
+Palmeira;Niterói;CEMADEN Nacional;6,2;Cobertura baixa;leituras em apenas 67% dos 30 dias (mín. 80%)
+Amparo;Nova Friburgo;CEMADEN Nacional;38,5;Cobertura baixa;leituras em apenas 33% dos 30 dias (mín. 80%)
+Jardim Califórnia;Nova Friburgo;CEMADEN Nacional;21,1;Cobertura baixa;leituras em apenas 20% dos 30 dias (mín. 80%)
+Lumiar;Nova Friburgo;CEMADEN Nacional;23,0;Cobertura baixa;leituras em apenas 33% dos 30 dias (mín. 80%)
+Nova Suiça;Nova Friburgo;CEMADEN Nacional;3,9;Cobertura baixa;leituras em apenas 10% dos 30 dias (mín. 80%)
+Ponte da Saudade;Nova Friburgo;CEMADEN Nacional;0,4;Cobertura baixa;leituras em apenas 17% dos 30 dias (mín. 80%)
+RJ116-km69;Nova Friburgo;CEMADEN Nacional;2,0;Cobertura baixa;leituras em apenas 17% dos 30 dias (mín. 80%)
+Adrianópolis;Nova Iguaçu;CEMADEN Nacional;5,4;Cobertura baixa;leituras em apenas 73% dos 30 dias (mín. 80%)
+Cobrex;Nova Iguaçu;CEMADEN Nacional;0,4;Cobertura baixa;leituras em apenas 47% dos 30 dias (mín. 80%)
+Jatobá;Paraíba do Sul;CEMADEN Nacional;0,8;Cobertura baixa;leituras em apenas 30% dos 30 dias (mín. 80%)
+Patrocínio Do Muriaé;Patrocínio Do Muriaé;ANA;162,2;Cobertura baixa;leituras em apenas 77% dos 30 dias (mín. 80%)
+Chácara Flora - Geo;Petrópolis;CEMADEN Nacional;1,0;Cobertura baixa;leituras em apenas 7% dos 30 dias (mín. 80%)
+Morin;Petrópolis;INEA;137,6;Cobertura baixa;leituras em apenas 53% dos 30 dias (mín. 80%)
+Vale do Cuiabá;Petrópolis;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 23% dos 30 dias (mín. 80%)
+Vila Rica;Petrópolis;CEMADEN Nacional;3,0;Cobertura baixa;leituras em apenas 50% dos 30 dias (mín. 80%)
+Fazendinha;Queimados;CEMADEN Nacional;1,0;Cobertura baixa;leituras em apenas 43% dos 30 dias (mín. 80%)
+Santa Catarina;Queimados;CEMADEN Nacional;1,2;Cobertura baixa;leituras em apenas 40% dos 30 dias (mín. 80%)
+Ponte Do Souza;Resende;ANA;202,6;Cobertura baixa;leituras em apenas 37% dos 30 dias (mín. 80%)
+Catete;Rio de Janeiro;CEMADEN Nacional;39,4;Cobertura baixa;leituras em apenas 27% dos 30 dias (mín. 80%)
+Glória;Rio de Janeiro;CEMADEN Nacional;54,4;Cobertura baixa;leituras em apenas 63% dos 30 dias (mín. 80%)
+Pavuna;Rio de Janeiro;CEMADEN Nacional;1,0;Cobertura baixa;leituras em apenas 57% dos 30 dias (mín. 80%)
+São Conrado;Rio de Janeiro;CEMADEN Nacional;1,0;Cobertura baixa;leituras em apenas 53% dos 30 dias (mín. 80%)
+Tanque Jacarepagua;Rio de Janeiro;CEMADEN Nacional;4,0;Cobertura baixa;leituras em apenas 40% dos 30 dias (mín. 80%)
+Centro;Seropédica;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 3% dos 30 dias (mín. 80%)
+Caju;Silva Jardim;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 57% dos 30 dias (mín. 80%)
+SILVA JARDIM;Silva Jardim;INMET;83,2;Cobertura baixa;leituras em apenas 57% dos 30 dias (mín. 80%)
+SAO FIDELIS;São Fidélis;CEMADEN Nacional;13,4;Cobertura baixa;leituras em apenas 77% dos 30 dias (mín. 80%)
+Fazenda dos Mineiros;São Gonçalo;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 30% dos 30 dias (mín. 80%)
+Estrada do Dirindi;São José do Vale do Rio Preto;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 7% dos 30 dias (mín. 80%)
+Águas Claras;São José do Vale do Rio Preto;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 10% dos 30 dias (mín. 80%)
+Agostinho Porto;São João de Meriti;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 17% dos 30 dias (mín. 80%)
+Coelho da Rocha;São João de Meriti;CEMADEN Nacional;0,2;Cobertura baixa;leituras em apenas 37% dos 30 dias (mín. 80%)
+Vila Tiradentes;São João de Meriti;CEMADEN Nacional;0,0;Cobertura baixa;leituras em apenas 27% dos 30 dias (mín. 80%)
+Pch Santa Fé I Jusante;Três Rios;ANA;92,4;Cobertura baixa;leituras em apenas 73% dos 30 dias (mín. 80%)
