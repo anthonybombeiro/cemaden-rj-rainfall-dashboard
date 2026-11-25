@@ -1155,6 +1155,19 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
 
+    @action(detail=False, methods=["get"], url_path="mapa-calor-chuva")
+    def mapa_calor_chuva(self, request):
+        """Chuva acumulada em N dias (padrão 30) por município e REDEC, sem Wunderground e sem outliers; ver core/mapa_calor_chuva.py."""
+        from core import mapa_calor_chuva
+
+        try:
+            dias = int(request.query_params.get("dias", 30))
+        except ValueError:
+            return Response({"detail": "dias deve ser um inteiro."}, status=400)
+        if not 1 <= dias <= 90:
+            return Response({"detail": "dias deve ficar entre 1 e 90."}, status=400)
+        return Response(mapa_calor_chuva.montar(dias))
+
     @action(detail=False, methods=["get"], url_path="nowcasting-hidrologia")
     def nowcasting_hidrologia(self, request):
         """Aba Hidrologia > Nowcasting: informe operacional sugerido por município (estações em alerta ou acima), ver core/nowcasting_hidrologia.py."""
