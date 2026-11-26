@@ -114,7 +114,10 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
       const blob = await gerarPng();
       if (!blob) return;
       const arquivo = new File([blob], `${data.nomeArquivo}.png`, { type: "image/png" });
-      if (navigator.canShare?.({ files: [arquivo] })) {
+      const comTexto = data.textoComImagem ? { files: [arquivo], text: texto, title: data.titulo } : null;
+      if (comTexto && navigator.canShare?.(comTexto)) {
+        await navigator.share(comTexto); // imagem + texto como legenda
+      } else if (navigator.canShare?.({ files: [arquivo] })) {
         await navigator.share({ files: [arquivo], title: data.titulo });
       } else {
         setErro("Compartilhamento direto não suportado neste navegador — use \"Baixar imagem\".");
@@ -305,7 +308,7 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                 disabled={gerandoImagem}
                 className="rounded border border-sedec-300 px-3 py-1.5 text-xs font-medium text-sedec-700 hover:bg-sedec-50 disabled:opacity-50"
               >
-                📤 Compartilhar imagem (WhatsApp/Telegram…)
+                {data.textoComImagem ? "📤 Compartilhar imagem + texto (WhatsApp/Telegram…)" : "📤 Compartilhar imagem (WhatsApp/Telegram…)"}
               </button>
             )}
             <button

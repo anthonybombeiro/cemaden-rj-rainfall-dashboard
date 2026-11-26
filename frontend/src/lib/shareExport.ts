@@ -73,6 +73,8 @@ export type ShareData = {
   cabecalho?: [string, string];
   /** Cabeçalho do card com letras maiores (título 24 px, data 18 px), para artes lidas de longe, como o informativo. */
   cabecalhoGrande?: boolean;
+  /** No celular, o botão de compartilhar a imagem leva junto o texto como legenda (WhatsApp/Telegram). */
+  textoComImagem?: boolean;
   /** Controles acima da prévia (ex.: escolha do radar). */
   topo?: import("react").ReactNode;
   /** Prévia reduzida para caber na tela, sem barras de rolagem (a imagem exportada continua no tamanho real). */

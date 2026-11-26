@@ -17,7 +17,7 @@ function listaComE(itens: string[]): string {
   return `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
 }
 
-/** Linhas da legenda do texto: quem está em risco muito alto e alto. Geológico e hidrológico têm risco por município; meteorológico e incêndio só por regional (REDEC). */
+/** Linhas da legenda do texto: quem está em risco muito alto e alto (na Geologia, também moderado). Geológico e hidrológico têm risco por município; meteorológico e incêndio só por regional (REDEC). */
 function linhasDeRisco(tipo: RiskAlertTipo, redecAlerts: RiskAlert[], municipioAlerts: RiskAlert[]): string {
   const porMunicipio = tipo === "geologico" || tipo === "hidrologico";
   const fonte = porMunicipio ? municipioAlerts : redecAlerts;
@@ -25,11 +25,13 @@ function linhasDeRisco(tipo: RiskAlertTipo, redecAlerts: RiskAlert[], municipioA
   const lista = (risco: RiskAlert["risco"]) => Array.from(new Set(fonte.filter((a) => a.risco === risco).map(nome))).sort((a, b) => a.localeCompare(b, "pt-BR"));
   const muitoAlto = lista("muito_alto");
   const alto = lista("alto");
+  const moderado = tipo === "geologico" ? lista("moderado") : [];
   const onde = porMunicipio ? "" : " (regionais)";
   const linhas: string[] = [];
   if (muitoAlto.length) linhas.push(`Risco Muito Alto${onde}: ${listaComE(muitoAlto)}`);
   if (alto.length) linhas.push(`Risco Alto${onde}: ${listaComE(alto)}`);
-  if (!linhas.length) linhas.push(porMunicipio ? "Nenhum município em risco alto ou muito alto." : "Nenhuma regional em risco alto ou muito alto.");
+  if (moderado.length) linhas.push(`Risco Moderado: ${listaComE(moderado)}`);
+  if (!linhas.length) linhas.push(porMunicipio ? `Nenhum município em risco ${tipo === "geologico" ? "moderado, " : ""}alto ou muito alto.` : "Nenhuma regional em risco alto ou muito alto.");
   return linhas.join("\n");
 }
 
@@ -86,6 +88,7 @@ export default function ExportMapButton({
       nomeArquivo: `cemaden-rj-${RISK_ALERT_TIPO_FILE_CODE[tipo]}-${stamp}`,
       proporcoes: ["1:1", "4:3"],
       semRolagem: true,
+      textoComImagem: true,
       corpoPor: () => (
         <div className="flex h-full flex-col">
           <div className="min-h-0 flex-1" dangerouslySetInnerHTML={{ __html: svgHtml }} />
