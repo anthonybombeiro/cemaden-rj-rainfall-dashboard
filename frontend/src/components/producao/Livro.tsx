@@ -190,7 +190,7 @@ ${lista.join("\n")}${jaEnviado}`)) return;
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t pt-3 text-xs">
             <button type="button" disabled={enviando} onClick={() => enviar(false)} className="inline-flex items-center gap-1 rounded bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"><Mail size={13} /> {enviando ? "Enviando…" : "Enviar por e-mail"}</button>
-            <button type="button" disabled={enviando} onClick={() => enviar(true)} className="rounded border px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50" title="Manda este texto só para a conta de e-mail do CEMADEN-RJ, para conferir como chega">Enviar teste</button>
+            <button type="button" disabled={enviando} onClick={() => enviar(true)} className="rounded border px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50" title="Manda este texto só para o e-mail de teste (Admin → Configuração do plantão), para conferir como chega">Enviar teste</button>
             {f.enviado_em && <span className="text-gray-600">Enviado em {hhmmData(f.enviado_em)} por {f.enviado_por}{f.enviado_para?.length ? ` para ${f.enviado_para.length} destinatário(s)` : ""}.</span>}
             {aviso && <span className={aviso.tom === "ok" ? "text-emerald-700" : "text-red-700"}>{aviso.msg}</span>}
           </div>

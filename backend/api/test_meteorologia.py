@@ -290,6 +290,13 @@ class LivroEnvioTest(Base):
         g = self.client.get("/api/plantao/livro/", {"data": "2026-11-03"})
         self.assertIsNone(g.data["registro"])
 
+    def test_teste_usa_o_email_de_teste_da_configuracao(self):
+        ConfiguracaoPlantao.obter().__class__.objects.filter(pk=1).update(destinatario_teste="teste@exemplo.org")
+        r = self.client.post(self.URL, {**self.CORPO, "teste": True}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(self.mail.outbox[0].to, ["teste@exemplo.org"])
+        self.assertEqual(r.data["enviado_para"], ["teste@exemplo.org"])
+
     def test_teste_para_outro_endereco_so_administrador(self):
         r = self.client.post(self.URL, {**self.CORPO, "teste": True, "para": "alguem@exemplo.org"}, format="json")
         self.assertEqual(r.status_code, 403)

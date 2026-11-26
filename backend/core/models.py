@@ -1168,6 +1168,7 @@ class ConfiguracaoPlantao(models.Model):
     e não no código para não expor e-mails pessoais."""
 
     destinatarios_lo = models.TextField(blank=True, help_text="E-mails do L.O., um por linha.")
+    destinatario_teste = models.EmailField(blank=True, help_text="E-mail que recebe o botão \"Enviar teste\" do Livro (vazio = a própria conta remetente).")
 
     class Meta:
         verbose_name = "configuração do plantão"
