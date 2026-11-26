@@ -192,6 +192,17 @@ WUNDERGROUND_PAUSADO = os.environ.get("WUNDERGROUND_PAUSADO", "0") not in ("0", 
 NITEROI_API_USERNAME = os.environ.get("NITEROI_API_USERNAME", "")
 NITEROI_API_PASSWORD = os.environ.get("NITEROI_API_PASSWORD", "")
 
+# E-mail de saída (envio do Livro de ocorrências pelo painel): conta da própria hospedagem (HostGator). A senha só vem do .env (nunca no código);
+# nos testes o Django troca sozinho para a caixa em memória, então nada é enviado de verdade.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "mail.preserve.rio.br")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "465") or 465)
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "1") not in ("0", "false", "False", "")
+EMAIL_USE_TLS = False
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "cemadenrj@preserve.rio.br")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_TIMEOUT = 25
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"CEMADEN-RJ <{EMAIL_HOST_USER}>")
+
 # Conta institucional (Defesa Civil de Paracambi) na API oficial da Ecowitt
 # (2 estações GW3000B cedidas por eles) — fornecida pela própria Defesa
 # Civil de Paracambi. Ver ingestion/connectors/ecowitt_paracambi.py.

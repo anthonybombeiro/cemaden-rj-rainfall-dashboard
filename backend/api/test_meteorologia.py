@@ -247,6 +247,61 @@ class LivroTest(Base):
         self.assertEqual([(i["numero"], i["regioes"]) for i in g.data["automatico"]["informativos"]], [(7, ["SUL II"])])
 
 
+class LivroEnvioTest(Base):
+    """Envio do L.O. por e-mail (nos testes o Django guarda as mensagens em memória: nada sai de verdade)."""
+
+    URL = "/api/plantao/livro/enviar/"
+    CORPO = {"data": "2026-11-03", "assunto": "Ocorrências Gerais – 03/11/26 07/00h", "texto": "Data: 03/11/26\nOcorrências:\n- nada"}
+
+    def setUp(self):
+        super().setUp()
+        from django.core import mail
+
+        self.mail = mail
+        ConfiguracaoPlantao.obter().__class__.objects.filter(pk=1).update(destinatarios_lo="a@exemplo.org\n\nb@exemplo.org\n")
+
+    def test_envia_aos_destinatarios_e_marca_o_turno(self):
+        r = self.client.post(self.URL, self.CORPO, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["enviado_para"], ["a@exemplo.org", "b@exemplo.org"])
+        self.assertEqual(len(self.mail.outbox), 1)
+        self.assertEqual(self.mail.outbox[0].to, ["a@exemplo.org", "b@exemplo.org"])
+        self.assertEqual(self.mail.outbox[0].subject, self.CORPO["assunto"])
+        g = self.client.get("/api/plantao/livro/", {"data": "2026-11-03"})
+        self.assertIsNotNone(g.data["registro"]["enviado_em"])
+        self.assertEqual(g.data["registro"]["enviado_para"], ["a@exemplo.org", "b@exemplo.org"])
+
+    def test_nao_envia_duas_vezes_sem_reenviar(self):
+        self.client.post(self.URL, self.CORPO, format="json")
+        r = self.client.post(self.URL, self.CORPO, format="json")
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(len(self.mail.outbox), 1)
+        r = self.client.post(self.URL, {**self.CORPO, "reenviar": True}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(self.mail.outbox), 2)
+
+    def test_teste_vai_so_para_a_conta_remetente_e_nao_marca_enviado(self):
+        from django.conf import settings
+
+        r = self.client.post(self.URL, {**self.CORPO, "teste": True}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(self.mail.outbox[0].to, [settings.EMAIL_HOST_USER])
+        self.assertTrue(self.mail.outbox[0].subject.startswith("[TESTE] "))
+        g = self.client.get("/api/plantao/livro/", {"data": "2026-11-03"})
+        self.assertIsNone(g.data["registro"])
+
+    def test_validacoes(self):
+        self.assertEqual(self.client.post(self.URL, {**self.CORPO, "texto": "  "}, format="json").status_code, 400)
+        self.assertEqual(self.client.post(self.URL, {**self.CORPO, "data": "x"}, format="json").status_code, 400)
+        ConfiguracaoPlantao.obter().__class__.objects.filter(pk=1).update(destinatarios_lo="")
+        r = self.client.post(self.URL, self.CORPO, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(len(self.mail.outbox), 0)
+        self.client.logout()
+        self.client.force_authenticate(None)
+        self.assertIn(self.client.post(self.URL, self.CORPO, format="json").status_code, (401, 403))
+
+
 class ImportacaoAvisosTest(Base):
     """O módulo de avisos entrou sem o histórico: o nº 1 foi reservado e cancelado, o nº 2 virou rascunho. A importação devolve os números reais."""
 

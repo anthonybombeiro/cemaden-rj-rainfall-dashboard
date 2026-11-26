@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Clipboard, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clipboard, Mail, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { assuntoLivro, dataCurta, fetchLivro, hhmm, LivroResposta, RegistroLivro, salvarLivro, textoLivro, TIPOS_OCORRENCIA } from "@/lib/producaoMet";
+import { assuntoLivro, dataCurta, enviarLivro, fetchLivro, hhmm, LivroResposta, RegistroLivro, salvarLivro, textoLivro, TIPOS_OCORRENCIA } from "@/lib/producaoMet";
 
 /** Livro de ocorrências (L.O.) e passagem de plantão — procedimento 03 do protocolo. Um registro por turno (07 h → 07 h). Informativos, avisos e envios
  * da Idap do turno entram sozinhos; o técnico completa os técnicos, o operador e as demais ocorrências. O texto sai pronto para colar no e-mail
@@ -82,6 +82,35 @@ export default function Livro() {
     setSalvo(null);
     setTurno(iso && iso !== turnoAtual ? iso : undefined);
   };
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState<{ tom: "ok" | "erro"; msg: string } | null>(null);
+  const hhmmData = (iso: string) => new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  // Salva o registro e envia o texto que está na tela. "teste" manda só para a conta remetente; o envio de verdade confirma a lista de destinatários.
+  const enviar = async (teste: boolean) => {
+    if (!resp) return;
+    const lista = resp.destinatarios;
+    if (!teste) {
+      if (!lista.length) { setAviso({ tom: "erro", msg: "Nenhum destinatário configurado (Admin → Configuração do plantão)." }); return; }
+      const jaEnviado = f.enviado_em ? `
+
+ATENÇÃO: este turno já foi enviado em ${hhmmData(f.enviado_em)} por ${f.enviado_por}. Enviar de novo?` : "";
+      if (!window.confirm(`Enviar o Livro de ocorrências de ${dataCurta(resp.data)} por e-mail para ${lista.length} destinatário(s)?
+
+${lista.join("\n")}${jaEnviado}`)) return;
+    }
+    setEnviando(true);
+    setAviso(null);
+    try {
+      if (!teste) await salvarLivro({ ...f, texto, data: resp.data });
+      const r = await enviarLivro({ data: resp.data, assunto: assuntoLivro(), texto, teste, reenviar: !teste && !!f.enviado_em });
+      setAviso({ tom: "ok", msg: teste ? `Teste enviado para ${r.enviado_para.join(", ")}.` : `Enviado para ${r.enviado_para.length} destinatário(s).` });
+      if (!teste) await carregar();
+    } catch (e) {
+      setAviso({ tom: "erro", msg: e instanceof Error ? e.message : "Falha ao enviar." });
+    } finally {
+      setEnviando(false);
+    }
+  };
   const dataAtual = resp?.data ?? "";
   const campo = "w-full rounded border border-gray-300 px-2 py-1 text-sm";
   const a = resp?.automatico;
@@ -158,6 +187,12 @@ export default function Livro() {
             <button type="button" onClick={salvar} className="rounded bg-blue-600 px-3 py-1.5 font-semibold text-white hover:bg-blue-700">Salvar registro do turno</button>
             {salvo && <span className="text-emerald-700">Salvo às {salvo}</span>}
             {f.atualizado_por && !salvo && <span className="text-gray-500">Última edição: {f.atualizado_por}</span>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3 text-xs">
+            <button type="button" disabled={enviando} onClick={() => enviar(false)} className="inline-flex items-center gap-1 rounded bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"><Mail size={13} /> {enviando ? "Enviando…" : "Enviar por e-mail"}</button>
+            <button type="button" disabled={enviando} onClick={() => enviar(true)} className="rounded border px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50" title="Manda este texto só para a conta de e-mail do CEMADEN-RJ, para conferir como chega">Enviar teste</button>
+            {f.enviado_em && <span className="text-gray-600">Enviado em {hhmmData(f.enviado_em)} por {f.enviado_por}{f.enviado_para?.length ? ` para ${f.enviado_para.length} destinatário(s)` : ""}.</span>}
+            {aviso && <span className={aviso.tom === "ok" ? "text-emerald-700" : "text-red-700"}>{aviso.msg}</span>}
           </div>
         </>
       )}

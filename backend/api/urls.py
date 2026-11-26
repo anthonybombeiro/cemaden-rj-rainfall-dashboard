@@ -41,6 +41,7 @@ from .meteorologia_views import (
     LimiaresView,
     PublicoAvisosView,
     PlantaoChecklistView,
+    PlantaoLivroEnviarView,
     PlantaoLivroView,
 )
 from .verificacao_views import DiferencasView, GravarVerificacaoView, ImportarVerificacaoView, VerificacaoView
@@ -120,6 +121,7 @@ urlpatterns = [
     path("avisos-meteorologicos/<int:pk>/<str:acao>/", AvisoMeteorologicoAcaoView.as_view(), name="avisos-meteorologicos-acao"),
     path("plantao/checklist/", PlantaoChecklistView.as_view(), name="plantao-checklist"),
     path("plantao/livro/", PlantaoLivroView.as_view(), name="plantao-livro"),
+    path("plantao/livro/enviar/", PlantaoLivroEnviarView.as_view(), name="plantao-livro-enviar"),
     path("sondagem/numerica/", SondagemNumericaView.as_view(), name="sondagem-numerica"),
     path("floodhub/", FloodHubView.as_view(), name="floodhub"),
     path("floodhub/eventos/", FloodHubEventosView.as_view(), name="floodhub-eventos"),

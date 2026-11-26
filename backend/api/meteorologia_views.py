@@ -496,6 +496,7 @@ def _registro_dict(o: OcorrenciaPlantao | None) -> dict | None:
         "plantao": o.plantao, "operador": o.operador, "tecnico_encerra": o.tecnico_encerra, "hora_encerra": o.hora_encerra,
         "tecnico_inicia": o.tecnico_inicia, "hora_inicia": o.hora_inicia, "ocorrencias": o.ocorrencias, "texto": o.texto,
         "atualizado_por": o.atualizado_por, "atualizado_em": _local(o.atualizado_em),
+        "enviado_em": _local(o.enviado_em), "enviado_por": o.enviado_por, "enviado_para": [l for l in o.enviado_para.splitlines() if l.strip()],
     }
 
 
@@ -558,6 +559,48 @@ class PlantaoLivroView(APIView):
         o.atualizado_por = usuario
         o.save()
         return Response({"registro": _registro_dict(o), "criado": criado})
+
+
+class PlantaoLivroEnviarView(APIView):
+    """`POST /api/plantao/livro/enviar/` `{data, assunto, texto, teste?, reenviar?}`: envia o L.O. do turno por e-mail aos destinatários da configuração
+    do plantão (Admin), com a conta de e-mail da hospedagem. `teste` manda só para a própria conta remetente, com "[TESTE]" no assunto, e não marca o
+    turno como enviado. Sem `reenviar`, recusa (409) um turno que já foi enviado, para não mandar em duplicidade."""
+
+    def post(self, request):
+        from django.conf import settings
+        from django.core.mail import EmailMessage
+
+        dados = request.data if isinstance(request.data, dict) else {}
+        try:
+            data = dt.date.fromisoformat(str(dados.get("data") or ""))
+        except ValueError:
+            return Response({"detail": "data deve ser AAAA-MM-DD"}, status=400)
+        assunto = " ".join(str(dados.get("assunto") or "").split())[:200]
+        texto = str(dados.get("texto") or "").strip()
+        teste = bool(dados.get("teste"))
+        if not assunto or not texto:
+            return Response({"detail": "Assunto e texto são obrigatórios."}, status=400)
+        if settings.EMAIL_BACKEND.endswith("smtp.EmailBackend") and not settings.EMAIL_HOST_PASSWORD:
+            return Response({"detail": "O envio de e-mail ainda não foi configurado no servidor."}, status=503)
+        o = OcorrenciaPlantao.objects.filter(data=data).first()
+        if not teste and o and o.enviado_em and not dados.get("reenviar"):
+            return Response({"detail": "Este turno já foi enviado.", "enviado_em": _local(o.enviado_em), "enviado_por": o.enviado_por}, status=409)
+        if teste:
+            destinatarios = [settings.EMAIL_HOST_USER]
+            assunto = f"[TESTE] {assunto}"
+        else:
+            destinatarios = [l.strip() for l in ConfiguracaoPlantao.obter().destinatarios_lo.splitlines() if l.strip()]
+            if not destinatarios:
+                return Response({"detail": "Nenhum destinatário configurado (Admin → Configuração do plantão)."}, status=400)
+        try:
+            EmailMessage(subject=assunto, body=texto, from_email=settings.DEFAULT_FROM_EMAIL, to=destinatarios).send(fail_silently=False)
+        except Exception as e:  # noqa: BLE001 - qualquer falha de SMTP vira aviso ao técnico, sem derrubar a página
+            return Response({"detail": f"Não foi possível enviar o e-mail ({type(e).__name__}). Tente de novo; se persistir, avise o administrador."}, status=502)
+        if not teste:
+            o, _ = OcorrenciaPlantao.objects.get_or_create(data=data, defaults={"criado_por": _usuario(request)})
+            o.enviado_em, o.enviado_por, o.enviado_para = timezone.now(), _usuario(request), "\n".join(destinatarios)
+            o.save(update_fields=["enviado_em", "enviado_por", "enviado_para"])
+        return Response({"enviado_para": destinatarios, "teste": teste, "enviado_em": _local(o.enviado_em) if (o and not teste) else None})
 
 
 class PublicoAvisosView(APIView):

@@ -155,6 +155,7 @@ export const marcarItem = (data: string, codigo: string, feito: boolean, observa
 export type RegistroLivro = {
   plantao: string; operador: string; tecnico_encerra: string; hora_encerra: string; tecnico_inicia: string; hora_inicia: string;
   ocorrencias: { tipo: string; texto: string }[]; texto: string; atualizado_por: string; atualizado_em: string;
+  enviado_em?: string | null; enviado_por?: string; enviado_para?: string[];
 };
 export type LivroResposta = {
   data: string; inicio: string; fim: string; registro: RegistroLivro | null; destinatarios: string[];
@@ -165,6 +166,8 @@ export type LivroResposta = {
   };
 };
 export const fetchLivro = (data?: string) => getJson<LivroResposta>(`/plantao/livro/${data ? `?data=${data}` : ""}`);
+export const enviarLivro = (d: { data: string; assunto: string; texto: string; teste?: boolean; reenviar?: boolean }) =>
+  enviar<{ enviado_para: string[]; teste: boolean; enviado_em: string | null }>("/plantao/livro/enviar/", "POST", d);
 export const salvarLivro = (d: Partial<RegistroLivro> & { data: string }) => enviar<{ registro: RegistroLivro; criado: boolean }>("/plantao/livro/", "POST", d);
 
 export const TIPOS_OCORRENCIA = [

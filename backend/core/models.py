@@ -1130,6 +1130,9 @@ class OcorrenciaPlantao(models.Model):
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_por = models.CharField(max_length=150, blank=True)
     atualizado_em = models.DateTimeField(auto_now=True)
+    enviado_em = models.DateTimeField(null=True, blank=True, help_text="Último envio do L.O. por e-mail pelo painel (não conta o teste).")
+    enviado_por = models.CharField(max_length=150, blank=True)
+    enviado_para = models.TextField(blank=True, help_text="Destinatários do último envio, um por linha.")
 
     class Meta:
         ordering = ["-data"]
