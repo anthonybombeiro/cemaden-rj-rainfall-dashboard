@@ -245,8 +245,9 @@ const RiskChoroplethMap = forwardRef<
               key={feature.properties.codarea}
               d={geometryToPath(feature.geometry, project)}
               fill={fill}
-              stroke={selecao && destacado ? "#1f3864" : "#ffffff"}
-              strokeWidth={selecao && destacado ? 1.4 : 0.6}
+              stroke={selecao && destacado ? "#1f3864" : "#4b5563"}
+              strokeWidth={selecao && destacado ? 1.4 : 0.5}
+              strokeLinejoin="round"
             >
               <title>
                 {feature.properties.nome}
