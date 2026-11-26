@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Clipboard, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clipboard, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { assuntoLivro, dataCurta, fetchLivro, hhmm, LivroResposta, RegistroLivro, salvarLivro, textoLivro, TIPOS_OCORRENCIA } from "@/lib/producaoMet";
@@ -8,6 +8,10 @@ import { assuntoLivro, dataCurta, fetchLivro, hhmm, LivroResposta, RegistroLivro
 /** Livro de ocorrências (L.O.) e passagem de plantão — procedimento 03 do protocolo. Um registro por turno (07 h → 07 h). Informativos, avisos e envios
  * da Idap do turno entram sozinhos; o técnico completa os técnicos, o operador e as demais ocorrências. O texto sai pronto para colar no e-mail
  * (assunto "Ocorrências Gerais – dd/mm/aa hh/mmh") e no arquivo "Livro de ocorrências". O painel não envia e-mail. */
+const hojeIso = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+const somaDias = (iso: string, n: number) => new Date(new Date(`${iso}T12:00:00`).getTime() + n * 86_400_000).toLocaleDateString("sv-SE");
+const dataExtenso = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
 const VAZIO: RegistroLivro = { plantao: "", operador: "", tecnico_encerra: "", hora_encerra: "07:00", tecnico_inicia: "", hora_inicia: "07:00", ocorrencias: [], texto: "", atualizado_por: "", atualizado_em: "" };
 
 function Copiar({ rotulo, texto }: { rotulo: string; texto: string }) {
@@ -38,11 +42,13 @@ export default function Livro() {
   const [erro, setErro] = useState<string | null>(null);
   const [salvo, setSalvo] = useState<string | null>(null);
   const [turno, setTurno] = useState<string | undefined>(undefined);
+  const [turnoAtual, setTurnoAtual] = useState<string | null>(null); // data do turno em andamento: limite do controle de datas
 
   const carregar = useCallback(async () => {
     try {
       const r = await fetchLivro(turno);
       setResp(r);
+      if (!turno) setTurnoAtual(r.data);
       setF(r.registro ?? VAZIO);
       setTextoManual(!!r.registro?.texto);
       setErro(null);
@@ -69,15 +75,28 @@ export default function Livro() {
       setErro(e instanceof Error ? e.message : "Falha ao salvar.");
     }
   };
+  // Trocar de data com edição não salva perderia o que foi digitado: confirma antes.
+  const sujo = !!resp && JSON.stringify({ ...f, texto: textoManual ? f.texto : "" }) !== JSON.stringify({ ...(resp.registro ?? VAZIO), texto: textoManual ? (resp.registro?.texto ?? "") : "" });
+  const irPara = (iso: string | undefined) => {
+    if (sujo && !window.confirm("Há alterações não salvas neste turno. Trocar de data mesmo assim?")) return;
+    setSalvo(null);
+    setTurno(iso && iso !== turnoAtual ? iso : undefined);
+  };
+  const dataAtual = resp?.data ?? "";
   const campo = "w-full rounded border border-gray-300 px-2 py-1 text-sm";
   const a = resp?.automatico;
 
   return (
     <div className="mx-auto max-w-4xl space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-bold">Livro de ocorrências {resp ? `— plantão de ${dataCurta(resp.data)} (07h → 07h)` : ""}</h2>
-        <button type="button" onClick={() => resp && setTurno(new Date(new Date(`${resp.data}T12:00:00`).getTime() - 86_400_000).toLocaleDateString("sv-SE"))} className="ml-auto rounded border px-2 py-1 text-xs hover:bg-gray-50">Turno anterior</button>
-        {turno && <button type="button" onClick={() => setTurno(undefined)} className="rounded border px-2 py-1 text-xs hover:bg-gray-50">Turno atual</button>}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <h2 className="mr-2 text-sm font-bold">Livro de ocorrências {resp ? `— plantão de ${dataCurta(resp.data)} (07h → 07h)` : ""}</h2>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm sm:ml-auto">
+          <button type="button" aria-label="Turno anterior" disabled={!resp} onClick={() => resp && irPara(somaDias(dataAtual, -1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200 disabled:opacity-40"><ChevronLeft size={16} /></button>
+          <input type="date" value={dataAtual} max={turnoAtual ?? undefined} onChange={(e) => e.target.value && irPara(e.target.value)} className="rounded border border-gray-300 bg-white px-2 py-1" />
+          <button type="button" aria-label="Próximo turno" disabled={!resp || !turnoAtual || dataAtual >= turnoAtual} onClick={() => resp && irPara(somaDias(dataAtual, 1))} className="rounded bg-gray-100 p-1.5 hover:bg-gray-200 disabled:opacity-40"><ChevronRight size={16} /></button>
+          <button type="button" disabled={!turno} onClick={() => irPara(undefined)} className="rounded border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-40">Hoje</button>
+        </div>
+        {resp && <p className="w-full text-xs capitalize text-gray-600">{dataExtenso(resp.data)}{turno ? "" : " · turno em andamento"}</p>}
       </div>
       {erro && <p className="rounded bg-red-50 px-3 py-1.5 text-xs text-red-700">{erro}</p>}
       {resp && (
