@@ -174,6 +174,8 @@ export default function RiscosOverviewPanel() {
                       getSvgElement={() => mapRefs.current[tipo]?.getSvgElement() ?? null}
                       titulo={RISK_ALERT_TIPO_LABELS[tipo]}
                       tipo={tipo}
+                      redecAlerts={dados[tipo].redec}
+                      municipioAlerts={dados[tipo].municipio}
                       legendaItens={RISK_LEGEND_ITEMS}
                       atualizadoTexto={`Atualizado em ${new Date().toLocaleDateString("pt-BR")} às ${horaAtualizacao}`}
                     />

@@ -428,6 +428,8 @@ export default function AlertsPanel({ onLancar }: { onLancar?: (municipios: stri
                 getSvgElement={() => mapRef.current?.getSvgElement() ?? null}
                 titulo={RISK_ALERT_TIPO_LABELS[tipo]}
                 tipo={tipo}
+                redecAlerts={redecAlerts}
+                municipioAlerts={municipioAlerts}
                 legendaItens={RISK_LEGEND_ITEMS}
                 atualizadoTexto={
                   atualizadoEm

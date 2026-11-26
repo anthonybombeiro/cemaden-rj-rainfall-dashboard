@@ -4,11 +4,33 @@ import { Camera } from "lucide-react";
 import { useState } from "react";
 
 import ShareModal from "@/components/ShareModal";
-import { RISK_ALERT_TIPO_FILE_CODE, RiskAlertTipo } from "@/lib/api";
+import { RISK_ALERT_TIPO_FILE_CODE, RiskAlert, RiskAlertTipo } from "@/lib/api";
 import { ShareData } from "@/lib/shareExport";
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+/** "A", "A e B", "A, B e C". */
+function listaComE(itens: string[]): string {
+  if (itens.length <= 1) return itens.join("");
+  return `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
+}
+
+/** Linhas da legenda do texto: quem está em risco muito alto e alto. Geológico e hidrológico têm risco por município; meteorológico e incêndio só por regional (REDEC). */
+function linhasDeRisco(tipo: RiskAlertTipo, redecAlerts: RiskAlert[], municipioAlerts: RiskAlert[]): string {
+  const porMunicipio = tipo === "geologico" || tipo === "hidrologico";
+  const fonte = porMunicipio ? municipioAlerts : redecAlerts;
+  const nome = (a: RiskAlert) => (porMunicipio ? a.municipio : a.redec);
+  const lista = (risco: RiskAlert["risco"]) => Array.from(new Set(fonte.filter((a) => a.risco === risco).map(nome))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const muitoAlto = lista("muito_alto");
+  const alto = lista("alto");
+  const onde = porMunicipio ? "" : " (regionais)";
+  const linhas: string[] = [];
+  if (muitoAlto.length) linhas.push(`Risco Muito Alto${onde}: ${listaComE(muitoAlto)}`);
+  if (alto.length) linhas.push(`Risco Alto${onde}: ${listaComE(alto)}`);
+  if (!linhas.length) linhas.push(porMunicipio ? "Nenhum município em risco alto ou muito alto." : "Nenhuma regional em risco alto ou muito alto.");
+  return linhas.join("\n");
 }
 
 /** Botão "Exportar" dos mapas de risco: abre o mesmo modal "Compartilhar" das demais artes (informativo, recomendação, tabelas),
@@ -20,6 +42,8 @@ export default function ExportMapButton({
   tipo,
   legendaItens,
   atualizadoTexto,
+  redecAlerts,
+  municipioAlerts,
 }: {
   getSvgElement: () => SVGSVGElement | null;
   titulo: string;
@@ -27,6 +51,9 @@ export default function ExportMapButton({
   tipo: RiskAlertTipo;
   legendaItens: { cor: string; rotulo: string }[];
   atualizadoTexto: string;
+  /** Alertas por REDEC e por município do tipo exportado: servem para listar, no texto, quem está em risco alto e muito alto. */
+  redecAlerts: RiskAlert[];
+  municipioAlerts: RiskAlert[];
 }) {
   const [svgHtml, setSvgHtml] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -47,7 +74,7 @@ export default function ExportMapButton({
   const dados: ShareData | null = svgHtml === null ? null : (() => {
     const agora = new Date();
     const stamp = [agora.getFullYear(), pad2(agora.getMonth() + 1), pad2(agora.getDate()), pad2(agora.getHours()), pad2(agora.getMinutes())].join("-");
-    const nomeTitulo = `Monitoramento do ${titulo}`;
+    const nomeTitulo = `Monitoramento ${tipo === "meteorologico" ? "da" : "do"} ${titulo}`; // "da Severidade Meteorológica", "do Risco …"
     const dataHora = atualizadoTexto.replace(/^Atualizado em\s*/i, "");
     return {
       titulo: nomeTitulo,
@@ -73,7 +100,9 @@ export default function ExportMapButton({
         </div>
       ),
       textoPronto: `*${nomeTitulo}*
-${atualizadoTexto}`,
+${atualizadoTexto}
+
+${linhasDeRisco(tipo, redecAlerts, municipioAlerts)}`,
     };
   })();
 
