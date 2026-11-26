@@ -1157,16 +1157,19 @@ class StationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="mapa-calor-chuva")
     def mapa_calor_chuva(self, request):
-        """Chuva acumulada em N dias (padrão 30) por município e REDEC, sem Wunderground e sem outliers; ver core/mapa_calor_chuva.py."""
+        """Chuva acumulada por município e REDEC (camada "Mapa de calor da chuva" da aba Mapa); ver core/mapa_calor_chuva.py.
+        Período: `dias` (padrão 30), `mes=AAAA-MM` ou `ini=AAAA-MM-DD[&fim=AAAA-MM-DD]`. `fontes=a,b` (padrão: todas menos Wunderground); `espurios=0` desliga o filtro de valores espúrios."""
         from core import mapa_calor_chuva
 
+        q = request.query_params
         try:
-            dias = int(request.query_params.get("dias", 30))
-        except ValueError:
-            return Response({"detail": "dias deve ser um inteiro."}, status=400)
-        if not 1 <= dias <= 90:
-            return Response({"detail": "dias deve ficar entre 1 e 90."}, status=400)
-        return Response(mapa_calor_chuva.montar(dias))
+            dias = int(q["dias"]) if q.get("dias") else None
+            fontes = [f for f in (q.get("fontes") or "").split(",") if f] or None
+            return Response(
+                mapa_calor_chuva.montar(dias=dias, mes=q.get("mes") or None, ini=q.get("ini") or None, fim=q.get("fim") or None, fontes=fontes, espurios=q.get("espurios", "1") not in ("0", "false"))
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
 
     @action(detail=False, methods=["get"], url_path="nowcasting-hidrologia")
     def nowcasting_hidrologia(self, request):

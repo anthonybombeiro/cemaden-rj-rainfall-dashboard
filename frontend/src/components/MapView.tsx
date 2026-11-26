@@ -11,6 +11,7 @@ import type { HidrologicaStation } from "@/lib/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, ImageOverlay, MapContainer, Pane, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import CamadaCalorChuva from "@/components/CamadaCalorChuva";
 import PainelModeloMapa from "@/components/modelos/PainelModeloMapa";
 
 import {
@@ -1080,6 +1081,8 @@ export default function MapView({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <CamadaMeteorologica imagem={imagemAtual} opacidade={config.opacidade} />
+      {/* Mapa de calor da chuva (25/11/2026): vem ANTES das linhas de município/REDEC para elas ficarem por cima do preenchimento */}
+      {modo === "calor" && <CamadaCalorChuva municipioGeo={municipioGeo} />}
       {/* Divisões administrativas (pedido do usuário, 2026-09-27): municípios
           primeiro (mais fino, fica por baixo) e REDECs por cima (mais
           grosso) — nenhuma das duas intercepta clique (`interactive:
@@ -1167,13 +1170,13 @@ export default function MapView({
           </CircleMarker>
         );
       })}
-      <LegendaFlutuante sourcesPresentes={sourcesPresentes} modo={modo} />
+      {modo !== "calor" && <LegendaFlutuante sourcesPresentes={sourcesPresentes} modo={modo} />}
       {onModoChange && (
         <SeletorModoMapa
           modo={modo}
           onModoChange={onModoChange}
           carregando={carregandoModo}
-          contagem={carregandoModo ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes, floodhub, hidrologicas })}
+          contagem={carregandoModo || modo === "calor" ? null : contagemModo(modo, { estacoes: stations, precipitacao, sirenes, floodhub, hidrologicas })}
           floodhubTodos={floodhubTodos}
           onFloodhubTodos={onFloodhubTodos}
           eventosTexto={textoEventos(floodhubEventos)}

@@ -237,7 +237,7 @@ export default function ModoTv() {
                     return (
                       <div key={tipo} className="rounded-lg border border-gray-200 bg-white p-2">
                         <h3 className="mb-1 text-base font-semibold">{RISK_ALERT_TIPO_LABELS[tipo]}</h3>
-                        <div style={{ height: "calc((100vh - 19rem) / 2)" }}>
+                        <div style={{ height: "calc((100vh - 15.5rem) / 2)" }}>
                           <RiskChoroplethMap tipo={tipo} redecAlerts={lista.filter((r) => !r.municipio)} municipioAlerts={lista.filter((r) => r.municipio)} municipioRedecMap={regiaoPorMunicipio} compact />
                         </div>
                       </div>
@@ -263,11 +263,9 @@ export default function ModoTv() {
                   <p className="p-6 text-center text-2xl text-gray-500">{sir.erro ? "Situação das sirenes indisponível no momento." : "Carregando…"}</p>
                 ) : (
                   <>
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       {[
                         { r: "Sirenes", v: sir.dado.total, c: "#1f3864" },
-                        { r: "Online", v: sir.dado.online, c: "#15803d" },
-                        { r: "Offline", v: sir.dado.offline, c: sir.dado.offline > 0 ? "#b45309" : "#6b7280" },
                         { r: "Tocando agora", v: sir.dado.tocando_total, c: sir.dado.tocando_total > 0 ? "#b91c1c" : "#6b7280" },
                       ].map((c) => (
                         <div key={c.r} className="rounded-lg p-4 text-center text-white shadow-sm" style={{ background: c.c }}>

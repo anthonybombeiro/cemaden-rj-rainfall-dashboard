@@ -1,5 +1,5 @@
 /** Modos de visualização das bolinhas do mapa (botão "Estações", 08/10/2026). */
-export type ModoMapa = "redes" | "sirenes" | "chuva1h" | "chuva24h" | "vento" | "floodhub" | "hidrologia" | "temperatura" | "tmax" | "tmin" | "umax" | "umin";
+export type ModoMapa = "redes" | "sirenes" | "chuva1h" | "chuva24h" | "vento" | "floodhub" | "hidrologia" | "temperatura" | "tmax" | "tmin" | "umax" | "umin" | "calor";
 
 export const MODOS_MAPA: { key: ModoMapa; label: string; descricao: string }[] = [
   { key: "redes", label: "Todas as estações (por rede)", descricao: "Uma cor por rede/fonte (padrão)" },
@@ -13,6 +13,7 @@ export const MODOS_MAPA: { key: ModoMapa; label: string; descricao: string }[] =
   { key: "tmin", label: "Temperatura mínima (24 h)", descricao: "Menor temperatura das últimas 24 h" },
   { key: "umax", label: "Umidade máxima (24 h)", descricao: "Maior umidade relativa das últimas 24 h" },
   { key: "umin", label: "Umidade mínima (24 h)", descricao: "Menor umidade relativa das últimas 24 h" },
+  { key: "calor", label: "Mapa de calor da chuva (acumulado)", descricao: "Chuva acumulada por município e REDEC: 7, 15 ou 30 dias, mês cheio ou data; escolha das redes e descarte de estações fora do ar e valores espúrios" },
   { key: "floodhub", label: "Flood Hub (cheias)", descricao: "Situação dos postos do Google Flood Hub: sem cheia, acima do normal, severo, extremo" },
 ];
 

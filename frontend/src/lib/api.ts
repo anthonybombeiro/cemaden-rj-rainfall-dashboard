@@ -538,6 +538,33 @@ export async function fetchRiosMonitoramento(horas: 12 | 24 | 48): Promise<RiosM
   return { ...r, estacoes: r.estacoes.map((x) => ({ ...x, municipality: canonicoOuOriginal(x.municipality) })) };
 }
 
+export type MapaCalorParams = { dias?: number; mes?: string; ini?: string; fim?: string; fontes?: string[]; espurios?: boolean };
+export type MapaCalorChuva = {
+  gerado_em: string;
+  rotulo: string;
+  inicio: string;
+  fim: string;
+  dias: number;
+  espurios: boolean;
+  fontes_usadas: string[];
+  fontes_disponiveis: { slug: string; estacoes: number; padrao: boolean }[];
+  estacoes_total: number;
+  estacoes_usadas: number;
+  municipios: { municipio: string; redec: number | null; regiao: string; mediana_mm: number; media_mm: number; min_mm: number; max_mm: number; n: number }[];
+  redecs: { redec: number; regiao: string; mediana_mm: number; media_mm: number; min_mm: number; max_mm: number; n: number }[];
+  descartadas: { id: number; name: string; fonte: string; municipio: string; total: number | null; cobertura: number; descartada: string }[];
+};
+export async function fetchMapaCalorChuva(p: MapaCalorParams): Promise<MapaCalorChuva> {
+  const q = new URLSearchParams();
+  if (p.dias) q.set("dias", String(p.dias));
+  if (p.mes) q.set("mes", p.mes);
+  if (p.ini) q.set("ini", p.ini);
+  if (p.fim) q.set("fim", p.fim);
+  if (p.fontes?.length) q.set("fontes", p.fontes.join(","));
+  if (p.espurios === false) q.set("espurios", "0");
+  return getJson<MapaCalorChuva>(`/stations/mapa-calor-chuva/?${q.toString()}`);
+}
+
 export type InformeHidrologia = {
   redec: number | null;
   regiao: string;
