@@ -87,15 +87,18 @@ const MapaNiveis = forwardRef<
           zoom(e.deltaY < 0 ? 1.2 : 1 / 1.2, p.x, p.y);
         }}
         onPointerDown={(e) => {
+          // Sem capturar o ponteiro aqui: com a captura, o navegador de mesa entrega o "click" ao mapa e não ao município (não dava para selecionar).
           arrasto.current = { x: e.clientX, y: e.clientY, vx: vista.x, vy: vista.y, moveu: false };
-          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
         }}
         onPointerMove={(e) => {
           const a = arrasto.current;
           if (a && vista.k > 1) {
             const r = svgRef.current!.getBoundingClientRect();
             const dx = ((e.clientX - a.x) / r.width) * W, dy = ((e.clientY - a.y) / r.height) * H;
-            if (Math.abs(dx) + Math.abs(dy) > 3) a.moveu = true;
+            if (!a.moveu && Math.abs(dx) + Math.abs(dy) > 3) {
+              a.moveu = true;
+              (e.currentTarget as Element).setPointerCapture?.(e.pointerId); // só ao começar a arrastar de verdade
+            }
             if (a.moveu) setVista((v) => limita({ ...v, x: a.vx + dx, y: a.vy + dy }));
           }
         }}
