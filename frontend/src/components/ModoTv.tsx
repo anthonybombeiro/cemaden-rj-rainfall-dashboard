@@ -19,7 +19,7 @@ const TITULOS: Record<TelaId, string> = {
   informativo: "Informativo meteorológico vigente",
   sirenes: "Sirenes",
 };
-const ORDEM: TelaId[] = ["avisos", "nm", "previsao", "riscos", "informativo", "sirenes"]; // "avisos" só entra enquanto houver aviso vigente, e vem sempre primeiro
+const ORDEM: TelaId[] = ["avisos", "informativo", "previsao", "nm", "riscos", "sirenes"]; // "avisos" só entra enquanto houver aviso vigente; "sirenes" só enquanto alguma estiver tocando
 const TIPOS: RiskAlertTipo[] = ["hidrologico", "geologico", "meteorologico", "incendio"];
 const NIVEIS_RISCO: RiskLevel[] = ["muito_baixo", "baixo", "moderado", "alto", "muito_alto"];
 const SEG_PADRAO = 12;
@@ -95,8 +95,8 @@ export default function ModoTv() {
   const av = usePolling<AvisoPublico[]>(fetchAvisosPublicos, 60_000);
 
   const telas = useMemo(
-    () => (pedidas ?? ORDEM).filter((t) => (t !== "informativo" || inf.dado) && (t !== "avisos" || (av.dado?.length ?? 0) > 0)),
-    [pedidas, inf.dado, av.dado],
+    () => (pedidas ?? ORDEM).filter((t) => (t !== "informativo" || inf.dado) && (t !== "avisos" || (av.dado?.length ?? 0) > 0) && (t !== "sirenes" || (sir.dado?.tocando_total ?? 0) > 0)),
+    [pedidas, inf.dado, av.dado, sir.dado],
   );
   const atual: TelaId = telas[indice % Math.max(1, telas.length)] ?? "nm";
 
@@ -195,7 +195,7 @@ export default function ModoTv() {
                     <p className="text-3xl font-extrabold leading-tight">{ESCALA_NM[maior].sigla} · {ESCALA_NM[maior].nome}</p>
                     <p className="text-sm">{maior === 0 ? "Todos os municípios em rotina de monitoramento." : `${d.resumo[String(maior)]} município(s) neste nível. ${SIGNIFICADO_NM[maior].acao}`}</p>
                   </div>
-                  <MapaNiveis niveis={d.niveis} rotuloMin={2} altura={`calc(100vh - 20rem)`} />
+                  <MapaNiveis niveis={d.niveis} rotuloMin={3} altura={`calc(100vh - 20rem)`} />
                 </div>
                 <div className="space-y-2">
                   {NIVEIS_NM.map((n) => (

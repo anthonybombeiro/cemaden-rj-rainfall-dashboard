@@ -41,7 +41,7 @@ export default function PublicoMonitoramento() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-cemadenrj.png" alt="CEMADEN-RJ" className="h-9 w-auto self-start sm:h-10" />
           <div className="min-w-0 sm:flex-1">
-            <h1 className="text-base font-extrabold leading-tight sm:text-xl">Nível de Monitoramento — Estado do Rio de Janeiro</h1>
+            <h1 className="text-base font-extrabold leading-tight sm:text-xl">Painel Integrado de Monitoramento do Estado do Rio de Janeiro</h1>
             <p className="text-xs text-blue-100">CEMADEN-RJ · Defesa Civil RJ · PLANCON 2026/2027</p>
           </div>
           <p className="text-xs text-blue-100 sm:text-right">{d ? `Atualizado em ${fmtDataHora(d.gerado_em)}` : erro ? "Sem conexão" : "Carregando…"}</p>
@@ -50,6 +50,15 @@ export default function PublicoMonitoramento() {
 
       <main className="mx-auto w-full max-w-[120rem] space-y-5 px-4 py-4 sm:px-6 xl:space-y-6 xl:px-8">
         <AvisosVigentes />
+        <InformativoPublico />
+
+        <section aria-labelledby="previsao">
+          <h2 id="previsao" className="mb-2 text-sm font-bold text-gray-800">Previsão do tempo por regional (REDEC)</h2>
+          <div className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm sm:p-3">
+            <PrevisaoMapa publico embutido />
+          </div>
+          <p className="mt-1 text-[0.6875rem] text-gray-500">Toque numa região, ou no balão dela, para destacar os detalhes. Previsão elaborada pelos meteorologistas do CEMADEN-RJ.</p>
+        </section>
         {erro && !d && <p className="rounded bg-red-50 p-3 text-sm text-red-700">Não foi possível carregar os dados agora. Tente novamente em instantes.</p>}
         {d && (
           <>
@@ -103,16 +112,6 @@ export default function PublicoMonitoramento() {
                   </table>
                 </div>
               )}
-            </section>
-
-            <InformativoPublico />
-
-            <section aria-labelledby="previsao">
-              <h2 id="previsao" className="mb-2 text-sm font-bold text-gray-800">Previsão do tempo por regional (REDEC)</h2>
-              <div className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm sm:p-3">
-                <PrevisaoMapa publico embutido />
-              </div>
-              <p className="mt-1 text-[0.6875rem] text-gray-500">Toque numa região, ou no balão dela, para destacar os detalhes. Previsão elaborada pelos meteorologistas do CEMADEN-RJ.</p>
             </section>
 
             <section aria-labelledby="riscos">
