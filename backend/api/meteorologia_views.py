@@ -563,7 +563,7 @@ class PlantaoLivroView(APIView):
 
 class PlantaoLivroEnviarView(APIView):
     """`POST /api/plantao/livro/enviar/` `{data, assunto, texto, teste?, reenviar?}`: envia o L.O. do turno por e-mail aos destinatários da configuração
-    do plantão (Admin), com a conta de e-mail da hospedagem. `teste` manda só para a própria conta remetente, com "[TESTE]" no assunto, e não marca o
+    do plantão (Admin), com a conta de e-mail da hospedagem. `teste` manda só para a própria conta remetente (ou, se o usuário é administrador, para o endereço `para`), com "[TESTE]" no assunto, e não marca o
     turno como enviado. Sem `reenviar`, recusa (409) um turno que já foi enviado, para não mandar em duplicidade."""
 
     def post(self, request):
@@ -587,6 +587,18 @@ class PlantaoLivroEnviarView(APIView):
             return Response({"detail": "Este turno já foi enviado.", "enviado_em": _local(o.enviado_em), "enviado_por": o.enviado_por}, status=409)
         if teste:
             destinatarios = [settings.EMAIL_HOST_USER]
+            para = str(dados.get("para") or "").strip()
+            if para:  # administrador pode escolher o endereço do teste (ex.: o próprio e-mail); operador comum só testa para a conta remetente
+                from django.core.exceptions import ValidationError
+                from django.core.validators import validate_email
+
+                if not request.user.is_superuser:
+                    return Response({"detail": "Só o administrador pode escolher o endereço do teste."}, status=403)
+                try:
+                    validate_email(para)
+                except ValidationError:
+                    return Response({"detail": "E-mail de teste inválido."}, status=400)
+                destinatarios = [para]
             assunto = f"[TESTE] {assunto}"
         else:
             destinatarios = [l.strip() for l in ConfiguracaoPlantao.obter().destinatarios_lo.splitlines() if l.strip()]

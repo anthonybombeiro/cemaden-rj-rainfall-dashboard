@@ -290,6 +290,17 @@ class LivroEnvioTest(Base):
         g = self.client.get("/api/plantao/livro/", {"data": "2026-11-03"})
         self.assertIsNone(g.data["registro"])
 
+    def test_teste_para_outro_endereco_so_administrador(self):
+        r = self.client.post(self.URL, {**self.CORPO, "teste": True, "para": "alguem@exemplo.org"}, format="json")
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(len(self.mail.outbox), 0)
+        self.user.is_superuser = True
+        self.user.save()
+        r = self.client.post(self.URL, {**self.CORPO, "teste": True, "para": "alguem@exemplo.org"}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(self.mail.outbox[0].to, ["alguem@exemplo.org"])
+        self.assertEqual(self.client.post(self.URL, {**self.CORPO, "teste": True, "para": "isso-nao-e-email"}, format="json").status_code, 400)
+
     def test_validacoes(self):
         self.assertEqual(self.client.post(self.URL, {**self.CORPO, "texto": "  "}, format="json").status_code, 400)
         self.assertEqual(self.client.post(self.URL, {**self.CORPO, "data": "x"}, format="json").status_code, 400)
