@@ -29,7 +29,7 @@ ITENS: list[dict] = [
     {"codigo": "briefing_noite_salvar", "hora": "18:20", "titulo": "Salvar o briefing noturno na pasta"},
     {"codigo": "verif_obs", "hora": "00:00", "titulo": "Verificação de chuva: ocorrência do dia", "detalhe": "Sim se alguma estação da região passou de 1 mm em 24 h."},
     {"codigo": "maxmin_obs", "hora": "00:20", "titulo": "Temperaturas máximas e mínimas observadas"},
-    {"codigo": "umidade_min", "hora": "01:00", "titulo": "Menor umidade relativa de cada estação"},
+    {"codigo": "umidade_min", "hora": "17:30", "titulo": "Menor umidade relativa de cada estação"},
     {"codigo": "acumulados_criar", "hora": "05:30", "titulo": "Tabela de acumulados", "detalhe": "Se 3 ou mais estações passaram de 40 mm em 24 h.", "condicional": True},
     {"codigo": "acumulados_enviar", "hora": "06:00", "titulo": "Enviar a tabela de acumulados", "condicional": True},
     {"codigo": "resumo_plantao", "hora": "06:30", "titulo": "Resumo das condições observadas no plantão", "detalhe": "Grupo 00 CEMADEN-RJ."},
