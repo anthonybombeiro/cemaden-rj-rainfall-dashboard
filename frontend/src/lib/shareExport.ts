@@ -71,6 +71,8 @@ export type ShareData = {
   corpoPor?: (p: Proporcao) => import("react").ReactNode;
   /** Cabeçalho do card com duas linhas de texto próprias (no lugar de título e data), ex.: o título do painel. */
   cabecalho?: [string, string];
+  /** Cabeçalho do card com letras maiores (título 24 px, data 18 px), para artes lidas de longe, como o informativo. */
+  cabecalhoGrande?: boolean;
   /** Controles acima da prévia (ex.: escolha do radar). */
   topo?: import("react").ReactNode;
   /** Prévia reduzida para caber na tela, sem barras de rolagem (a imagem exportada continua no tamanho real). */

@@ -63,7 +63,7 @@ export default function PublicarInformativo({ i, acoes, onClose }: { i: Base; ac
     return {
       titulo: `Informativo meteorológico n°${i.numero}/${i.ano}`,
       dataHora: `${fmtData(i.emitido_em)} ${fmtHora(i.emitido_em)}`,
-      rotuloData: "Emitido em",
+      rotuloData: "Emitido em", cabecalhoGrande: true,
       colunas: [],
       linhas: [],
       fonteTexto: `Fonte: CEMADEN-RJ - SEDEC${validade}`,

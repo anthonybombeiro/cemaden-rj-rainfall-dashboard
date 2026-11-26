@@ -183,8 +183,8 @@ export default function ShareModal({ data, onClose }: { data: ShareData; onClose
                 fundo (pedido do usuário, 2026-10-01). */}
             <div className="flex shrink-0 items-center justify-between gap-3 bg-sedec-600 px-5 py-4">
               <div className="min-w-0">
-                <h3 className="text-[15px] font-bold leading-tight text-white">{data.cabecalho ? data.cabecalho[0] : data.titulo}</h3>
-                <p className="mt-0.5 text-[11px] text-sedec-100">{data.cabecalho ? data.cabecalho[1] : `${data.rotuloData ?? "Dados de"}: ${data.dataHora}`}</p>
+                <h3 className={`${data.cabecalhoGrande ? "text-[24px]" : "text-[15px]"} font-bold leading-tight text-white`}>{data.cabecalho ? data.cabecalho[0] : data.titulo}</h3>
+                <p className={`mt-0.5 ${data.cabecalhoGrande ? "text-[18px]" : "text-[11px]"} text-sedec-100`}>{data.cabecalho ? data.cabecalho[1] : `${data.rotuloData ?? "Dados de"}: ${data.dataHora}`}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <img src="/logo-defesa-civil.png" alt="" className="h-10 w-auto" />
